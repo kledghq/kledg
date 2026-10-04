@@ -153,6 +153,7 @@ model Company {
   provisionAssessments       ProvisionAssessment[]
   investmentGrants           InvestmentGrant[]
   investmentGrantTransfers   InvestmentGrantTransfer[]
+  accountsApprovals          AccountsApproval[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -246,6 +247,7 @@ model FiscalYear {
   budget                   Budget?
   provisionAssessments     ProvisionAssessment[]
   investmentGrantTransfers InvestmentGrantTransfer[]
+  accountsApproval         AccountsApproval?
 
   @@unique([companyId, year])
   /// Target of composite foreign keys that keep a child row in the company of its fiscal year (budgets).
@@ -2387,4 +2389,34 @@ model InvestmentGrantTransfer {
   @@index([companyId])
   @@index([fiscalYearId])
   @@map("investment_grant_transfers")
+}
+
+/// The approval of a fiscal year's accounts (approbation des comptes) and
+/// their filing with the greffe (lib/approval, docs/approbation-des-comptes.md).
+/// The books, the company record and the shareholders give the figures and
+/// the names; `details` holds what only the user knows (meeting, officers,
+/// attendance, votes, choices), validated by ApprovalDetailsSchema
+/// (lib/approval/schemas.ts). approvedOn and filedOn are copied out of it so
+/// the deadline calendar (lib/deadlines) reads them in one query.
+model AccountsApproval {
+  id           String    @id @default(cuid())
+  companyId    String
+  fiscalYearId String
+  details      Json
+  /// Day the accounts were approved (decision, or filing worth approval).
+  approvedOn   DateTime?
+  /// Day the approved accounts were filed with the greffe.
+  filedOn      DateTime?
+  updatedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// On (fiscalYearId, companyId): the fiscal year is always one of the company's.
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  /// One approval per fiscal year.
+  @@unique([fiscalYearId, companyId])
+  @@index([companyId])
+  @@map("accounts_approvals")
 }

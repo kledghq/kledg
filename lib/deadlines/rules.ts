@@ -53,6 +53,7 @@ const CVAE_2026 = {
 const CGI_1679_QUINQUIES = { label: 'CGI, art. 1679 quinquies', url: `${LEGIFRANCE}LEGIARTI000033812199` }
 const CGI_1478 = { label: 'CGI, art. 1478', url: `${LEGIFRANCE}LEGIARTI000051202382` }
 const L223_26 = { label: 'Code de commerce, art. L223-26 (SARL)', url: `${LEGIFRANCE}LEGIARTI000048535091` }
+const L223_31 = { label: 'Code de commerce, art. L223-31 (EURL)', url: `${LEGIFRANCE}LEGIARTI000019291719` }
 const L225_100 = { label: 'Code de commerce, art. L225-100 (SA)', url: `${LEGIFRANCE}LEGIARTI000048535138` }
 const L227_9 = { label: 'Code de commerce, art. L227-9 (SAS)', url: `${LEGIFRANCE}LEGIARTI000019291762` }
 const L232_22 = { label: 'Code de commerce, art. L232-22 (SARL)', url: `${LEGIFRANCE}LEGIARTI000048535223` }
@@ -144,15 +145,15 @@ export const RULES = {
     category: 'juridique',
     form: 'Approbation des comptes',
     summary:
-      "Les comptes annuels sont approuvés par les associés dans les six mois de la clôture, sauf prolongation par décision de justice (SARL, SA, SASU ; dans une SAS, selon les statuts). Dans une SASU dont l'associé unique, personne physique, est le président, le dépôt au greffe des comptes signés dans ce délai vaut approbation.",
-    sources: [L223_26, L225_100, L227_9],
+      "Les comptes annuels sont approuvés par les associés dans les six mois de la clôture, sauf prolongation par décision de justice (SARL, SA, SASU ; dans une SAS, selon les statuts). Dans une SASU dont l'associé unique, personne physique, est le président, et dans une EURL dont l'associé unique est le seul gérant, le dépôt au greffe des comptes signés dans ce délai vaut approbation.",
+    sources: [L223_26, L223_31, L225_100, L227_9],
   },
   'depot-comptes': {
     id: 'depot-comptes',
     category: 'juridique',
     form: 'Dépôt des comptes',
     summary:
-      "Les comptes approuvés sont déposés au greffe du tribunal de commerce dans le mois qui suit l'approbation, ou dans les deux mois en cas de dépôt par voie électronique. Kledg compte ce délai à partir de la date limite d'approbation.",
+      "Les comptes approuvés sont déposés au greffe du tribunal de commerce dans le mois qui suit l'approbation, ou dans les deux mois en cas de dépôt par voie électronique. Kledg compte ce délai à partir de la date d'approbation enregistrée dans l'approbation des comptes, à défaut de la date limite d'approbation.",
     sources: [L232_22, L232_23],
   },
 } as const satisfies Record<string, DeadlineRule>

@@ -58,10 +58,23 @@ export interface DeadlineFiscalYear {
   endDate: string
 }
 
+/**
+ * What the approval pack recorded for a fiscal year (lib/approval): the day
+ * the accounts were approved, and the day they were filed with the greffe.
+ */
+export interface DeadlineApproval {
+  approvedOn: string | null
+  filedOn: string | null
+  /** Filed online for this fiscal year (two months); null: the company setting. */
+  filedOnline?: boolean | null
+}
+
 export interface DeadlineInput {
   company: DeadlineCompany
   fiscalYears: DeadlineFiscalYear[]
   settings: DeadlineSettings
+  /** By fiscal year id: the approval and filing recorded in the approval pack. */
+  approvals?: Record<string, DeadlineApproval>
   /** First and last day of the range, both included (yyyy-mm-dd). */
   from: string
   to: string
@@ -430,33 +443,63 @@ function yearlyDeadlines(input: DeadlineInput): Candidate[] {
 
 // ------------------------------------------------------------ legal
 
+/**
+ * Last day to approve the accounts: six months after the closing (C. com.
+ * L223-26 SARL, L225-100 SA, L227-9 SASU; the statuts of an SAS usually say
+ * the same). Shared with the approval pack (lib/approval).
+ */
+export function approvalDeadlineOf(endDate: string): string {
+  return addMonthsEom(endDate, 6)
+}
+
+/**
+ * Last day to file the approved accounts with the greffe: one month after
+ * the approval, two months when filed online (C. com. L232-22, L232-23).
+ */
+export function filingDeadlineOf(approvalDay: string, online: boolean): string {
+  return addMonthsEom(approvalDay, online ? 2 : 1)
+}
+
 function legalDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidate[] {
   const { company, settings } = input
   if (company.legalType !== null && !ACCOUNTS_FILING_FORMS.has(company.legalType)) return []
   const out: Candidate[] = []
   for (const fy of spans) {
-    const approval = addMonthsEom(fy.endDate, 6)
+    const approval = approvalDeadlineOf(fy.endDate)
+    const recorded = fy.projected ? undefined : input.approvals?.[fy.id]
+    const approvedOn = recorded?.approvedOn ?? null
     out.push({
       key: fy.endDate,
       ruleId: 'approbation',
       legalDate: approval,
       label: `Approbation des comptes de ${exerciceLabel(fy)}`,
-      note:
-        company.legalType === 'SAS'
+      note: approvedOn
+        ? `Comptes approuvés le ${frDay(approvedOn)}.`
+        : company.legalType === 'SAS'
           ? 'Dans une SAS, le délai est celui des statuts, six mois le plus souvent.'
           : company.legalType === 'SASU'
-            ? "Si l'associé unique est le président, le dépôt au greffe des comptes signés dans ce délai vaut approbation."
-            : undefined,
+            ? "Si l'associé unique, personne physique, est le président, le dépôt au greffe des comptes signés dans ce délai vaut approbation."
+            : company.legalType === 'EURL'
+              ? "Si l'associé unique est le seul gérant, le dépôt au greffe des comptes signés dans ce délai vaut approbation."
+              : undefined,
       projected: fy.projected,
     })
+    const online = recorded?.filedOnline ?? settings.accountsFiledOnline
+    const filedOn = recorded?.filedOn ?? null
     out.push({
       key: fy.endDate,
       ruleId: 'depot-comptes',
-      legalDate: addMonthsEom(approval, settings.accountsFiledOnline ? 2 : 1),
+      legalDate: filingDeadlineOf(approvedOn ?? approval, online),
       label: `Dépôt des comptes de ${exerciceLabel(fy)} au greffe`,
-      note: settings.accountsFiledOnline
-        ? "Deux mois après l'approbation pour un dépôt en ligne, comptés ici depuis la date limite d'approbation."
-        : "Un mois après l'approbation (deux mois en cas de dépôt en ligne), compté ici depuis la date limite d'approbation.",
+      note: filedOn
+        ? `Comptes déposés le ${frDay(filedOn)}.`
+        : approvedOn
+          ? online
+            ? `Deux mois après l'approbation du ${frDay(approvedOn)}, pour un dépôt en ligne.`
+            : `Un mois après l'approbation du ${frDay(approvedOn)} (deux mois en cas de dépôt en ligne).`
+          : online
+            ? "Deux mois après l'approbation pour un dépôt en ligne, comptés ici depuis la date limite d'approbation."
+            : "Un mois après l'approbation (deux mois en cas de dépôt en ligne), compté ici depuis la date limite d'approbation.",
       projected: fy.projected,
     })
   }

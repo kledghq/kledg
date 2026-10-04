@@ -32,6 +32,8 @@ interface FiscalYearSelectorProps {
   id?: string
   /** Shows "Du ... au ..." under the select. Off in toolbars, where rows keep one height. */
   showPeriod?: boolean
+  /** Picks the fiscal year selected when no value is set; the active one otherwise. */
+  pickDefault?: (fiscalYears: FiscalYear[]) => string | undefined
 }
 
 export function FiscalYearSelector({
@@ -43,6 +45,7 @@ export function FiscalYearSelector({
   disabled = false,
   id = 'fiscal-year-select',
   showPeriod = true,
+  pickDefault,
 }: FiscalYearSelectorProps) {
   const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,6 +74,11 @@ export function FiscalYearSelector({
         const data = await response.json()
         setFiscalYears(data)
 
+        const preferred = pickDefault?.(data)
+        if (preferred && !valueRef.current) {
+          valueRef.current = preferred
+          onValueChange(preferred)
+        }
         // Find active fiscal year (not closed, most recent)
         const active = data.find((fy: FiscalYear) => !fy.isClosed)
         if (active) {

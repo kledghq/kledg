@@ -61,6 +61,7 @@ export const COMPANY_TABLES: readonly string[] = [
   'provision_assessments',
   'investment_grants',
   'investment_grant_transfers',
+  'accounts_approvals',
 ]
 
 /** Child tables reachable through their parent (EXISTS policies): table -> [parent, foreign key]. */

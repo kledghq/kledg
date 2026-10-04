@@ -83,6 +83,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/companies/[id]/income-statement/export-excel/route.ts': /enforceRateLimit\('export'/,
   'app/api/companies/[id]/balance-sheet/export-pdf/route.ts': /enforceRateLimit\('export'/,
   'app/api/companies/[id]/income-statement/export-pdf/route.ts': /enforceRateLimit\('export'/,
+  'app/api/companies/[id]/fiscal-years/[fiscalYearId]/approval/documents/[document]/route.ts': /enforceRateLimit\('export'/,
   'app/api/import/route.ts': /enforceRateLimit\('import'/,
   'app/api/import/preview-fiscal-years/route.ts': /enforceRateLimit\('import'/,
   'app/api/banking/import-statement/route.ts': /enforceRateLimit\('import'/,

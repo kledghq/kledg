@@ -24,6 +24,8 @@
 
 import { afterAll, describe, expect, it } from 'vitest'
 import {
+  approvalDeadlineOf,
+  filingDeadlineOf,
   addMonthsEom,
   computeDeadlines,
   isAcompteDates,
@@ -56,6 +58,7 @@ function run(overrides: Partial<Omit<DeadlineInput, 'settings'>> & { settings?: 
     settings: { ...DEFAULT_DEADLINE_SETTINGS, ...overrides.settings },
     from: overrides.from ?? '2026-01-01',
     to: overrides.to ?? '2026-12-31',
+    approvals: overrides.approvals,
   })
 }
 
@@ -332,6 +335,27 @@ describe('comptes annuels (Code de commerce)', () => {
     expect(byId(run(), 'approbation:2025-12-31')?.note).toMatch(/statuts/)
     expect(byId(run({ company: { ...SAS, legalType: 'SASU' } }), 'approbation:2025-12-31')?.note).toMatch(/vaut approbation/)
     expect(byId(run({ company: { ...SAS, legalType: 'SARL' } }), 'approbation:2025-12-31')?.note).toBeUndefined()
+  })
+
+  it('notes the EURL shortcut when the associé unique is the only gérant (C. com. L223-31)', () => {
+    expect(byId(run({ company: { ...SAS, legalType: 'EURL' } }), 'approbation:2025-12-31')?.note).toMatch(/seul gérant.*vaut approbation/)
+    expect(byId(run({ company: { ...SAS, legalType: 'SASU' } }), 'approbation:2025-12-31')?.note).toMatch(/personne physique, est le président/)
+  })
+
+  it('counts the filing from the approval day recorded in the approval pack (L232-22, L232-23)', () => {
+    const approvals = { 'fy-2025-12-31': { approvedOn: '2026-05-20', filedOn: null } }
+    const deadlines = run({ company: { ...SAS, legalType: 'SARL' }, approvals })
+    expect(byId(deadlines, 'approbation:2025-12-31')).toMatchObject({ date: '2026-06-30', note: 'Comptes approuvés le 20/05/2026.' })
+    expect(byId(deadlines, 'depot-comptes:2025-12-31')).toMatchObject({ date: '2026-06-20', note: "Un mois après l'approbation du 20/05/2026 (deux mois en cas de dépôt en ligne)." })
+    const online = run({ approvals, settings: { accountsFiledOnline: true } })
+    expect(byId(online, 'depot-comptes:2025-12-31')?.date).toBe('2026-07-20')
+    // The answer of the approval pack wins over the company setting for its fiscal year.
+    const answered = run({ approvals: { 'fy-2025-12-31': { approvedOn: '2026-05-20', filedOn: null, filedOnline: true } } })
+    expect(byId(answered, 'depot-comptes:2025-12-31')).toMatchObject({ date: '2026-07-20', note: "Deux mois après l'approbation du 20/05/2026, pour un dépôt en ligne." })
+    const filed = run({ approvals: { 'fy-2025-12-31': { approvedOn: '2026-05-20', filedOn: '2026-06-02' } } })
+    expect(byId(filed, 'depot-comptes:2025-12-31')?.note).toBe('Comptes déposés le 02/06/2026.')
+    expect(approvalDeadlineOf('2026-02-28')).toBe('2026-08-31')
+    expect(filingDeadlineOf('2026-06-15', true)).toBe('2026-08-15')
   })
 
   it('lists no approval or filing for forms without that obligation (EI, SCI, SNC)', () => {
