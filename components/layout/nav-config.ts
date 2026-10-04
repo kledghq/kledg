@@ -2,6 +2,7 @@ import {
   ArrowDownLeft,
   ArrowLeftRight,
   ArrowUpRight,
+  BadgeCheck,
   BookMarked,
   BookOpen,
   BookText,
@@ -102,6 +103,7 @@ export const navGroups: NavGroup[] = [
     label: "Saisie",
     items: [
       { title: "Écritures", url: "/entries", icon: FileText },
+      { title: "Saisies du mode simple", url: "/entries/simple-mode", icon: BadgeCheck },
       { title: "Comptes", url: "/accounts", icon: FolderSearch },
       { title: "Lettrage", url: "/lettering", icon: Link2 },
       { title: "Immobilisations", url: "/fixed-assets", icon: Package },
@@ -188,6 +190,7 @@ const subPages: Array<{ path: string; title: string }> = [
   { path: "/reports/income-statement/config", title: "Configuration du compte de résultat" },
   { path: "/entries/new", title: "Nouvelle écriture" },
   { path: "/entries/[id]/edit", title: "Modifier l'écriture" },
+  { path: "/simple/depenses", title: "Dépenses à vérifier" },
   { path: "/entries/[id]", title: "Écriture" },
   { path: "/fiscal-years/opening-balances", title: "Bilan d'ouverture" },
   { path: "/invoices/new", title: "Nouvelle facture" },

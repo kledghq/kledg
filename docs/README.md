@@ -12,6 +12,7 @@
 - [Lettrage et tiers](lettrage-et-tiers.md) : lettrage des comptes de tiers, balance auxiliaire, balance âgée, justificatifs manquants
 - [Factures et tiers](factures-et-tiers.md) : clients et fournisseurs, factures d'achat et de vente, comptabilisation, TVA sur les encaissements, règlements, import Qonto, facturation électronique
 - [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, validation, comptabilisation et remboursement
+- [Catégories simples](categories-simples.md) : mode simple, catégories en langage courant et leurs comptes, TVA récupérable, questions, dépenses à vérifier, règles apprises, validation par l'expert-comptable
 - [Abonnements](abonnements.md) : paiements récurrents détectés dans les opérations bancaires, rythme, coût annuel, prix modifié ou arrêt, ajout au budget
 - [Indicateurs financiers](indicateurs-financiers.md) : soldes intermédiaires de gestion, capacité d'autofinancement, besoin en fonds de roulement, trésorerie nette, délais de paiement et ratios, avec leurs comptes et les lignes des formulaires
 - [Budget](budget.md) : budget de l'exercice par compte et par mois, éléments récurrents, comparaison avec les écritures validées

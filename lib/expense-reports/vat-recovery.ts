@@ -39,7 +39,7 @@
  * Amounts are integer cents; the 80 % share is rounded half away from zero.
  */
 
-import { EXPENSE_CATEGORIES, type ExpenseCategory } from './categories'
+import { EXPENSE_CATEGORIES, type ExpenseCategory, type VatRule } from './categories'
 
 /** Simplified receipts are accepted up to this amount excluding tax (BOI-TVA-DECLA-30-20-20-20, § 130). */
 export const SIMPLIFIED_RECEIPT_MAX_EXCL_TAX_CENTS = 15_000
@@ -98,13 +98,21 @@ function percentOf(n: number, percent: number): number {
 }
 
 export function recoverableVat(input: RecoveryInput): Recovery {
+  return recoverableVatByRule(EXPENSE_CATEGORIES[input.category].vatRule, input)
+}
+
+/**
+ * The same rules for a VAT rule rather than an expense category: the simple
+ * mode categories (lib/simple/categories.ts) carry their own rule.
+ */
+export function recoverableVatByRule(vatRule: VatRule, input: Omit<RecoveryInput, 'category'>): Recovery {
   if (input.mileage || input.vatCents <= 0) return { recoverableVatCents: 0, reason: 'no-vat' }
   if (input.vatExempt) return { recoverableVatCents: 0, reason: 'franchise' }
   if (input.receiptKind === 'NONE') return { recoverableVatCents: 0, reason: 'no-receipt' }
   if (input.receiptKind === 'RECEIPT' && input.amountInclTaxCents - input.vatCents > SIMPLIFIED_RECEIPT_MAX_EXCL_TAX_CENTS) {
     return { recoverableVatCents: 0, reason: 'receipt-over-150' }
   }
-  switch (EXPENSE_CATEGORIES[input.category].vatRule) {
+  switch (vatRule) {
     case 'passenger-transport':
       return { recoverableVatCents: 0, reason: 'passenger-transport' }
     case 'staff-lodging':

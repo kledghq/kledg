@@ -15,7 +15,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { assertAllOwned, findOwned, transactionOfCompany } from '@/lib/api/resources'
-import { createEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
+import { createEntryInTx, validateEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
 import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
@@ -102,6 +102,13 @@ export interface GeneratedEntry {
   description: string
   reference?: string | null
   lines: GeneratedLine[]
+  /**
+   * 'validated': the entry is validated in the same transaction
+   * (validateEntryInTx: definitive number, PCG art. 1031-3). Draft by default.
+   */
+  status?: 'draft' | 'validated'
+  /** Runs inside the transaction once the entry exists and is linked (records that belong with it). */
+  afterCreate?: (db: Prisma.TransactionClient, entryId: string) => Promise<void>
 }
 
 /** Last line of defense before writing: whole cents, one side per line, balanced. */
@@ -126,9 +133,11 @@ export function assertWritableLines(lines: GeneratedLine[]): void {
  *
  * The entry goes through createEntryInTx, the one creation path: a draft
  * gets a provisional number and its definitive number at validation (PCG
- * art. 1031-3), like every other draft of the entries list.
+ * art. 1031-3), like every other draft of the entries list. With status
+ * 'validated' (simple mode without accountant review) it is validated by
+ * validateEntryInTx in the same transaction.
  */
-export async function createEntryAndReconcile(input: GeneratedEntry): Promise<{ id: string; entryNumber: string; status: 'draft' }> {
+export async function createEntryAndReconcile(input: GeneratedEntry): Promise<{ id: string; entryNumber: string; status: 'draft' | 'validated' }> {
   assertWritableLines(input.lines)
 
   return prisma.$transaction(
@@ -169,6 +178,11 @@ export async function createEntryAndReconcile(input: GeneratedEntry): Promise<{ 
         where: { id: input.transactionId },
         data: { reconciledWith: entry.id },
       })
+      await input.afterCreate?.(db, entry.id)
+      if (input.status === 'validated') {
+        const entryNumber = await validateEntryInTx(db, entry.id, input.companyId)
+        return { id: entry.id, entryNumber, status: 'validated' as const }
+      }
       return { ...entry, status: 'draft' as const }
     },
     { maxWait: 10_000, timeout: 30_000 },

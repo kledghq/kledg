@@ -316,7 +316,8 @@ const LABEL_NOISE = new Set([
 /** Words of the label kept for the key: the counterparty comes first, references after. */
 const LABEL_KEY_WORDS = 3
 
-function words(text: string): string[] {
+/** Words of a bank text: accents removed, uppercase, letters and digits only (shared with lib/simple/payees.ts). */
+export function words(text: string): string[] {
   return text
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')

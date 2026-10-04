@@ -59,6 +59,7 @@ const DRAFT_TOOLS = [
   'prepare_year_end_entries',
   'create_draft_expense_report',
   'update_year_end_formalities',
+  'accept_expense_suggestion',
 ]
 
 const ids = {} as Record<string, string>
@@ -331,6 +332,64 @@ describe.skipIf(!available)('draft-level MCP tools', () => {
       const early = await call(key, 'update_year_end_formalities', { companyId: ids.aCompany, fiscalYearId: ids.aFy, filedOn: '2025-06-01' })
       expect(early.ok).toBe(false)
       expect(early.text).toBe("La date de dépôt doit être postérieure à la clôture de l'exercice (31/12/2025).")
+    })
+  })
+
+  describe('simple mode', () => {
+    async function seedExpense() {
+      const fiscalYearId = ids.aFy
+      for (const [code, label] of [['5121', 'Comptes en euros'], ['626', 'Frais postaux et de télécommunications'], ['44566', 'TVA sur autres biens et services']]) {
+        await prisma.account.create({ data: { companyId: ids.aCompany, fiscalYearId, code, label, isPCG: true } })
+      }
+      await prisma.journal.create({ data: { companyId: ids.aCompany, code: 'BQ', label: 'Banque' } })
+      const connection = await prisma.bankConnection.create({ data: { companyId: ids.aCompany, provider: 'MANUAL' } })
+      const account = await prisma.bankAccount.create({ data: { bankConnectionId: connection.id, externalAccountId: 'acc-simple', name: 'Compte courant' } })
+      return prisma.bankTransaction.create({
+        data: { bankAccountId: account.id, externalTransactionId: 'simple-1', amount: 47.99, date: day('2025-03-10'), side: 'debit', label: 'PRLV SEPA FREE PRO' },
+      })
+    }
+
+    it('lists the expenses to review with a read key and confirms one as a draft with a write key, in euros, audited', async () => {
+      const transaction = await seedExpense()
+      const read = await call(await apiKey('read'), 'list_expenses_to_review', { companyId: ids.aCompany })
+      expect(read.ok, read.text).toBe(true)
+      expect(read.data.expenses).toEqual([
+        expect.objectContaining({ transactionId: transaction.id, amount: 47.99, payee: 'Free Pro', suggestion: expect.objectContaining({ categoryId: 'telephone-internet', category: 'Téléphone et internet', confidence: 'high' }) }),
+      ])
+      expect((await call(await apiKey('read'), 'accept_expense_suggestion', { companyId: ids.aCompany, transactionId: transaction.id })).ok).toBe(false)
+
+      const key = await apiKey('write')
+      const confirmed = await call(key, 'accept_expense_suggestion', { companyId: ids.aCompany, transactionId: transaction.id })
+      expect(confirmed.ok, confirmed.text).toBe(true)
+      expect(confirmed.data).toMatchObject({ status: 'draft', categoryId: 'telephone-internet', reviewUrl: `http://localhost:3000/${ids.aCompany}/entries/simple-mode` })
+      expect(confirmed.data.lines).toEqual(
+        expect.arrayContaining([
+          { accountCode: '5121', debit: 0, credit: 47.99 },
+          { accountCode: '626', debit: 39.99, credit: 0 },
+          { accountCode: '44566', debit: 8, credit: 0 },
+        ]),
+      )
+      const entry = await prisma.accountingEntry.findUniqueOrThrow({ where: { id: confirmed.data.entryId }, include: { simpleModeEntry: true } })
+      expect(entry).toMatchObject({ status: 'draft', sourceBankTransactionId: transaction.id })
+      expect(entry.simpleModeEntry).toMatchObject({ source: 'mcp', createdById: OWNER.id })
+      const audit = await prisma.auditLog.findFirst({ where: { action: 'MCP_WRITE', companyId: ids.aCompany } })
+      expect(audit?.metadata).toMatchObject({ tool: 'accept_expense_suggestion', transactionId: transaction.id, entryId: entry.id })
+
+      const again = await call(key, 'accept_expense_suggestion', { companyId: ids.aCompany, transactionId: transaction.id })
+      expect(again.ok).toBe(false)
+      expect(again.text).toMatch(/déjà rapprochée/)
+    })
+
+    it('refuses a viewer and a company outside the grant', async () => {
+      const transaction = await seedExpense()
+      const viewer = await apiKey('write', { allCompanies: true, companyIds: [] }, VIEWER)
+      const refused = await call(viewer, 'accept_expense_suggestion', { companyId: ids.aCompany, transactionId: transaction.id })
+      expect(refused.ok).toBe(false)
+      expect(refused.text).not.toBe('Société introuvable')
+      const onlyB = await apiKey('write', { allCompanies: false, companyIds: [ids.bCompany] })
+      const outside = await call(onlyB, 'accept_expense_suggestion', { companyId: ids.aCompany, transactionId: transaction.id })
+      expect(outside.text).toBe('Société introuvable')
+      expect(await prisma.accountingEntry.count({ where: { companyId: ids.aCompany } })).toBe(0)
     })
   })
 

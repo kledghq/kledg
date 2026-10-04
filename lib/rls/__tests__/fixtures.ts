@@ -345,6 +345,10 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('subscription_decisions'), companyId, counterpartyKey: 'NUAGE PRO', cadence: 'MONTHLY', referenceAmount: 29.9, status: 'CONFIRMED', budgetLineId: id('budget_lines') },
       })
       record('subscription_decisions', p, id('subscription_decisions'))
+      await prisma.simpleModeEntry.create({
+        data: { id: id('simple_mode_entries'), companyId, entryId: id('accounting_entries'), bankTransactionId: id('bank_transactions'), categoryId: 'telephone-internet', counterpartyKey: 'FREE PRO' },
+      })
+      record('simple_mode_entries', p, id('simple_mode_entries'))
       // Management fees: the company is the holding; company c stands for the subsidiary (only its id is referenced).
       await prisma.managementFeeConvention.create({
         data: { id: id('management_fee_conventions'), companyId, label: 'Convention', costAccountPrefixes: ['6'], excludedAccountPrefixes: ['695'], startDate: day('2026-01-01') },

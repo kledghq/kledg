@@ -13,6 +13,7 @@ import { registerBudgetDraftTools } from './budgets'
 import { registerYearEndDraftTools } from './year-end'
 import { registerExpenseReportDraftTools } from './expense-reports'
 import { registerApprovalDraftTools } from './approval'
+import { registerSimpleModeDraftTools } from './simple-mode'
 
 export function registerDraftTools(server: McpServer, access: McpAccess, guard: CompanyGuard): void {
   if (!access.canWrite) return
@@ -21,4 +22,5 @@ export function registerDraftTools(server: McpServer, access: McpAccess, guard: 
   registerYearEndDraftTools(register)
   registerExpenseReportDraftTools(register)
   registerApprovalDraftTools(register)
+  registerSimpleModeDraftTools(register)
 }
