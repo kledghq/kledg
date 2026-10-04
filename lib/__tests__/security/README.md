@@ -25,6 +25,7 @@ Code is English, UI copy is French, no em or en dashes (house style).
 | `mass-assignment.db.test.ts` | Extra body fields (id, entryNumber, status, role, createdById...) are ignored or refused. | yes |
 | `nested-idor.db.test.ts` | Foreign-company object ids in a body (accountId, journalId, ruleId, entryId) are refused. | yes |
 | `business-logic.db.test.ts` | Closed-year writes, validated-entry immutability, balance/overflow/sub-cent, double reconcile, result-allocation guard; plus pure FEC-tampering. | yes |
+| `account-preregistration.db.test.ts` | An unconfirmed account added to a company is reset like a new one (KLEDG-SEC-011). | yes |
 | `auth-session.db.test.ts` | API key prefix + hashing at rest, disabled key refused at once. | yes |
 | `findings.ts` | Finding registry (new + delegated) with CVSS vectors; `skip(id, reason)` builds the skip tag. | - |
 | `helpers/tenants.ts` | Shared two-tenant seed + `call()` for the DB tests. | - |
@@ -53,7 +54,9 @@ in `fixedIn`, and its test enabled under `[id] fixed: <title>`. Fixed:
 `KLEDG-SEC-003` (CSV formula injection), `KLEDG-SEC-004` (FEC entry number
 regex), `KLEDG-SEC-005` (Qonto file hosts and address check),
 `KLEDG-SEC-006` (streamed download budget), `KLEDG-SEC-007` (explicit AI
-grants), `KLEDG-SEC-008` (API key default level) and `KLEDG-SEC-010`
-(concurrent management fee generations, round 2). Findings from the code
+grants), `KLEDG-SEC-008` (API key default level), and in round 2 `KLEDG-SEC-010`
+(concurrent management fee generations), `KLEDG-SEC-011` (account
+pre-registration takeover, kledg-cloud KLEDG-CLOUD-004) and `KLEDG-SEC-012`
+(company kept when the creation hook fails, kledg-cloud KLEDG-CLOUD-006). Findings from the code
 review carry a `KLEDG-DEL-*` id; all of them are fixed and their tests are
 enabled. `KLEDG-SEC-009` (password reset timing) is fixed too.
