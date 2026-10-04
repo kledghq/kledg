@@ -149,7 +149,7 @@ export async function validateFiscalYearClosure(
   const { toAssess, toCorrect, dotationsCents, reprisesCents, transfersCents } = inventory.totals
   if (toAssess > 0) {
     warnings.push(
-      `${plural(toAssess, 'provision ou dépréciation', 'provisions ou dépréciations')} sans montant évalué à la clôture\u00a0: indiquez le montant requis ou la date de fin dans Saisie, Provisions.`
+      `${plural(toAssess, 'provision ou dépréciation', 'provisions ou dépréciations')} sans montant évalué à la clôture\u00a0: indiquez le montant requis ou la date de fin dans Saisie, Provisions et dépréciations.`
     )
   }
   const pending = [

@@ -25,7 +25,7 @@ export async function deleteFixedAsset(companyId: string, fixedAssetId: string):
     const grants = await tx.investmentGrant.count({ where: { fixedAssetId, companyId } })
     if (grants > 0) {
       throw new ConflictError(
-        `Cette immobilisation est financée par ${grants > 1 ? `${grants} subventions d'investissement` : "une subvention d'investissement"} dont la reprise suit son amortissement\u00a0: modifiez ${pluralWord(grants, 'la subvention', 'les subventions')} (Saisie, Subventions) avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie.`
+        `Cette immobilisation est financée par ${grants > 1 ? `${grants} subventions d'investissement` : "une subvention d'investissement"} dont la reprise suit son amortissement\u00a0: modifiez ${pluralWord(grants, 'la subvention', 'les subventions')} (Saisie, Subventions d'investissement) avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie.`
       )
     }
     const records = await tx.fixedAssetDepreciation.findMany({

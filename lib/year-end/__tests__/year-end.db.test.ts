@@ -306,7 +306,7 @@ describe.skipIf(!available)('year-end work (PostgreSQL)', () => {
   it('warns at the closing about what is left to assess and to book', async () => {
     const created = await provisions.createProvision(books.companyId, LITIGATION)
     let checks = await closure.validateFiscalYearClosure(books.companyId, books.fiscalYearId, prisma, new Date('2027-02-01T00:00:00Z'))
-    expect(checks.warnings).toContain('1 provision ou dépréciation sans montant évalué à la clôture : indiquez le montant requis ou la date de fin dans Saisie, Provisions.')
+    expect(checks.warnings).toContain('1 provision ou dépréciation sans montant évalué à la clôture : indiquez le montant requis ou la date de fin dans Saisie, Provisions et dépréciations.')
     await provisions.saveAssessment(books.companyId, created.id, { fiscalYearId: books.fiscalYearId, amountCents: 1_200_000 })
     checks = await closure.validateFiscalYearClosure(books.companyId, books.fiscalYearId, prisma, new Date('2027-02-01T00:00:00Z'))
     expect(checks.warnings.join('\n')).toMatch(
