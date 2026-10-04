@@ -19,7 +19,6 @@ import { Loader2, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 import { AddressSelector } from '@/components/ui/address-selector'
-import { getDefaultAddressValue } from '@/components/ui/address-form'
 import { addressSchema } from '@/lib/utils/address'
 
 const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024
@@ -64,8 +63,10 @@ export function CreatePersonForm({
 
   const methods = useForm<PersonFormData>({
     resolver: zodResolver(personFormSchema),
+    // No address until one is picked or created: an empty address object would
+    // fail its own validation and block the form without a visible message.
     defaultValues: {
-      address: getDefaultAddressValue(null),
+      address: null,
     },
   })
 
@@ -108,7 +109,7 @@ export function CreatePersonForm({
         email: '',
         phone: '',
         photo: '',
-        address: getDefaultAddressValue(null),
+        address: null,
       })
       setPhotoPreview(null)
     } catch (error) {
@@ -120,7 +121,15 @@ export function CreatePersonForm({
 
   return (
     <FormProvider {...methods}>
-      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+      <form
+        onSubmit={(event) => {
+          // Rendered inside the shareholder form (through a dialog portal): React
+          // would bubble this submit up to it and validate the shareholder too.
+          event.stopPropagation()
+          void handleSubmit(onFormSubmit)(event)
+        }}
+        className="space-y-4"
+      >
         <div className="flex items-center gap-4">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
             {displayPhoto ? (

@@ -49,10 +49,15 @@ const external: Row = {
 }
 
 let shareholders: Row[]
+let persons: Row[]
 const fetchMock = vi.fn<typeof fetch>()
 
 beforeEach(() => {
   shareholders = [marie, holding, external]
+  persons = [
+    { id: 'p1', firstName: 'Marie', name: 'Dupont', email: 'marie@acme.fr' },
+    { id: 'p2', firstName: 'Paul', name: 'Martin', email: null },
+  ]
   fetchMock.mockImplementation(async (input, init) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
@@ -62,11 +67,11 @@ beforeEach(() => {
         { id: 'c-holding', name: 'Holding SAS', slug: 'holding' },
       ])
     }
-    if (url === '/api/companies/alpha/persons' && method === 'GET') {
-      return Response.json([
-        { id: 'p1', firstName: 'Marie', name: 'Dupont', email: 'marie@acme.fr' },
-        { id: 'p2', firstName: 'Paul', name: 'Martin', email: null },
-      ])
+    if (url === '/api/companies/alpha/persons' && method === 'GET') return Response.json(persons)
+    if (url === '/api/companies/alpha/persons' && method === 'POST') {
+      const person = { id: 'p3', ...JSON.parse(String(init?.body)) }
+      persons = [...persons, person]
+      return Response.json(person, { status: 201 })
     }
     if (url === '/api/companies/alpha/shareholders' && method === 'GET') return Response.json(shareholders)
     if (url === '/api/companies/alpha/shareholders' && method === 'POST') {
@@ -293,6 +298,44 @@ describe('ShareholdersManagement', () => {
     expect(sent('PATCH')?.url).toBe('/api/companies/alpha/shareholders/sh1')
     expect(sent('PATCH')?.body).toMatchObject({ type: 'PHYSICAL', personId: 'p1', sharePercentage: 50, numberOfShares: 333 })
     await waitFor(() => expect(screen.getByText(/Total des participations/)).toHaveTextContent('116,67 %'))
+  })
+
+  it('creates a person from the shareholder form and selects it', async () => {
+    const user = userEvent.setup()
+    render(<ShareholdersManagement companyId="alpha" />)
+    await screen.findByText('Marie Dupont')
+    await user.click(screen.getByRole('button', { name: 'Ajouter un actionnaire' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Créer une personne' }))
+    const personDialog = await screen.findByRole('dialog', { name: 'Créer une nouvelle personne' })
+    await user.type(within(personDialog).getByLabelText(/Prénom/), 'Jeanne')
+    await user.type(within(personDialog).getByLabelText(/^Nom/), 'Leroy')
+    await user.click(within(personDialog).getByRole('button', { name: 'Créer' }))
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Personne créée avec succès'))
+    expect(sent('POST')).toEqual({ url: '/api/companies/alpha/persons', body: { firstName: 'Jeanne', name: 'Leroy' } })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Créer une nouvelle personne' })).toBeNull())
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByLabelText(/Personne \*/)).toHaveTextContent('Jeanne Leroy')
+    // Submitting the person did not submit (nor validate) the shareholder form around it.
+    expect(within(dialog).queryByText('Sélectionnez une personne, ou créez-en une avec le bouton +.')).toBeNull()
+    expect(fetchMock.mock.calls.some(([url, init]) => url === '/api/companies/alpha/shareholders' && init?.method === 'POST')).toBe(false)
+  })
+
+  it('shows one error and keeps the person typed when its creation is refused', async () => {
+    const user = userEvent.setup()
+    render(<ShareholdersManagement companyId="alpha" />)
+    await screen.findByText('Marie Dupont')
+    fetchMock.mockImplementationOnce(async () => Response.json({ error: 'Cette personne existe déjà' }, { status: 409 }))
+    await user.click(screen.getByRole('button', { name: 'Ajouter un actionnaire' }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Créer une personne' }))
+    const personDialog = await screen.findByRole('dialog', { name: 'Créer une nouvelle personne' })
+    await user.type(within(personDialog).getByLabelText(/Prénom/), 'Marie')
+    await user.type(within(personDialog).getByLabelText(/^Nom/), 'Dupont')
+    await user.click(within(personDialog).getByRole('button', { name: 'Créer' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Cette personne existe déjà'))
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(within(personDialog).getByLabelText(/Prénom/)).toHaveValue('Marie')
   })
 
   it('labels the kind of each shareholder', () => {
