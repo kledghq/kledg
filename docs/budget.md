@@ -1,6 +1,6 @@
 # Budget
 
-Les charges et les produits prévus pour un exercice, mois par mois, comparés aux écritures validées de cet exercice. Code : `lib/budgets`, page `/budget` (États, Budget), outil MCP `get_budget_report`.
+Les charges et les produits prévus pour un exercice, mois par mois, comparés aux écritures validées de cet exercice. Code : `lib/budgets`, page `/budget` (États, Budget), outils MCP `list_budgets`, `get_budget`, `get_budget_report` et, avec l'accès brouillons, `create_budget`, `create_budget_line`, `update_budget_line`.
 
 ## Un budget par exercice
 
@@ -41,4 +41,6 @@ API `GET /api/budgets/[id]/report?throughMonth=AAAA-MM`.
 
 ## MCP
 
-`get_budget_report` (droit `reports:read`) : le budget d'un exercice (l'exercice en cours par défaut) et sa comparaison par ligne, avec les comptes hors budget et les totaux, en euros ; `throughMonth` pour l'année jusqu'à un mois, `monthly` pour le détail de chaque mois. Voir [mcp.md](mcp.md).
+`get_budget_report` (droit `reports:read`) : le budget d'un exercice (l'exercice en cours par défaut) et sa comparaison par ligne, avec les comptes hors budget et les totaux, en euros ; `throughMonth` pour l'année jusqu'à un mois, `monthly` pour le détail de chaque mois. `list_budgets` et `get_budget` (droit `reports:read`) : les budgets et, pour un exercice, ses lignes avec leur identifiant, leurs montants par mois et leurs éléments récurrents.
+
+Avec l'accès Lecture et brouillons (`kledg:write`) et le droit `budgets:manage`, comme les routes : `create_budget` (budget vide ou par grands postes d'un exercice ouvert), `create_budget_line` et `update_budget_line` (montants par mois et éléments récurrents en euros ; donnés, ils remplacent ceux de la ligne). Un budget ne touche jamais les écritures ; celui d'un exercice clôturé ne change plus. Voir [mcp.md](mcp.md).

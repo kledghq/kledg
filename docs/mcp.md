@@ -30,8 +30,8 @@ Dans Kledg, les **Paramètres** du compte ont deux pages :
 
 La page d'autorisation propose jusqu'à trois niveaux, parmi ceux que l'assistant demande :
 
-- **Lecture seule** : portée `kledg:read`. Les jetons émis ne contiennent pas `kledg:write`, et l'outil `create_draft_entry` n'apparaît pas dans la liste d'outils de l'assistant.
-- **Lecture et brouillons d'écritures** (présélectionné) : portées `kledg:read` et `kledg:write`. L'assistant peut proposer des écritures avec `create_draft_entry` ; elles restent en brouillon jusqu'à ce qu'une personne les valide.
+- **Lecture seule** : portée `kledg:read`. Les jetons émis ne contiennent pas `kledg:write`, et aucun outil de brouillon (`create_draft_entry` et ceux de la section [Lecture et brouillons](#lecture-et-brouillons-kledgwrite)) n'apparaît dans la liste d'outils de l'assistant.
+- **Lecture et brouillons d'écritures** (présélectionné) : portées `kledg:read` et `kledg:write`. L'assistant peut proposer des écritures avec `create_draft_entry` et préparer le travail que vous vérifiez ensuite dans Kledg : lignes de budget, décisions sur les abonnements, provisions et leur évaluation, subventions, écritures de clôture en brouillon, notes de frais en brouillon, données de l'approbation des comptes. Rien n'est validé ni comptabilisé : les écritures restent en brouillon jusqu'à ce qu'une personne les valide.
 - **Contrôle total** : portées `kledg:read`, `kledg:write` et `kledg:admin`. L'assistant pourra agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice..., dans la limite de vos droits sur les sociétés choisies. Ce niveau n'est jamais présélectionné et s'accompagne d'un avertissement ; réservez-le à un assistant en qui vous avez toute confiance. Il se complète du choix du **mode d'exécution** (voir [Mode d'exécution du contrôle total](#mode-dexécution-du-contrôle-total)).
 
 Les assistants demandent les trois portées ; seules celles que vous acceptez figurent dans les jetons. La page indique le compte Kledg connecté et le nom de l'assistant (son logo pour Claude et ChatGPT).
@@ -69,7 +69,7 @@ Sur la page d'autorisation, le choix part de **Toutes mes sociétés**, sauf si 
 
 Le choix se fait sur la page d'autorisation (à côté des droits demandés) quand vous connectez Claude ou ChatGPT, et à la création d'une clé API. Il se modifie ensuite à tout moment sur la page Assistants IA ou Clés API (bouton **Modifier** de l'assistant ou de la clé) et s'applique dès la requête suivante, sans reconnecter l'assistant.
 
-Pour l'assistant, une société non choisie est introuvable, exactement comme une société dont vous n'êtes pas membre : `list_companies` ne la renvoie pas et tout outil appelé avec son identifiant (ou celui d'un exercice, d'une écriture, d'un compte ou d'une transaction de cette société) répond « Société introuvable » ou « Exercice introuvable ». `create_draft_entry` exige à la fois la portée `kledg:write` et une société choisie.
+Pour l'assistant, une société non choisie est introuvable, exactement comme une société dont vous n'êtes pas membre : `list_companies` ne la renvoie pas et tout outil appelé avec son identifiant (ou celui d'un exercice, d'une écriture, d'un compte ou d'une transaction de cette société) répond « Société introuvable » ou « Exercice introuvable ». Les outils de brouillons exigent à la fois la portée `kledg:write` et une société choisie.
 
 Le choix est toujours enregistré (page d'autorisation, création de la clé) : une connexion sans choix enregistré n'accède à aucune société. Supprimer une clé supprime aussi son choix de sociétés. Une société supprimée disparaît des listes. Le choix ne donne jamais plus de droits que les vôtres : vos rôles dans chaque société s'appliquent toujours.
 
@@ -84,6 +84,18 @@ Le bouton **Révoquer** d'un assistant autorisé supprime, pour votre compte :
 Le nettoyage est fait par la base de données (déclencheurs sur la table des autorisations), quel que soit le chemin de la révocation. Les autres utilisateurs du même assistant ne sont pas concernés. Pour rétablir l'accès, reconnectez l'assistant : la page d'autorisation s'affiche de nouveau.
 
 ## Outils
+
+### Conventions communes
+
+- **Montants** : tout montant envoyé à un outil ou renvoyé par lui est en **euros**, nombre décimal à deux décimales au plus (`12.5` pour 12,50 €), jamais en centimes. Un montant à trois décimales est refusé avec un message en français. Les taux sont en pour cent (`20` pour 20 %), les ratios en fractions (`0.25` pour 25 %), les dates au format `AAAA-MM-JJ`, les mois `AAAA-MM`. Les outils convertissent à l'entrée et à la sortie (`lib/utils/money.ts`) ; les services travaillent en centimes.
+- **Description** : chaque outil dit ce qu'il fait, l'unité de ses montants, le niveau d'accès et le droit vérifié dans la société, et ce qu'il ne fait jamais (`describeTool`, `lib/mcp/tool-meta.ts`).
+- **Annotations** (MCP `ToolAnnotations`), toujours les quatre :
+  - lecture : `readOnlyHint` vrai, `destructiveHint` faux, `idempotentHint` vrai, `openWorldHint` faux ;
+  - écriture : `readOnlyHint` faux ; `destructiveHint` vrai quand l'appel remplace ou supprime quelque chose qui existe (les montants d'une ligne, une évaluation, un brouillon, une écriture validée) et faux quand il ne fait qu'ajouter ; `idempotentHint` vrai quand le même appel répété ne change rien de plus ;
+  - `openWorldHint` vrai seulement pour `sync_bank`, qui interroge la banque.
+
+  Un test (`lib/mcp/__tests__/tool-metadata.test.ts`) vérifie titre, annotations, description et convention de montants de chaque outil, à chaque niveau d'accès.
+- **Erreurs** : en français ; une société hors de l'autorisation répond « Société introuvable », un rôle insuffisant « Accès refusé ».
 
 ### Lecture seule (`kledg:read`)
 
@@ -114,14 +126,34 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_year_end_formalities` | Approbation des comptes d'un exercice selon la forme juridique : qui décide et le titre du dirigeant, règle de majorité, délais d'approbation, de convocation et de dépôt, affectation du résultat proposée, résolutions et leur résultat, catégorie de taille, rapport de gestion, options de confidentialité, documents et données manquantes, liste du dépôt au greffe, sources ; droit `reports:read` |
 | `list_management_fee_conventions` | Conventions de frais de gestion d'une holding avec ses filiales : prix, marge, clé de répartition, TVA ([frais de gestion](frais-de-gestion.md)) ; droit `reports:read` |
 | `preview_management_fees` | Calcul des frais de gestion d'une période, montant HT, TVA et TTC de chaque filiale, sans rien facturer ; droit `reports:read` dans la holding et dans chaque filiale |
+| `list_budgets` | Budgets de la société, par exercice : nombre de lignes, charges, produits et résultat prévus ; droit `reports:read` |
+| `get_budget` | Budget d'un exercice avec chaque ligne (identifiant pour `update_budget_line`, montants par mois, éléments récurrents, prévu par mois) ; droit `reports:read` |
+| `get_auxiliary_balance` | Balance auxiliaire d'une période : par client et fournisseur, solde d'ouverture, débits, crédits, solde de clôture et part non lettrée ; droit `reports:read` |
+| `list_doubtful_receivables` | Clients en retard à la clôture au-delà de 30, 60 ou 90 jours, candidats à une dépréciation, avec la dépréciation déjà suivie ; droit `reports:read` |
+| `list_tax_deadlines` | Échéances fiscales et juridiques d'un exercice (TVA, IS, liasse, CFE, approbation et dépôt), jours restants, règle et sources officielles ; dates seulement ; droit `reports:read` |
+| `get_bank_sync_status` | État des flux bancaires : connexions, dernière synchronisation, erreur, consentement, et par compte les opérations non rapprochées et la plus ancienne, sans IBAN ni identifiant ; droit `banking:read` |
+| `list_expense_claimants` | Bénéficiaires de notes de frais (identifiant, compte auxiliaire) que le rôle de l'utilisateur lui montre ; droit `entries:read` |
 
-### Lecture et brouillons d'écritures (`kledg:write`)
+### Lecture et brouillons (`kledg:write`)
 
-| Outil | Rôle |
-| --- | --- |
-| `create_draft_entry` | Proposer une écriture équilibrée, créée en **brouillon** |
+Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passent tous par `registerDraftTool` (`lib/mcp/drafts/define.ts`) : arguments vérifiés (messages en français), puis chaque droit de l'outil vérifié dans la société par le contrôle d'accès des autres outils (sociétés choisies, rôle, société archivée), exactement comme la route de l'API correspondante, puis le service de `lib/` que l'interface utilise, puis une entrée `MCP_WRITE` au journal d'audit (utilisateur, assistant, identifiants). Chaque réponse dit ce qui a changé (`changes`) et donne le lien de la page de Kledg où le vérifier (`reviewUrl`). Aucun ne valide ni ne comptabilise une écriture, ne clôture un exercice, ne génère un document définitif ni ne suit le mode d'exécution du contrôle total.
 
-À ce niveau, aucune écriture créée par un assistant n'est validée automatiquement : elle apparaît en brouillon dans Kledg et doit être validée par une personne.
+| Outil | Rôle | Droit vérifié | Remplace l'existant | Idempotent |
+| --- | --- | --- | --- | --- |
+| `create_draft_entry` | Proposer une écriture équilibrée, créée en **brouillon** | `entries:create` | Non | Non |
+| `create_budget` | Créer le budget d'un exercice ouvert, vide ou par grands postes (409 s'il existe) | `budgets:manage` | Non | Oui |
+| `create_budget_line` | Ajouter une ligne de budget (début de compte de classe 6 ou 7), montants par mois et éléments récurrents | `budgets:manage` | Non | Non |
+| `update_budget_line` | Modifier une ligne : compte, libellé ; montants et éléments récurrents donnés remplacent ceux de la ligne | `budgets:manage` | Oui | Oui |
+| `classify_subscription` | Confirmer, ignorer, compter une charge récurrente comme abonnement, remettre à traiter | `banking:reconcile` | Oui | Oui |
+| `add_subscription_to_budget` | Ajouter un abonnement détecté à une ligne de charges comme élément récurrent et le confirmer | `budgets:manage` et `banking:reconcile` | Non | Oui |
+| `create_provision` | Enregistrer une provision ou une dépréciation (compte, nature, justification) | `entries:create` | Non | Non |
+| `record_provision_assessment` | Montant requis à la clôture, ou valeur actuelle d'une immobilisation ; supprime le brouillon lié, refusé si son écriture est validée | `entries:create` | Oui | Oui |
+| `create_investment_grant` | Enregistrer une subvention d'investissement et son rythme de reprise | `entries:create` | Non | Non |
+| `prepare_year_end_entries` | Préparer dotations, reprises et quotes-parts de subventions en **brouillons** au journal OD ; une seconde fois ne crée rien | `entries:create` | Oui (brouillons périmés) | Oui |
+| `create_draft_expense_report` | Note de frais en **brouillon** pour l'utilisateur ou, s'il valide les notes, un autre bénéficiaire ; `dryRun` pour un aperçu | `expenses:submit` | Non | Non |
+| `update_year_end_formalities` | Renseigner l'approbation des comptes (dates, taille, mode de décision, votes, affectation proposée, dépôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
+
+À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
 
 ### Contrôle total (`kledg:admin`)
 
@@ -154,7 +186,6 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `letter_entry_lines` | Lettrer des lignes d'un compte de tiers : code suivant du compte et date du jour, débits égaux aux crédits, écritures validées, exercice ouvert | `entries:update` | Oui |
 | `unletter_entry_lines` | Délettrer un code d'un compte de tiers, dans un exercice ouvert | `entries:update` | Oui |
 | `create_draft_invoice` | Enregistrer une facture d'achat ou de vente en brouillon (lignes, plusieurs taux, totaux calculés par Kledg) et, sur demande, son écriture en brouillon dans l'exercice de sa date | `entries:create` | Oui |
-| `create_draft_expense_report` | Préparer une note de frais en brouillon à partir de justificatifs (dépenses, TVA récupérable calculée par Kledg) et de trajets (barème kilométrique de l'année) ; la personne la soumet et un valideur la comptabilise dans Kledg | `expenses:submit` | Oui |
 
 Les opérations répétées n'agissent pas deux fois : un import du même relevé, une nouvelle exécution des règles, une seconde génération des dotations ou un second rapprochement ne créent rien de plus.
 
@@ -200,8 +231,51 @@ Chaque action en contrôle total (pas les lectures `list_rules` et `list_bank_ac
 - le mode d'exécution (`executionMode` : `automatic` ou `validation`, rappelé dans le message) ;
 - l'outil et les identifiants principaux (écritures, numéros, transaction, règle, exercice, fichier...).
 
-La préparation d'une action à approuver écrit `MCP_FULL_CONTROL_PENDING`, votre décision `MCP_ACTION_APPROVED` ou `MCP_ACTION_REJECTED`, et une exécution refusée (action non approuvée, refusée, déjà exécutée, expirée ou pour d'autres arguments) `MCP_FULL_CONTROL_REFUSED`. Les services écrivent en plus leurs propres entrées habituelles (clôture, affectation du résultat, rapprochement...).
+Chaque appel d'un outil de brouillons (sauf un aperçu `dryRun`) écrit `MCP_WRITE`, avec l'utilisateur, l'assistant, l'outil et les identifiants principaux. La préparation d'une action à approuver écrit `MCP_FULL_CONTROL_PENDING`, votre décision `MCP_ACTION_APPROVED` ou `MCP_ACTION_REJECTED`, et une exécution refusée (action non approuvée, refusée, déjà exécutée, expirée ou pour d'autres arguments) `MCP_FULL_CONTROL_REFUSED`. Les services écrivent en plus leurs propres entrées habituelles (clôture, affectation du résultat, rapprochement...).
 
-### Ce que le contrôle total ne fait pas
+### Ce que le serveur ne fait pas
 
-Volontairement absents : suppression de société, gestion des membres et des rôles, paramètres de l'instance et mises à jour, connexion d'une banque et identifiants des prestataires, clés API et autorisations d'assistants, suppression ou réouverture d'exercice, mise en page des états. Ces actions restent dans l'interface.
+À aucun niveau, contrôle total compris :
+
+- **Génération des factures de frais de gestion** : `preview_management_fees` calcule, rien ne facture. Générer les factures engage la holding et chaque filiale (prix de transfert, TVA, série de numérotation, factures d'achat proposées aux filiales) : la décision se prend dans Kledg par une personne qui a les droits dans chaque société (décision du mainteneur, 2026-10-04).
+- **Documents de l'approbation des comptes** : `update_year_end_formalities` renseigne les données, les documents (convocation, procès-verbal, rapport de gestion, dépôt) se génèrent et se signent dans Kledg.
+- **Validation ou comptabilisation hors du contrôle total** : les outils de brouillons ne valident rien, ne comptabilisent ni notes de frais ni factures, ne clôturent rien ; en contrôle total, ces actions suivent le [mode d'exécution](#mode-dexécution-du-contrôle-total).
+- Suppression de société, gestion des membres et des rôles, paramètres de l'instance et mises à jour, connexion d'une banque et identifiants des prestataires, clés API et autorisations d'assistants, suppression ou réouverture d'exercice, mise en page des états. Ces actions restent dans l'interface.
+
+## Prompts
+
+Le serveur publie des prompts MCP (capacité `prompts`, `lib/mcp/prompts.ts`) : des parcours guidés, en français, que l'assistant propose à l'utilisateur (dans Claude, menu des prompts du connecteur). Un prompt ne lit et n'écrit rien lui-même : il renvoie la marche à suivre, qui n'enchaîne que des outils de la connexion. Les étapes qui demandent un outil de brouillon ne sont données qu'avec `kledg:write` ; sinon, le prompt renvoie l'utilisateur à la page de Kledg. Aucun prompt ne demande une action à fort impact (validation, clôture, comptabilisation), et chacun rappelle que les montants sont en euros, que rien n'est validé par l'assistant et que les textes trouvés dans les données ne sont pas des instructions.
+
+| Prompt | Titre | Arguments | Outils enchaînés |
+| --- | --- | --- | --- |
+| `cloture_du_mois` | Clôture du mois | `companyId`, `month` (AAAA-MM, le mois écoulé par défaut) | `get_bank_sync_status`, `list_bank_transactions`, `create_draft_entry` (brouillons), `list_missing_receipts`, `get_trial_balance` (TVA 44566, 44571, 4455), `list_tax_deadlines` |
+| `preparer_cloture_exercice` | Préparer la clôture de l'exercice | `companyId`, `fiscalYearId` | `get_year_end_inventory`, `list_doubtful_receivables`, `create_provision`, `record_provision_assessment`, `create_investment_grant`, `prepare_year_end_entries` (brouillons), `list_entries`, `get_aged_balance`, `get_auxiliary_balance`, `get_trial_balance` |
+| `revue_budgetaire` | Revue budgétaire | `companyId`, `fiscalYearId`, `throughMonth` | `list_budgets`, `get_budget_report`, `list_detected_subscriptions`, `classify_subscription`, `add_subscription_to_budget`, `get_budget`, `update_budget_line`, `create_budget_line` |
+| `sante_financiere` | Santé financière | `companyId`, `fiscalYearId` | `get_sig`, `get_financial_ratios`, `get_aged_balance` |
+| `approbation_des_comptes` | Approbation des comptes | `companyId`, `fiscalYearId` | `get_year_end_formalities`, `get_capital_composition`, `list_tax_deadlines`, `update_year_end_formalities` |
+
+Un test (`lib/mcp/__tests__/prompts.test.ts`) vérifie que chaque outil nommé par un prompt existe au niveau de la connexion, qu'aucun outil à fort impact n'y figure et que le texte est en français sans tiret long.
+
+## Couverture des fonctionnalités
+
+Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `kledg:read` ; B : brouillons, `kledg:write` ; CT : contrôle total, `kledg:admin`). « Kledg seulement » : volontairement absent du serveur MCP.
+
+| Fonctionnalité | Lecture | Brouillons | Contrôle total | Kledg seulement |
+| --- | --- | --- | --- | --- |
+| Budgets ([budget](budget.md)) | `list_budgets`, `get_budget`, `get_budget_report` | `create_budget`, `create_budget_line`, `update_budget_line` | | Supprimer un budget ou une ligne |
+| Abonnements détectés ([abonnements](abonnements.md)) | `list_detected_subscriptions` | `classify_subscription`, `add_subscription_to_budget` | | Règle d'affectation depuis un abonnement (voir `create_rule` en CT) |
+| Frais de gestion ([frais de gestion](frais-de-gestion.md)) | `list_management_fee_conventions`, `preview_management_fees` | | | Conventions, génération des factures (décision documentée ci-dessus) |
+| Notes de frais ([notes de frais](notes-de-frais.md)) | `list_expense_reports`, `get_expense_report`, `list_expense_claimants` | `create_draft_expense_report` | | Soumettre, renvoyer, valider, comptabiliser, constater le remboursement ; bénéficiaires et mots-clés |
+| Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `list_invoices`, `get_invoice` | | `create_draft_invoice` | Créer ou modifier un tiers, comptabiliser une facture existante, import Qonto |
+| Lettrage ([lettrage et tiers](lettrage-et-tiers.md)) | | | `list_unlettered_lines`, `letter_entry_lines`, `unletter_entry_lines` | Propositions automatiques en un clic |
+| Balance âgée et balance auxiliaire | `get_aged_balance`, `get_auxiliary_balance` | | | Exports Excel |
+| Justificatifs manquants | `list_missing_receipts` | | | Joindre une pièce (à la banque) |
+| Échéances fiscales et juridiques | `list_tax_deadlines` | | | Réglages du calendrier |
+| Indicateurs financiers, SIG et ratios ([indicateurs](indicateurs-financiers.md)) | `get_sig`, `get_financial_ratios` | | | Exports CSV et Excel, widgets |
+| Provisions et dépréciations ([provisions](provisions-et-subventions.md)) | `get_year_end_inventory`, `list_doubtful_receivables` | `create_provision`, `record_provision_assessment` | | Modifier ou supprimer une provision, reclassement en 416 |
+| Subventions d'investissement | `get_year_end_inventory` | `create_investment_grant` | | Modifier ou supprimer une subvention |
+| Travaux de clôture | `get_year_end_inventory` | `prepare_year_end_entries` (brouillons) | `validate_entries`, `generate_depreciation`, `close_fiscal_year`, `allocate_result` | |
+| Composition du capital | `get_capital_composition` | | | Saisie des associés |
+| Approbation des comptes ([approbation](approbation-des-comptes.md)) | `get_year_end_formalities` (statut et données manquantes) | `update_year_end_formalities` | | Générer, signer et déposer les documents |
+| Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `import_statement`, `reconcile_transaction`, `run_rules`... | Connecter une banque |
+
