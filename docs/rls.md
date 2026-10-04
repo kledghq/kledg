@@ -210,7 +210,7 @@ otherwise.
 | Role | Used by | Rights |
 |---|---|---|
 | Owner (the role of `DATABASE_MIGRATION_URL`, else `DATABASE_URL_UNPOOLED`) | `prisma migrate deploy`, `pnpm db:rls-role` | owns the schema |
-| `kledg_app` (or the name given to `pnpm db:rls-role -- --role`) | the application with `KLEDG_RLS=enforce` (`KLEDG_DATABASE_URL`, else `DATABASE_URL`) | `SELECT, INSERT, UPDATE, DELETE` on the tables, sequences and functions; no DDL, no `BYPASSRLS`, nothing on `_prisma_migrations` |
+| `kledg_app` (or the name given to `pnpm db:rls-role -- --role`) | the application with `KLEDG_RLS=enforce` (`KLEDG_DATABASE_URL`, else `DATABASE_URL`) | `SELECT, INSERT, UPDATE, DELETE` on the tables, sequences and functions; no DDL, no `BYPASSRLS`, nothing on `_prisma_migrations`, no `EXECUTE` on the owner-only `SECURITY DEFINER` functions (`kledg_purge_audit_logs`, `kledg_assert_fiscal_year_open`) |
 
 `pnpm db:rls-role` (`scripts/rls-role.ts`) creates the role if needed, grants
 it the rights above on the existing tables and, through `ALTER DEFAULT
@@ -312,7 +312,7 @@ a millisecond each from Vercel to Neon in the same region) than locally.
 
 | Test | Checks |
 |---|---|
-| `lib/rls/__tests__/policy-coverage.db.test.ts` | every table has RLS and its four policies, or is exempt with a reason; no `FORCE`; the integrity functions are `SECURITY DEFINER` with a fixed `search_path`; the policies call the access functions as InitPlans |
+| `lib/rls/__tests__/policy-coverage.db.test.ts` | every table has RLS and its four policies, or is exempt with a reason; no `FORCE`; the integrity functions are `SECURITY DEFINER`; every `SECURITY DEFINER` function has `search_path = public, pg_temp`, and only the ones the application calls are executable by its role and `PUBLIC`; the policies call the access functions as InitPlans |
 | `lib/rls/__tests__/tenant-isolation.db.test.ts` | with user A's context, raw SQL and Prisma cannot read, insert, update, delete or move rows of company B in every covered table; no context and the anonymous context read nothing; writes without context are refused; scopes narrow and never widen; administrators and system contexts reach everything; banned and unknown users nothing; the denormalized `companyId` cannot be forged; concurrent lookups of two users are never batched together; switched off, every role passes |
 | `lib/rls/__tests__/pool.db.test.ts` | context per statement and per transaction, captured at call time, deferred `BEGIN`, isolation levels, empty transactions, refusal of writes without context, refusal of a bypassing role |
 | `lib/rls/__tests__/sql.test.ts` | settings, escaping, statement classification, `KLEDG_RLS` parsing |
