@@ -13,6 +13,7 @@ vi.mock('@/lib/session', () => ({
 }))
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
+vi.mock('@/lib/companies/archive-company.service', () => ({ assertCompanyWritable: async () => undefined }))
 
 vi.mock('@/lib/rbac/authorize', async () => {
   const actual = await vi.importActual<typeof import('@/lib/rbac/authorize')>('@/lib/rbac/authorize')

@@ -4,6 +4,8 @@
  * of a company route and of an MCP tool (lib/mcp/company-access.ts), against
  * PostgreSQL with the real company route:
  * - Kledg's default never refuses: only archived companies are read-only;
+ * - a missing company, or one the context cannot see, fails closed with the
+ *   usual not-found error (it used to pass as writable);
  * - a refusal answers 409 with the policy's message and link on writes,
  *   while reads keep working.
  *
@@ -30,7 +32,10 @@ vi.mock('@/lib/instance/policy', async (importOriginal) => {
 import * as policy from '@/lib/instance/policy'
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import { ARCHIVED_COMPANY_MESSAGE, assertCompanyWritable } from '../archive-company.service'
-import { ConflictError } from '@/lib/accounting/errors'
+import { ConflictError, NotFoundError } from '@/lib/accounting/errors'
+import { COMPANY_NOT_FOUND_MESSAGE } from '@/lib/rbac/authorize'
+import { withUserContext } from '@/lib/rls/context'
+import { rlsMode } from '@/lib/rls/mode'
 
 const available = await testDatabaseAvailable()
 
@@ -67,6 +72,18 @@ describe.skipIf(!available)('read-only companies decided by the instance policy'
     await expect(assertCompanyWritable(ids.archived)).rejects.toEqual(new ConflictError(ARCHIVED_COMPANY_MESSAGE))
     expect(policy.companyWriteRefusal).toHaveBeenCalledWith(ids.company)
     expect((await call('PATCH', { name: 'Atelier Lumen' })).status).toBe(200)
+  })
+
+  it('fails closed on a missing company: not found, never writable', async () => {
+    await expect(assertCompanyWritable('missing-company')).rejects.toEqual(new NotFoundError(COMPANY_NOT_FOUND_MESSAGE))
+  })
+
+  it.runIf(rlsMode() === 'enforce')('fails closed on a company the context cannot see, even an archived one', async () => {
+    // The scope narrows the administrator to the open company: the archived one is invisible.
+    await expect(
+      withUserContext(state.user.id, () => assertCompanyWritable(ids.archived), { companyIds: [ids.company] }),
+    ).rejects.toEqual(new NotFoundError(COMPANY_NOT_FOUND_MESSAGE))
+    await expect(withUserContext(state.user.id, () => assertCompanyWritable(ids.company), { companyIds: [ids.company] })).resolves.toBeUndefined()
   })
 
   it('a refusal answers writes with 409, its message and link, and keeps reads open', async () => {
