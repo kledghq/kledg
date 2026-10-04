@@ -18,6 +18,7 @@
 - [Provisions et subventions](provisions-et-subventions.md) : provisions pour risques et charges, dépréciations, créances douteuses, subventions d'investissement, travaux de clôture en brouillon, composition du capital
 - [Approbation des comptes](approbation-des-comptes.md) : selon la forme juridique, convocation, rapport de gestion, procès-verbal ou décision de l'associé unique avec l'affectation du résultat, feuille de présence, déclaration de confidentialité et dépôt au greffe, en PDF et en Markdown
 - [Frais de gestion](frais-de-gestion.md) : conventions d'une holding avec ses filiales, coûts majorés d'une marge, clés de répartition, factures de vente et factures d'achat proposées
+- [Vue groupe](vue-groupe.md) : vue combinée d'une holding et de ses filiales, flux intragroupe et éliminations indicatives, trésorerie du groupe, tableau des filiales et participations
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
 
 La documentation utilisateur (prise en main, import FEC, banque, clôture) est publiée sur [kledg.com](https://www.kledg.com).

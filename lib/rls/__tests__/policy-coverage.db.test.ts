@@ -82,6 +82,7 @@ describe.skipIf(!available)('row level security: policy coverage', () => {
       'kledg_rls_unrestricted',
       'kledg_rls_company_ids',
       'kledg_company_identifier_taken',
+      'kledg_group_subsidiary_ids',
     ]
     const { rows } = await db.query<{ name: string; definer: boolean; config: string[] | null }>(
       `SELECT proname AS name, prosecdef AS definer, proconfig AS config FROM pg_proc WHERE proname = ANY($1)`,

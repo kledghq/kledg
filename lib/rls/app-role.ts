@@ -23,6 +23,7 @@ export const DEFAULT_APP_ROLE = 'kledg_app'
  */
 export const APP_CALLABLE_DEFINER_FUNCTIONS: readonly string[] = [
   'kledg_company_identifier_taken',
+  'kledg_group_subsidiary_ids',
   'kledg_rls_company_ids',
   'kledg_rls_unrestricted',
 ]

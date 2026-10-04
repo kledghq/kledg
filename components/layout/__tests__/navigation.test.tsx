@@ -75,12 +75,14 @@ describe('NavMain', () => {
     expect(screen.getByRole('link', { name: 'Tableau de bord' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('shows Frais de gestion in a holding only (lib/management-fees/holding.ts)', () => {
+  it('shows Frais de gestion and Vue groupe in a holding only (lib/management-fees/holding.ts)', () => {
     const { unmount } = inSidebar(<NavMain groups={navGroups} holdingRefs={['beta']} />)
     expect(screen.queryByRole('link', { name: 'Frais de gestion' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Vue groupe' })).toBeNull()
     unmount()
     inSidebar(<NavMain groups={navGroups} holdingRefs={['alpha']} />)
     expect(screen.getByRole('link', { name: 'Frais de gestion' })).toHaveAttribute('href', '/alpha/management-fees')
+    expect(screen.getByRole('link', { name: 'Vue groupe' })).toHaveAttribute('href', '/alpha/group')
   })
 })
 
