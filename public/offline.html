@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Hors ligne · Kledg</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<!--
+  Shown by the service worker (public/sw.js) when a page cannot be reached.
+  Static on purpose: no script (the page CSP allows none without a nonce),
+  no data, the design tokens of app/globals.css copied as plain values.
+  "Réessayer" is a link to the current address: the browser asks the
+  network again for the page that failed.
+-->
+<style>
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --muted-foreground: oklch(0.47 0 0);
+    --border: oklch(0.922 0 0);
+    --primary: oklch(0.145 0 0);
+    --primary-foreground: oklch(0.99 0 0);
+    --ring: oklch(0.63 0.125 160);
+    --surface: oklch(0.985 0 0);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.145 0 0);
+      --foreground: oklch(0.97 0 0);
+      --muted-foreground: oklch(0.708 0 0);
+      --border: oklch(1 0 0 / 10%);
+      --primary: oklch(0.97 0 0);
+      --primary-foreground: oklch(0.16 0 0);
+      --ring: oklch(0.73 0.125 160);
+      --surface: oklch(0.17 0 0);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--background);
+    color: var(--foreground);
+    font: 14px/1.5 "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  main {
+    width: 100%;
+    max-width: 28rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+  }
+  img { display: block; width: 32px; height: 32px; margin-bottom: 1.25rem; }
+  h1 { margin: 0 0 0.5rem; font-size: 1.5rem; line-height: 2rem; font-weight: 600; letter-spacing: -0.02em; }
+  p { margin: 0 0 1.25rem; color: var(--muted-foreground); }
+  a {
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 1rem;
+    border-radius: 0.4rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  a:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }
+  @media (pointer: coarse) { a { height: 44px; } }
+</style>
+</head>
+<body>
+<main id="contenu">
+  <img src="/logo.svg" alt="Kledg">
+  <h1>Vous êtes hors ligne</h1>
+  <p>Kledg ne parvient pas à joindre le serveur. Vérifiez votre connexion, puis réessayez. Vos données comptables ne sont pas enregistrées sur cet appareil&nbsp;: elles s'affichent de nouveau dès que la connexion revient.</p>
+  <a href="">Réessayer</a>
+</main>
+</body>
+</html>

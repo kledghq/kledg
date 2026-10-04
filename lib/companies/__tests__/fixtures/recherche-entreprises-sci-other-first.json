@@ -1,0 +1,44 @@
+{
+  "results": [
+    {
+      "siren": "912345683",
+      "nom_complet": "MAISON VERDIER",
+      "nom_raison_sociale": "MAISON VERDIER",
+      "nature_juridique": "5499",
+      "activite_principale": "47.24Z",
+      "date_creation": "2019-06-01",
+      "etat_administratif": "A",
+      "siege": {
+        "siret": "91234568300018",
+        "adresse": "3 PLACE DU MARCHE 33000 BORDEAUX",
+        "numero_voie": "3",
+        "type_voie": "PL",
+        "libelle_voie": "DU MARCHE",
+        "code_postal": "33000",
+        "libelle_commune": "BORDEAUX"
+      }
+    },
+    {
+      "siren": "552100009",
+      "nom_complet": "SCI LES TILLEULS",
+      "nom_raison_sociale": "SCI LES TILLEULS",
+      "nature_juridique": "6540",
+      "activite_principale": "68.20B",
+      "date_creation": "2012-11-20",
+      "etat_administratif": "C",
+      "siege": {
+        "siret": null,
+        "adresse": "LIEU DIT LES TILLEULS 24200 SARLAT-LA-CANEDA",
+        "numero_voie": null,
+        "type_voie": null,
+        "libelle_voie": null,
+        "code_postal": "24200",
+        "libelle_commune": "SARLAT-LA-CANEDA"
+      }
+    }
+  ],
+  "total_results": 2,
+  "page": 1,
+  "per_page": 5,
+  "total_pages": 1
+}

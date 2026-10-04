@@ -1,0 +1,5 @@
+# FEC test files are byte-exact (CR/LF records, UTF-8 or ISO 8859-15): never convert them.
+lib/fec/__tests__/fixtures/*.txt -text
+lib/import/fec/__tests__/fixtures/*.txt -text
+# Shell scripts run in Linux containers: keep LF line endings on every checkout.
+*.sh text eol=lf

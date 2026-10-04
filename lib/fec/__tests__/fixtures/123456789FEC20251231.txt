@@ -1,0 +1,11 @@
+JournalCode	JournalLib	EcritureNum	EcritureDate	CompteNum	CompteLib	CompAuxNum	CompAuxLib	PieceRef	PieceDate	EcritureLib	Debit	Credit	EcritureLet	DateLet	ValidDate	Montantdevise	Idevise
+AN	À-nouveaux	3	20250101	512000	Banque			OU-2025	20250101	Écriture d'ouverture	10000,00	0,00			20250420		
+AN	À-nouveaux	3	20250101	101000	Capital			OU-2025	20250101	Écriture d'ouverture	0,00	10000,00			20250420		
+VE	Ventes	1	20250315	411000	Clients	C0001	Dupont SARL	FA-2025-001	20250314	Facture Dupont	1200,00	0,00	AA	20250410	20250401		
+VE	Ventes	1	20250315	706000	Prestations de services			FA-2025-001	20250314	Facture Dupont	0,00	1000,00			20250401		
+VE	Ventes	1	20250315	445710	TVA collectée			FA-2025-001	20250314	TVA 20 %	0,00	200,00			20250401		
+BQ	Banque	2	20250410	512000	Banque			VIR 12 34	20250410	Règlement Dupont virement	1200,00	0,00			20250410		
+BQ	Banque	2	20250410	411000	Clients	C0001	Dupont SARL	VIR 12 34	20250410	Règlement Dupont virement	0,00	1200,00	AA	20250410	20250410		
+AC	Achats	4	20251231	651000	Redevances			4	20251231	Licence logicielle annuelle	0,10	0,00			20260101		
+AC	Achats	4	20251231	651000	Redevances			4	20251231	Licence logicielle annuelle	0,20	0,00			20260101		
+AC	Achats	4	20251231	401000	Fournisseurs	F0001	Soft Inc	4	20251231	Licence logicielle annuelle	0,00	0,30			20260101	-0,35	USD

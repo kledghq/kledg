@@ -1,0 +1,3 @@
+Transaction ID;Date de la valeur;Date d'opération;IBAN;Type de transaction;Transaction personnelle;Category;Débit;Crédit;Solde mouvement;Solde bancaire;Libellé;Nom de la contrepartie;Montant HT;Montant de TVA total;Pièces;Date d'ajout pièces;Commentaire
+shn_tx_001;03/03/2026;03/03/2026;FR7610000000000000000000000;Carte;Non;Logiciels;-29,00;;-29,00;971,00;Abonnement logiciel;Logiciel Démo;24,17;4,83;0;;
+shn_tx_002;04/03/2026;04/03/2026;FR7610000000000000000000000;Virement;Non;Ventes;;1 200,00;1 200,00;2 171,00;Paiement facture F-7;Client Gamma;1 000,00;200,00;0;;Acompte

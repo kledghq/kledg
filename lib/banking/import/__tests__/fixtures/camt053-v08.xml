@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+  <BkToCstmrStmt>
+    <GrpHdr><MsgId>STMT-TEST-0008</MsgId><CreDtTm>2026-03-10T06:00:00+01:00</CreDtTm></GrpHdr>
+    <Stmt>
+      <Id>STMT-0008</Id>
+      <Acct><Id><IBAN>FR7630006000011234567890189</IBAN></Id><Ccy>EUR</Ccy></Acct>
+      <Ntry>
+        <Amt Ccy="EUR">15.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-03-06</Dt></BookgDt>
+        <ValDt><Dt>2026-03-06</Dt></ValDt>
+        <AcctSvcrRef>BQ-0101</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <RltdPties><Cdtr><Pty><Nm>Parking Municipal</Nm></Pty></Cdtr></RltdPties>
+          <RmtInf><Ustrd>Ticket 4521</Ustrd><Ustrd>Mars</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">7.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>PDNG</Cd></Sts>
+        <BookgDt><Dt>2026-03-09</Dt></BookgDt>
+        <ValDt><Dt>2026-03-09</Dt></ValDt>
+        <AcctSvcrRef>BQ-0102</AcctSvcrRef>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

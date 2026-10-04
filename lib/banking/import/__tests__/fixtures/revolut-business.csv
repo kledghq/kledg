@@ -1,0 +1,4 @@
+Date started (UTC),Date completed (UTC),ID,Type,State,Description,Reference,Payer,Card number,Card label,Card state,Orig currency,Orig amount,Payment currency,Amount,Total amount,Exchange rate,Fee,Fee currency,Balance,Account,Beneficiary account number,Beneficiary sort code or routing number,Beneficiary IBAN,Beneficiary BIC,MCC,Related transaction id,Spend program
+2026-03-02,2026-03-02,6601a1b2-0000-4000-8000-000000000001,CARD_PAYMENT,COMPLETED,Hebergement Web,,Jean Exemple,459999******0001,,,EUR,-15.00,EUR,-15.00,-15.00,,0.00,EUR,985.00,Main EUR,,,,,4816,,
+2026-03-03,2026-03-03,6601a1b2-0000-4000-8000-000000000002,TRANSFER,COMPLETED,Paiement Client Zeta,INV-2026-5,,,,,EUR,1500.00,EUR,1500.00,1500.00,,0.00,EUR,2485.00,Main EUR,,,,,,,
+2026-03-04,,6601a1b2-0000-4000-8000-000000000003,CARD_PAYMENT,PENDING,Cafe,,Jean Exemple,459999******0001,,,EUR,-3.50,EUR,-3.50,-3.50,,0.00,EUR,,Main EUR,,,,,5814,,

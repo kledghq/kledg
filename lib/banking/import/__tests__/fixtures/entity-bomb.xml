@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE lol [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;">]>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02"><BkToCstmrStmt><Stmt/></BkToCstmrStmt></Document>

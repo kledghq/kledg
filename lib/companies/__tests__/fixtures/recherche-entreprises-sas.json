@@ -1,0 +1,45 @@
+{
+  "results": [
+    {
+      "siren": "912345675",
+      "siren_conserve": null,
+      "nom_complet": "ATELIER LUMEN (LUMEN STUDIO)",
+      "nom_raison_sociale": "ATELIER LUMEN",
+      "sigle": null,
+      "nombre_etablissements": 1,
+      "nombre_etablissements_ouverts": 1,
+      "siege": {
+        "activite_principale": "74.10Z",
+        "adresse": "12 BIS RUE DES ARTISANS BATIMENT B 69007 LYON",
+        "code_postal": "69007",
+        "complement_adresse": "BATIMENT B",
+        "date_creation": "2025-03-14",
+        "est_siege": true,
+        "etat_administratif": "A",
+        "indice_repetition": "BIS",
+        "libelle_commune": "LYON",
+        "libelle_commune_etranger": null,
+        "libelle_voie": "DES ARTISANS",
+        "numero_voie": "12",
+        "siret": "91234567500012",
+        "type_voie": "RUE"
+      },
+      "activite_principale": "74.10Z",
+      "activite_principale_naf25": "74.11Y",
+      "categorie_entreprise": "PME",
+      "caractere_employeur": "N",
+      "date_creation": "2025-03-14",
+      "date_fermeture": null,
+      "date_mise_a_jour": "2026-09-30T10:00:00",
+      "etat_administratif": "A",
+      "nature_juridique": "5710",
+      "section_activite_principale": "M",
+      "tranche_effectif_salarie": "NN",
+      "statut_diffusion": "O"
+    }
+  ],
+  "total_results": 1,
+  "page": 1,
+  "per_page": 5,
+  "total_pages": 1
+}

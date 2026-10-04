@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Vulnérabilité de sécurité
+    url: https://github.com/kledghq/kledg/security/advisories/new
+    about: Signalez les failles en privé, pas dans une issue.

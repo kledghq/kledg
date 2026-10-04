@@ -1,0 +1,15 @@
+JournalCode|JournalLib|EcritureNum|EcritureDate|CompteNum|CompteLib|CompAuxNum|CompAuxLib|PieceRef|PieceDate|EcritureLib|Debit|Credit|EcritureLet|DateLet|ValidDate|Montantdevise|Idevise
+AN|A nouveaux|1|20240101|512000|Banque|||AN2024|20240101|Reprise des soldes|5000,00||||20240105||
+AN|A nouveaux|1|20240101|101300|Capital souscrit appelé versé|||AN2024|20240101|Reprise des soldes||5000,00|||20240105||
+VT|Ventes|1|20240312|411000|Clients|CLI001|Café des Arts|F240001|20240312|Facture F240001 Café des Arts|1800,00|0,00|A|20240415|20240313||
+VT|Ventes|1|20240312|706000|Prestations de services|||F240001|20240312|Facture F240001 Café des Arts|0,00|1500,00|||20240313||
+AC|Achats|1|20240320|626000|Frais postaux et télécom|||INV-778|20240318|Abonnement logiciel 12 ¤ HT|0,10||||20240321|0,11|USD
+AC|Achats|1|20240320|626000|Frais postaux et télécom|||INV-778|20240318|Abonnement logiciel 12 ¤ HT|0,20||||20240321|0,22|USD
+AC|Achats|1|20240320|4011DUBOIS|Fournisseur Dubois|FOU007|Dubois & Fils|INV-778|20240318|Abonnement logiciel 12 ¤ HT||0,30|B|20240410|20240321|-0,33|USD
+VT|Ventes|1|20240312|445710|TVA collectée|||F240001|20240312|TVA à 20 %|0,00|300,00|||20240313||
+BQ|Banque|1|20240410|4011DUBOIS|Fournisseur Dubois|FOU007|Dubois & Fils|VIR0410|20240410|Règlement Dubois|0,30||B|20240410|20240410||
+BQ|Banque|1|20240410|512000|Banque|||VIR0410|20240410|Règlement Dubois||0,30|||20240410||
+BQ|Banque|2|20240415|512000|Banque|||VIR0415|20240415|Encaissement Café des Arts|1800,00|0,00|||20240415||
+BQ|Banque|2|20240415|411000|Clients|CLI001|Café des Arts|VIR0415|20240415|Encaissement Café des Arts|0,00|1800,00|A|20240415|20240415||
+VT|Ventes|2|20241231|411000|Clients|CLI002|Boulangerie Éole|F240002|20241231|Facture F240002|1234567,89||||20241231||
+VT|Ventes|2|20241231|706000|Prestations de services|||F240002|20241231|Facture F240002||1234567,88|||20241231||

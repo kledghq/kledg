@@ -1,0 +1,30 @@
+name: Bug
+description: Quelque chose ne fonctionne pas comme prévu
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Que se passe-t-il ?
+      description: Décrivez le problème et le comportement attendu.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: "1. Aller sur ...\n2. Cliquer sur ...\n3. Constater ..."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version ou commit
+  - type: dropdown
+    id: hosting
+    attributes:
+      label: Hébergement
+      options: [Vercel + Neon, Autre (précisez ci-dessous), Développement local]
+  - type: markdown
+    attributes:
+      value: "N'incluez aucune donnée comptable réelle : anonymisez montants, noms et SIREN."

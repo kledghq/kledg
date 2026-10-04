@@ -1,0 +1,16 @@
+# Local PostgreSQL for development: docker compose -f docker-compose.dev.yml up -d
+# (the full stack for a server is docker-compose.yml)
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: kledg
+      POSTGRES_PASSWORD: kledg
+      POSTGRES_DB: kledg
+    ports:
+      - "5432:5432"
+    volumes:
+      - kledg-db:/var/lib/postgresql/data
+
+volumes:
+  kledg-db:

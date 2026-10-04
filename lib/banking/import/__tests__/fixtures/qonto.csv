@@ -1,0 +1,4 @@
+Status,Settlement date (UTC),Operation date (UTC),Total amount (incl. VAT),Currency,Counterparty name,Payment method,Transaction ID,IBAN,Reference,Category,Note
+settled,2026-03-03 09:12:45,2026-03-03 09:12:40,-120.00,EUR,Fournisseur Delta,transfer,org-1-transaction-101,FR7616958000000000000000000,Facture D-88,supplier,
+settled,2026-03-04 14:00:00,2026-03-04 13:59:58,2500.00,EUR,Client Epsilon,transfer,org-1-transaction-102,FR7616958000000000000000000,F-2026-12,sales,
+processing,,2026-03-05 08:00:00,-9.90,EUR,Service en ligne,card,org-1-transaction-103,FR7616958000000000000000000,,online_service,

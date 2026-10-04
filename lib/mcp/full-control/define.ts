@@ -1,0 +1,246 @@
+/**
+ * The single way full control MCP tools are registered.
+ *
+ * `registerFullControlTool` wraps every tool so that, on each call, in order:
+ * 1. the company is checked by `guard.requireFullControl(companyId, permission)`
+ *    (403 without kledg:admin, then the connection's company grant and the
+ *    user's role, exactly like the other tools: a company outside the grant
+ *    is "Société introuvable");
+ * 2. the user's full control calls are rate limited;
+ * 3. a tool with `confirmation: true` (high impact) runs according to the
+ *    connection's execution mode (access.executionMode, stored on its grant):
+ *    - 'validation': it returns a dry run and records a pending action the
+ *      user must approve in Kledg; called again with that `actionId`, it acts
+ *      only once the user approved (pending-actions.ts). The assistant
+ *      cannot approve by itself;
+ *    - 'automatic' (the owner's choice for full control): it executes on
+ *      the call, with no pending action. `dryRun: true` still returns the
+ *      preview without writing, for an assistant that wants to show it;
+ * 4. every action (not the dry runs nor the plain reads) is written to the
+ *    audit log with the user, the assistant (OAuth client name or API key
+ *    name), the execution mode, the tool and the main ids.
+ *
+ * Tools are thin: `preview` and `execute` call the lib services the web UI
+ * uses, which keep every accounting invariant (and the database triggers
+ * behind them). Errors go through handleError: typed errors keep their French
+ * message, anything else becomes the generic message.
+ */
+
+import type { McpServer } from '@modelcontextprotocol/server'
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { writeAuditLog } from '@/lib/audit'
+import { enforceRateLimit } from '@/lib/rate-limit'
+import type { Permission } from '@/lib/rbac/authorize'
+import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
+import { json, run } from '@/lib/mcp/tool-result'
+import type { ExecutionMode } from '@/lib/ai-access/access'
+import { claimApprovedAction, createPendingAction, finishAction } from './pending-actions'
+import { TWO_STEP, stepFor } from './descriptions'
+
+export const companyIdInput = z.string().describe('Company id, from list_companies.')
+
+export interface FullControlContext {
+  access: McpAccess
+  companyId: string
+}
+
+type Shape = z.ZodRawShape
+type Args<S extends Shape> = z.infer<z.ZodObject<S>> & { companyId: string }
+
+interface ToolBase<S extends Shape, R> {
+  name: string
+  title: string
+  description: string
+  /** Input fields; companyId is added to every tool. */
+  input: S
+  /** Permission checked in the company by requireFullControl. */
+  permission: Permission
+  /** Main ids written to the audit log with the action; null for plain reads (not audited). */
+  audit: ((args: Args<S>, result: R) => Record<string, unknown>) | null
+  execute: (args: Args<S>, ctx: FullControlContext) => Promise<R>
+  readOnly?: boolean
+  destructive?: boolean
+  idempotent?: boolean
+}
+
+export interface DirectTool<S extends Shape, R> extends ToolBase<S, R> {
+  confirmation: false
+}
+
+export interface ConfirmedTool<S extends Shape, P, R> extends ToolBase<S, R> {
+  /**
+   * High impact: approved by the user in Kledg before it runs
+   * (pending-actions.ts) in validation mode, executed on the call in
+   * automatic mode. Its description contains TWO_STEP (replaced per mode).
+   */
+  confirmation: true
+  /** Dry run: exactly what `execute` would do, without writing. */
+  preview: (args: Args<S>, ctx: FullControlContext) => Promise<P>
+}
+
+export type FullControlTool<S extends Shape, P, R> = DirectTool<S, R> | ConfirmedTool<S, P, R>
+
+/** Declares a tool (identity, for type inference of its arguments and result). */
+export function fullControlTool<S extends Shape, P, R>(tool: FullControlTool<S, P, R>): FullControlTool<S, P, R> {
+  return tool
+}
+
+/** Registers one tool through registerFullControlTool (given to each tool module). */
+export type RegisterTool = <S extends Shape, P, R>(tool: FullControlTool<S, P, R>) => void
+
+/** Input of a high-impact tool in validation mode. */
+const confirmFields = {
+  actionId: z
+    .string()
+    .max(100)
+    .optional()
+    .describe(
+      'Leave empty for the dry run, which returns an actionId and an approvalUrl. Pass the actionId (with the same arguments) only after the user approved the action in Kledg at that URL.',
+    ),
+}
+
+/** Input of a high-impact tool in automatic mode: the preview stays available, never required. */
+const dryRunFields = {
+  dryRun: z
+    .boolean()
+    .optional()
+    .describe('true: only return the preview of what the call would do (nothing is written). Omit it, or false, to execute.'),
+}
+
+/** Name of the assistant for the audit log: the OAuth client's name or the API key's name. */
+async function assistantOf(access: McpAccess): Promise<{ kind: string; id: string; name: string | null }> {
+  if (access.caller.kind === 'oauth') {
+    const client = await prisma.oauthClient.findUnique({ where: { clientId: access.caller.clientId }, select: { name: true } })
+    return { kind: 'oauth', id: access.caller.clientId, name: client?.name ?? null }
+  }
+  const key = await prisma.apikey.findUnique({ where: { id: access.caller.apiKeyId }, select: { name: true } })
+  return { kind: 'apiKey', id: access.caller.apiKeyId, name: key?.name ?? null }
+}
+
+const MODE_NOTES: Record<ExecutionMode, string> = { automatic: 'mode automatique', validation: 'validation dans Kledg' }
+
+async function audit(
+  tool: string,
+  access: McpAccess,
+  companyId: string,
+  ids: Record<string, unknown>,
+  refused?: string,
+  action?: string,
+) {
+  const assistant = await assistantOf(access)
+  const who = assistant.name ?? assistant.id
+  const mode = access.executionMode
+  await writeAuditLog(refused ? 'warn' : 'info', `MCP full control${refused ? ' refused' : action ? ' pending' : ''} (${MODE_NOTES[mode]}): ${tool} by ${who}`, {
+    action: action ?? (refused ? 'MCP_FULL_CONTROL_REFUSED' : 'MCP_FULL_CONTROL'),
+    companyId,
+    metadata: {
+      source: 'mcp',
+      tool,
+      userId: access.user.id,
+      assistant,
+      executionMode: mode,
+      ...ids,
+      ...(refused && { reason: refused }),
+    },
+    context: { userId: access.user.email || access.user.id, ipAddress: null, userAgent: `mcp:${assistant.kind}` },
+  })
+}
+
+async function limitFullControl(userId: string) {
+  await enforceRateLimit('mcp-full-control', userId)
+}
+
+const APPROVAL_NEXT_STEP =
+  "Aperçu seulement : rien n'a été modifié. Montrez cet aperçu à l'utilisateur et donnez-lui le lien approvalUrl : il doit approuver l'action lui-même dans Kledg (vous ne pouvez pas l'approuver). Une fois approuvée, rappelez l'outil avec les mêmes arguments et actionId."
+
+const AUTOMATIC_NEXT_STEP =
+  "Aperçu seulement : rien n'a été modifié. Pour exécuter l'action, rappelez l'outil avec les mêmes arguments, sans dryRun."
+
+export function registerFullControlTool<S extends Shape, P, R>(
+  server: McpServer,
+  access: McpAccess,
+  guard: CompanyGuard,
+  tool: FullControlTool<S, P, R>,
+): void {
+  const mode = access.executionMode
+  const automatic = mode === 'automatic'
+  const base = z.object({ companyId: companyIdInput, ...tool.input })
+  const inputSchema = tool.confirmation ? base.extend(automatic ? dryRunFields : confirmFields) : base
+  const description = tool.confirmation ? tool.description.replace(TWO_STEP, stepFor(mode)) : tool.description
+
+  server.registerTool(
+    tool.name,
+    {
+      title: tool.title,
+      description,
+      inputSchema,
+      annotations: {
+        readOnlyHint: tool.readOnly ?? false,
+        destructiveHint: tool.destructive ?? false,
+        idempotentHint: tool.idempotent ?? false,
+        openWorldHint: false,
+      },
+    },
+    (raw: unknown) =>
+      run(async () => {
+        const { actionId, dryRun, ...rest } = inputSchema.parse(raw) as Args<S> & { actionId?: string; dryRun?: boolean }
+        const args = rest as Args<S>
+        const companyId = args.companyId
+        await guard.requireFullControl(companyId, tool.permission)
+        await limitFullControl(access.user.id)
+        const ctx: FullControlContext = { access, companyId }
+
+        if (tool.confirmation && automatic) {
+          // The user chose automatic execution for this connection: no pending
+          // action. Scope, grant, role and rate limit were checked above; the
+          // service and the database triggers keep the accounting invariants.
+          if (dryRun) {
+            return json({ dryRun: true, preview: await tool.preview(args, ctx), nextStep: AUTOMATIC_NEXT_STEP })
+          }
+          const result = await tool.execute(args, ctx)
+          if (tool.audit) await audit(tool.name, access, companyId, tool.audit(args, result))
+          return json({ executed: true, result })
+        }
+
+        if (tool.confirmation) {
+          const binding = { userId: access.user.id, caller: access.caller, tool: tool.name, companyId, args }
+          if (!actionId) {
+            const preview = await tool.preview(args, ctx)
+            const assistant = await assistantOf(access)
+            const pending = await createPendingAction(binding, preview, assistant.name)
+            await audit(tool.name, access, companyId, { actionId: pending.id }, undefined, 'MCP_FULL_CONTROL_PENDING')
+            return json({
+              dryRun: true,
+              preview,
+              actionId: pending.id,
+              approvalUrl: pending.approvalUrl,
+              expiresAt: pending.expiresAt.toISOString(),
+              nextStep: APPROVAL_NEXT_STEP,
+            })
+          }
+          try {
+            await claimApprovedAction(actionId, binding)
+          } catch (error) {
+            // Unapproved, refused, replayed, expired or tampered actions leave a trace before the refusal.
+            await audit(tool.name, access, companyId, { actionId }, error instanceof Error ? error.message : 'refused')
+            throw error
+          }
+          let result: R
+          try {
+            result = await tool.execute(args, ctx)
+          } catch (error) {
+            await finishAction(actionId, false)
+            throw error
+          }
+          await finishAction(actionId, true)
+          if (tool.audit) await audit(tool.name, access, companyId, { ...tool.audit(args, result), actionId })
+          return json({ executed: true, result })
+        }
+
+        const result = await tool.execute(args, ctx)
+        if (tool.audit) await audit(tool.name, access, companyId, tool.audit(args, result))
+        return json(result)
+      }),
+  )
+}

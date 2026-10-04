@@ -1,0 +1,418 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Kledg design tokens. Kept in sync with the marketing site
+ * (kledghq/website app/theme.css) so the product and www.kledg.com read as
+ * one system: true neutral grays, ink primary buttons, one deep green accent
+ * used sparingly (focus rings, links, positive marks). Rules and usage live
+ * in docs/design-system.md. Components use the semantic utilities below
+ * (bg-primary, text-muted-foreground, text-success...), never raw palette
+ * classes such as text-green-600.
+ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --color-surface: var(--surface);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  /* Chart series by meaning (lib/appearance/palette.ts). */
+  --color-chart-revenue: var(--chart-revenue);
+  --color-chart-expenses: var(--chart-expenses);
+  --color-chart-treasury: var(--chart-treasury);
+  --color-chart-breakdown: var(--chart-breakdown);
+  --color-chart-debit: var(--chart-debit);
+  --color-chart-credit: var(--chart-credit);
+  --color-chart-balance: var(--chart-balance);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-link: var(--link);
+  --color-highlight: var(--highlight);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Brand scale (deep green, hue 160), same values as the website. */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  /* Radius scale derived from --radius (0.5rem), as on the website. */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Palettes */
+  --brand-50: oklch(0.975 0.015 160);
+  --brand-100: oklch(0.945 0.035 160);
+  --brand-200: oklch(0.89 0.065 160);
+  --brand-300: oklch(0.81 0.1 160);
+  --brand-400: oklch(0.73 0.125 160);
+  --brand-500: oklch(0.63 0.125 160);
+  --brand-600: oklch(0.53 0.11 160);
+  --brand-700: oklch(0.45 0.092 160);
+  --brand-800: oklch(0.38 0.075 160);
+  --brand-900: oklch(0.31 0.06 161);
+  --brand-950: oklch(0.22 0.042 162);
+
+  --base-50: oklch(0.985 0 0);
+  --base-100: oklch(0.967 0 0);
+  --base-200: oklch(0.922 0 0);
+  --base-300: oklch(0.87 0 0);
+  --base-400: oklch(0.708 0 0);
+  --base-500: oklch(0.556 0 0);
+  --base-600: oklch(0.47 0 0);
+  --base-700: oklch(0.371 0 0);
+  --base-800: oklch(0.269 0 0);
+  --base-900: oklch(0.205 0 0);
+  --base-950: oklch(0.145 0 0);
+
+  --radius: 0.5rem;
+  /* Tabular lining figures everywhere: amounts align in every column. */
+  --font-features: "tnum", "lnum";
+
+  /* Semantic tokens: light */
+  --background: oklch(1 0 0);
+  --foreground: var(--base-950);
+  --surface: var(--base-50);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--base-950);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--base-950);
+  --primary: var(--base-950);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: var(--base-100);
+  --secondary-foreground: var(--base-900);
+  --muted: var(--base-100);
+  --muted-foreground: var(--base-600);
+  --accent: var(--base-100);
+  --accent-foreground: var(--base-900);
+  --link: var(--brand-700);
+  --highlight: var(--brand-600);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: var(--brand-600);
+  --warning: oklch(0.555 0.163 48.998);
+  --info: oklch(0.5 0.134 242.749);
+  --border: var(--base-200);
+  --input: var(--base-300);
+  --ring: var(--brand-500);
+  --chart-1: var(--brand-600);
+  --chart-2: var(--base-400);
+  --chart-3: var(--brand-300);
+  --chart-4: var(--base-300);
+  --chart-5: var(--base-700);
+  /*
+   * Chart series by meaning: every chart reads these. The user's colours
+   * (Apparence settings) arrive as --chart-<series>-light and -dark, inline
+   * on <html> from the root layout (lib/appearance/palette.ts); without them
+   * each series keeps the Sobre default below.
+   */
+  --chart-revenue: var(--chart-revenue-light, var(--chart-1));
+  /* base-500: base-400 (--chart-2) is under 3:1 on the white card */
+  --chart-expenses: var(--chart-expenses-light, var(--base-500));
+  --chart-treasury: var(--chart-treasury-light, var(--chart-1));
+  --chart-breakdown: var(--chart-breakdown-light, var(--chart-1));
+  --chart-debit: var(--chart-debit-light, var(--chart-1));
+  --chart-credit: var(--chart-credit-light, var(--base-500));
+  --chart-balance: var(--chart-balance-light, var(--foreground));
+  --sidebar: var(--base-50);
+  --sidebar-foreground: var(--base-950);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--base-100);
+  --sidebar-accent-foreground: var(--base-900);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.97 0 0);
+  --surface: oklch(0.17 0 0);
+  --card: oklch(0.175 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.19 0 0);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.97 0 0);
+  --primary-foreground: oklch(0.16 0 0);
+  --secondary: var(--base-800);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: var(--base-400);
+  --accent: oklch(0.24 0 0);
+  --accent-foreground: oklch(0.97 0 0);
+  --link: var(--brand-300);
+  --highlight: var(--brand-400);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.16 0 0);
+  --success: var(--brand-400);
+  --warning: oklch(0.828 0.189 84.429);
+  --info: oklch(0.746 0.16 232.661);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: var(--brand-400);
+  --chart-1: var(--brand-400);
+  --chart-2: var(--base-500);
+  --chart-3: var(--brand-700);
+  --chart-4: var(--base-700);
+  --chart-5: var(--base-300);
+  --chart-revenue: var(--chart-revenue-dark, var(--chart-1));
+  --chart-expenses: var(--chart-expenses-dark, var(--chart-2));
+  --chart-treasury: var(--chart-treasury-dark, var(--chart-1));
+  --chart-breakdown: var(--chart-breakdown-dark, var(--chart-1));
+  --chart-debit: var(--chart-debit-dark, var(--chart-1));
+  --chart-credit: var(--chart-credit-dark, var(--chart-2));
+  --chart-balance: var(--chart-balance-dark, var(--foreground));
+  --sidebar: oklch(0.165 0 0);
+  --sidebar-foreground: oklch(0.97 0 0);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: oklch(0.23 0 0);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-feature-settings: var(--font-features);
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    overflow-wrap: break-word;
+  }
+  h1,
+  h2 {
+    letter-spacing: -0.02em;
+  }
+  /*
+   * Mobile overflow guard: grid items default to min-width:auto, so one long
+   * label or a wide table can push a column past the viewport.
+   */
+  .grid > * {
+    min-width: 0;
+  }
+}
+
+/* Tabular, lining figures for amounts (also on by default via --font-features). */
+@utility num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+}
+
+/* Respect prefers-reduced-motion (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Phones and installed app (docs/design-system.md, "Mobile").
+ * Unlayered on purpose: these rules win over the size utilities of the
+ * components (h-8, size-8, text-sm) on the devices they target only.
+ */
+
+/* iOS zooms into any field under 16px when it gets focus: 16px on phones. */
+@media (max-width: 47.99rem) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/*
+ * Touch screens: 44px tap targets (WCAG 2.5.5, Apple HIG), on phones and
+ * tablets alike, without changing the desktop sizes. Controls keep their
+ * relative sizes (a row of default and sm controls is 44px on touch), so
+ * "every control in a row has the same height" still holds.
+ */
+@media (pointer: coarse) {
+  [data-slot="app-header"] button,
+  [data-slot="app-header"] a[data-slot="button"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* Navigation and menus: sidebar entries (desktop sidebar on a tablet too), menu items. */
+  [data-slot="sidebar-menu-button"],
+  [data-slot="sidebar-menu-sub-button"],
+  [data-slot="dropdown-menu-item"],
+  [data-slot="dropdown-menu-checkbox-item"],
+  [data-slot="dropdown-menu-radio-item"] {
+    min-height: 44px;
+  }
+
+  /*
+   * Page, dialog and sheet controls: 44px tall on touch screens, square icon
+   * buttons at least 44px wide. The desktop sizes (36, 32, 28px) stay for mouse users.
+   * Buttons are matched on data-size: a Radix trigger rendered through a
+   * Button (asChild) replaces its data-slot, not its data-size.
+   */
+  :is(button, a)[data-size]:not([data-sidebar]),
+  [data-slot="input"],
+  [data-slot="select-trigger"],
+  [data-slot="select-item"],
+  [data-slot="command-item"],
+  [data-slot="tabs-trigger"],
+  [data-slot="toggle"],
+  [data-slot="toggle-group-item"],
+  [data-slot="dialog-close"],
+  [data-slot="sheet-close"] {
+    min-height: 44px;
+  }
+  :is(button, a)[data-size]:not([data-sidebar]),
+  [data-slot="dialog-close"],
+  [data-slot="sheet-close"] {
+    min-width: 44px;
+  }
+  /* A tab list grows with its taller tabs instead of clipping them. */
+  [data-slot="tabs-list"] {
+    height: auto;
+  }
+  /* The larger close buttons move into the corner so they clear the title. */
+  [data-slot="dialog-close"] {
+    top: 0.375rem;
+    right: 0.375rem;
+  }
+  [data-slot="sheet-content"] > [data-slot="sheet-close"] {
+    top: calc(env(safe-area-inset-top) + 0.25rem);
+    right: calc(env(safe-area-inset-right) + 0.25rem);
+  }
+
+  /*
+   * Checkboxes, radios and switches keep their drawn size: an invisible
+   * 44px hit area centered on the control receives the tap.
+   */
+  [data-slot="checkbox"],
+  [data-slot="radio-group-item"],
+  [role="switch"],
+  [data-touch-target]:not(.absolute, .fixed, .sticky) {
+    position: relative;
+  }
+  /* data-touch-target: small inline controls (help tips, "Aide" links, row toggles). */
+  [data-slot="checkbox"]::after,
+  [data-slot="radio-group-item"]::after,
+  [role="switch"]::after,
+  [data-touch-target]::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+
+  /* The breadcrumb's links are the way back up: as tall as the header buttons. */
+  [data-slot="breadcrumb-link"] {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+  /* The rail resizes the sidebar with a mouse; on touch it only catches stray taps (the header has the toggle). */
+  [data-slot="sidebar-rail"] {
+    display: none;
+  }
+  /* Toasts: the close button is drawn at 20px and tapped at 44px; action buttons are 44px tall. */
+  [data-sonner-toast] [data-close-button]::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  [data-sonner-toast] [data-button] {
+    min-height: 44px;
+  }
+}
+
+/*
+ * Sidebar collapsed to icons on a touch screen (a tablet): 44px square
+ * entries in a 60px rail. The sidebar sizes them with !important utilities,
+ * and an important declaration in an earlier layer wins, hence base.
+ */
+@layer base {
+  @media (pointer: coarse) {
+    [data-slot="sidebar-wrapper"] {
+      --sidebar-width-icon: 3.75rem !important;
+    }
+    [data-collapsible="icon"] [data-slot="sidebar-menu-button"] {
+      width: 44px !important;
+      height: 44px !important;
+      padding: 14px !important;
+    }
+    [data-collapsible="icon"] [data-slot="sidebar-menu-button"][data-size="lg"] {
+      padding: 6px !important;
+    }
+  }
+}
+
+/* Installed app: no gray flash on tap, no accidental selection of the shell's labels. */
+@media (display-mode: standalone) {
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+  [data-slot="app-header"],
+  [data-slot="sidebar"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

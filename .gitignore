@@ -1,0 +1,43 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+pnpm-debug.log*
+
+# env files
+.env
+.env*.local
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# prisma
+/app/generated/prisma
+
+# local tooling
+/.claude/
+
+# local Docker Compose overrides (published port, docs/self-hosting.md)
+docker-compose.override.yml

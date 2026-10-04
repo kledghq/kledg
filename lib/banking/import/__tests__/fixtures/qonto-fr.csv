@@ -1,0 +1,3 @@
+Statut;Date de la valeur (UTC);Date de l'opération (UTC);Montant total (TTC);Débit;Crédit;Solde;Devise;Nom de la contrepartie;IBAN de la contrepartie;Méthode de paiement;Identifiant de transaction;Référence;Catégorie de trésorerie
+Exécuté;03-03-2026 09:12:45;03-03-2026 09:12:40;-120,00;120,00;;880,00;EUR;Fournisseur Delta;FR7630000000000000000000000;Virement;org-1-transaction-101;Facture D-88;Fournisseurs
+Exécuté;04-03-2026 14:00:00;04-03-2026 13:59:58;2 500,00;;2 500,00;3 380,00;EUR;Client Epsilon;FR7630000000000000000000001;Virement;org-1-transaction-102;F-2026-12;Ventes

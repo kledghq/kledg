@@ -1,0 +1,140 @@
+import {
+  ArrowLeftRight,
+  BookMarked,
+  BookOpen,
+  BookText,
+  Calendar,
+  CalendarClock,
+  FileCode,
+  FileText,
+  FolderSearch,
+  Info,
+  Landmark,
+  LayoutDashboard,
+  LineChart,
+  ListChecks,
+  ListTree,
+  Package,
+  Scale,
+  ScrollText,
+  Table,
+  TrendingDown,
+  Upload,
+  Users,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react"
+
+export interface NavItem {
+  title: string
+  url: string
+  icon: LucideIcon
+}
+
+export interface NavGroup {
+  /** Group heading. Omitted for the top group (dashboard). */
+  label?: string
+  items: NavItem[]
+}
+
+// URLs are relative to the current company (/[companyId]/...).
+// Order follows how often a small company uses each area: daily bank work
+// first, then bookkeeping, statements, and the company settings last.
+export const navGroups: NavGroup[] = [
+  {
+    items: [{ title: "Tableau de bord", url: "/", icon: LayoutDashboard }],
+  },
+  {
+    label: "Banque",
+    items: [
+      { title: "Comptes bancaires", url: "/banking", icon: Landmark },
+      { title: "Relevés", url: "/banking/statements", icon: ScrollText },
+      { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
+      { title: "Rapprochement", url: "/reconciliation", icon: ListChecks },
+      { title: "Règles d'affectation", url: "/rules", icon: Workflow },
+    ],
+  },
+  {
+    label: "Saisie",
+    items: [
+      { title: "Écritures", url: "/entries", icon: FileText },
+      { title: "Comptes", url: "/accounts", icon: FolderSearch },
+      { title: "Immobilisations", url: "/fixed-assets", icon: Package },
+      { title: "Import", url: "/import", icon: Upload },
+    ],
+  },
+  {
+    label: "États",
+    items: [
+      { title: "Bilan", url: "/reports/balance-sheet", icon: Scale },
+      { title: "Compte de résultat", url: "/reports/income-statement", icon: LineChart },
+      { title: "Balance", url: "/reports/trial-balance", icon: Table },
+      { title: "Grand livre", url: "/reports/grand-livre", icon: BookOpen },
+      { title: "Journal", url: "/reports/journal", icon: BookText },
+      { title: "Amortissements", url: "/reports/depreciation", icon: TrendingDown },
+      { title: "FEC", url: "/reports/fec", icon: FileCode },
+      { title: "Échéances", url: "/echeances", icon: CalendarClock },
+    ],
+  },
+  {
+    label: "Société",
+    items: [
+      { title: "Informations", url: "/informations", icon: Info },
+      { title: "Membres", url: "/members", icon: Users },
+      { title: "Exercices", url: "/fiscal-years", icon: Calendar },
+      { title: "Plan de comptes", url: "/accounts/plan", icon: ListTree },
+      { title: "Journaux", url: "/journals", icon: BookMarked },
+    ],
+  },
+]
+
+/**
+ * Pages reached from another page rather than from the sidebar. Without a
+ * title here they would borrow the title of their nav entry ("Comptes
+ * bancaires" on "Connecter une banque") and the breadcrumb would say
+ * "Détail". `[id]` matches one path segment.
+ */
+const subPages: Array<{ path: string; title: string }> = [
+  { path: "/reports", title: "États" },
+  { path: "/banking/connect", title: "Connecter une banque" },
+  { path: "/banking/connect/ponto", title: "Connecter une banque" },
+  { path: "/banking/connect/revolut", title: "Connecter Revolut Business" },
+  { path: "/reports/balance-sheet/config", title: "Configuration du bilan" },
+  { path: "/reports/income-statement/config", title: "Configuration du compte de résultat" },
+  { path: "/entries/new", title: "Nouvelle écriture" },
+  { path: "/entries/[id]/edit", title: "Modifier l'écriture" },
+  { path: "/entries/[id]", title: "Écriture" },
+  { path: "/fiscal-years/opening-balances", title: "Bilan d'ouverture" },
+]
+
+function matchesPattern(pattern: string, relativePath: string): boolean {
+  const expected = pattern.split("/")
+  const actual = relativePath.replace(/\/+$/, "").split("/")
+  return expected.length === actual.length && expected.every((part, i) => part === "[id]" ? actual[i] !== "" : part === actual[i])
+}
+
+/**
+ * Title of a company page that is not a sidebar entry itself ("Connecter une
+ * banque"), or null for sidebar pages and unknown paths.
+ */
+export function findSubPageTitle(relativePath: string): { title: string } | null {
+  const page = subPages.find((p) => matchesPattern(p.path, relativePath))
+  return page ? { title: page.title } : null
+}
+
+/** Finds the nav entry matching a company-relative path (longest prefix wins). */
+export function findNavEntry(relativePath: string) {
+  let best: { group: string; title: string; url: string } | null = null
+  for (const group of navGroups) {
+    for (const item of group.items) {
+      const match =
+        item.url === '/'
+          ? relativePath === '/'
+          : relativePath === item.url || relativePath.startsWith(item.url + '/')
+      if (match && (!best || item.url.length > best.url.length)) {
+        best = { group: group.label ?? '', title: item.title, url: item.url }
+      }
+    }
+  }
+  return best
+}

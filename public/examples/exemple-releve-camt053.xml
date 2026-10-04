@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Relevé fictif au format ISO 20022 camt.053.001.02, à titre d'exemple. -->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>EXEMPLE-20260310</MsgId>
+      <CreDtTm>2026-03-10T06:00:00</CreDtTm>
+    </GrpHdr>
+    <Stmt>
+      <Id>EXEMPLE-RELEVE-03</Id>
+      <CreDtTm>2026-03-10T06:00:00</CreDtTm>
+      <FrToDt>
+        <FrDtTm>2026-03-01T00:00:00</FrDtTm>
+        <ToDtTm>2026-03-09T23:59:59</ToDtTm>
+      </FrToDt>
+      <Acct>
+        <Id><Othr><Id>COMPTE-EXEMPLE</Id></Othr></Id>
+        <Ccy>EUR</Ccy>
+      </Acct>
+      <Ntry>
+        <Amt Ccy="EUR">1440.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-03-02</Dt></BookgDt>
+        <ValDt><Dt>2026-03-02</Dt></ValDt>
+        <AcctSvcrRef>EXEMPLE-0001</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs><EndToEndId>F-2026-001</EndToEndId></Refs>
+            <RltdPties><Dbtr><Nm>Client Exemple SARL</Nm></Dbtr></RltdPties>
+            <RmtInf><Ustrd>Facture F-2026-001</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">84.20</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-03-03</Dt></BookgDt>
+        <ValDt><Dt>2026-03-03</Dt></ValDt>
+        <AcctSvcrRef>EXEMPLE-0002</AcctSvcrRef>
+        <AddtlNtryInf>PRLV SEPA FOURNISSEUR ENERGIE</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">300.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-03-05</Dt></BookgDt>
+        <ValDt><Dt>2026-03-05</Dt></ValDt>
+        <AcctSvcrRef>EXEMPLE-0003</AcctSvcrRef>
+        <AddtlNtryInf>REMISE PRELEVEMENTS SEPA</AddtlNtryInf>
+        <NtryDtls>
+          <Btch><NbOfTxs>2</NbOfTxs></Btch>
+          <TxDtls>
+            <Refs><EndToEndId>ADH-001</EndToEndId></Refs>
+            <Amt Ccy="EUR">100.00</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <RltdPties><Dbtr><Nm>Adhérent Un</Nm></Dbtr></RltdPties>
+            <RmtInf><Ustrd>Cotisation mars</Ustrd></RmtInf>
+          </TxDtls>
+          <TxDtls>
+            <Refs><EndToEndId>ADH-002</EndToEndId></Refs>
+            <Amt Ccy="EUR">200.00</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <RltdPties><Dbtr><Nm>Adhérent Deux</Nm></Dbtr></RltdPties>
+            <RmtInf><Ustrd>Cotisation trimestre</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">19.90</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>PDNG</Sts>
+        <BookgDt><Dt>2026-03-09</Dt></BookgDt>
+        <AddtlNtryInf>CARTE EN ATTENTE (non importée)</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

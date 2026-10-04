@@ -1,0 +1,20 @@
+name: Fonctionnalité
+description: Proposer une amélioration ou une nouvelle règle
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Besoin
+      description: Quel problème voulez-vous résoudre ?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposition
+  - type: input
+    id: source
+    attributes:
+      label: Source réglementaire
+      description: Article du PCG, BOFiP, notice de formulaire (pour une règle comptable ou fiscale)

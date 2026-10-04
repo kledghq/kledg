@@ -1,0 +1,10 @@
+Numéro Compte ;0123456A020
+Type ;CCP
+Compte tenu en ;euros
+Date ;06/03/2026
+Solde (EUROS) ;2 345,67
+Solde (FRANCS) ;15 386,98
+
+Date;Libellé;Montant(EUROS)
+05/03/2026;"VIREMENT DE M MARTIN";250,00
+04/03/2026;"ACHAT CB SUPERMARCHE 03.03.26";-63,25

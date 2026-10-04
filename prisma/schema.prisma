@@ -1,0 +1,1607 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CompanyLegalType {
+  SARL // Société à Responsabilité Limitée
+  SAS // Société par Actions Simplifiée
+  SA // Société Anonyme
+  EURL // Entreprise Unipersonnelle à Responsabilité Limitée
+  SNC // Société en Nom Collectif
+  SCS // Société en Commandite Simple
+  SCA // Société en Commandite par Actions
+  SASU // Société par actions simplifiée unipersonnelle (an SAS with one shareholder)
+  SCI // Société civile immobilière
+  SELARL // Société d'exercice libéral à responsabilité limitée
+  SELAS // Société d'exercice libéral par actions simplifiée
+  EI // Entrepreneur individuel
+}
+
+/// A postal address owned by one company (companyId): only that company
+/// searches, reads and attaches it (lib/addresses/manage-addresses.service.ts).
+/// Every link to it (the company's own address and headquarters, its
+/// establishments, its persons) belongs to the owning company; an address
+/// no link uses any more is deleted with the change that let it go.
+model Address {
+  id         String   @id @default(cuid())
+  companyId  String // Société propriétaire de l'adresse
+  street     String // Rue et numéro
+  street2    String? // Complément d'adresse (appartement, étage, etc.)
+  postalCode String // Code postal
+  city       String // Ville
+  country    String   @default("FR") // Pays (code ISO, ex: "FR")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations - toutes les entités qui utilisent cette adresse
+  company               Company         @relation("CompanyOwnedAddresses", fields: [companyId], references: [id], onDelete: Cascade)
+  companies             Company[]       @relation("CompanyAddress")
+  companiesHeadquarters Company[]       @relation("CompanyHeadquartersAddress")
+  establishments        Establishment[]
+  persons               Person[]
+
+  @@index([companyId])
+  @@index([postalCode, city])
+  @@index([country])
+  @@map("addresses")
+}
+
+model Company {
+  id                     String            @id @default(cuid())
+  name                   String
+  slug                   String            @unique // Identifiant lisible dans les URL (/atelier-lumen/...), modifiable
+  siren                  String            @unique // SIREN (9 chiffres) - identifie l'entreprise
+  addressId              String? // Référence vers l'adresse réutilisable
+  phone                  String?
+  email                  String?
+  logo                   String?
+  foundationDate         DateTime? // Date de création de l'entreprise
+  closingDay             Int? // Jour de clôture des exercices (1-31)
+  closingMonth           Int? // Mois de clôture des exercices (1-12)
+  vatRegime              String? // Régime de TVA (normal, simplified, mini_real, franchise, real)
+  isVatExempt            Boolean           @default(false) // Indique si l'entreprise est exonérée de TVA
+  vatExemptReason        String? // Raison de l'exonération de TVA
+  vatNumber              String? // Numéro de TVA intracommunautaire
+  corporateTaxRegime     String? // Régime d'IS (normal, simplified, micro)
+  legalType              CompanyLegalType? // Type juridique de la société (SARL, SAS, SA, etc.)
+  legalForm              String? // Forme juridique détaillée (pour les déclarations fiscales)
+  color                  String? // Couleur pour les graphiques (format hex: #RRGGBB)
+  sector                 String? // Secteur d'activité (ex: "tech", "retail", "services", "manufacturing", "real-estate", "finance", "healthcare", "other")
+  isHolding              Boolean           @default(false) // Indique si l'entreprise est une holding pure (sans activité opérationnelle)
+  // Informations sur le capital social
+  totalShares            Int? // Nombre total de parts/actions
+  shareNominalValue      Decimal?          @db.Decimal(15, 2) // Valeur nominale d'une part (en euros)
+  shareCapital           Decimal?          @db.Decimal(15, 2) // Capital social total (en euros) - peut être calculé ou saisi manuellement
+  // Informations légales pour les déclarations fiscales
+  headquartersAddressId  String? // Référence vers l'adresse du siège social
+  activityCode           String? // Code APE/NAF
+  taxOffice              String? // Centre des impôts compétent
+  // Configuration pour le rapprochement bancaire
+  defaultBankAccountCode String? // Code du compte bancaire par défaut à utiliser pour le rapprochement (classe 5, ex: 512000). Résolu dynamiquement selon l'exercice fiscal actif.
+  /// What the tax and legal deadline calendar needs and Kledg cannot infer
+  /// (VAT filing day, quarterly CA3, IS and CFE acomptes...): JSON validated by
+  /// DeadlineSettingsSchema (lib/deadlines/settings.ts); null: the defaults.
+  deadlineSettings       Json?
+  /// Set when an instance administrator archives the company: read-only and
+  /// hidden from the lists (lib/companies/archive-company.service.ts). A company
+  /// holding validated entries or a closed fiscal year is archived, never deleted.
+  archivedAt             DateTime?
+  archivedById           String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  // Relations
+  address                    Address?                    @relation("CompanyAddress", fields: [addressId], references: [id], onDelete: SetNull)
+  headquartersAddress        Address?                    @relation("CompanyHeadquartersAddress", fields: [headquartersAddressId], references: [id], onDelete: SetNull)
+  ownedAddresses             Address[]                   @relation("CompanyOwnedAddresses") // Adresses appartenant à la société
+  shareholders               Shareholder[]               @relation("CompanyShareholders") // Actionnaires de cette société
+  shareholdings              Shareholder[]               @relation("CompanyAsShareholder") // Sociétés dont cette société est actionnaire
+  accounts                   Account[]
+  journals                   Journal[]
+  accountingEntries          AccountingEntry[]
+  bankConnections            BankConnection[]
+  integrations               Integration[]
+  importJobs                 ImportJob[]
+  fiscalYears                FiscalYear[]
+  fixedAssets                FixedAsset[]
+  taxRegimeHistory           TaxRegimeHistory[]
+  transactionRules           TransactionRule[]
+  auditLogs                  AuditLog[]
+  persons                    Person[] // Through PersonalSalary
+  attachments                Attachment[]
+  establishments             Establishment[] // Établissements (plusieurs SIRET par entreprise)
+  balanceSheetLineConfigs    BalanceSheetLineConfig[]
+  incomeStatementLineConfigs IncomeStatementLineConfig[]
+  fixedAssetDepreciations    FixedAssetDepreciation[]
+  organization               Organization?               @relation("CompanyOrganization")
+  aiAccessGrants             AiAccessGrantCompany[]
+  mcpConfirmations           McpConfirmation[]
+  mcpPendingActions          McpPendingAction[]
+  onboarding                 CompanyOnboarding?
+  dashboardLayouts           DashboardLayout[]
+
+  @@index([addressId])
+  @@index([headquartersAddressId])
+  @@index([archivedAt])
+  @@map("companies")
+}
+
+model Establishment {
+  id                                String    @id @default(cuid())
+  companyId                         String
+  siret                             String    @unique // SIRET de l'établissement (14 chiffres)
+  siren                             String? // SIREN (9 chiffres, extrait du SIRET)
+  name                              String? // Nom de l'établissement (ex: "Siège social", "Agence Paris", etc.)
+  addressId                         String? // Référence vers l'adresse de l'établissement
+  activityCode                      String? // Code APE/NAF de l'établissement
+  isMain                            Boolean   @default(false) // Indique si c'est l'établissement principal
+  isActive                          Boolean   @default(true) // Indique si l'établissement est actif
+  notes                             String? // Notes sur l'établissement
+  // Organisme de formation (attribué au SIRET, pas au SIREN)
+  isTrainingOrganization            Boolean   @default(false) // Indique si cet établissement est un organisme de formation
+  trainingActivityDeclarationNumber String? // Numéro de déclaration d'activité (NDA) délivré par la DIRECCTE pour cet établissement
+  trainingActivityDeclarationDate   DateTime? // Date de déclaration d'activité (permet de savoir quand le BPF est requis)
+  createdAt                         DateTime  @default(now())
+  updatedAt                         DateTime  @updatedAt
+
+  // Relations
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  address          Address?           @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  taxRegimeHistory TaxRegimeHistory[] // Historique des régimes fiscaux pour cet établissement
+
+  @@index([companyId])
+  @@index([siret])
+  @@index([isMain])
+  @@index([addressId])
+  @@map("establishments")
+}
+
+enum ShareholderType {
+  PHYSICAL // Personne physique
+  LEGAL // Personne morale
+}
+
+model Shareholder {
+  id                   String          @id @default(cuid())
+  companyId            String // Société dont on est actionnaire
+  type                 ShareholderType // Personne physique ou morale
+  // For PHYSICAL: use person relation
+  // For LEGAL with companyShareholderId: use companyShareholder relation
+  // For LEGAL without companyShareholderId: use name and siret
+  name                 String? // Raison sociale (pour personne morale non-entreprise uniquement)
+  siret                String? // SIRET (pour personne morale non-entreprise uniquement)
+  sharePercentage      Decimal         @db.Decimal(5, 2) // Pourcentage de participation (0-100)
+  numberOfShares       Int? // Nombre de parts détenues
+  capitalAmount        Decimal?        @db.Decimal(15, 2) // Montant du capital détenu (en euros)
+  companyShareholderId String? // Si type=LEGAL, référence vers une Company (société actionnaire)
+  personId             String? // Si type=PHYSICAL, référence vers une Person (obligatoire)
+  notes                String? // Notes optionnelles
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  // Relations
+  company            Company  @relation("CompanyShareholders", fields: [companyId], references: [id], onDelete: Cascade)
+  companyShareholder Company? @relation("CompanyAsShareholder", fields: [companyShareholderId], references: [id], onDelete: SetNull)
+  person             Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([companyShareholderId])
+  @@index([personId])
+  @@map("shareholders")
+}
+
+model FiscalYear {
+  id           String    @id @default(cuid())
+  companyId    String
+  year         Int // Année de l'exercice (ex: 2024)
+  closingDay   Int? // Jour de clôture (1-31)
+  closingMonth Int? // Mois de clôture (1-12)
+  startDate    DateTime // Date de début de l'exercice (calculée)
+  endDate      DateTime // Date de fin de l'exercice (calculée)
+  isClosed     Boolean   @default(false) // Indique si l'exercice est clôturé
+  closedAt     DateTime? // Date de la clôture (null tant que l'exercice est ouvert)
+  closedById   String? // Utilisateur qui a clôturé l'exercice
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accounts                Account[]                @relation("FiscalYearAccounts")
+  accountingEntries       AccountingEntry[]
+  fixedAssetDepreciations FixedAssetDepreciation[]
+
+  @@unique([companyId, year])
+  @@index([companyId])
+  @@index([startDate, endDate])
+  @@map("fiscal_years")
+}
+
+model Account {
+  id           String   @id @default(cuid())
+  code         String
+  label        String
+  parentId     String?
+  companyId    String
+  fiscalYearId String? // Exercice fiscal auquel appartient ce compte
+  isPCG        Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company                     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear                  FiscalYear?  @relation("FiscalYearAccounts", fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  parent                      Account?     @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children                    Account[]    @relation("AccountHierarchy")
+  entryLines                  EntryLine[]  @relation("AccountEntryLines")
+  fixedAssets                 FixedAsset[] @relation("FixedAssetAccount")
+  depreciationAccounts        FixedAsset[] @relation("DepreciationAccount")
+  depreciationExpenseAccounts FixedAsset[] @relation("DepreciationExpenseAccount")
+
+  @@unique([id, fiscalYearId])
+  @@unique([companyId, code, fiscalYearId])
+  @@index([companyId])
+  @@index([fiscalYearId])
+  @@map("accounts")
+}
+
+model Journal {
+  id        String   @id @default(cuid())
+  code      String
+  label     String
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accountingEntries AccountingEntry[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("journals")
+}
+
+model AccountingEntry {
+  id                      String    @id @default(cuid())
+  entryNumber             String
+  date                    DateTime
+  journalId               String
+  companyId               String
+  fiscalYearId            String // Exercice fiscal de l'écriture (dérivé depuis les comptes des EntryLine)
+  description             String?
+  reference               String?
+  status                  String    @default("draft") // draft, validated
+  // Validation makes the entry definitive (PCG art. 1031-3): it receives its
+  // number in the fiscal year sequence and can no longer change or be deleted
+  // (enforced by database triggers). Drafts carry a provisional "BR-" number.
+  validatedAt             DateTime? // FEC ValidDate (LPF art. A47 A-1)
+  pieceDate               DateTime? // Date of the supporting document (FEC PieceDate), defaults to the entry date
+  // Contre-passation: the reversing entry points to the validated entry it cancels (one reversal per entry).
+  reversalOfId            String?   @unique
+  // Transaction bancaire dont le rapprochement a créé cette écriture (une seule écriture par transaction).
+  // Annuler le rapprochement supprime l'écriture tant qu'elle est en brouillon.
+  sourceBankTransactionId String?   @unique
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  // Relations
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journal                 Journal                  @relation(fields: [journalId], references: [id], onDelete: NoAction)
+  fiscalYear              FiscalYear               @relation(fields: [fiscalYearId], references: [id], onDelete: NoAction)
+  sourceBankTransaction   BankTransaction?         @relation("ReconciliationEntry", fields: [sourceBankTransactionId], references: [id], onDelete: SetNull)
+  lines                   EntryLine[]              @relation("AccountingEntryLines")
+  fixedAssetDepreciations FixedAssetDepreciation[] @relation("FixedAssetDepreciationEntry")
+  reversalOf              AccountingEntry?         @relation("EntryReversal", fields: [reversalOfId], references: [id], onDelete: NoAction)
+  reversedBy              AccountingEntry?         @relation("EntryReversal")
+  // Tous les comptes d'une écriture doivent appartenir au même exercice fiscal
+
+  @@unique([entryNumber, fiscalYearId])
+  @@unique([id, entryNumber])
+  @@index([companyId])
+  @@index([fiscalYearId])
+  @@index([date])
+  @@index([companyId, date])
+  @@map("accounting_entries")
+}
+
+model EntryLine {
+  id                     String    @id @default(cuid())
+  accountingEntryId      String
+  accountingEntryNumber  String
+  accountId              String
+  accountFiscalYearId    String
+  debit                  Decimal   @default(0) @db.Decimal(15, 2)
+  credit                 Decimal   @default(0) @db.Decimal(15, 2)
+  description            String?
+  // FEC fields kept as imported or entered (LPF art. A47 A-1): auxiliary
+  // (client/supplier) account, lettrage, and foreign currency amount.
+  auxiliaryAccountNumber String?
+  auxiliaryAccountLabel  String?
+  letteringCode          String? // EcritureLet: may change after validation
+  letteringDate          DateTime? // DateLet: may change after validation
+  currencyAmount         Decimal?  @db.Decimal(15, 2) // Montantdevise
+  currencyCode           String? // Idevise (ISO 4217)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Relations
+  accountingEntry AccountingEntry @relation("AccountingEntryLines", fields: [accountingEntryId, accountingEntryNumber], references: [id, entryNumber], onDelete: Cascade)
+  account         Account         @relation("AccountEntryLines", fields: [accountId, accountFiscalYearId], references: [id, fiscalYearId], onDelete: NoAction)
+
+  @@index([accountingEntryId])
+  @@index([accountId])
+  @@index([accountFiscalYearId])
+  @@map("entry_lines")
+}
+
+enum BankingProvider {
+  QONTO // Direct API (API key)
+  REVOLUT // Revolut Business direct API (OAuth, certificate)
+  PONTO // Ponto aggregator (custom integration, other banks)
+  MANUAL // No API: statements imported from files
+}
+
+enum IntegrationType {
+  BANKING // Qonto, Revolut, N26, etc.
+  STORAGE // Google Drive, Dropbox, etc.
+  ACCOUNTING // Sage, Cegid, etc.
+  CRM // Salesforce, HubSpot, etc.
+  ECOMMERCE // Shopify, WooCommerce, etc.
+}
+
+enum IntegrationProvider {
+  QONTO
+  REVOLUT
+  // Unused legacy values: kept because removing a PostgreSQL enum value needs
+  // a destructive type rebuild. No code creates them.
+  N26
+  GOOGLE_DRIVE
+  DROPBOX
+  PONTO
+}
+
+enum IntegrationFeature {
+  BANKING_TRANSACTIONS // Transactions bancaires
+  BANKING_ACCOUNTS // Comptes bancaires
+}
+
+enum AuthenticationType {
+  API_KEY // Login + Secret Key (Qonto)
+  OAUTH2 // OAuth 2.0 (Google Drive)
+  BASIC_AUTH // Basic Authentication
+  CUSTOM // Autres méthodes
+}
+
+model BankConnection {
+  id                 String          @id @default(cuid())
+  companyId          String
+  provider           BankingProvider @default(QONTO)
+  // Legacy Qonto credentials (new connections keep their credentials on Integration)
+  login              String          @default("")
+  secretKeyEncrypted String          @default("")
+  // Integration holding the credentials of this connection (none for MANUAL)
+  integrationId      String?         @unique
+  selectedAccountId  String? // ID du compte bancaire sélectionné
+  lastSyncAt         DateTime?
+  lastSyncAttemptAt  DateTime?
+  lastSyncError      String?
+  // Last refresh requested by a user (Ponto allows one every 5 minutes)
+  lastManualSyncAt   DateTime?
+  // Earliest consent expiry of the connection (PSD2 access to renew at the bank)
+  consentExpiresAt   DateTime?
+  status             String          @default("active") // active, inactive, error
+  // Données spécifiques au provider (pour stocker des infos additionnelles)
+  providerData       Json? // Ex: pour Qonto, peut contenir organization slug, etc.
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  // Relations
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration         Integration?         @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  bankAccounts        BankAccount[]
+  transactionMappings TransactionMapping[]
+  selectedAccount     BankAccount?         @relation("SelectedBankAccount", fields: [selectedAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, provider])
+  @@index([companyId])
+  @@index([provider])
+  @@map("bank_connections")
+}
+
+model BankAccount {
+  id                    String    @id @default(cuid())
+  bankConnectionId      String
+  integrationResourceId String?   @unique // Lien vers IntegrationResource pour rétrocompatibilité
+  externalAccountId     String // ID du compte dans le système externe (ex: IBAN pour Qonto, account_id pour Revolut)
+  iban                  String? // IBAN si disponible
+  name                  String
+  displayName           String? // Nom d'affichage personnalisé (plus simple que le nom complet)
+  balance               Decimal   @default(0) @db.Decimal(15, 2)
+  currency              String    @default("EUR")
+  shouldSync            Boolean   @default(true) // Indique si ce compte doit être synchronisé
+  // Ledger account (512xxx code, resolved against the active fiscal year)
+  ledgerAccountCode     String?
+  // Consent expiry reported by the provider for this account
+  consentExpiresAt      DateTime?
+  lastSyncedAt          DateTime?
+  lastSyncError         String?
+  // Set when a direct connection (Qonto, Revolut) covers the same IBAN: this
+  // aggregator account then stops syncing
+  supersededById        String?
+  // Données spécifiques au provider (pour stocker des infos additionnelles)
+  providerData          Json? // Ex: pour Qonto, peut contenir slug, bic, etc.
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  bankConnection      BankConnection         @relation(fields: [bankConnectionId], references: [id], onDelete: Cascade)
+  supersededBy        BankAccount?           @relation("SupersededBankAccount", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes          BankAccount[]          @relation("SupersededBankAccount")
+  integrationResource IntegrationResource?   @relation("BankAccountIntegrationResource", fields: [integrationResourceId], references: [id], onDelete: SetNull)
+  transactions        BankTransaction[]
+  selectedIn          BankConnection[]       @relation("SelectedBankAccount")
+  transactionMatches  BankTransactionMatch[]
+
+  @@unique([bankConnectionId, externalAccountId])
+  @@index([bankConnectionId])
+  @@index([shouldSync])
+  @@index([iban])
+  @@index([integrationResourceId])
+  @@map("bank_accounts")
+}
+
+model BankTransaction {
+  id                    String    @id @default(cuid())
+  bankAccountId         String
+  externalTransactionId String // ID de la transaction dans le système externe
+  amount                Decimal   @db.Decimal(15, 2)
+  date                  DateTime
+  label                 String?
+  reference             String?
+  side                  String // debit, credit
+  note                  String?
+  imported              Boolean   @default(false)
+  reconciled            Boolean   @default(false) // Indique si la transaction est rapprochée
+  reconciledAt          DateTime? // Date de rapprochement
+  reconciledWith        String? // ID de l'écriture comptable avec laquelle elle est rapprochée
+  // Champs enrichis depuis Qonto (extraits de providerData pour faciliter l'accès)
+  logoUrl               String? // URL du logo du contrepartie (Qonto)
+  counterpartyName      String? // Nom nettoyé du contrepartie (Qonto clean_counterparty_name)
+  category              String? // Catégorie de la transaction (Qonto category)
+  cashflowCategory      String? // Catégorie de flux de trésorerie (Qonto cashflow_category.name)
+  cashflowSubcategory   String? // Sous-catégorie de flux de trésorerie (Qonto cashflow_subcategory.name)
+  operationType         String? // Type d'opération (Qonto operation_type: card, transfer, etc.)
+  // TVA détectée automatiquement par Qonto (pour le rapprochement)
+  vatRate               Decimal?  @db.Decimal(5, 2) // Taux de TVA (ex: 20.00)
+  vatAmount             Decimal?  @db.Decimal(15, 2) // Montant de TVA en euros
+  // Statut Qonto : completed, pending, declined (persisté pour affichage et règles)
+  status                String? // completed = vérifiée, pending = en attente, declined = refusée
+  // Données spécifiques au provider (pour stocker des infos additionnelles)
+  providerData          Json? // Ex: pour Qonto, peut contenir operation_type, etc.
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  bankAccount         BankAccount           @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  attachments         Attachment[]
+  reconciliationEntry AccountingEntry?      @relation("ReconciliationEntry")
+  syncMatch           BankTransactionMatch?
+
+  @@unique([bankAccountId, externalTransactionId])
+  @@index([bankAccountId])
+  @@index([date])
+  @@index([reconciled])
+  @@index([bankAccountId, date])
+  @@map("bank_transactions")
+}
+
+// A line read from a bank API that was not inserted because the account
+// already holds the same operation from another source: a statement file
+// imported before, or the aggregator (Ponto) account a direct connection
+// replaced for the same IBAN (lib/integrations/sync.ts). Recording it keeps
+// a retried sync from inserting the line again; one transaction stands for
+// at most one provider line, so identical operations stay distinct.
+model BankTransactionMatch {
+  id                    String   @id @default(cuid())
+  // Account being synced, and the provider id of the line not inserted
+  bankAccountId         String
+  externalTransactionId String
+  // Existing transaction the provider line duplicates (same or superseded account)
+  bankTransactionId     String   @unique
+  createdAt             DateTime @default(now())
+
+  bankAccount     BankAccount     @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  bankTransaction BankTransaction @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
+
+  @@unique([bankAccountId, externalTransactionId])
+  @@map("bank_transaction_matches")
+}
+
+model TransactionRule {
+  id                    String    @id @default(cuid())
+  companyId             String
+  name                  String // Nom de la règle
+  description           String? // Description de la règle
+  enabled               Boolean   @default(true)
+  priority              Int       @default(0) // Priorité d'application (plus élevé = appliqué en premier)
+  // Configuration de l'écriture comptable (Template)
+  journalCode           String    @default("BQ") // Code du journal (BQ par défaut)
+  defaultVatAccountCode String? // Code PCG du compte de TVA par défaut (résolu contre l'exercice actif au moment de l'application)
+  // Configuration spécifique
+  autoCreate            Boolean   @default(false) // Applied by the refresh without a click; otherwise a suggestion (lib/transactions/rule-matcher.ts)
+  // Unused since rule entries are always drafts validated by a person; kept for released databases (additive migrations only)
+  requireApproval       Boolean   @default(true)
+  // Métadonnées
+  usageCount            Int       @default(0) // Nombre de fois que la règle a été utilisée
+  lastUsedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  company    Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conditions TransactionRuleCondition[]
+  entryLines TransactionRuleEntryLine[]
+
+  @@index([companyId])
+  @@index([enabled])
+  @@index([priority])
+  @@map("transaction_rules")
+}
+
+model TransactionRuleCondition {
+  id            String  @id @default(cuid())
+  ruleId        String
+  conditionType String // 'label', 'reference', 'amount', 'counterparty', 'category', 'cashflowCategory', 'cashflowSubcategory', 'operationType', 'side'
+  operator      String // 'equals', 'contains', 'startsWith', 'regex', 'gt', 'lt', 'between', 'gte', 'lte'
+  value         String? // Valeur à comparer
+  value2        String? // Deuxième valeur pour 'between'
+
+  rule TransactionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([conditionType])
+  @@map("transaction_rule_conditions")
+}
+
+model TransactionRuleEntryLine {
+  id              String   @id @default(cuid())
+  ruleId          String
+  accountCode     String // Code PCG du compte (résolu contre l'exercice actif à l'application)
+  lineType        String // 'debit', 'credit', 'auto' (auto selon side de transaction)
+  amountType      String // 'full', 'percentage', 'fixed', 'remaining', 'ht', 'ttc', 'vat'
+  amountValue     Decimal? @db.Decimal(15, 2) // Pourcentage ou montant fixe
+  description     String?
+  order           Int // Ordre d'affichage/création
+  // Support TVA avancé
+  vatType         String? // 'none', 'collectible', 'deductible', 'intracom', 'import', 'exempt', 'reverse_charge'
+  vatRateSource   String?  @default("fixed") // 'fixed' = taux saisi, 'transaction' = taux/montant détecté (ex. Qonto)
+  vatRate         Decimal? @db.Decimal(5, 2) // Taux de TVA (20.00, 10.00, 5.50) - utilisé si vatRateSource = 'fixed'
+  vatAccountCode  String? // Code PCG du compte de TVA (ex. 445662 intracom, 44566 import)
+  vatAccount2Code String? // Code PCG du deuxième compte TVA (ex. 4452 intracom) - sens selon contexte achat/vente
+  vatOnDebit      Boolean  @default(false) // TVA sur débit (vs encaissement) - pour les avoirs clients
+
+  rule TransactionRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([order])
+  @@map("transaction_rule_entry_lines")
+}
+
+model TransactionMapping {
+  id                     String   @id @default(cuid())
+  bankConnectionId       String
+  defaultDebitAccountId  String?
+  defaultCreditAccountId String?
+  rules                  Json? // Règles avancées de mapping
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  // Relations
+  bankConnection BankConnection @relation(fields: [bankConnectionId], references: [id], onDelete: Cascade)
+
+  @@unique([bankConnectionId])
+  @@index([bankConnectionId])
+  @@map("transaction_mappings")
+}
+
+model Integration {
+  id                   String              @id @default(cuid())
+  companyId            String
+  provider             IntegrationProvider
+  type                 IntegrationType
+  name                 String // Nom personnalisé de l'intégration
+  status               String              @default("active") // active, inactive, error
+  lastSyncAt           DateTime?
+  // Credentials stockés de manière flexible selon le type d'auth
+  credentials          Json // { login, secretKey } pour API_KEY, { accessToken, refreshToken } pour OAUTH2, etc.
+  credentialsEncrypted Boolean             @default(false) // Indique si les credentials sont chiffrés
+  // Configuration de l'intégration
+  config               Json? // Configuration spécifique (comptes sélectionnés, dossiers, etc.)
+  // Métadonnées
+  metadata             Json? // Données additionnelles du provider
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  // Relations
+  company        Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  featureConfigs IntegrationFeatureConfig[] @relation("IntegrationFeatures")
+  resources      IntegrationResource[]
+  syncLogs       IntegrationSyncLog[]
+  attachments    Attachment[]
+  bankConnection BankConnection?
+
+  @@index([companyId])
+  @@index([provider])
+  @@index([type])
+  @@index([status])
+  @@map("integrations")
+}
+
+model IntegrationFeatureConfig {
+  id            String             @id @default(cuid())
+  integrationId String
+  feature       IntegrationFeature // Enum IntegrationFeature
+  enabled       Boolean            @default(true)
+  config        Json? // Configuration spécifique à la feature
+  lastSyncAt    DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  // Relations
+  integration Integration @relation("IntegrationFeatures", fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, feature])
+  @@index([integrationId])
+  @@map("integration_features")
+}
+
+model IntegrationResource {
+  id            String   @id @default(cuid())
+  integrationId String
+  resourceType  String // "bank_account", "file", "folder", "contact", etc.
+  externalId    String // ID dans le système externe
+  name          String
+  // Données spécifiques selon le type de ressource
+  data          Json // { iban, balance } pour bank_account, { path, size } pour file, etc.
+  metadata      Json? // Métadonnées additionnelles
+  shouldSync    Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  integration Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount? @relation("BankAccountIntegrationResource")
+
+  @@unique([integrationId, resourceType, externalId])
+  @@index([integrationId])
+  @@index([resourceType])
+  @@index([shouldSync])
+  @@map("integration_resources")
+}
+
+model IntegrationSyncLog {
+  id            String              @id @default(cuid())
+  integrationId String
+  feature       IntegrationFeature? // Enum IntegrationFeature
+  status        String // success, error, partial
+  itemsSynced   Int                 @default(0)
+  errors        Json? // Liste des erreurs
+  startedAt     DateTime
+  completedAt   DateTime?
+  createdAt     DateTime            @default(now())
+
+  // Relations
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId])
+  @@index([startedAt])
+  @@map("integration_sync_logs")
+}
+
+model ImportJob {
+  id        String   @id @default(cuid())
+  companyId String
+  type      String // fec, csv, excel
+  fileName  String
+  status    String   @default("pending") // pending, processing, completed, failed
+  errors    Json?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([status])
+  @@map("import_jobs")
+}
+
+model ImportMapping {
+  id           String   @id @default(cuid())
+  importJobId  String?
+  sourceColumn String
+  targetField  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([importJobId])
+  @@map("import_mappings")
+}
+
+model FixedAsset {
+  id                    String    @id @default(cuid())
+  companyId             String
+  label                 String // Libellé de l'immobilisation
+  comment               String? // Commentaire
+  acquisitionDate       DateTime // Date d'acquisition
+  acquisitionValue      Decimal   @db.Decimal(15, 2) // Valeur d'acquisition (HT)
+  amortizableAmount     Decimal?  @db.Decimal(15, 2) // Montant amortissable (peut être différent de acquisitionValue)
+  disposalDate          DateTime? // Date de cession
+  depreciationRate      Decimal?  @db.Decimal(5, 2) // Taux d'amortissement annuel (%)
+  depreciationDuration  Int? // Durée d'amortissement en années
+  depreciationMethod    String    @default("linear") // linear, declining
+  decliningCoefficient  Decimal?  @db.Decimal(5, 2) // Coefficient dégressif (ex: 1.25, 1.75, 2.25)
+  depreciationStartDate DateTime // Date de début d'amortissement
+  assetAccountId        String // Compte d'actif (ex: 211)
+  depreciationAccountId String // Compte d'amortissement (ex: 281)
+  expenseAccountId      String // Compte de charge d'amortissement (ex: 681)
+  isActive              Boolean   @default(true) // Indique si l'immobilisation est active
+  isFullyPaid           Boolean   @default(false) // Indique si l'immobilisation est entièrement payée
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  company             Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetAccount        Account                  @relation("FixedAssetAccount", fields: [assetAccountId], references: [id], onDelete: NoAction)
+  depreciationAccount Account                  @relation("DepreciationAccount", fields: [depreciationAccountId], references: [id], onDelete: NoAction)
+  expenseAccount      Account                  @relation("DepreciationExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: NoAction)
+  depreciations       FixedAssetDepreciation[]
+
+  @@index([companyId])
+  @@map("fixed_assets")
+}
+
+/// Enregistrement d'amortissement saisi par l'utilisateur.
+/// PAS une écriture comptable, juste la valeur amortie pour un exercice
+/// (ou un mois précis) d'une immobilisation donnée. Les stats, la VNC
+/// et le "déjà amorti" s'en déduisent.
+model FixedAssetDepreciation {
+  id                String   @id @default(cuid())
+  companyId         String
+  fixedAssetId      String
+  fiscalYearId      String
+  periodType        String // 'year' ou 'month'
+  monthIndex        Int? // 0-11 si periodType=month, sinon null
+  year              Int // année calendaire pratique pour périodes à cheval sur 2 FY
+  amount            Decimal  @db.Decimal(15, 2)
+  note              String?
+  /// Écriture comptable liée (optionnelle). L'amortissement n'en crée pas
+  /// automatiquement ; ce lien est posé si l'utilisateur rattache une
+  /// écriture existante ou génère une dotation depuis ce record.
+  accountingEntryId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fixedAsset      FixedAsset       @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+  fiscalYear      FiscalYear       @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  accountingEntry AccountingEntry? @relation("FixedAssetDepreciationEntry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+
+  // Un seul record par période pour une immo donnée.
+  @@unique([fixedAssetId, fiscalYearId, periodType, monthIndex])
+  @@index([companyId])
+  @@index([fixedAssetId])
+  @@index([fiscalYearId])
+  @@index([accountingEntryId])
+  @@map("fixed_asset_depreciations")
+}
+
+model TaxRegimeHistory {
+  id              String    @id @default(cuid())
+  companyId       String
+  regimeType      String // vat, corporateTax
+  regime          String // normal, simplified, franchise, real, micro
+  startDate       DateTime // Date de début d'application du régime
+  endDate         DateTime? // Date de fin d'application (null si toujours actif)
+  notes           String? // Notes optionnelles
+  // Exonération de TVA (pour les organismes de formation)
+  isVatExempt     Boolean   @default(false) // Indique si ce régime inclut une exonération de TVA
+  vatExemptReason String? // Raison de l'exonération (ex: "organisme de formation")
+  establishmentId String? // ID de l'établissement concerné par l'exonération (null = tous les établissements)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  establishment Establishment? @relation(fields: [establishmentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([regimeType])
+  @@index([startDate, endDate])
+  @@index([establishmentId])
+  @@map("tax_regime_history")
+}
+
+enum AuditLogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+/// Append-only: UPDATE and DELETE are refused by the trigger of migration
+/// 20261011090000_audit_log_append_only (rows older than 10 years can be purged
+/// with kledg_purge_audit_logs only).
+model AuditLog {
+  id        String        @id @default(cuid())
+  userId    String? // User ID from Supabase (email or UUID)
+  action    String? // Action type (e.g., "CREATE_ACCOUNT", "UPDATE_TRANSACTION")
+  level     AuditLogLevel @default(INFO)
+  message   String
+  metadata  Json? // Additional context data
+  companyId String? // Optional: company context
+  ipAddress String? // Optional: IP address
+  userAgent String? // Optional: User agent
+  createdAt DateTime      @default(now())
+
+  // Relations
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([action])
+  @@index([level])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Person: physical person, shareholder of a company
+
+model Person {
+  id              String    @id @default(cuid())
+  firstName       String
+  name            String
+  email           String?
+  phone           String?
+  photo           String? // Photo en base64 (comme le logo des entreprises)
+  addressId       String? // Référence vers l'adresse de la personne
+  notes           String?
+  // Informations de naissance pour les déclarations fiscales (formulaire 2033-F-SD)
+  birthDate       DateTime? // Date de naissance
+  birthDepartment String? // Numéro de département de naissance
+  birthCity       String? // Commune de naissance
+  birthCountry    String?   @default("FR") // Pays de naissance (code ISO, ex: "FR")
+  usualName       String? // Nom d'usage (si différent du nom de naissance)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  address      Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  shareholders Shareholder[] // Link to shareholders (type PHYSICAL)
+  company      Company?      @relation(fields: [companyId], references: [id])
+  companyId    String?
+
+  @@unique([companyId, email])
+  @@index([email])
+  @@index([name, firstName])
+  @@index([addressId])
+  @@map("persons")
+}
+
+// Modèle pour stocker les justificatifs (attachments) liés aux transactions bancaires
+
+model Attachment {
+  id                   String   @id @default(cuid())
+  companyId            String
+  integrationId        String? // Intégration source (Qonto, etc.)
+  bankTransactionId    String? // Transaction bancaire associée
+  externalAttachmentId String?  @unique // ID de l'attachment dans le système externe (Qonto)
+  transactionUuid      String? // UUID de la transaction dans le système externe (pour Qonto)
+  // Informations sur le fichier
+  fileName             String
+  fileSize             Int? // Taille en octets
+  fileContentType      String? // Type MIME (ex: application/pdf, image/jpeg)
+  fileUrl              String? // URL du fichier (peut être temporaire)
+  // Données brutes du provider externe
+  providerData         Json? // Données spécifiques au provider (ex: Qonto probative_attachment)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration     Integration?     @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
+  @@unique([integrationId, externalAttachmentId])
+  @@index([companyId])
+  @@index([integrationId])
+  @@index([bankTransactionId])
+  @@index([transactionUuid])
+  @@map("attachments")
+}
+
+// Configuration des lignes de bilan
+
+model BalanceSheetLineConfig {
+  id                        String   @id @default(cuid())
+  companyId                 String
+  reportVariant             String   @default("complete") // 'complete' | 'simplified'
+  parentId                  String? // Parent line ID for nested structure (null for root lines)
+  section                   String? // 'actif' | 'passif' - Explicit section for easy sorting
+  lineLabel                 String // Display label
+  lineType                  String   @default("line") // 'group' | 'sum' | 'line' - Group (organisation), Sum (somme des enfants), Line (avec comptes)
+  formCode                  String? // Form code from official forms (e.g., "010", "120") - for Brut column
+  amortissementFormCode     String? // Form code for Amortissements column (e.g., "AC", "CQ")
+  accountCodes              String[] // Account codes to include (vide pour les groupes)
+  excludedAccountCodes      String[] @default([]) // Account codes to exclude
+  amortissementAccountCodes String[] @default([]) // Account codes for amortissement column (28xx, 29xx, 39xx, etc.)
+  filterType                String? // 'starts_with' | 'exact' | 'range' | 'custom'
+  filterValue               String? // Additional filter value
+  balanceType               String // 'debit' | 'credit' | 'auto'
+  displayType               String   @default("net") // 'net' | 'brut_amort_net' - Type d'affichage pour l'actif
+  hideLabel                 Boolean  @default(false) // Hide the label for this line (useful for groups)
+  order                     Int // Display order
+  notes                     String? // Notes and annotations for this line
+  version                   Int      @default(1) // Version number for history tracking
+  templateId                String? // Reference to template if created from template
+  isActive                  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  company  Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   BalanceSheetLineConfig?     @relation("BalanceSheetLineConfigHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children BalanceSheetLineConfig[]    @relation("BalanceSheetLineConfigHierarchy")
+  history  BalanceSheetConfigHistory[]
+
+  @@unique([companyId, reportVariant, id, version])
+  @@index([companyId, reportVariant])
+  @@index([parentId])
+  @@index([templateId])
+  @@map("balance_sheet_line_configs")
+}
+
+model IncomeStatementLineConfig {
+  id                   String   @id @default(cuid())
+  companyId            String
+  reportVariant        String   @default("complete") // 'complete' | 'simplified'
+  parentId             String? // Parent line ID for nested structure (null for root lines)
+  section              String? // 'produits' | 'charges' - Explicit section for easy sorting
+  lineLabel            String // Display label
+  formCode             String? // Form code from official forms
+  accountCodes         String[] // Account codes to include (classes 6 and 7)
+  excludedAccountCodes String[] @default([]) // Account codes to exclude
+  filterType           String? // 'starts_with' | 'exact' | 'range' | 'custom'
+  filterValue          String? // Additional filter value
+  balanceType          String // 'debit' | 'credit' | 'auto' (for charges vs products)
+  hideLabel            Boolean  @default(false) // Hide the label for this line (useful for groups)
+  order                Int // Display order
+  notes                String? // Notes and annotations for this line
+  version              Int      @default(1) // Version number for history tracking
+  templateId           String? // Reference to template if created from template
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company  Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   IncomeStatementLineConfig?     @relation("IncomeStatementLineConfigHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children IncomeStatementLineConfig[]    @relation("IncomeStatementLineConfigHierarchy")
+  history  IncomeStatementConfigHistory[]
+
+  @@unique([companyId, reportVariant, id, version])
+  @@index([companyId, reportVariant])
+  @@index([parentId])
+  @@index([templateId])
+  @@map("income_statement_line_configs")
+}
+
+model BalanceSheetConfigHistory {
+  id           String   @id @default(cuid())
+  configId     String
+  version      Int
+  data         Json // Snapshot of configuration at this version
+  changedBy    String? // User ID who made the change
+  changeReason String? // Reason for the change
+  createdAt    DateTime @default(now())
+
+  config BalanceSheetLineConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, version])
+  @@index([configId])
+  @@map("balance_sheet_config_history")
+}
+
+model IncomeStatementConfigHistory {
+  id           String   @id @default(cuid())
+  configId     String
+  version      Int
+  data         Json // Snapshot of configuration at this version
+  changedBy    String? // User ID who made the change
+  changeReason String? // Reason for the change
+  createdAt    DateTime @default(now())
+
+  config IncomeStatementLineConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, version])
+  @@index([configId])
+  @@map("income_statement_config_history")
+}
+
+model BalanceSheetConfigTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  reportVariant String // 'complete' | 'simplified'
+  isPublic      Boolean  @default(false) // Can be used by other companies
+  createdBy     String? // User ID who created the template
+  companyId     String? // Original company if private template
+  configData    Json // Template configuration data
+  usageCount    Int      @default(0) // Number of times used
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isPublic])
+  @@index([companyId])
+  @@map("balance_sheet_config_templates")
+}
+
+model IncomeStatementConfigTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  reportVariant String // 'complete' | 'simplified'
+  isPublic      Boolean  @default(false) // Can be used by other companies
+  createdBy     String? // User ID who created the template
+  companyId     String? // Original company if private template
+  configData    Json // Template configuration data
+  usageCount    Int      @default(0) // Number of times used
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isPublic])
+  @@index([companyId])
+  @@map("income_statement_config_templates")
+}
+
+model User {
+  id            String        @id
+  name          String
+  email         String
+  emailVerified Boolean       @default(false)
+  image         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  role          String?
+  banned        Boolean?      @default(false)
+  banReason     String?
+  banExpires    DateTime?
+  sessions      Session[]
+  accounts      AuthAccount[]
+  members       Member[]
+  invitations   Invitation[]
+
+  oauthClients       OauthClient[]
+  oauthRefreshTokens OauthRefreshToken[]
+  oauthAccessTokens  OauthAccessToken[]
+  oauthConsents      OauthConsent[]
+
+  aiAccessGrants    AiAccessGrant[]
+  mcpConfirmations  McpConfirmation[]
+  mcpPendingActions McpPendingAction[]
+  dashboardLayouts  DashboardLayout[]
+  preference        UserPreference?
+
+  @@unique([email])
+  @@map("user")
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("auth_account")
+}
+
+model Session {
+  id                   String   @id
+  expiresAt            DateTime
+  token                String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganizationId String?
+  impersonatedBy       String?
+
+  oauthRefreshTokens OauthRefreshToken[]
+  oauthAccessTokens  OauthAccessToken[]
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Apikey {
+  id                  String         @id
+  configId            String         @default("default")
+  name                String?
+  start               String?
+  referenceId         String
+  prefix              String?
+  key                 String
+  refillInterval      Int?
+  refillAmount        Int?
+  lastRefillAt        DateTime?
+  enabled             Boolean?       @default(true)
+  rateLimitEnabled    Boolean?       @default(true)
+  rateLimitTimeWindow Int?           @default(86400000)
+  rateLimitMax        Int?           @default(10)
+  requestCount        Int?           @default(0)
+  remaining           Int?
+  lastRequest         DateTime?
+  expiresAt           DateTime?
+  createdAt           DateTime
+  updatedAt           DateTime
+  permissions         String?
+  metadata            String?
+  aiAccessGrant       AiAccessGrant?
+
+  @@index([configId])
+  @@index([referenceId])
+  @@index([key])
+  @@map("apikey")
+}
+
+model Organization {
+  id          String       @id
+  name        String
+  slug        String
+  logo        String?
+  createdAt   DateTime
+  metadata    String?
+  companyId   String?      @unique
+  company     Company?     @relation("CompanyOrganization", fields: [companyId], references: [id], onDelete: Cascade)
+  members     Member[]
+  invitations Invitation[]
+
+  @@unique([slug])
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+// ── OAuth 2.1 provider for MCP (Better Auth mcp + jwt + cimd plugins) ──
+
+model Jwks {
+  id         String    @id
+  publicKey  String
+  privateKey String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  alg        String?
+  crv        String?
+
+  @@map("jwks")
+}
+
+model OauthClient {
+  id                               String                @id
+  clientId                         String                @unique
+  clientSecret                     String?
+  clientDiscoveryId                String?
+  disabled                         Boolean?              @default(false)
+  skipConsent                      Boolean?
+  enableEndSession                 Boolean?
+  subjectType                      String?
+  scopes                           String[]              @default([])
+  clientCredentialsScopes          String[]              @default([])
+  userId                           String?
+  user                             User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                        DateTime?
+  updatedAt                        DateTime?
+  name                             String?
+  uri                              String?
+  icon                             String?
+  contacts                         String[]              @default([])
+  tos                              String?
+  policy                           String?
+  softwareId                       String?
+  softwareVersion                  String?
+  softwareStatement                String?
+  redirectUris                     String[]
+  postLogoutRedirectUris           String[]              @default([])
+  backchannelLogoutUri             String?
+  backchannelLogoutSessionRequired Boolean?
+  tokenEndpointAuthMethod          String?
+  applicationType                  String?
+  jwks                             String?
+  jwksUri                          String?
+  grantTypes                       String[]              @default([])
+  responseTypes                    String[]              @default([])
+  requirePKCE                      Boolean?
+  dpopBoundAccessTokens            Boolean?              @default(false)
+  referenceId                      String?
+  metadata                         Json?
+  resources                        OauthClientResource[]
+  refreshTokens                    OauthRefreshToken[]
+  accessTokens                     OauthAccessToken[]
+  consents                         OauthConsent[]
+  aiAccessGrants                   AiAccessGrant[]
+
+  @@index([userId])
+  @@map("oauthClient")
+}
+
+model OauthResource {
+  id                            String    @id
+  identifier                    String    @unique
+  name                          String
+  accessTokenTtl                Int?
+  refreshTokenTtl               Int?
+  signingAlgorithm              String?
+  signingKeyId                  String?
+  allowedScopes                 String[]  @default([])
+  customClaims                  Json?
+  dpopBoundAccessTokensRequired Boolean?  @default(false)
+  disabled                      Boolean?  @default(false)
+  createdAt                     DateTime?
+  updatedAt                     DateTime?
+  policyVersion                 Int?      @default(1)
+  metadata                      Json?
+
+  clients OauthClientResource[]
+
+  @@map("oauthResource")
+}
+
+model OauthClientResource {
+  id         String        @id
+  clientId   String
+  client     OauthClient   @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  resourceId String
+  resource   OauthResource @relation(fields: [resourceId], references: [identifier], onDelete: Cascade)
+  metadata   Json?
+  createdAt  DateTime?
+
+  @@index([clientId])
+  @@index([resourceId])
+  @@map("oauthClientResource")
+}
+
+model OauthRefreshToken {
+  id                      String             @id
+  token                   String             @unique
+  clientId                String
+  client                  OauthClient        @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  sessionId               String?
+  session                 Session?           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId                  String
+  user                    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId             String?
+  authorizationCodeId     String?
+  resources               String[]           @default([])
+  requestedUserInfoClaims String[]           @default([])
+  expiresAt               DateTime?
+  createdAt               DateTime?
+  revoked                 DateTime?
+  rotatedAt               DateTime?
+  rotationReplayResponse  String?
+  rotationReplayExpiresAt DateTime?
+  authTime                DateTime?
+  confirmation            Json?
+  scopes                  String[]           @default([])
+  accessTokens            OauthAccessToken[]
+
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+  @@map("oauthRefreshToken")
+}
+
+model OauthAccessToken {
+  id                      String             @id
+  token                   String?            @unique
+  clientId                String
+  client                  OauthClient        @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  sessionId               String?
+  session                 Session?           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId                  String?
+  user                    User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId             String?
+  authorizationCodeId     String?
+  resources               String[]           @default([])
+  requestedUserInfoClaims String[]           @default([])
+  refreshId               String?
+  refresh                 OauthRefreshToken? @relation(fields: [refreshId], references: [id], onDelete: Cascade)
+  expiresAt               DateTime?
+  createdAt               DateTime?
+  revoked                 DateTime?
+  confirmation            Json?
+  scopes                  String[]           @default([])
+
+  @@index([clientId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([authorizationCodeId])
+  @@index([refreshId])
+  @@map("oauthAccessToken")
+}
+
+model OauthConsent {
+  id                      String      @id
+  clientId                String
+  client                  OauthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId                  String?
+  user                    User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceId             String?
+  resources               String[]    @default([])
+  requestedUserInfoClaims String[]    @default([])
+  scopes                  String[]    @default([])
+  createdAt               DateTime?
+  updatedAt               DateTime?
+
+  @@index([clientId])
+  @@index([userId])
+  @@index([userId, clientId])
+  @@map("oauthConsent")
+}
+
+model OauthClientAssertion {
+  id        String   @id
+  expiresAt DateTime
+
+  @@map("oauthClientAssertion")
+}
+
+// Better Auth rate limiting (rateLimit.storage = "database"): shared across
+// serverless instances, unlike the default in-memory store.
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rateLimit")
+}
+
+// GitHub connection used by the "Mises à jour" page to update the instance
+// (one row per instance, id "default"). The fine-grained token is encrypted
+// with the integrations key (lib/crypto/encryption-key.ts) and never sent to
+// the browser.
+model UpdateConnection {
+  id             String    @id @default("default")
+  owner          String
+  repo           String
+  tokenEncrypted String
+  tokenLast4     String
+  tokenExpiresAt DateTime?
+  isFork         Boolean   @default(false)
+  defaultBranch  String    @default("main")
+  connectedById  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("update_connection")
+}
+
+// Companies an AI assistant (OAuth client) or an API key may reach on behalf
+// of a user (lib/ai-access). One grant per (user, OAuth client) and per API
+// key. No grant means every company the user can access, including future
+// ones, so connections made before grants existed keep working. A restricted
+// grant only ever narrows the user's own rights: the MCP tools still check
+// the user's role in each company. Revoking a consent (trigger in the
+// migration), deleting a key, a client, a user or a company removes the
+// matching rows.
+model AiAccessGrant {
+  id            String                 @id @default(cuid())
+  userId        String
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// OAuth client (assistant) the grant applies to; exactly one of clientId and apiKeyId is set.
+  clientId      String?
+  client        OauthClient?           @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  apiKeyId      String?                @unique
+  apiKey        Apikey?                @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  /// Every company of the user, including future ones. When false, only `companies`.
+  allCompanies  Boolean                @default(true)
+  /// How full control runs high-impact tools: "automatic" (executes on the call)
+  /// or "validation" (approved by the user in Kledg first). lib/ai-access/access.ts
+  executionMode String                 @default("automatic")
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  companies     AiAccessGrantCompany[]
+
+  @@unique([userId, clientId])
+  @@map("ai_access_grants")
+}
+
+model AiAccessGrantCompany {
+  grantId   String
+  grant     AiAccessGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([grantId, companyId])
+  @@index([companyId])
+  @@map("ai_access_grant_companies")
+}
+
+/// Confirmation of a full control MCP action (lib/mcp/full-control/confirmation.ts).
+/// A tool called without confirm returns a dry run and a token; executing the
+/// action needs that token, bound to the user, the connection, the tool, the
+/// company and the arguments, valid 10 minutes and usable once.
+/// No longer written: replaced by McpPendingAction (human approval in Kledg).
+/// Kept until a contract migration drops the table.
+model McpConfirmation {
+  id        String    @id @default(cuid())
+  /// SHA-256 of the token handed to the assistant (the token itself is never stored).
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The connection that asked for the preview: "oauth:<clientId>" or "apiKey:<id>".
+  caller    String
+  tool      String
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// SHA-256 of the normalized arguments of the preview.
+  argsHash  String
+  expiresAt DateTime
+  /// Set when the token is consumed (single use).
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([expiresAt])
+  @@map("mcp_confirmations")
+}
+
+/// A high-impact MCP full control action waiting for the user's decision in
+/// Kledg (lib/mcp/full-control/pending-actions.ts). The assistant can execute
+/// it only once approved, with the same arguments, before expiresAt.
+model McpPendingAction {
+  /// Random, unguessable (it appears in the approval URL).
+  id         String    @id
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The connection that asked: "oauth:<clientId>" or "apiKey:<id>".
+  caller     String
+  /// OAuth client or API key name, shown on the approval page.
+  callerName String?
+  tool       String
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Normalized arguments (without actionId) and their SHA-256.
+  args       Json
+  argsHash   String
+  /// The dry run shown to the user before they decide.
+  preview    Json
+  /// pending, approved, rejected, executing, executed, failed
+  status     String    @default("pending")
+  expiresAt  DateTime
+  decidedAt  DateTime?
+  executedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, status])
+  @@index([companyId])
+  @@index([expiresAt])
+  @@map("mcp_pending_actions")
+}
+
+/// Guided start of a company ("Démarrer" checklist on the dashboard). The
+/// steps are detected from the company's data (lib/onboarding); only the
+/// choice to hide the checklist is stored, per company.
+model CompanyOnboarding {
+  companyId     String    @id
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Set when someone hides the checklist; null while it is shown.
+  dismissedAt   DateTime?
+  dismissedById String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("company_onboarding")
+}
+
+/// Dashboard of one user in one company: which widgets are shown, in which
+/// order and at which size (lib/dashboard). Personal: nobody reads or writes
+/// another user's layout. Without a row the user sees the default layout of
+/// their role. `layout` is validated by zod on read and write and unknown
+/// widget ids are ignored, so widgets come and go without a migration.
+model DashboardLayout {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  /// { "version": 1, "items": [{ "id": "kpi-resultat", "size": "S" }] }
+  layout    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@map("dashboard_layouts")
+}
+
+/// Personal preferences of one user, following them across devices
+/// (lib/appearance). `appearance` holds the chart colours, validated by zod
+/// on read and write (lib/appearance/schema.ts); a row that no longer parses
+/// reads as the defaults. Without a row the user sees the default colours.
+model UserPreference {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  /// { "version": 1, "palette": "custom", "base": "sobre", "custom": { "light": { "revenue": "#0072b2" }, "dark": {} } }
+  appearance Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}

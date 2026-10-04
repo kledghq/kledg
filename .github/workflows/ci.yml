@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Database tests (*.db.test.ts, DB-backed route tests, authorization
+    # matrix) run against this server: lib/__tests__/helpers/test-db.ts
+    # creates and migrates one database per test file, named
+    # <KLEDG_TEST_DB_PREFIX>_<name>. KLEDG_REQUIRE_TEST_DB makes a missing
+    # server fail the run instead of skipping those tests.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kledg
+          POSTGRES_PASSWORD: kledg
+          POSTGRES_DB: kledg_test
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      KLEDG_TEST_DATABASE_URL: postgresql://kledg:kledg@localhost:5432/kledg_test
+      KLEDG_TEST_DB_PREFIX: kledg_ci_${{ github.job }}
+      KLEDG_REQUIRE_TEST_DB: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test:run
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kledg
+          POSTGRES_PASSWORD: kledg
+          POSTGRES_DB: kledg
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kledg:kledg@localhost:5432/kledg
+      DATABASE_URL_UNPOOLED: postgresql://kledg:kledg@localhost:5432/kledg
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # release tags, for the policy check and the upgrade test
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migration policy (released migrations immutable, new ones additive)
+        run: node scripts/check-migrations.mjs
+      - name: Upgrade from the latest release
+        run: |
+          TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -z "$TAG" ]; then echo "No release yet: skipped."; exit 0; fi
+          git checkout "$TAG" -- prisma
+          pnpm db:migrate
+          git checkout HEAD -- prisma
+          pnpm db:migrate
+          pnpm prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+          psql "$DATABASE_URL" -q -c 'DROP SCHEMA public CASCADE' -c 'CREATE SCHEMA public'
+      - name: Apply migrations to an empty database
+        run: pnpm db:migrate
+      - name: Schema and migrations are in sync
+        run: pnpm prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code

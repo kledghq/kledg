@@ -1,0 +1,214 @@
+# Keeps a self-hosted copy of Kledg up to date.
+#
+# The "Deploy to Vercel" button creates a copy of kledghq/kledg that is not a
+# GitHub fork, so GitHub's "Sync fork" button is not available. This workflow
+# runs in YOUR copy: every week it fetches Kledg and opens (or refreshes) a
+# pull request. Hosts that deploy from GitHub (Vercel, Railway, Render...) may
+# build a preview of it; merge it to update your instance (they redeploy and
+# run the migrations; with Docker, pull and rebuild on the server). It never runs
+# in kledghq/kledg itself. The Kledg "Mises à jour" page can also start it.
+#
+# A copy made by the Vercel button starts with a single commit (a snapshot of
+# Kledg) that shares no history with kledghq/kledg, so a plain `git merge`
+# refuses it. The first update attaches Kledg's history once: it finds the
+# Kledg commit the snapshot was made from and records it as merged with the
+# "ours" strategy (no file changes), then merges the update normally. Your own
+# changes since the copy are kept and merged like in a fork.
+#
+# GitHub does not let this workflow's token push changes to workflow files.
+# Unless the secret KLEDG_UPDATE_TOKEN holds a token with the Workflows
+# permission, the update keeps your .github/workflows files as they are (the
+# Kledg "Mises à jour" page updates this file with its own token).
+#
+# Choose what to follow with the repository variable KLEDG_UPDATES
+# (Settings > Secrets and variables > Actions > Variables):
+#   releases  (default) only published releases, with their release notes
+#   main      every change on kledghq/kledg main, for testers
+#   off       never open update pull requests
+
+name: Update from Kledg
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-from-kledg
+  cancel-in-progress: true
+
+jobs:
+  update:
+    if: github.repository != 'kledghq/kledg' && vars.KLEDG_UPDATES != 'off'
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: https://github.com/kledghq/kledg.git
+      CHANNEL: ${{ vars.KLEDG_UPDATES || 'releases' }}
+      BRANCH: kledg-update
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.KLEDG_UPDATE_TOKEN || github.token }}
+
+      - name: Fetch Kledg
+        id: fetch
+        run: |
+          git remote add upstream "$UPSTREAM"
+          case "$CHANNEL" in
+            releases)
+              TAG=$(gh api repos/kledghq/kledg/releases/latest --jq .tag_name 2>/dev/null || true)
+              if [ -z "$TAG" ]; then
+                echo "No published Kledg release yet."
+                echo "ref=" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              git fetch upstream "refs/tags/$TAG:refs/tags/$TAG"
+              echo "ref=refs/tags/$TAG" >> "$GITHUB_OUTPUT"
+              echo "label=$TAG" >> "$GITHUB_OUTPUT"
+              echo "notes=https://github.com/kledghq/kledg/releases/tag/$TAG" >> "$GITHUB_OUTPUT"
+              ;;
+            main)
+              git fetch upstream main
+              VERSION=$(git show upstream/main:package.json | jq -r .version)
+              echo "ref=upstream/main" >> "$GITHUB_OUTPUT"
+              echo "label=$VERSION ($(git rev-parse --short upstream/main))" >> "$GITHUB_OUTPUT"
+              echo "notes=https://github.com/kledghq/kledg/commits/main" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::KLEDG_UPDATES must be releases, main or off (got \"$CHANNEL\")."
+              exit 1
+              ;;
+          esac
+
+      - name: Check for new commits
+        id: check
+        if: steps.fetch.outputs.ref != ''
+        run: |
+          if git merge-base --is-ancestor "${{ steps.fetch.outputs.ref }}" HEAD; then
+            echo "Already up to date."
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare the update branch
+        id: prepare
+        if: steps.check.outputs.changes == 'true'
+        env:
+          REF: ${{ steps.fetch.outputs.ref }}
+          BASE: ${{ github.event.repository.default_branch }}
+          HAS_WORKFLOW_TOKEN: ${{ secrets.KLEDG_UPDATE_TOKEN != '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          # BEGIN kledg-merge (tested by lib/updates/__tests__/workflow-merge.test.ts)
+          fail() {
+            echo "::error::$1 Voir docs/self-hosting.md#mettre-à-jour"
+            exit 1
+          }
+          # Conflicts only in workflow files: keep ours, unless a token may push
+          # workflow changes (then take Kledg's).
+          resolve_workflow_conflicts() {
+            CONFLICTS=$(git diff --name-only --diff-filter=U)
+            [ -n "$CONFLICTS" ] || return 1
+            if printf '%s\n' "$CONFLICTS" | grep -qv '^\.github/workflows/'; then return 1; fi
+            for f in $CONFLICTS; do
+              if [ "$HAS_WORKFLOW_TOKEN" = "true" ] && git cat-file -e "MERGE_HEAD:$f" 2>/dev/null; then
+                git checkout --theirs -- "$f" && git add -- "$f"
+              elif [ "$HAS_WORKFLOW_TOKEN" != "true" ] && git cat-file -e "HEAD:$f" 2>/dev/null; then
+                git checkout --ours -- "$f" && git add -- "$f"
+              else
+                git rm -q -- "$f"
+              fi
+            done
+            git commit -q --no-edit
+          }
+          if ! git merge-base HEAD "$REF" >/dev/null 2>&1; then
+            # A copy made by the Vercel button: unrelated history. Find the
+            # Kledg commit its first commit is a snapshot of (ignoring .github,
+            # which the copy may lack) and record it as merged, without
+            # changing any file.
+            git fetch --quiet upstream main
+            ROOT=$(git rev-list --max-parents=0 HEAD | tail -n 1)
+            ROOT_TIME=$(git log -1 --format=%ct "$ROOT")
+            CANDIDATES=$(git rev-list --max-count=500 --before="@$((ROOT_TIME + 3600))" upstream/main "$REF")
+            [ -n "$CANDIDATES" ] || CANDIDATES=$(git rev-list --max-count=500 upstream/main "$REF")
+            ADOPT=""
+            ADOPT_COUNT=""
+            for C in $CANDIDATES; do
+              COUNT=$(git diff --name-only "$C" "$ROOT" -- . ':(exclude).github' | wc -l | tr -d ' ')
+              if [ -z "$ADOPT_COUNT" ] || [ "$COUNT" -lt "$ADOPT_COUNT" ]; then
+                ADOPT=$C
+                ADOPT_COUNT=$COUNT
+              fi
+              if [ "$COUNT" -eq 0 ]; then break; fi
+            done
+            [ -n "$ADOPT" ] || fail "Impossible de rattacher votre copie à l'historique de Kledg."
+            echo "Copy made from Kledg $ADOPT ($ADOPT_COUNT files differ outside .github)."
+            git merge -q -s ours --allow-unrelated-histories -m "Attach Kledg history (copy made from $(git rev-parse --short "$ADOPT"))" "$ADOPT"
+            echo "adopted=$ADOPT" >> "$GITHUB_OUTPUT"
+          fi
+          if ! git merge --no-edit "$REF"; then
+            resolve_workflow_conflicts || fail "Votre copie contient des modifications en conflit avec Kledg : fusionnez à la main."
+          fi
+          if [ "$HAS_WORKFLOW_TOKEN" != "true" ]; then
+            KEPT=$(git diff --name-only "origin/$BASE" HEAD -- .github/workflows)
+            if [ -n "$KEPT" ]; then
+              for f in $KEPT; do
+                if git cat-file -e "origin/$BASE:$f" 2>/dev/null; then
+                  git checkout "origin/$BASE" -- "$f"
+                else
+                  git rm -q --cached -- "$f"
+                  rm -f -- "$f"
+                fi
+              done
+              git commit -q -m "Keep this repository's workflow files"
+              echo "workflows_kept=$(printf '%s' "$KEPT" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          # END kledg-merge
+          git push --force origin "$BRANCH"
+
+      - name: Open or refresh the pull request
+        if: steps.check.outputs.changes == 'true'
+        env:
+          LABEL: ${{ steps.fetch.outputs.label }}
+          NOTES: ${{ steps.fetch.outputs.notes }}
+          BASE: ${{ github.event.repository.default_branch }}
+          ADOPTED: ${{ steps.prepare.outputs.adopted }}
+          WORKFLOWS_KEPT: ${{ steps.prepare.outputs.workflows_kept }}
+        run: |
+          MIGRATIONS=$(git diff --name-only --diff-filter=A "origin/$BASE" "$BRANCH" -- prisma/migrations \
+            | grep '/migration.sql$' | sed 's#^prisma/migrations/##; s#/migration.sql$##; s#^#- #' || true)
+          if [ -n "$MIGRATIONS" ]; then
+            MIGRATION_TEXT=$(printf 'Migrations de la base appliquées au déploiement :\n\n%s\n\nPensez à sauvegarder la base avant de fusionner (Neon : créez une branche de sauvegarde ; ailleurs, vérifiez la dernière sauvegarde de votre hébergeur).' "$MIGRATIONS")
+          else
+            MIGRATION_TEXT="Aucune migration de la base."
+          fi
+          EXTRA=""
+          if [ -n "$ADOPTED" ]; then
+            EXTRA=$(printf '%s\n\nPremière mise à jour de cette copie : elle est rattachée à l%shistorique de Kledg (copie faite depuis %s), sans modifier vos fichiers.' "$EXTRA" "'" "$ADOPTED")
+          fi
+          if [ -n "$WORKFLOWS_KEPT" ]; then
+            EXTRA=$(printf '%s\n\nFichiers de workflow conservés tels quels (le jeton des Actions ne peut pas les modifier) : %s' "$EXTRA" "$WORKFLOWS_KEPT")
+          fi
+          BODY=$(printf 'Mise à jour vers Kledg %s.\n\nNotes : %s\n\n%s%s\n\nSi votre hébergeur construit des aperçus (Vercel, Railway, Render), vérifiez celui de cette pull request. Fusionnez-la ensuite pour mettre à jour votre instance : un hébergeur qui déploie depuis GitHub la redéploie et applique les migrations.' "$LABEL" "$NOTES" "$MIGRATION_TEXT" "$EXTRA")
+          TITLE="Mise à jour Kledg $LABEL"
+          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" --title "$TITLE" --body "$BODY"
+          else
+            if ! gh pr create --head "$BRANCH" --base "$BASE" --title "$TITLE" --body "$BODY"; then
+              # Repositories can forbid Actions from opening pull requests
+              # (Settings > Actions > General). The branch is pushed anyway.
+              URL="${{ github.server_url }}/${{ github.repository }}/compare/$BASE...$BRANCH?expand=1"
+              echo "::warning::Ouvrez la mise à jour en un clic : $URL"
+              echo "Ouvrez la mise à jour : $URL" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi

@@ -1,0 +1,73 @@
+# Kledg and its PostgreSQL database, ready for Coolify, Dokploy or any
+# Docker host: docs/self-hosting.md. Variables marked :? are required (the
+# deployment refuses to start without them); fill them in your platform's
+# environment editor or in a .env file next to this file.
+#
+# No port is published: Coolify and Dokploy route the domain to port 3000
+# of the kledg service through their proxy. On a plain Docker host, publish
+# it with a docker-compose.override.yml (see the guide).
+#
+# Local development database only: docker compose -f docker-compose.dev.yml up -d
+services:
+  kledg:
+    build:
+      context: .
+      args:
+        # Shown on the "Mises à jour" page: KLEDG_COMMIT=$(git rev-parse HEAD)
+        KLEDG_COMMIT: ${KLEDG_COMMIT:-}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    environment:
+      # Letters and digits only (openssl rand -hex 24): it goes into a URL.
+      DATABASE_URL: postgresql://kledg:${POSTGRES_PASSWORD:?}@db:5432/kledg
+      # openssl rand -base64 32
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      # Public URL of the instance, https://compta.example.fr
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?}
+      # Only this email can create the administrator account on /setup.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?}
+      # openssl rand -base64 24, required by /setup?token=...
+      SETUP_TOKEN: ${SETUP_TOKEN:?}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      # Behind Coolify's or Dokploy's proxy (Traefik or Caddy): 1. Add 1 per
+      # proxy in front of it (Cloudflare proxied DNS: 2).
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      RATE_LIMIT_IP_HEADER: ${RATE_LIMIT_IP_HEADER:-}
+      # true when the platform redeploys on each push to GitHub (one-click updates).
+      KLEDG_DEPLOYS_FROM_GITHUB: ${KLEDG_DEPLOYS_FROM_GITHUB:-}
+      KLEDG_BACKUP: ${KLEDG_BACKUP:-on}
+    volumes:
+      # pg_dump backups taken before each migration (docker-migrate.sh).
+      - kledg-backups:/app/backups
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kledg
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: kledg
+    volumes:
+      - kledg-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kledg -d kledg"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  kledg-postgres:
+  kledg-backups:

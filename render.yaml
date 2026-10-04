@@ -1,0 +1,51 @@
+# Render Blueprint: Kledg from the Dockerfile and a managed PostgreSQL, both
+# in Frankfurt. Guide: docs/self-hosting.md#render
+#
+# Secrets marked generateValue are created by Render at the first deploy
+# (read SETUP_TOKEN in the service's Environment tab). Variables marked
+# sync: false are asked for when the Blueprint is created.
+services:
+  - type: web
+    name: kledg
+    runtime: docker
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    # Migrations before the new version takes traffic (the entrypoint runs
+    # them too, as a no-op by then, on instance types without pre-deploy).
+    preDeployCommand: /app/docker-migrate.sh
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kledg-db
+          property: connectionString
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: SETUP_TOKEN
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Requests reach the service through Cloudflare then Render's proxy,
+      # each appending the address it saw to X-Forwarded-For.
+      - key: TRUST_PROXY_HOPS
+        value: "2"
+      # The disk is replaced at each deploy: rely on Render's database backups.
+      - key: KLEDG_BACKUP
+        value: "off"
+
+databases:
+  - name: kledg-db
+    databaseName: kledg
+    user: kledg
+    region: frankfurt
+    postgresMajorVersion: "17"
+    # Reachable from Render services only (internal URL), not from the internet.
+    ipAllowList: []

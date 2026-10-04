@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE" OLDFILEUID="NONE" NEWFILEUID="NONE"?>
+<!-- Relevé fictif au format OFX 2.2, à titre d'exemple. -->
+<OFX>
+  <SIGNONMSGSRSV1>
+    <SONRS>
+      <STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>
+      <DTSERVER>20260310060000</DTSERVER>
+      <LANGUAGE>FRA</LANGUAGE>
+    </SONRS>
+  </SIGNONMSGSRSV1>
+  <BANKMSGSRSV1>
+    <STMTTRNRS>
+      <TRNUID>1</TRNUID>
+      <STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>
+      <STMTRS>
+        <CURDEF>EUR</CURDEF>
+        <BANKACCTFROM>
+          <BANKID>99999</BANKID>
+          <BRANCHID>00001</BRANCHID>
+          <ACCTID>00000000001</ACCTID>
+          <ACCTTYPE>CHECKING</ACCTTYPE>
+        </BANKACCTFROM>
+        <BANKTRANLIST>
+          <DTSTART>20260301</DTSTART>
+          <DTEND>20260310</DTEND>
+          <STMTTRN>
+            <TRNTYPE>CREDIT</TRNTYPE>
+            <DTPOSTED>20260302</DTPOSTED>
+            <TRNAMT>1440.00</TRNAMT>
+            <FITID>EXEMPLE-0001</FITID>
+            <NAME>CLIENT EXEMPLE SARL</NAME>
+            <MEMO>VIR SEPA FACTURE F-2026-001</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DIRECTDEBIT</TRNTYPE>
+            <DTPOSTED>20260303</DTPOSTED>
+            <TRNAMT>-84.20</TRNAMT>
+            <FITID>EXEMPLE-0002</FITID>
+            <NAME>FOURNISSEUR ENERGIE</NAME>
+            <MEMO>PRLV SEPA ECHEANCE MARS</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>POS</TRNTYPE>
+            <DTPOSTED>20260304</DTPOSTED>
+            <TRNAMT>-23.90</TRNAMT>
+            <FITID>EXEMPLE-0003</FITID>
+            <NAME>LIBRAIRIE DU CENTRE</NAME>
+            <MEMO>CB 03/03</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CHECK</TRNTYPE>
+            <DTPOSTED>20260306</DTPOSTED>
+            <TRNAMT>350.00</TRNAMT>
+            <FITID>EXEMPLE-0004</FITID>
+            <CHECKNUM>0001234</CHECKNUM>
+            <NAME>REMISE CHEQUE</NAME>
+          </STMTTRN>
+        </BANKTRANLIST>
+        <LEDGERBAL>
+          <BALAMT>2681.90</BALAMT>
+          <DTASOF>20260310</DTASOF>
+        </LEDGERBAL>
+      </STMTRS>
+    </STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>

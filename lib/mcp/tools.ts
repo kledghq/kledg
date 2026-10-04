@@ -1,0 +1,445 @@
+/**
+ * MCP tools exposed by a Kledg instance at /api/mcp.
+ *
+ * Every tool runs as the connected user and goes through the same per-company
+ * access control as the web UI, narrowed to the companies granted to the
+ * connection: all through `companyGuard` (lib/mcp/company-access.ts), never
+ * through ad hoc checks. The write tool of this file only creates drafts: a
+ * human validates them in Kledg before they count in the books. Tools that act
+ * beyond drafts (full control, kledg:admin) live in lib/mcp/full-control and
+ * are registered only for connections with full control.
+ */
+
+import type { McpServer } from '@modelcontextprotocol/server'
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { companyGuard, type McpAccess } from '@/lib/mcp/company-access'
+import { getTrialBalance } from '@/lib/reports/trial-balance/get-trial-balance.service'
+import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
+import { generateIncomeStatement } from '@/lib/reports/income-statement/generate-income-statement.service'
+import { createAccountingEntry } from '@/lib/accounting/services'
+import { toEntryDate } from '@/lib/accounting/entry-date'
+import { assertEntryWritableInFiscalYear, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
+import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
+import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
+import { writeAuditLog } from '@/lib/audit'
+import { NotFoundError } from '@/lib/accounting/errors'
+import { day, fail, json, run } from '@/lib/mcp/tool-result'
+import { registerFullControlTools } from '@/lib/mcp/full-control'
+
+const MAX_ROWS = 200
+
+async function resolveFiscalYear(companyId: string, fiscalYearId?: string) {
+  const fiscalYear = fiscalYearId
+    ? await prisma.fiscalYear.findFirst({ where: { id: fiscalYearId, companyId } })
+    : await getActiveFiscalYear(companyId)
+  if (!fiscalYear) throw new NotFoundError('Exercice introuvable pour cette société.')
+  return fiscalYear
+}
+
+const companyId = z.string().describe('Company id, from list_companies.')
+const fiscalYearId = z
+  .string()
+  .optional()
+  .describe('Fiscal year id, from list_fiscal_years. Defaults to the current fiscal year.')
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
+
+export function registerKledgTools(server: McpServer, access: McpAccess) {
+  const { user, canWrite } = access
+  const guard = companyGuard(access)
+  const readOnly = { readOnlyHint: true, openWorldHint: false } as const
+
+  server.registerTool(
+    'list_companies',
+    {
+      title: 'Lister les sociétés',
+      description:
+        'Lists the companies this connection can access on this Kledg instance (the user may have limited it to some of their companies), with their SIREN, legal form, fiscal regimes and current fiscal year. Start here to get company ids.',
+      inputSchema: z.object({}),
+      annotations: readOnly,
+    },
+    () =>
+      run(async () => {
+        const companies = await prisma.company.findMany({
+          where: await guard.companyWhere(),
+          select: {
+            id: true,
+            name: true,
+            siren: true,
+            legalType: true,
+            vatRegime: true,
+            corporateTaxRegime: true,
+            isVatExempt: true,
+            fiscalYears: {
+              where: { isClosed: false },
+              orderBy: { startDate: 'desc' },
+              take: 1,
+              select: { id: true, year: true, startDate: true, endDate: true },
+            },
+          },
+          orderBy: { name: 'asc' },
+        })
+        return json(
+          companies.map(({ fiscalYears, ...c }) => ({
+            ...c,
+            currentFiscalYear: fiscalYears[0]
+              ? { ...fiscalYears[0], startDate: day(fiscalYears[0].startDate), endDate: day(fiscalYears[0].endDate) }
+              : null,
+          })),
+        )
+      }),
+  )
+
+  server.registerTool(
+    'list_fiscal_years',
+    {
+      title: 'Lister les exercices',
+      description: 'Lists the fiscal years of a company with their dates and whether they are closed.',
+      inputSchema: z.object({ companyId }),
+      annotations: readOnly,
+    },
+    ({ companyId }) =>
+      run(async () => {
+        await guard.require(companyId, { reports: ['read'] })
+        const years = await prisma.fiscalYear.findMany({
+          where: { companyId },
+          orderBy: { startDate: 'desc' },
+          select: { id: true, year: true, startDate: true, endDate: true, isClosed: true },
+        })
+        return json(years.map((y) => ({ ...y, startDate: day(y.startDate), endDate: day(y.endDate) })))
+      }),
+  )
+
+  server.registerTool(
+    'list_journals',
+    {
+      title: 'Lister les journaux',
+      description: 'Lists the accounting journals of a company (code and label, e.g. AC achats, VE ventes, BQ banque).',
+      inputSchema: z.object({ companyId }),
+      annotations: readOnly,
+    },
+    ({ companyId }) =>
+      run(async () => {
+        await guard.require(companyId, { entries: ['read'] })
+        const journals = await prisma.journal.findMany({
+          where: { companyId },
+          orderBy: { code: 'asc' },
+          select: { code: true, label: true },
+        })
+        return json(journals)
+      }),
+  )
+
+  server.registerTool(
+    'search_accounts',
+    {
+      title: 'Rechercher des comptes',
+      description:
+        'Searches the chart of accounts (PCG 2026) of a company by account number prefix or label. Use it to find the right account before proposing an entry.',
+      inputSchema: z.object({
+        companyId,
+        fiscalYearId,
+        query: z.string().optional().describe('Account number prefix (e.g. "606", "401") or words of the label. PCG account numbers have 4 or more digits, e.g. 6064, 44566, 401.'),
+      }),
+      annotations: readOnly,
+    },
+    ({ companyId, fiscalYearId, query }) =>
+      run(async () => {
+        await guard.require(companyId, { entries: ['read'] })
+        const fiscalYear = await resolveFiscalYear(companyId, fiscalYearId)
+        const q = query?.trim()
+        const accounts = await prisma.account.findMany({
+          where: {
+            companyId,
+            fiscalYearId: fiscalYear.id,
+            ...(q &&
+              (/^\d+$/.test(q)
+                ? { code: { startsWith: q } }
+                : { label: { contains: q, mode: 'insensitive' as const } })),
+          },
+          orderBy: { code: 'asc' },
+          take: MAX_ROWS,
+          select: { code: true, label: true },
+        })
+        return json(accounts)
+      }),
+  )
+
+  server.registerTool(
+    'get_trial_balance',
+    {
+      title: 'Balance générale',
+      description: 'Returns the trial balance (balance générale) of a company between two dates: debit, credit and balance per account.',
+      inputSchema: z.object({ companyId, startDate: isoDate, endDate: isoDate }),
+      annotations: readOnly,
+    },
+    ({ companyId, startDate, endDate }) =>
+      run(async () => {
+        await guard.require(companyId, { reports: ['read'] })
+        return json(await getTrialBalance(companyId, new Date(startDate), new Date(endDate)))
+      }),
+  )
+
+  server.registerTool(
+    'get_balance_sheet',
+    {
+      title: 'Bilan',
+      description: 'Returns the balance sheet (bilan actif / passif, PCG 2026 layout) of a company for a fiscal year.',
+      inputSchema: z.object({
+        companyId,
+        fiscalYearId,
+        variant: z.enum(['complete', 'simplified']).default('simplified'),
+      }),
+      annotations: readOnly,
+    },
+    ({ companyId, fiscalYearId, variant }) =>
+      run(async () => {
+        await guard.require(companyId, { reports: ['read'] })
+        const fiscalYear = await resolveFiscalYear(companyId, fiscalYearId)
+        return json(await generateBalanceSheet(companyId, fiscalYear.id, variant))
+      }),
+  )
+
+  server.registerTool(
+    'get_income_statement',
+    {
+      title: 'Compte de résultat',
+      description: 'Returns the income statement (compte de résultat: produits, charges, résultat) of a company for a fiscal year.',
+      inputSchema: z.object({
+        companyId,
+        fiscalYearId,
+        variant: z.enum(['complete', 'simplified']).default('simplified'),
+      }),
+      annotations: readOnly,
+    },
+    ({ companyId, fiscalYearId, variant }) =>
+      run(async () => {
+        await guard.require(companyId, { reports: ['read'] })
+        const fiscalYear = await resolveFiscalYear(companyId, fiscalYearId)
+        return json(await generateIncomeStatement(companyId, fiscalYear.id, variant))
+      }),
+  )
+
+  server.registerTool(
+    'list_entries',
+    {
+      title: 'Lister les écritures',
+      description:
+        'Lists accounting entries (écritures) with their id and lines, newest first. Filter by date range, journal code, account number prefix or status.',
+      inputSchema: z.object({
+        companyId,
+        fiscalYearId,
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        journalCode: z.string().optional(),
+        accountCode: z.string().optional().describe('Only entries with a line on an account starting with this number.'),
+        status: z.enum(['draft', 'validated']).optional(),
+        limit: z.number().int().min(1).max(MAX_ROWS).default(50),
+      }),
+      annotations: readOnly,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { entries: ['read'] })
+        const fiscalYear = await resolveFiscalYear(args.companyId, args.fiscalYearId)
+        // Accounts of the year matching the prefix first (a few hundred rows at
+        // most): filtering lines through a code prefix on every account of the
+        // instance does not use an index.
+        const accountIds = args.accountCode
+          ? (
+              await prisma.account.findMany({
+                where: { companyId: args.companyId, fiscalYearId: fiscalYear.id, code: { startsWith: args.accountCode } },
+                select: { id: true },
+              })
+            ).map((a) => a.id)
+          : null
+        const entries = await prisma.accountingEntry.findMany({
+          where: {
+            companyId: args.companyId,
+            fiscalYearId: fiscalYear.id,
+            ...(args.status && { status: args.status }),
+            ...((args.from || args.to) && {
+              date: {
+                ...(args.from && { gte: new Date(args.from) }),
+                ...(args.to && { lte: new Date(args.to) }),
+              },
+            }),
+            ...(args.journalCode && { journal: { code: args.journalCode } }),
+            ...(accountIds && { lines: { some: { accountId: { in: accountIds } } } }),
+          },
+          orderBy: [{ date: 'desc' }, { entryNumber: 'desc' }],
+          take: args.limit,
+          select: {
+            id: true,
+            entryNumber: true,
+            date: true,
+            description: true,
+            reference: true,
+            status: true,
+            journal: { select: { code: true } },
+            lines: {
+              select: { debit: true, credit: true, description: true, account: { select: { code: true, label: true } } },
+            },
+          },
+        })
+        return json(
+          entries.map((e) => ({
+            id: e.id,
+            number: e.entryNumber,
+            date: day(e.date),
+            journal: e.journal.code,
+            description: e.description,
+            reference: e.reference,
+            status: e.status,
+            lines: e.lines.map((l) => ({
+              account: l.account.code,
+              accountLabel: l.account.label,
+              debit: l.debit,
+              credit: l.credit,
+              label: l.description,
+            })),
+          })),
+        )
+      }),
+  )
+
+  server.registerTool(
+    'list_bank_transactions',
+    {
+      title: 'Lister les transactions bancaires',
+      description:
+        'Lists bank transactions of a company, newest first. By default only transactions not yet reconciled with an accounting entry, which are the ones that need work.',
+      inputSchema: z.object({
+        companyId,
+        onlyUnreconciled: z.boolean().default(true),
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        limit: z.number().int().min(1).max(MAX_ROWS).default(50),
+      }),
+      annotations: readOnly,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { banking: ['read'] })
+        const transactions = await prisma.bankTransaction.findMany({
+          where: {
+            bankAccount: { bankConnection: { companyId: args.companyId } },
+            ...(args.onlyUnreconciled && { reconciled: false }),
+            ...((args.from || args.to) && {
+              date: {
+                ...(args.from && { gte: new Date(args.from) }),
+                ...(args.to && { lte: new Date(args.to) }),
+              },
+            }),
+          },
+          orderBy: { date: 'desc' },
+          take: args.limit,
+          select: {
+            id: true,
+            date: true,
+            amount: true,
+            side: true,
+            label: true,
+            counterpartyName: true,
+            reference: true,
+            vatRate: true,
+            reconciled: true,
+            bankAccount: { select: { name: true } },
+          },
+        })
+        return json(transactions.map((t) => ({ ...t, date: day(t.date), bankAccount: t.bankAccount.name })))
+      }),
+  )
+
+  // Full control (kledg:admin): validate, reconcile, import, close... Never
+  // registered without it; each tool checks it again through the guard.
+  if (access.canAdmin) registerFullControlTools(server, access, guard)
+
+  // Only clients granted kledg:write (and API keys) can propose entries.
+  if (!canWrite) return
+
+  server.registerTool(
+    'create_draft_entry',
+    {
+      title: 'Proposer une écriture',
+      description:
+        'Creates a DRAFT accounting entry. Debits must equal credits. The entry is not validated: a person reviews and validates it in Kledg. Use search_accounts and list_journals first to pick existing account numbers and journal codes.',
+      inputSchema: z.object({
+        companyId,
+        journalCode: z.string().describe('Journal code, e.g. "AC", "VE", "BQ", "OD".'),
+        date: isoDate,
+        description: z.string().min(1),
+        reference: z.string().optional(),
+        lines: z
+          .array(
+            z.object({
+              accountCode: z.string().describe('Existing account number from search_accounts.'),
+              debit: z.number().min(0).default(0),
+              credit: z.number().min(0).default(0),
+              label: z.string().optional(),
+            }),
+          )
+          .min(2),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { entries: ['create'] })
+        const date = toEntryDate(args.date)
+        const found = await getFiscalYearForDate(args.companyId, date)
+        const fiscalYear = found
+          ? await prisma.fiscalYear.findUnique({ where: { id: found.id }, select: GUARDED_FISCAL_YEAR_SELECT })
+          : null
+        if (!fiscalYear) return fail(`Aucun exercice ne couvre le ${args.date}.`)
+        // Same guard as every entry route (closed year, date inside the year). Its
+        // typed errors keep their French message through run(); anything else
+        // becomes the generic message, the detail only in the log.
+        assertEntryWritableInFiscalYear(fiscalYear, date, 'create')
+
+        const journal = await prisma.journal.findFirst({
+          where: { companyId: args.companyId, code: args.journalCode },
+        })
+        if (!journal) return fail(`Journal ${args.journalCode} introuvable. Utilisez list_journals.`)
+
+        const codes = [...new Set(args.lines.map((l) => l.accountCode))]
+        const accounts = await prisma.account.findMany({
+          where: { companyId: args.companyId, fiscalYearId: fiscalYear.id, code: { in: codes } },
+          select: { id: true, code: true },
+        })
+        const byCode = new Map(accounts.map((a) => [a.code, a.id]))
+        const missing = codes.filter((c) => !byCode.has(c))
+        if (missing.length) return fail(`Comptes introuvables : ${missing.join(', ')}. Utilisez search_accounts.`)
+
+        const entry = await createAccountingEntry({
+          companyId: args.companyId,
+          journalId: journal.id,
+          date,
+          description: args.description,
+          reference: args.reference,
+          status: 'draft',
+          fiscalYearId: fiscalYear.id,
+          lines: args.lines.map((l) => ({
+            accountId: byCode.get(l.accountCode)!,
+            debit: l.debit,
+            credit: l.credit,
+            description: l.label,
+          })),
+        })
+
+        await writeAuditLog('info', `Draft entry created via MCP: ${args.description}`, {
+          action: 'CREATE_ACCOUNTING_ENTRY',
+          companyId: args.companyId,
+          metadata: { entryId: entry.id, source: 'mcp', userId: user.id },
+        })
+
+        return json({
+          created: true,
+          status: 'draft',
+          entryId: entry.id,
+          message:
+            'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
+        })
+      }),
+  )
+}

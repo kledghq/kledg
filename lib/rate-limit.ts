@@ -1,0 +1,100 @@
+import { randomUUID } from 'crypto'
+import { prisma } from '@/lib/prisma'
+import { RateLimitError } from '@/lib/accounting/errors'
+
+/**
+ * Rate limit policy of Kledg's own routes, actions and MCP tools: one place
+ * that lists what is limited, per what, and how much. Better Auth's
+ * endpoints (sign-in, password reset, account creation, OAuth) have their
+ * own rules in lib/auth-policy.ts, and API keys theirs in lib/auth.ts
+ * (apiKey plugin). docs/conventions.md#security says which routes need one.
+ *
+ * Every counter lives in the "rateLimit" table shared with Better Auth, so
+ * the limits hold across serverless instances. RATE_LIMIT_DISABLED=true
+ * turns them all off (local tests only).
+ *
+ * Windows are in seconds. Keys are `<name>|<subject>`.
+ */
+export const RATE_LIMITS = {
+  /** First-run setup, per client IP. */
+  setup: { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+  /** Email change of one's account, per user. */
+  'account-change-email': { window: 3600, max: 5, message: "Trop de demandes de changement d'adresse. Réessayez dans une heure." },
+  /** Password change, per user. */
+  'account-change-password': { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+  /** Deletion of one's account, per user. */
+  'account-delete': { window: 900, max: 5, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+  /** Saving one's chart colours (Apparence settings), per user. */
+  'account-appearance': { window: 60, max: 30, message: "Trop d'enregistrements de l'apparence en une minute. Patientez une minute." },
+  /** Instance user management (role, ban, email, deletion), per administrator. */
+  'instance-users': { window: 60, max: 30, message: "Trop de modifications d'utilisateurs en une minute. Patientez une minute." },
+  /** Public company directory (SIREN prefill), per administrator: it accepts 7 requests per second per IP. */
+  'siren-lookup': {
+    window: 60,
+    max: 20,
+    message: 'Trop de recherches en peu de temps. Réessayez dans une minute, ou saisissez les informations.',
+  },
+  /** Bank API calls triggered by a user (connect, refresh, sync), per company. */
+  'bank-api': { window: 60, max: 20, message: 'Trop de requêtes vers la banque. Patientez une minute.' },
+  /** GitHub reads with the instance token, per administrator. */
+  'updates-read': { window: 60, max: 60, message: 'Trop de requêtes vers GitHub. Patientez une minute.' },
+  /** GitHub actions (connect, prepare, install), per administrator. */
+  'updates-write': { window: 60, max: 10, message: 'Trop de requêtes vers GitHub. Patientez une minute.' },
+  /** File imports parsed on the server (FEC, CSV, Excel, bank statements), per user. */
+  import: { window: 600, max: 30, message: "Trop d'imports en peu de temps. Patientez quelques minutes avant de réessayer." },
+  /** Generated documents (FEC, PDF and Excel exports), per user. */
+  export: { window: 60, max: 30, message: "Trop d'exports en une minute. Patientez une minute avant de réessayer." },
+  /** MCP calls authenticated with an API key, per key (lib/mcp/api-key.ts): assistants make many calls per conversation. */
+  'mcp-api-key': { window: 60, max: 300, message: "Trop d'appels avec cette clé API en une minute. Patientez une minute." },
+  /** Approval or refusal of an action prepared by an assistant (password typed again), per user. */
+  'ai-action-approval': { window: 900, max: 20, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+  /** Saving or resetting one's dashboard layout, per user. */
+  'dashboard-layout': {
+    window: 60,
+    max: 30,
+    message: 'Trop de modifications du tableau de bord en une minute. Patientez une minute.',
+  },
+  /** MCP full control calls (dry runs and reads included), per user. */
+  'mcp-full-control': {
+    window: 60,
+    max: 60,
+    message: "Trop d'actions en contrôle total en une minute. Patientez une minute avant de continuer.",
+  },
+} as const satisfies Record<string, { window: number; max: number; message: string }>
+
+export type RateLimitName = keyof typeof RATE_LIMITS
+
+export function rateLimitsDisabled(env: Record<string, string | undefined> = process.env): boolean {
+  return env.RATE_LIMIT_DISABLED === 'true'
+}
+
+/**
+ * Fixed-window counter in the "rateLimit" table shared with Better Auth, for
+ * actions that don't go through Better Auth's HTTP handler (server actions).
+ * One atomic upsert per call; returns false once `max` is exceeded in `window` seconds.
+ */
+export async function consumeRateLimit(key: string, rule: { window: number; max: number }): Promise<boolean> {
+  const now = BigInt(Date.now())
+  const windowMs = BigInt(rule.window * 1000)
+  const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+    INSERT INTO "rateLimit" ("id", "key", "count", "lastRequest")
+    VALUES (${randomUUID()}, ${key}, 1, ${now})
+    ON CONFLICT ("key") DO UPDATE SET
+      "count" = CASE WHEN ${now} - "rateLimit"."lastRequest" >= ${windowMs} THEN 1 ELSE "rateLimit"."count" + 1 END,
+      "lastRequest" = CASE WHEN ${now} - "rateLimit"."lastRequest" >= ${windowMs} THEN ${now} ELSE "rateLimit"."lastRequest" END
+    RETURNING "count"
+  `
+  return Number(rows[0]?.count ?? 0) <= rule.max
+}
+
+/** Whether `subject` may make one more `name` call (counts it). Always true when limits are disabled. */
+export async function withinRateLimit(name: RateLimitName, subject: string): Promise<boolean> {
+  if (rateLimitsDisabled()) return true
+  return consumeRateLimit(`${name}|${subject}`, RATE_LIMITS[name])
+}
+
+/** Counts one `name` call of `subject`; throws RateLimitError (429, French message) past the limit. */
+export async function enforceRateLimit(name: RateLimitName, subject: string): Promise<void> {
+  if (!(await withinRateLimit(name, subject))) throw new RateLimitError(RATE_LIMITS[name].message)
+}
+

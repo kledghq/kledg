@@ -1,0 +1,6 @@
+Compte de cheques;Compte de cheques M DUPONT;****1234;05/03/2026;1 250,40
+
+Date operation;Libelle court;Type operation;Libelle operation;Montant operation en euro
+02/03/2026;PRLV SEPA;Prelevement;PRLV SEPA EDF CLIENTS PARTICULIERS;-84,20
+03/03/2026;VIR SEPA RECU;Virement recu;VIR SEPA RECU DE SARL EXEMPLE FACTURE 2026-014;1 200,00
+04/03/2026;FACTURE CARTE;Carte;FACTURE CARTE DU 030326 BOULANGERIE DU PARC;-4,80
