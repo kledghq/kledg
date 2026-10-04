@@ -157,6 +157,13 @@ describe('balanceEntryLines and validateEntryBalance', () => {
     expect(lines.at(-1)).toEqual({ accountId: 'bank', debit: 120, credit: 0, description: 'VIR CLIENT' })
   })
 
+  it('balances an imbalance of exactly one cent with the bank', () => {
+    // Regression: the threshold was "more than 0,01", so a 0,01 transaction got no bank line
+    const lines = balanceEntryLines([line('627', 0.01, 0)], 'bank', 'FRAIS')
+    expect(lines.at(-1)).toEqual({ accountId: 'bank', debit: 0, credit: 0.01, description: 'FRAIS' })
+    expect(balanceEntryLines([line('706', 0, 0.01)], 'bank', 'x').at(-1)).toMatchObject({ debit: 0.01, credit: 0 })
+  })
+
   it('adds nothing to balanced lines', () => {
     const lines = [line('606', 50, 0), line('bank', 0, 50)]
     expect(balanceEntryLines(lines, 'bank', 'x')).toHaveLength(2)

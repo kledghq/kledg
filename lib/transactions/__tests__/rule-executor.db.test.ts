@@ -226,6 +226,17 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
     ])
   })
 
+  it('writes a one cent transaction with its bank line', async () => {
+    // Regression: an imbalance of exactly 0,01 got no bank line and the rule was refused
+    const ruleId = await rule('Frais', [{ accountCode: '627000' }])
+    const txId = await transaction('0.01', 'debit')
+
+    expect(await prepared(ruleId, txId)).toEqual([
+      ['627000', 1, 0],
+      ['512000', 0, 1],
+    ])
+  })
+
   describe('refusals', () => {
     it('names the account codes missing from the fiscal year', async () => {
       const ruleId = await rule('Inconnu', [{ accountCode: '999999' }, { accountCode: '606100', vatType: 'deductible', vatRate: '20', vatAccountCode: '445999' }])

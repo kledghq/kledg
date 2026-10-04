@@ -6,6 +6,7 @@
  */
 
 import type { EntryLine } from './types';
+import { toCents } from '@/lib/utils/money';
 
 /**
  * Generic rule entry line interface for calculations
@@ -301,7 +302,8 @@ export function balanceEntryLines(
   const totalCredit = entryLines.reduce((sum, line) => sum + line.credit, 0);
   const balance = totalDebit - totalCredit;
 
-  if (Math.abs(balance) > 0.01) {
+  // Any imbalance of one cent or more gets a bank line (a 0,01 transaction too)
+  if ((toCents(balance) ?? 0) !== 0) {
     // Balance with bank account
     if (balance > 0) {
       // More debit, add credit bank
