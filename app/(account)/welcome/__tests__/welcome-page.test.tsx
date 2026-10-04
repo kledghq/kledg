@@ -55,7 +55,7 @@ describe('welcome page', () => {
     render(await WelcomePage())
     expect(screen.getByText('Non configuré')).toBeInTheDocument()
     expect(screen.getByText(/Sans RESEND_API_KEY, aucun email ne part/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Configurer les emails/ })).toHaveAttribute('href', 'https://www.kledg.com/fr/auto-hebergement')
+    expect(screen.getByRole('link', { name: /Configurer les emails/ })).toHaveAttribute('href', 'https://www.kledg.com/fr/self-hosting')
     expect(screen.getByText('1.3.0')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Créer ma première société/ })).toHaveAttribute('href', '/companies/new')
     // A server without a managed database: daily pg_dump.

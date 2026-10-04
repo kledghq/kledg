@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata = { title: 'Bienvenue' }
 
-const SELF_HOSTING_URL = 'https://www.kledg.com/fr/auto-hebergement'
+const SELF_HOSTING_URL = 'https://www.kledg.com/fr/self-hosting'
 
 /** Hosts whose PostgreSQL service is managed (and backed up) by the host, under its own plans. */
 const MANAGED_DATABASE_HOSTS: ReadonlySet<Platform> = new Set<Platform>(['railway', 'render', 'fly', 'clevercloud'])
