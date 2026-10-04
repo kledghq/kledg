@@ -53,7 +53,7 @@ export function SetupForm({
       return;
     }
     // First run: the welcome page explains the instance, then creates the first company.
-    router.push("/welcome");
+    router.push("/settings/configuration");
     router.refresh();
   }
 

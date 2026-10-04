@@ -6,6 +6,7 @@
  */
 
 import { detectPlatform, type Platform } from '@/lib/updates/hosting'
+import { getAppUrl } from '@/lib/config'
 
 export type EmailStatus =
   /** RESEND_API_KEY and EMAIL_FROM are set: emails leave from the instance's own address. */
@@ -28,6 +29,16 @@ export interface InstanceStatus {
   appUrl: string | null
   /** CRON_SECRET set: the daily bank sync can be scheduled outside Vercel. */
   cronSecretSet: boolean
+  /** The address the instance answers on and puts in its links: BETTER_AUTH_URL, else the host's. */
+  effectiveUrl: string
+  /** SETUP_TOKEN still set: useless once the first account exists, best removed. */
+  setupTokenSet: boolean
+  /** BETTER_AUTH_SECRETS set: a rotation of the auth secret is under way (docs/configuration.md#changer-le-secret). */
+  secretRotation: boolean
+  /** Where the key sealing bank credentials comes from. */
+  encryptionKey: 'own' | 'derived'
+  /** Company isolation in the database (KLEDG_RLS, docs/rls.md). */
+  rls: 'enforce' | 'off'
 }
 
 export function instanceStatus(
@@ -49,5 +60,10 @@ export function instanceStatus(
     platform: detectPlatform(env),
     appUrl: env.BETTER_AUTH_URL?.trim() || null,
     cronSecretSet: Boolean(env.CRON_SECRET?.trim()),
+    effectiveUrl: getAppUrl(env),
+    setupTokenSet: Boolean(env.SETUP_TOKEN?.trim()),
+    secretRotation: Boolean(env.BETTER_AUTH_SECRETS?.trim()),
+    encryptionKey: env.ENCRYPTION_KEY?.trim() ? 'own' : 'derived',
+    rls: env.KLEDG_RLS?.trim() === 'enforce' ? 'enforce' : 'off',
   }
 }

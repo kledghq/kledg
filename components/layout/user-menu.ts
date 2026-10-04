@@ -37,7 +37,7 @@ export const USER_MENU_ITEMS: readonly UserMenuItem[] = [
   { id: 'assistants', label: 'Assistants IA', href: '/settings/assistants', scope: 'account', adminOnly: false, action: null, inMenu: false },
   { id: 'api-keys', label: 'Clés API', href: '/settings/api-keys', scope: 'account', adminOnly: false, action: null, inMenu: false },
   { id: 'ai-actions', label: 'Actions IA à approuver', href: '/settings/ai-actions', scope: 'account', adminOnly: false, action: null, inMenu: false },
-  { id: 'instance', label: "État de l'instance", href: '/welcome', scope: 'account', adminOnly: true, action: 'onboarding', inMenu: false },
+  { id: 'instance', label: 'Configuration', href: '/settings/configuration', scope: 'account', adminOnly: true, action: 'onboarding', inMenu: false },
   { id: 'users', label: 'Utilisateurs', href: '/settings/users', scope: 'account', adminOnly: true, action: 'manage-users', inMenu: false },
   { id: 'create-user', label: 'Créer un compte', href: '/settings/users/new', scope: 'account', adminOnly: true, action: 'manage-users', inMenu: false },
   { id: 'updates', label: 'Mises à jour', href: '/settings/updates', scope: 'account', adminOnly: true, action: 'manage-updates', inMenu: false },

@@ -24,6 +24,8 @@ export const RATE_LIMITS = {
   setup: { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Bank sync cron called without CRON_SECRET (lib/banking/sync-banks.service.ts), instance-wide. */
   'cron-keyless': { window: 86_400, max: 4, message: 'Synchronisation déjà lancée récemment.' },
+  /** Test email of the Configuration page, per administrator. */
+  'test-email': { window: 3600, max: 5, message: "Trop d'emails de test en une heure. Réessayez plus tard." },
   /** Email change of one's account, per user. */
   'account-change-email': { window: 3600, max: 5, message: "Trop de demandes de changement d'adresse. Réessayez dans une heure." },
   /** Password change, per user. */
