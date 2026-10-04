@@ -56,7 +56,6 @@ export default function BalanceSheetPage() {
   const [selectedFiscalYearId, setSelectedFiscalYearId] = useState<string>('')
   const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>([])
   const [variant, setVariant] = useState<'complete' | 'simplified'>('complete')
-  const [previousFiscalYearId, setPreviousFiscalYearId] = useState<string>('')
   const [hideZeroLines, setHideZeroLines] = useHideZeroLines()
 
   useEffect(() => {
@@ -72,10 +71,6 @@ export default function BalanceSheetPage() {
           // Select latest fiscal year by default
           if (years.length > 0) {
             setSelectedFiscalYearId(years[0].id)
-            // Select previous year for comparison if available
-            if (years.length > 1) {
-              setPreviousFiscalYearId(years[1].id)
-            }
           }
         }
       } catch (error) {
@@ -152,6 +147,11 @@ export default function BalanceSheetPage() {
       logger.error('Error exporting PDF:', error)
     }
   }
+
+  // N-1 of the export: the fiscal year just before the one shown (none for the first one)
+  const selectedYear = fiscalYears.find((fy) => fy.id === selectedFiscalYearId)?.year
+  const previousFiscalYearId =
+    selectedYear === undefined ? '' : (fiscalYears.find((fy) => fy.year < selectedYear)?.id ?? '')
 
   const handleExportExcel = async () => {
     if (!companyId || !selectedFiscalYearId) return
