@@ -11,6 +11,10 @@
  * - a consumable answer or a purchase under 500 € HT creates none;
  * - undoing the reconciliation, or deleting the draft, deletes the asset;
  * - the undo is refused while a depreciation of the asset is booked;
+ * - an accountant who books the draft elsewhere than the asset account
+ *   deletes the asset (refused while a depreciation is booked), and one who
+ *   changes the amount on the asset account changes its acquisition value
+ *   and depreciation plan (refused likewise);
  * - with accountant review, the asset is linked to the draft and the
  *   accountant's list shows "Immobilisation créée : ..., amortie sur N ans".
  * Run with KLEDG_RLS=enforce too (docs/rls.md).
@@ -280,6 +284,106 @@ describe.skipIf(!available)('simple mode fixed assets (PostgreSQL)', () => {
     expect(row.fixedAssetId).toBeNull()
     // The entry stays, as booked
     expect(await prisma.accountingEntry.count({ where: { id: second.result.entryId } })).toBe(1)
+  })
+
+  /** The draft's lines as the entry form sends them back, changed by `edit`. */
+  async function editDraft(entryId: string, edit: (lines: Array<{ code: string; accountId: string; debit: string; credit: string }>) => Array<{ code: string; debit: string; credit: string }>) {
+    const current = await prisma.entryLine.findMany({ where: { accountingEntryId: entryId }, include: { account: { select: { code: true } } }, orderBy: { id: 'asc' } })
+    const lines = edit(current.map((l) => ({ code: l.account.code, accountId: l.accountId, debit: l.debit.toFixed(2), credit: l.credit.toFixed(2) })))
+    const accounts = await prisma.account.findMany({ where: { companyId: a.id, fiscalYearId: a.fiscalYearId, code: { in: lines.map((l) => l.code) } } })
+    const body = { lines: lines.map((l) => ({ accountId: accounts.find((acc) => acc.code === l.code)!.id, debit: l.debit, credit: l.credit })) }
+    return call('accountant', 'entry', 'PATCH', `/api/entries/${entryId}`, { body, params: { id: entryId } })
+  }
+
+  const linesOf = async (entryId: string) =>
+    (await prisma.entryLine.findMany({ where: { accountingEntryId: entryId }, include: { account: { select: { code: true } } } }))
+      .map((l) => [l.account.code, cents(l.debit), cents(l.credit)])
+      .sort()
+
+  it('deletes the asset and frees the simple mode row when the accountant books the draft as an expense', async () => {
+    await addAccountant()
+    const { result } = await buyComputer()
+    // A draft depreciation of the asset goes with it
+    await records.saveDepreciationRecord(a.id, result.fixedAsset.id, { fiscalYearId: a.fiscalYearId, periodType: 'year' })
+
+    // 2183 Matériel informatique becomes 6063 Fournitures d'entretien et de petit équipement
+    const response = await editDraft(result.entryId, (lines) => lines.map((l) => (l.code === '2183' ? { ...l, code: '6063' } : l)))
+    expect(response.status).toBe(200)
+    expect(await linesOf(result.entryId)).toEqual([['44562', 24_983, 0], ['5121', 0, 149_900], ['6063', 124_917, 0]].sort())
+    expect(await prisma.fixedAsset.count({ where: { companyId: a.id } })).toBe(0)
+    expect(await prisma.fixedAssetDepreciation.count()).toBe(0)
+    expect((await prisma.simpleModeEntry.findUniqueOrThrow({ where: { entryId: result.entryId } })).fixedAssetId).toBeNull()
+  })
+
+  it('refuses to book the draft elsewhere than the asset account while a depreciation is booked', async () => {
+    await addAccountant()
+    const { result } = await buyComputer()
+    const record = await records.saveDepreciationRecord(a.id, result.fixedAsset.id, { fiscalYearId: a.fiscalYearId, periodType: 'month', monthIndex: 2 })
+    const posted = await records.postDepreciationRecord(a.id, result.fixedAsset.id, record.id)
+    const before = await linesOf(result.entryId)
+
+    const response = await editDraft(result.entryId, (lines) => lines.map((l) => (l.code === '2183' ? { ...l, code: '6063' } : l)))
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe(
+      `L'écriture n° ${result.entryNumber} ne peut pas être modifiée ainsi : elle a créé l'immobilisation « Matériel informatique (Apple Store Opera) » au compte 2183, qui ne peut pas être supprimée. ` +
+        `Cette immobilisation a 1 dotation aux amortissements comptabilisée (écriture n° ${posted.accountingEntry.entryNumber}). Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`,
+    )
+    // Nothing changed
+    expect(await linesOf(result.entryId)).toEqual(before)
+    expect(await prisma.fixedAsset.count({ where: { id: result.fixedAsset.id } })).toBe(1)
+    expect((await prisma.simpleModeEntry.findUniqueOrThrow({ where: { entryId: result.entryId } })).fixedAssetId).toBe(result.fixedAsset.id)
+  })
+
+  it('changes the acquisition value and the depreciation plan when the amount on the asset account changes', async () => {
+    await addAccountant()
+    const { result } = await buyComputer()
+    // An unbooked depreciation was computed on the old value: it goes, to be computed again
+    await records.saveDepreciationRecord(a.id, result.fixedAsset.id, { fiscalYearId: a.fiscalYearId, periodType: 'year' })
+
+    // 249,17 of the purchase were supplies: 1 000,00 stays on 2183
+    const response = await editDraft(result.entryId, (lines) => [
+      ...lines.map((l) => (l.code === '2183' ? { ...l, debit: '1000.00' } : l)),
+      { code: '6063', debit: '249.17', credit: '0.00' },
+    ])
+    expect(response.status).toBe(200)
+    const asset = await prisma.fixedAsset.findUniqueOrThrow({ where: { id: result.fixedAsset.id } })
+    expect(cents(asset.acquisitionValue)).toBe(100_000)
+    expect(asset.acquisitionEntryId).toBe(result.entryId)
+    expect(await prisma.fixedAssetDepreciation.count()).toBe(0)
+    // The plan follows: 1 000,00 over 3 years from 10 March 2026
+    const plan = buildDepreciationPlan(asset)
+    expect(sumPlanCentsForPeriod(plan, new Date('2026-01-01T00:00:00Z'), new Date('2030-12-31T00:00:00Z'))).toBe(100_000)
+    const first = sumPlanCentsForPeriod(plan, new Date('2026-01-01T00:00:00Z'), new Date('2026-12-31T00:00:00Z'))
+    expect(Math.abs(first - Math.round((100_000 / 3) * (297 / 365)))).toBeLessThanOrEqual(1)
+    expect((await prisma.simpleModeEntry.findUniqueOrThrow({ where: { entryId: result.entryId } })).fixedAssetId).toBe(asset.id)
+
+    // An edit that keeps the asset line leaves the asset as it is
+    const described = await call('accountant', 'entry', 'PATCH', `/api/entries/${result.entryId}`, { body: { description: 'Apple Store, MacBook et câbles' }, params: { id: result.entryId } })
+    expect(described.status).toBe(200)
+    const same = await editDraft(result.entryId, (lines) => lines)
+    expect(same.status).toBe(200)
+    const after = await prisma.fixedAsset.findUniqueOrThrow({ where: { id: result.fixedAsset.id } })
+    expect([cents(after.acquisitionValue), after.updatedAt]).toEqual([100_000, asset.updatedAt])
+  })
+
+  it('refuses to change the amount on the asset account while a depreciation is booked', async () => {
+    await addAccountant()
+    const { result } = await buyComputer()
+    const record = await records.saveDepreciationRecord(a.id, result.fixedAsset.id, { fiscalYearId: a.fiscalYearId, periodType: 'month', monthIndex: 2 })
+    const posted = await records.postDepreciationRecord(a.id, result.fixedAsset.id, record.id)
+
+    const response = await editDraft(result.entryId, (lines) => [
+      ...lines.map((l) => (l.code === '2183' ? { ...l, debit: '1000.00' } : l)),
+      { code: '6063', debit: '249.17', credit: '0.00' },
+    ])
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toBe(
+      `L'écriture n° ${result.entryNumber} ne peut pas être modifiée ainsi : elle a créé l'immobilisation « Matériel informatique (Apple Store Opera) », amortie sur 1 249,17 €, et ne peut pas la porter à 1 000,00 €. ` +
+        `Cette immobilisation a 1 dotation aux amortissements comptabilisée (écriture n° ${posted.accountingEntry.entryNumber}) calculée sur l'ancienne valeur : contre-passez-la depuis la fiche de l'écriture avant de changer le montant.`,
+    )
+    const asset = await prisma.fixedAsset.findUniqueOrThrow({ where: { id: result.fixedAsset.id } })
+    expect(cents(asset.acquisitionValue)).toBe(124_917)
+    expect(await prisma.fixedAssetDepreciation.count()).toBe(1)
   })
 
   it('the database refuses to delete an entry that still carries its asset', async () => {

@@ -19,6 +19,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
+import { syncFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/acquisition-entry'
 import { ConflictError, NotFoundError, ValidationError, handleError } from '../errors'
 import { validateAccountingEntry, validateEntryBalance } from '../validator'
 import { amountTooLargeMessage, centsToDecimal, exceedsAmountColumn, parseCents, type AmountInput } from '@/lib/utils/money'
@@ -440,6 +441,8 @@ export async function updateDraftEntry(
       if (data.journalId !== undefined) await assertJournal(db, data.journalId, existing.companyId)
       await guardFiscalYear(db, existing.companyId, fiscalYearId, date, 'update')
 
+      // A fixed asset created with the draft (simple mode) follows its asset line, or the edit is refused
+      if (lines) await syncFixedAssetsAcquiredByEntryInTx(db, existing.companyId, existing, lines)
       if (lines) await db.entryLine.deleteMany({ where: { accountingEntryId: existing.id } })
       await db.accountingEntry.update({
         where: { id: existing.id },

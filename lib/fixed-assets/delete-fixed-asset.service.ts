@@ -24,6 +24,43 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError } from '@/lib/accounting/errors'
 import { plural, pluralWord } from '@/lib/utils/plural'
 
+interface DepreciationEntry {
+  id: string
+  entryNumber: string
+}
+
+/**
+ * Entries of the depreciation records of an asset: the booked ones
+ * (validated, not reversed: definitive, PCG art. 1031-3) and the ids of the
+ * drafts.
+ */
+export async function depreciationEntriesOf(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  fixedAssetId: string,
+): Promise<{ booked: DepreciationEntry[]; drafts: string[] }> {
+  const records = await tx.fixedAssetDepreciation.findMany({
+    where: { fixedAssetId, companyId, accountingEntryId: { not: null } },
+    select: {
+      accountingEntry: {
+        select: { id: true, entryNumber: true, status: true, reversedBy: { select: { id: true } } },
+      },
+    },
+  })
+  const entries = records.flatMap((r) => (r.accountingEntry ? [r.accountingEntry] : []))
+  return {
+    booked: entries.filter((e) => e.status === 'validated' && !e.reversedBy).map(({ id, entryNumber }) => ({ id, entryNumber })),
+    drafts: entries.filter((e) => e.status === 'draft').map((e) => e.id),
+  }
+}
+
+/** "1 dotation aux amortissements comptabilisée (écriture n° OD-12)", for the refusals. */
+export function bookedDepreciationSummary(booked: DepreciationEntry[]): string {
+  return `${plural(booked.length, 'dotation')} aux amortissements ${pluralWord(booked.length, 'comptabilisée', 'comptabilisées')} (${pluralWord(booked.length, 'écriture', 'écritures')} n° ${booked
+    .map((e) => e.entryNumber)
+    .join(', ')})`
+}
+
 /** Returns the number of draft entries deleted with the asset. */
 export async function deleteFixedAsset(companyId: string, fixedAssetId: string): Promise<number> {
   return prisma.$transaction(async (tx) => deleteFixedAssetInTx(tx, companyId, fixedAssetId))
@@ -39,24 +76,12 @@ export async function deleteFixedAssetInTx(tx: Prisma.TransactionClient, company
       `Cette immobilisation est financée par ${grants > 1 ? `${grants} subventions d'investissement` : "une subvention d'investissement"} dont la reprise suit son amortissement\u00a0: modifiez ${pluralWord(grants, 'la subvention', 'les subventions')} (Saisie, Subventions d'investissement) avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie.`
     )
   }
-  const records = await tx.fixedAssetDepreciation.findMany({
-    where: { fixedAssetId, companyId, accountingEntryId: { not: null } },
-    select: {
-      accountingEntry: {
-        select: { id: true, entryNumber: true, status: true, reversedBy: { select: { id: true } } },
-      },
-    },
-  })
-  const entries = records.flatMap((r) => (r.accountingEntry ? [r.accountingEntry] : []))
-  const booked = entries.filter((e) => e.status === 'validated' && !e.reversedBy)
+  const { booked, drafts } = await depreciationEntriesOf(tx, companyId, fixedAssetId)
   if (booked.length > 0) {
     throw new ConflictError(
-      `Cette immobilisation a ${plural(booked.length, 'dotation')} aux amortissements ${pluralWord(booked.length, 'comptabilisée', 'comptabilisées')} (${pluralWord(booked.length, 'écriture', 'écritures')} n° ${booked
-        .map((e) => e.entryNumber)
-        .join(', ')}). Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`
+      `Cette immobilisation a ${bookedDepreciationSummary(booked)}. Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`
     )
   }
-  const drafts = entries.filter((e) => e.status === 'draft').map((e) => e.id)
   if (drafts.length > 0) {
     await tx.accountingEntry.deleteMany({ where: { id: { in: drafts }, companyId, status: 'draft' } })
   }
