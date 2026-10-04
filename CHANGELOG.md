@@ -4,6 +4,13 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- **Lettrage** des comptes de tiers (Saisie, Lettrage) : par compte et par tiers, les lignes non lettrées avec leur solde progressif ; une sélection dont les débits égalent les crédits reçoit le code suivant du compte (AA, AB...) et la date du jour, repris dans le FEC (`EcritureLet`, `DateLet`) et relus à l'import. Délettrage, propositions de lettrage automatique (même tiers et même montant, règlements rapprochés avec la banque en premier). Pas de lettrage partiel, ni de lettrage dans un exercice clôturé. Voir [docs/lettrage-et-tiers.md](docs/lettrage-et-tiers.md).
+- **Balance auxiliaire** et **balance âgée** (États), avec export Excel : soldes par client et fournisseur, part non lettrée, créances et dettes par ancienneté de l'échéance (non échu, 0 à 30, 31 à 60, 61 à 90, plus de 90 jours). Le délai de paiement se règle par société : 30 jours par défaut, au plus 60 jours ou 45 jours fin de mois (Code de commerce, art. L441-10).
+- **Justificatifs manquants** (Banque) : les opérations bancaires sans pièce justificative au-dessus d'un seuil, par exercice et par compte, avec un lien vers la transaction (Code de commerce, art. L123-22).
+- Widget « Créances et dettes échues » au tableau de bord ; outils MCP `get_aged_balance`, `list_missing_receipts` et, en contrôle total, `list_unlettered_lines`, `letter_entry_lines`, `unletter_entry_lines`. La liste des transactions accepte ses filtres dans l'adresse.
+
 ## [0.1.0] - 2026-10-04
 
 Première version publique.

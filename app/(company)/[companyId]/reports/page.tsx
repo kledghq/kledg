@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/shared'
 import { ReportsEmptyHint } from '@/components/features/onboarding/reports-empty-hint'
-import { BarChart3, BookOpen, Download, FileText, ScrollText, Table, TrendingDown } from 'lucide-react'
+import { BarChart3, BookOpen, Contact, Download, FileText, Hourglass, ScrollText, Table, TrendingDown } from 'lucide-react'
 
 const reports = [
   {
@@ -35,6 +35,20 @@ const reports = [
     url: '/reports/grand-livre',
     cta: 'Voir le grand livre',
     icon: BookOpen,
+  },
+  {
+    title: 'Balance auxiliaire',
+    description: 'Solde de chaque client et de chaque fournisseur, et la part non lettrée',
+    url: '/reports/auxiliary-balance',
+    cta: 'Voir la balance auxiliaire',
+    icon: Contact,
+  },
+  {
+    title: 'Balance âgée',
+    description: "Créances et dettes non lettrées, classées par ancienneté de l'échéance",
+    url: '/reports/aged-balance',
+    cta: 'Voir la balance âgée',
+    icon: Hourglass,
   },
   {
     title: 'Journal',
@@ -75,7 +89,7 @@ export default async function ReportsPage({
     <div className="space-y-6">
       <PageHeader
         title="États"
-        description="Consultez et exportez les états comptables de la société&nbsp;: bilan, compte de résultat, balance, grand livre, journal, amortissements et FEC."
+        description="Consultez et exportez les états comptables de la société&nbsp;: bilan, compte de résultat, balance, grand livre, balances des tiers, journal, amortissements et FEC."
       />
       <ReportsEmptyHint companyId={companyId} />
       <div className="grid gap-4 lg:grid-cols-2">

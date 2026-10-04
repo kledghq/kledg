@@ -9,6 +9,7 @@
 - [Connexions bancaires](connexions-bancaires.md) : Qonto et Revolut Business en direct, Ponto pour les autres banques, import de fichiers
 - [Importer un relevé bancaire](importer-un-releve-bancaire.md) : CSV, Excel, OFX et camt.053 pour les banques sans synchronisation
 - [Règles d'affectation](regles-d-affectation.md) : quand une règle crée l'écriture d'une transaction
+- [Lettrage et tiers](lettrage-et-tiers.md) : lettrage des comptes de tiers, balance auxiliaire, balance âgée, justificatifs manquants
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
 
 La documentation utilisateur (prise en main, import FEC, banque, clôture) est publiée sur [kledg.com](https://www.kledg.com).

@@ -46,6 +46,7 @@ export const WIDGET_SOURCES = [
   'recent-entries',
   'bank-accounts',
   'rules',
+  'aged-balance',
   'deadlines',
   'onboarding',
 ] as const
@@ -61,6 +62,7 @@ export const SOURCE_PERMISSIONS: Record<WidgetSource, Permission> = {
   'recent-entries': { entries: ['read'] },
   'bank-accounts': { banking: ['read'] },
   rules: { banking: ['read'] },
+  'aged-balance': { reports: ['read'] },
   // Tax and legal deadlines: reading the accounts, like the page /echeances.
   deadlines: DEADLINES_PERMISSION,
   // The checklist is for the members who keep the books (as before: canManage).
@@ -247,6 +249,16 @@ export const WIDGETS = [
     defaultSize: 'L',
   },
   {
+    id: 'list-creances-dettes-echues',
+    title: 'Créances et dettes échues',
+    description:
+      "Ce que vos clients doivent après l'échéance et ce que vous devez à vos fournisseurs, d'après la balance âgée, avec les tiers les plus en retard.",
+    category: 'list',
+    source: 'aged-balance',
+    sizes: WIDE_SIZES,
+    defaultSize: 'M',
+  },
+  {
     id: 'list-echeances',
     title: 'Échéances',
     description: 'Les déclarations et paiements fiscaux et les obligations juridiques des 60 prochains jours, avec un lien vers le calendrier complet.',
@@ -316,6 +328,7 @@ export const DEFAULT_LAYOUTS: Record<DashboardProfile, readonly LayoutItem[]> = 
     item('list-a-rapprocher'),
     item('list-echeances'),
     item('list-brouillons'),
+    item('list-creances-dettes-echues'),
     item('list-comptes-bancaires'),
   ],
   accountant: [
@@ -327,6 +340,7 @@ export const DEFAULT_LAYOUTS: Record<DashboardProfile, readonly LayoutItem[]> = 
     item('kpi-resultat'),
     item('kpi-chiffre-affaires'),
     item('kpi-a-rapprocher'),
+    item('list-creances-dettes-echues'),
     item('chart-produits-charges'),
     item('list-dernieres-ecritures'),
     item('chart-repartition-charges'),

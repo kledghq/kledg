@@ -70,6 +70,9 @@ const FULL_CONTROL_TOOLS = [
   'close_fiscal_year',
   'allocate_result',
   'export_fec',
+  'list_unlettered_lines',
+  'letter_entry_lines',
+  'unletter_entry_lines',
 ]
 
 const CHART: Array<[string, string]> = [

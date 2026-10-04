@@ -97,6 +97,23 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
       status: 'validated',
     },
   })
+  // A validated invoice and its payment on the customer account, lettered AA (unlettering succeeds, lettering again is a 409)
+  const receivable = await prisma.account.create({ data: { companyId: company.id, fiscalYearId: fy.id, code: '411000', label: 'Clients' } })
+  const invoice = await prisma.accountingEntry.create({
+    data: { companyId: company.id, fiscalYearId: fy.id, journalId: journal.id, entryNumber: '3', date: new Date('2026-03-03T00:00:00Z'), description: 'Facture', status: 'draft' },
+  })
+  const payment = await prisma.accountingEntry.create({
+    data: { companyId: company.id, fiscalYearId: fy.id, journalId: journal.id, entryNumber: '4', date: new Date('2026-03-04T00:00:00Z'), description: 'Règlement', status: 'draft' },
+  })
+  const invoiceLine = await prisma.entryLine.create({
+    data: { accountingEntryId: invoice.id, accountId: receivable.id, accountFiscalYearId: fy.id, accountingEntryNumber: '3', debit: 120, credit: 0, auxiliaryAccountNumber: 'C001', letteringCode: 'AA', letteringDate: new Date('2026-03-04T00:00:00Z') },
+  })
+  await prisma.entryLine.create({ data: { accountingEntryId: invoice.id, accountId: sales.id, accountFiscalYearId: fy.id, accountingEntryNumber: '3', debit: 0, credit: 120 } })
+  const paymentLine = await prisma.entryLine.create({
+    data: { accountingEntryId: payment.id, accountId: receivable.id, accountFiscalYearId: fy.id, accountingEntryNumber: '4', debit: 0, credit: 120, auxiliaryAccountNumber: 'C001', letteringCode: 'AA', letteringDate: new Date('2026-03-04T00:00:00Z') },
+  })
+  await prisma.entryLine.create({ data: { accountingEntryId: payment.id, accountId: bank.id, accountFiscalYearId: fy.id, accountingEntryNumber: '4', debit: 120, credit: 0 } })
+  await prisma.accountingEntry.updateMany({ where: { id: { in: [invoice.id, payment.id] } }, data: { status: 'validated' } })
   const connection = await prisma.bankConnection.create({
     data: { companyId: company.id, login: `login-${prefix}`, secretKeyEncrypted: 'encrypted-secret' },
   })
@@ -173,6 +190,9 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
     [`${prefix}Integration`]: integration.id,
     [`${prefix}FixedAsset`]: fixedAsset.id,
     [`${prefix}Depreciation`]: depreciation.id,
+    [`${prefix}Receivable`]: receivable.id,
+    [`${prefix}InvoiceLine`]: invoiceLine.id,
+    [`${prefix}PaymentLine`]: paymentLine.id,
   })
 }
 
@@ -291,6 +311,17 @@ const ROUTE_MODULES = {
   balanceSheetLayoutReset: () => import('@/app/api/companies/[id]/balance-sheet/config/default/route'),
   incomeStatement: () => import('@/app/api/companies/[id]/income-statement/route'),
   incomeStatementLine: () => import('@/app/api/companies/[id]/income-statement/config/line/route'),
+  lettering: () => import('@/app/api/lettering/route'),
+  letteringAccounts: () => import('@/app/api/lettering/accounts/route'),
+  letteringSuggestions: () => import('@/app/api/lettering/suggestions/route'),
+  letteringUnletter: () => import('@/app/api/lettering/unletter/route'),
+  letteringAuto: () => import('@/app/api/lettering/auto/route'),
+  agedBalance: () => import('@/app/api/reports/aged-balance/route'),
+  agedBalanceExcel: () => import('@/app/api/reports/aged-balance/export-excel/route'),
+  auxiliaryBalance: () => import('@/app/api/reports/auxiliary-balance/route'),
+  auxiliaryBalanceExcel: () => import('@/app/api/reports/auxiliary-balance/export-excel/route'),
+  missingReceipts: () => import('@/app/api/banking/missing-receipts/route'),
+  paymentTerms: () => import('@/app/api/companies/[id]/payment-terms/route'),
 }
 
 interface Call {
@@ -407,6 +438,12 @@ const WRITES: Call[] = [
   { label: 'export balance sheet', route: 'balanceSheetExcel', method: 'GET', path: () => `/api/companies/${A()}/balance-sheet/export-excel?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
   { label: 'reset balance sheet layout', route: 'balanceSheetLayoutReset', method: 'POST', path: () => `/api/companies/${A()}/balance-sheet/config/default`, params: p({ id: A }), body: () => ({ variant: 'simplified' }) },
   { label: 'create income statement line', route: 'incomeStatementLine', method: 'POST', path: () => `/api/companies/${A()}/income-statement/config/line`, params: p({ id: A }), body: () => ({ lineLabel: 'Divers', accountCodes: ['758'] }) },
+  { label: 'letter lines', route: 'lettering', method: 'POST', path: () => '/api/lettering', body: () => ({ companyId: A(), accountId: ids.aReceivable, lineIds: [ids.aInvoiceLine, ids.aPaymentLine] }) },
+  { label: 'unletter lines', route: 'letteringUnletter', method: 'POST', path: () => '/api/lettering/unletter', body: () => ({ companyId: A(), accountId: ids.aReceivable, code: 'AA' }) },
+  { label: 'automatic lettering', route: 'letteringAuto', method: 'POST', path: () => '/api/lettering/auto', body: () => ({ companyId: A(), accountId: ids.aReceivable }) },
+  { label: 'export aged balance', route: 'agedBalanceExcel', method: 'GET', path: () => `/api/reports/aged-balance/export-excel?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'export auxiliary balance', route: 'auxiliaryBalanceExcel', method: 'GET', path: () => `/api/reports/auxiliary-balance/export-excel?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'update payment terms', route: 'paymentTerms', method: 'PUT', path: () => `/api/companies/${A()}/payment-terms`, params: p({ id: A }), body: () => ({ days: 45, endOfMonth: true }) },
   { label: 'book opening balances', route: 'openingBalances', method: 'POST', path: () => `/api/companies/${A()}/opening-balances`, params: p({ id: A }), body: () => ({ lines: [{ accountCode: '512000', debitCents: 10_000, creditCents: 0 }, { accountCode: '471000', debitCents: 0, creditCents: 10_000 }] }) },
 ]
 
@@ -459,6 +496,13 @@ const READS: Call[] = [
   { label: 'preview FEC fiscal years', route: 'importPreview', method: 'POST', path: () => '/api/import/preview-fiscal-years', body: () => ({ companyId: A(), content: `${FEC_HEADER}\n` }) },
   { label: 'list persons', route: 'persons', method: 'GET', path: () => `/api/companies/${A()}/persons`, params: p({ id: A }) },
   { label: 'list shareholders', route: 'shareholders', method: 'GET', path: () => `/api/companies/${A()}/shareholders`, params: p({ id: A }) },
+  { label: 'lettering lines', route: 'lettering', method: 'GET', path: () => `/api/lettering?companyId=${A()}&accountId=${ids.aReceivable}` },
+  { label: 'letterable accounts', route: 'letteringAccounts', method: 'GET', path: () => `/api/lettering/accounts?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'lettering suggestions', route: 'letteringSuggestions', method: 'GET', path: () => `/api/lettering/suggestions?companyId=${A()}&accountId=${ids.aReceivable}` },
+  { label: 'aged balance', route: 'agedBalance', method: 'GET', path: () => `/api/reports/aged-balance?companyId=${A()}&fiscalYearId=${ids.aFy}&asOf=2026-06-30` },
+  { label: 'auxiliary balance', route: 'auxiliaryBalance', method: 'GET', path: () => `/api/reports/auxiliary-balance?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'missing receipts', route: 'missingReceipts', method: 'GET', path: () => `/api/banking/missing-receipts?companyId=${A()}&fiscalYearId=${ids.aFy}&minAmount=10` },
+  { label: 'payment terms', route: 'paymentTerms', method: 'GET', path: () => `/api/companies/${A()}/payment-terms`, params: p({ id: A }) },
   { label: 'tax regime history', route: 'taxRegimes', method: 'GET', path: () => `/api/companies/${A()}/tax-regimes?regimeType=vat`, params: p({ id: A }) },
   { label: 'deadlines of a fiscal year', route: 'deadlines', method: 'GET', path: () => `/api/deadlines?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'deadline settings', route: 'deadlineSettings', method: 'GET', path: () => `/api/companies/${A()}/deadline-settings`, params: p({ id: A }) },
@@ -496,6 +540,7 @@ const ACCOUNTANT_FORBIDDEN = new Set([
   'add tax regime',
   'update tax regime',
   'delete tax regime',
+  'update payment terms',
   'update deadline settings',
 ])
 

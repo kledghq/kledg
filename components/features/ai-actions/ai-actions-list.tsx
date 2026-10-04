@@ -42,6 +42,8 @@ const TOOL_LABELS: Record<string, string> = {
   generate_depreciation: 'Passer les dotations aux amortissements',
   close_fiscal_year: "Clôturer l'exercice",
   allocate_result: 'Affecter le résultat',
+  letter_entry_lines: 'Lettrer des lignes',
+  unletter_entry_lines: 'Délettrer des lignes',
 }
 
 /** Arguments shown without the file content of an import (base64). */

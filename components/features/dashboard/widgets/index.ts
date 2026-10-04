@@ -17,6 +17,7 @@ import {
   TvaKpi,
 } from './kpi-widgets'
 import { ARapprocherList, BrouillonsList, ComptesBancairesList, DernieresEcrituresList, ReglesList } from './list-widgets'
+import { CreancesDettesEchuesList } from './aged-balance-widget'
 import type { WidgetProps } from './types'
 
 export type { WidgetProps } from './types'
@@ -42,6 +43,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   'list-brouillons': BrouillonsList,
   'list-dernieres-ecritures': DernieresEcrituresList,
   'list-comptes-bancaires': ComptesBancairesList,
+  'list-creances-dettes-echues': CreancesDettesEchuesList,
   'list-echeances': EcheancesList,
   'list-regles': ReglesList,
 }

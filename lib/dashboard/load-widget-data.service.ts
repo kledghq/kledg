@@ -25,6 +25,9 @@ import { loadDeadlinesWidget, type DeadlinesWidgetData } from '@/lib/deadlines/l
 import { ledgerCashByMonth, type CashPoint } from './ledger-cash'
 import { summarizeLedger, type LedgerSummary } from './ledger-summary'
 import { WIDGET_SOURCES, type WidgetSource } from './widgets'
+import { getAgedBalance } from '@/lib/reports/third-parties/get-third-party-reports.service'
+import { overdueCents, type AgedSection, type ThirdPartyKind } from '@/lib/reports/third-parties/third-party-balances'
+import type { PaymentTerms } from '@/lib/reports/third-parties/payment-terms'
 
 /** Sources served by GET /api/dashboard/widgets (the checklist has its own route). */
 export const SERVED_SOURCES = WIDGET_SOURCES.filter((s): s is Exclude<WidgetSource, 'onboarding'> => s !== 'onboarding')
@@ -386,6 +389,56 @@ async function loadRules(companyId: string): Promise<RulesData> {
   return { total, rules: rules.map((r) => ({ ...r, lastUsedAt: r.lastUsedAt?.toISOString() ?? null })) }
 }
 
+// ---------------------------------------------------------------- aged balance
+
+export interface AgedSideSummary {
+  /** Owed after the due date (every bucket but "non échu"). */
+  overdueCents: number
+  /** Everything still owed, due or not. */
+  totalCents: number
+  /** Tiers with an overdue amount. */
+  overdueTiers: number
+}
+
+export interface AgedBalanceData {
+  fiscalYear: FiscalYearRef | null
+  asOf?: string
+  terms?: PaymentTerms
+  customers?: AgedSideSummary
+  suppliers?: AgedSideSummary
+  /** The tiers most overdue, customers and suppliers together. */
+  top?: Array<{ kind: ThirdPartyKind; code: string; label: string; overdueCents: number; oldestDueDate: string | null }>
+}
+
+function sideSummary(section: AgedSection): AgedSideSummary {
+  return {
+    overdueCents: overdueCents(section.totals),
+    totalCents: section.totals.totalCents,
+    overdueTiers: section.tiers.filter((t) => overdueCents(t.buckets) > 0).length,
+  }
+}
+
+/** The aged balance of the dashboard's fiscal year, on today within that year. */
+async function loadAgedBalance(companyId: string, fy: FiscalYear, ctx: LoadContext): Promise<AgedBalanceData> {
+  const asOf = calendarDayOf(referenceDay(fy, ctx.now)) as string
+  const report = await getAgedBalance(companyId, { fiscalYearId: fy.id, asOf }, ctx.now)
+  const top = (['customers', 'suppliers'] as const)
+    .flatMap((kind) =>
+      report[kind].tiers.map((t) => ({ kind, code: t.code, label: t.label, overdueCents: overdueCents(t.buckets), oldestDueDate: t.oldestDueDate })),
+    )
+    .filter((t) => t.overdueCents > 0)
+    .sort((a, b) => b.overdueCents - a.overdueCents)
+    .slice(0, LIST_SIZE)
+  return {
+    fiscalYear: fiscalYearRef(fy),
+    asOf: report.asOf,
+    terms: report.terms,
+    customers: sideSummary(report.customers),
+    suppliers: sideSummary(report.suppliers),
+    top,
+  }
+}
+
 // ---------------------------------------------------------------- dispatch
 
 export interface WidgetDataBySource {
@@ -397,6 +450,7 @@ export interface WidgetDataBySource {
   'recent-entries': EntriesData
   'bank-accounts': BankAccountsData
   rules: RulesData
+  'aged-balance': AgedBalanceData
   deadlines: DeadlinesWidgetData
 }
 
@@ -410,6 +464,7 @@ const FISCAL_YEAR_LOADERS: { [S in ServedSource]?: FiscalYearLoader<S> } = {
   treasury: loadTreasury,
   drafts: loadDrafts,
   'recent-entries': loadRecentEntries,
+  'aged-balance': loadAgedBalance,
 }
 
 const COMPANY_LOADERS: { [S in ServedSource]?: CompanyLoader<S> } = {

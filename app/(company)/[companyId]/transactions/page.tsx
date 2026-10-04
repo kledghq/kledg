@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,6 +20,7 @@ import { responseError, useCursorList, type CursorPage } from '@/hooks/use-curso
 import { useDefaultFiscalYear } from '@/hooks/use-default-fiscal-year'
 import { docsUrl } from '@/lib/docs-links'
 import { logger } from '@/lib/logger'
+import { isIsoDate, isoDateToLocal } from '@/lib/utils/date'
 
 /** Transactions per page: enough to fill a screen, small enough to answer fast on years of history. */
 const PAGE_SIZE = 100
@@ -31,6 +32,25 @@ const SYNC_PERIODS = [
   { days: '180', label: '6 derniers mois' },
   { days: '365', label: '12 derniers mois' },
 ]
+
+/**
+ * Filters given in the URL (the "Justificatifs manquants" page links to one
+ * transaction this way): bankAccountId, startDate and endDate (yyyy-mm-dd),
+ * hasAttachments (with, without) and search.
+ */
+function filtersFromUrl(params: URLSearchParams | null): TransactionFilters {
+  if (!params) return EMPTY_TRANSACTION_FILTERS
+  const start = params.get('startDate')
+  const end = params.get('endDate')
+  const attachments = params.get('hasAttachments')
+  return {
+    ...EMPTY_TRANSACTION_FILTERS,
+    bankAccountId: params.get('bankAccountId') || 'all',
+    ...(attachments === 'with' || attachments === 'without' ? { hasAttachments: attachments } : {}),
+    ...(start && isIsoDate(start) ? { dateRange: { from: isoDateToLocal(start), to: end && isIsoDate(end) ? isoDateToLocal(end) : undefined } } : {}),
+    ...(params.get('search') ? { searchText: params.get('search') ?? undefined } : {}),
+  }
+}
 
 interface Categories {
   cashflowCategories: string[]
@@ -46,7 +66,8 @@ export default function TransactionsPage() {
   const [categories, setCategories] = useState<Categories | undefined>(undefined)
   const [syncing, setSyncing] = useState(false)
   const [syncDays, setSyncDays] = useState('90')
-  const [chosenFilters, setFilters] = useState<TransactionFilters>(EMPTY_TRANSACTION_FILTERS)
+  const searchParams = useSearchParams()
+  const [chosenFilters, setFilters] = useState<TransactionFilters>(() => filtersFromUrl(searchParams))
   // The list starts on the open fiscal year, known before the first request
   const defaultYear = useDefaultFiscalYear(companyId)
   const filters = useMemo(

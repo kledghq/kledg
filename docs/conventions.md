@@ -260,6 +260,7 @@ it must hold for every code path, by the database (trigger in a migration).
 | Definitive number given at validation, in fiscal year sequence | `validateEntryInTx` under `lockEntryNumbering` | |
 | A closed fiscal year never changes (PCG art. 1031-4) | `assertFiscalYearOpen`, `assertDateInOpenFiscalYear` | `kledg_lock_closed_year_*`, `kledg_lock_closed_fiscal_years` |
 | Entries are created through one path | `createEntryInTx` (drafts) and `validateEntryInTx` | |
+| Lettering groups balance, one code sequence per account, never in a closed year (`docs/lettrage-et-tiers.md`) | `lib/lettering/lettering.service.ts` under an advisory lock per account | the triggers leave `letteringCode` and `letteringDate` free on validated lines |
 
 - Create entries only through `createEntryInTx` / `createEntry`; never
   `prisma.accountingEntry.create` elsewhere.

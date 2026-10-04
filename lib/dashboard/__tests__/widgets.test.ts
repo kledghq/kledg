@@ -178,8 +178,16 @@ describe('default layouts', () => {
       'list-a-rapprocher',
       'list-echeances',
       'list-brouillons',
+      'list-creances-dettes-echues',
       'list-comptes-bancaires',
     ])
+  })
+
+  it('offers the overdue receivables and payables of the aged balance to whoever reads the reports', () => {
+    const widget = getWidget('list-creances-dettes-echues') as WidgetDefinition
+    expect(widget).toMatchObject({ title: 'Créances et dettes échues', source: 'aged-balance' })
+    expect(widgetPermission(widget)).toEqual({ reports: ['read'] })
+    expect(ids(defaultLayout('accountant', forRoles(['accountant'])))).toContain('list-creances-dettes-echues')
   })
 
   it('puts the work of the accountant first: brouillons, à rapprocher, TVA', () => {

@@ -72,6 +72,9 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   close_fiscal_year: true,
   allocate_result: true,
   export_fec: false,
+  list_unlettered_lines: false,
+  letter_entry_lines: true,
+  unletter_entry_lines: true,
 }
 
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
@@ -202,7 +205,7 @@ describe('company access in MCP tools', () => {
 
   it('guards every tool that takes a company', () => {
     const tools = source.split('server.registerTool(').slice(1)
-    expect(tools.length).toBe(10)
+    expect(tools.length).toBe(12)
     for (const tool of tools) {
       const name = /'([a-z_]+)'/.exec(tool)?.[1]
       if (name === 'list_companies') {
@@ -219,7 +222,7 @@ describe('full control tools', () => {
   // through registerFullControlTool (define.ts), which checks
   // guard.requireFullControl before any preview or action.
   const dir = path.resolve(__dirname, '../full-control')
-  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts']
+  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks full control first, in the single registration path', () => {

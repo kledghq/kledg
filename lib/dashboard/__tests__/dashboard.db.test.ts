@@ -302,6 +302,21 @@ describe.skipIf(!available)('dashboard', () => {
         ['Loyer', 5],
       ])
     })
+
+    it('sums the overdue receivables and payables of the aged balance on the reference day', async () => {
+      const aged = await load('aged-balance')
+      // 411: 1 200,00 (110 days late) + 600,00 (87 days) - the payment of 1 200,00; 401: 960,00 (60 days)
+      expect(aged).toMatchObject({
+        asOf: '2026-06-30',
+        terms: { days: 30, endOfMonth: false },
+        customers: { overdueCents: 60_000, totalCents: 60_000, overdueTiers: 1 },
+        suppliers: { overdueCents: 96_000, totalCents: 96_000, overdueTiers: 1 },
+      })
+      expect(aged.top).toEqual([
+        { kind: 'suppliers', code: '401000', label: 'Fournisseurs', overdueCents: 96_000, oldestDueDate: '2026-04-11' },
+        { kind: 'customers', code: '411000', label: 'Clients', overdueCents: 60_000, oldestDueDate: '2026-03-12' },
+      ])
+    })
   })
 
   describe('GET /api/dashboard/widgets', () => {

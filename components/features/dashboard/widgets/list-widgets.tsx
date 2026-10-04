@@ -21,7 +21,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   MANUAL: 'Relevés importés',
 }
 
-function Rows({ children, label }: { children: React.ReactNode; label: string }) {
+export function Rows({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <ul className="divide-y" aria-label={label}>
       {children}
@@ -30,7 +30,7 @@ function Rows({ children, label }: { children: React.ReactNode; label: string })
 }
 
 /** One line of a list widget: what it is on the left (may shorten), the amount on the right (never cut). */
-function Row({ primary, secondary, end, href }: { primary: React.ReactNode; secondary?: React.ReactNode; end?: React.ReactNode; href?: string }) {
+export function Row({ primary, secondary, end, href }: { primary: React.ReactNode; secondary?: React.ReactNode; end?: React.ReactNode; href?: string }) {
   const content = (
     <>
       <span className="min-w-0 flex-1">
@@ -56,7 +56,7 @@ function Row({ primary, secondary, end, href }: { primary: React.ReactNode; seco
   )
 }
 
-function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+export function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Button asChild size="sm" variant="outline" className="mt-3">
       <Link href={href}>

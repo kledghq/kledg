@@ -85,6 +85,12 @@ model Company {
   taxOffice              String? // Centre des impôts compétent
   // Configuration pour le rapprochement bancaire
   defaultBankAccountCode String? // Code du compte bancaire par défaut à utiliser pour le rapprochement (classe 5, ex: 512000). Résolu dynamiquement selon l'exercice fiscal actif.
+  /// Payment terms of the aged balance (lib/reports/third-parties/aged-balance.ts):
+  /// days after the invoice date, or days then end of month. Code de commerce
+  /// art. L441-10: 30 days by default, at most 60 days, or 45 days end of month
+  /// (checked by the database, migration 20261018090000).
+  paymentTermsDays       Int               @default(30)
+  paymentTermsEndOfMonth Boolean           @default(false)
   /// What the tax and legal deadline calendar needs and Kledg cannot infer
   /// (VAT filing day, quarterly CA3, IS and CFE acomptes...): JSON validated by
   /// DeadlineSettingsSchema (lib/deadlines/settings.ts); null: the defaults.
@@ -338,6 +344,7 @@ model EntryLine {
   @@index([accountingEntryId])
   @@index([accountId])
   @@index([accountFiscalYearId])
+  @@index([accountId, letteringCode])
   @@map("entry_lines")
 }
 

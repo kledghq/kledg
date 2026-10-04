@@ -29,6 +29,7 @@ source partagent cette requête. Les montants sont en centimes.
 | Dernières écritures | `recent-entries` | Les cinq écritures les plus récentes de l'exercice |
 | Comptes bancaires | `bank-accounts` | Solde, dernière synchronisation, accès à renouveler (jamais d'identifiants) |
 | Règles d'affectation les plus utilisées | `rules` | Les cinq règles au plus grand `usageCount` |
+| Créances et dettes échues | `aged-balance` | Balance âgée de l'exercice au jour de référence (`lib/reports/third-parties`) : montant échu et montant en cours des clients et des fournisseurs, les cinq tiers les plus en retard ([lettrage et tiers](lettrage-et-tiers.md)) |
 | Échéances | `deadlines` | Échéances fiscales et juridiques des 60 prochains jours et celles manquées depuis 15 jours (`lib/deadlines`), indépendantes de l'exercice choisi ; lien vers la page Échéances |
 
 Chaque source exige une permission (`SOURCE_PERMISSIONS`) : un rôle ne voit
@@ -47,8 +48,8 @@ complète est `app/(company)/[companyId]/echeances` (`GET /api/deadlines`).
 
 | Profil | Rôles | Contenu |
 |---|---|---|
-| Dirigeant | administrateur de l'instance, administrateur de la société | Démarrer, chiffre d'affaires, résultat, trésorerie, à rapprocher, produits et charges par mois, trésorerie dans le temps, opérations à rapprocher, échéances, brouillons, comptes bancaires |
-| Comptable | comptable | Démarrer, brouillons, opérations à rapprocher, TVA, échéances, résultat, chiffre d'affaires, à rapprocher, produits et charges, dernières écritures, répartition des charges, règles |
+| Dirigeant | administrateur de l'instance, administrateur de la société | Démarrer, chiffre d'affaires, résultat, trésorerie, à rapprocher, produits et charges par mois, trésorerie dans le temps, opérations à rapprocher, échéances, brouillons, créances et dettes échues, comptes bancaires |
+| Comptable | comptable | Démarrer, brouillons, opérations à rapprocher, TVA, échéances, résultat, chiffre d'affaires, à rapprocher, créances et dettes échues, produits et charges, dernières écritures, répartition des charges, règles |
 | Lecture seule | lecture seule | Indicateurs et graphiques seulement |
 
 ## Personnalisation
