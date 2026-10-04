@@ -149,6 +149,10 @@ describe.skipIf(!available)('statements built from seeded entries', () => {
       expect(actif[0]).toEqual(['Libellé', 'Brut', 'Amortissements', 'Net'])
       expect(actif).toContainEqual(['[096] Actif circulant', 7140, 0, 7140])
       expect(actif).toContainEqual(['    [068] Clients et comptes rattachés', 0, 0, 0])
+      // A net-only line leaves Brut and Amortissements empty (regression: 0 next to a 7 140,00 net).
+      const cash = actif.find((row) => row[0] === '  [084] Disponibilités')
+      expect(cash).toEqual(['  [084] Disponibilités', undefined, undefined, 7140])
+      expect(cash).toHaveLength(4)
       expect(actif.at(-1)).toEqual(['TOTAL ACTIF', 7140, 0, 7140])
 
       const passif = rowsOf(workbook.getWorksheet('PASSIF'))

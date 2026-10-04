@@ -14,14 +14,18 @@ function renderLinesToRows(
   lines: BalanceSheetLine[],
   level: number = 0,
   showBrutAmort: boolean = false
-): Array<Array<string | number>> {
-  const rows: Array<Array<string | number>> = []
+): Array<Array<string | number | null>> {
+  const rows: Array<Array<string | number | null>> = []
 
   for (const line of lines) {
     const indent = '  '.repeat(level)
     const label = `${indent}${line.formCode ? `[${line.formCode}] ` : ''}${line.lineLabel}`
 
-    if (showBrutAmort) {
+    if (showBrutAmort && line.brut === undefined && line.amortissements === undefined) {
+      // A net-only line (Disponibilités, charges constatées d'avance): Brut and
+      // Amortissements stay empty, as in the PDF, rather than a 0 next to its net.
+      rows.push([label, null, null, roundEuros(line.net)])
+    } else if (showBrutAmort) {
       rows.push([
         label,
         roundEuros(line.brut || 0),
