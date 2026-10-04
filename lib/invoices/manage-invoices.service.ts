@@ -33,8 +33,9 @@ import { getPaymentTerms } from '@/lib/companies/payment-terms.service'
 import { termsOfTiers } from '@/lib/tiers/manage-tiers.service'
 import { accountCodeError } from '@/lib/tiers/rules'
 import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
-import { amountTooLargeMessage, centsToDecimal, fitsAmountColumn, parseCents } from '@/lib/utils/money'
+import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { computeInvoiceTotals, formatVatRate, isFrenchVatRate, parseQuantity, type InvoiceTotals } from './amounts'
+import { assertInvoiceAmountsFit } from './amount-bounds'
 import { defaultDueDate, invoiceStatus, maxDueDate, remainingCents, type InvoiceStatus } from './status'
 
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
@@ -323,23 +324,6 @@ function prepareLines(
   assertInvoiceAmountsFit(totals)
   if (totals.totalInclTaxCents <= 0) throw new ValidationError('Le total de la facture doit être positif.')
   return { prepared, totals }
-}
-
-/**
- * Every amount an invoice stores (line totals, VAT breakdown, totals) fits
- * its Decimal(15, 2) column: a French 400 instead of a database error. Line
- * totals are checked before they are summed in a JS number.
- */
-export function assertInvoiceAmountsFit(totals: InvoiceTotals): void {
-  const lineIndex = totals.lineTotalsCents.findIndex((cents) => !fitsAmountColumn(cents))
-  if (lineIndex >= 0) throw new ValidationError(`Ligne ${lineIndex + 1} : ${amountTooLargeMessage()}.`)
-  const amounts = [
-    ...totals.breakdown.flatMap((row) => [row.baseCents, row.vatCents]),
-    totals.totalExclTaxCents,
-    totals.totalVatCents,
-    totals.totalInclTaxCents,
-  ]
-  if (!amounts.every(fitsAmountColumn)) throw new ValidationError(`Total de la facture : ${amountTooLargeMessage()}.`)
 }
 
 async function loadTiersForInvoice(db: Db, companyId: string, tiersId: string, direction: InvoiceDirection) {

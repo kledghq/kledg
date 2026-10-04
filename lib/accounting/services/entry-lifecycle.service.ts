@@ -79,7 +79,7 @@ const text = (value: string | null | undefined): string | null => {
 export function requireCents(value: AmountInput, field: string): number {
   const cents = parseCents(value)
   if (cents === null) {
-    if (exceedsAmountColumn(value)) throw new ValidationError(`${field} : ${amountTooLargeMessage()}`)
+    if (exceedsAmountColumn(value)) throw new ValidationError(`${field}\u00a0: ${amountTooLargeMessage()}`)
     throw new ValidationError(`${field} : montant invalide (nombre décimal avec deux décimales au maximum)`)
   }
   return cents
