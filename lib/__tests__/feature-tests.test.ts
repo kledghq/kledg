@@ -12,8 +12,10 @@
  *   by a route file that such a test imports and does not mock it: routes
  *   are thin (parse, authorize, call one service), so a test of the route
  *   is a test of its service;
- * - every MCP tool (`server.registerTool('name'` in lib/mcp, or
- *   `fullControlTool({ name: 'name'`) is named by a test file.
+ * - every MCP tool (`server.registerTool('name'` in lib/mcp,
+ *   `fullControlTool({ name: 'name'` or `draftTool({ name: 'name'`) and
+ *   every MCP prompt (`name: 'name'` in KLEDG_PROMPTS, lib/mcp/prompts.ts)
+ *   is named by a test file.
  *
  * A module only mocked by a test (`vi.mock('@/lib/x')`) does not count.
  * "Imported" means a static import, a side-effect import or a dynamic
@@ -123,16 +125,26 @@ for (const test of behaviourTests) {
   }
 }
 
-/** MCP tools: `server.registerTool('name'` and `fullControlTool({ name: 'name'`. */
+/** MCP tools: `server.registerTool('name'`, `fullControlTool({ name: 'name'` and `draftTool({ name: 'name'`. */
 function mcpTools(): Array<{ name: string; file: string }> {
   const tools: Array<{ name: string; file: string }> = []
   for (const file of SOURCES.map(rel).filter((f) => f.startsWith('lib/mcp/'))) {
     const source = withoutComments(readFileSync(path.join(ROOT, file), 'utf8'))
     for (const m of source.matchAll(/\bregisterTool\(\s*['"]([a-z0-9_]+)['"]/g)) tools.push({ name: m[1], file })
     for (const m of source.matchAll(/\bfullControlTool\(\{\s*name:\s*['"]([a-z0-9_]+)['"]/g)) tools.push({ name: m[1], file })
+    for (const m of source.matchAll(/\bdraftTool\(\{\s*name:\s*['"]([a-z0-9_]+)['"]/g)) tools.push({ name: m[1], file })
   }
   return tools
 }
+
+/** MCP prompts: every `name: 'name'` of the KLEDG_PROMPTS list (lib/mcp/prompts.ts). */
+function mcpPrompts(): Array<{ name: string; file: string }> {
+  const file = 'lib/mcp/prompts.ts'
+  const source = withoutComments(readFileSync(path.join(ROOT, file), 'utf8'))
+  const list = source.slice(source.indexOf('KLEDG_PROMPTS'))
+  return [...list.matchAll(/\n {4}name:\s*['"]([a-z0-9_]+)['"]/g)].map((m) => ({ name: m[1], file }))
+}
+const PROMPTS = mcpPrompts()
 const TOOLS = mcpTools()
 
 /** Whether a test file quotes the tool name (as a string literal, not as part of a longer word). */
@@ -144,6 +156,7 @@ describe('every feature has a test', () => {
     expect(SERVICES.length).toBeGreaterThan(80)
     expect(TESTS.length).toBeGreaterThan(200)
     expect(TOOLS.length).toBeGreaterThan(25)
+    expect(PROMPTS.length).toBeGreaterThanOrEqual(5)
   })
 
   it('reads every full control tool definition', () => {
@@ -152,6 +165,10 @@ describe('every feature has a test', () => {
       .filter((file) => file.startsWith('lib/mcp/'))
       .reduce((count, file) => count + (readFileSync(path.join(ROOT, file), 'utf8').match(/\bfullControlTool\(\{/g)?.length ?? 0), 0)
     expect(TOOLS.filter((tool) => tool.file.startsWith('lib/mcp/full-control/')).length).toBe(definitions)
+    const drafts = SOURCES.map(rel)
+      .filter((file) => file.startsWith('lib/mcp/'))
+      .reduce((count, file) => count + (readFileSync(path.join(ROOT, file), 'utf8').match(/\bdraftTool\(\{/g)?.length ?? 0), 0)
+    expect(TOOLS.filter((tool) => tool.file.startsWith('lib/mcp/drafts/')).length).toBe(drafts)
   })
 
   it('imports every API route file in a test', () => {
@@ -167,6 +184,11 @@ describe('every feature has a test', () => {
   it('names every MCP tool in a test', () => {
     const untested = TOOLS.filter((tool) => !namesTool(tool.name) && !(tool.name in ALLOWLIST)).map((tool) => `${tool.name} (${tool.file})`)
     expect(untested, 'Add a test that calls these MCP tools').toEqual([])
+  })
+
+  it('names every MCP prompt in a test', () => {
+    const untested = PROMPTS.filter((prompt) => !namesTool(prompt.name)).map((prompt) => `${prompt.name} (${prompt.file})`)
+    expect(untested, 'Add a test that gets these MCP prompts').toEqual([])
   })
 
   it('keeps the allowlist minimal: existing, untested entries with a reason', () => {

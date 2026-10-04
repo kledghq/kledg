@@ -1,6 +1,6 @@
 # Notes de frais
 
-Les dépenses qu'un salarié, un dirigeant ou un associé avance pour la société, et ses trajets avec un véhicule personnel : saisie avec les justificatifs, TVA récupérable calculée ligne par ligne, indemnités kilométriques au barème officiel, validation, comptabilisation au crédit du compte de la personne et remboursement constaté par le lettrage. Code : `lib/expense-reports`, pages `/expense-reports`, outils MCP `list_expense_reports`, `get_expense_report` et, en contrôle total, `create_draft_expense_report`.
+Les dépenses qu'un salarié, un dirigeant ou un associé avance pour la société, et ses trajets avec un véhicule personnel : saisie avec les justificatifs, TVA récupérable calculée ligne par ligne, indemnités kilométriques au barème officiel, validation, comptabilisation au crédit du compte de la personne et remboursement constaté par le lettrage. Code : `lib/expense-reports`, pages `/expense-reports`, outils MCP `list_expense_reports`, `get_expense_report`, `list_expense_claimants` et, avec l'accès brouillons, `create_draft_expense_report`.
 
 ## Bénéficiaires
 
@@ -138,7 +138,8 @@ Un remboursement payé par Qonto arrive comme une transaction bancaire : rappro
 ## MCP
 
 - `list_expense_reports`, `get_expense_report` : lecture, droit `entries:read` dans la société et la société autorisée pour la connexion, puis les notes que le rôle de l'utilisateur lui montre.
-- `create_draft_expense_report` (contrôle total, droit `expenses:submit`) : crée une note en brouillon à partir de justificatifs (dépenses avec montant payé, taux, TVA et éventuellement l'identifiant d'une pièce Qonto de la société) et de trajets. Suit le mode d'exécution de la connexion : en validation, un essai à blanc montre les totaux et la TVA récupérée par ligne et l'utilisateur approuve l'action dans Kledg ; en automatique, la note est créée. La note reste un brouillon : la personne la soumet, un valideur la valide et la comptabilise.
+- `list_expense_claimants` : les bénéficiaires (identifiant, compte auxiliaire) que le rôle de l'utilisateur lui montre, droit `entries:read`.
+- `create_draft_expense_report` (lecture et brouillons, `kledg:write`, droit `expenses:submit` comme `POST /api/expense-reports`) : crée une note en brouillon à partir de justificatifs (dépenses avec montant payé en euros, taux, TVA et éventuellement l'identifiant d'une pièce Qonto de la société) et de trajets, pour l'utilisateur ou, s'il valide les notes, pour un autre bénéficiaire. `dryRun: true` montre les totaux et la TVA récupérée par ligne sans rien enregistrer. La note reste un brouillon : la personne la soumet, un valideur la valide et la comptabilise dans Kledg. La réponse donne le lien `reviewUrl` vers la note. Cet outil demandait auparavant le contrôle total.
 
 ## Limites
 

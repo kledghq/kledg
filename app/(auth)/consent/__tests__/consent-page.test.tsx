@@ -75,7 +75,7 @@ describe('Consent page', () => {
     expect(screen.getByRole('radio', { name: /Lecture et brouillons/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /Contrôle total/ })).not.toBeChecked()
     // Scopes shown are those of the chosen level only.
-    expect(screen.getByText('Proposer des écritures en brouillon, que vous validerez vous-même')).toBeInTheDocument()
+    expect(screen.getByText('Préparer des brouillons (écritures, notes de frais, budget, provisions), que vous vérifierez vous-même')).toBeInTheDocument()
     expect(screen.queryByText(/Agir comme vous : valider, rapprocher/)).toBeNull()
     expect(screen.queryByText('Exécution des actions importantes')).toBeNull()
     await waitFor(() => expect(screen.getByRole('radio', { name: /Toutes mes sociétés/ })).toBeChecked())

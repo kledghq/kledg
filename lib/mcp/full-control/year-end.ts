@@ -29,6 +29,9 @@ const generateDepreciation = fullControlTool({
   description: `Books the missing depreciation entries of a fiscal year (Générer les dotations): one VALIDATED entry per fixed asset in the OD journal on the last day of the year, debit 6811 / credit 28 (PCG art. 214-13, prorata temporis). Allowances already booked are skipped, so running it twice books nothing twice. Refused on a closed year. ${ACTS_AS_USER} ${TWO_STEP} The dry run lists each allowance and the total.`,
   input: { fiscalYearId },
   permission: { entries: ['create', 'validate'] },
+  amounts: 'euros',
+  never: 'books an allowance twice or writes in a closed fiscal year.',
+  idempotent: true,
   confirmation: true,
   async preview({ companyId, fiscalYearId }) {
     const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
@@ -66,6 +69,8 @@ const closeFiscalYearTool = fullControlTool({
   description: `Closes a fiscal year (clôture), irreversibly and in one transaction: closing entry bringing the result to 120 / 129, next fiscal year and its chart, opening entry (à-nouveaux), then the year is locked for good (PCG art. 1031-4). Refused while drafts remain, before the end date, or when an earlier year is open. ${ACTS_AS_USER} ${TWO_STEP} The dry run is the closing simulation: result, entries, next year and the blocking errors.`,
   input: { fiscalYearId },
   permission: { closing: ['execute'] },
+  amounts: 'euros',
+  never: 'closes a year with drafts, before its end date or after an open earlier year; and never reopens a year.',
   confirmation: true,
   destructive: true,
   async preview({ companyId, fiscalYearId }) {
@@ -141,6 +146,9 @@ const allocateResultTool = fullControlTool({
   description: `Books the allocation of the previous year's result (affectation du résultat) voted by the shareholders: legal reserve when required (Code de commerce art. L. 232-10), dividends, other reserves, retained earnings (report à nouveau), as one validated OD entry. Refused when the result is already allocated. ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the balances, the allocation plan and its entry lines.`,
   input: allocateInput,
   permission: { closing: ['execute'] },
+  amounts: 'euros',
+  units: 'Dates as yyyy-mm-dd.',
+  never: 'allocates a result twice.',
   confirmation: true,
   destructive: true,
   async preview({ companyId, fiscalYearId, dividends, otherReserves }) {
@@ -180,6 +188,9 @@ const exportFecTool = fullControlTool({
   description: `Exports the FEC (fichier des écritures comptables, LPF art. A47 A-1) of a fiscal year: the file name (SirenFECAAAAMMJJ.txt), its content (tab separated, validated entries only) and the compliance report of the file (errors and warnings). ${ACTS_AS_USER}`,
   input: { fiscalYearId },
   permission: { reports: ['export'] },
+  amounts: 'euros',
+  never: 'includes draft entries or changes anything (read only).',
+  idempotent: true,
   confirmation: false,
   readOnly: true,
   async execute({ companyId, fiscalYearId }) {

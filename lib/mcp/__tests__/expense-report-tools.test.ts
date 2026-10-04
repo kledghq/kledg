@@ -2,8 +2,9 @@
  * MCP tools of expense reports: list_expense_reports and get_expense_report
  * (read tools through the company guard with entries:read, then scoped by
  * the user's role: a validator sees every report, another member their own),
- * and create_draft_expense_report (full control, expenses:submit, following
- * the execution mode, with a dry run of the recoverable VAT per line).
+ * list_expense_claimants, and create_draft_expense_report (kledg:write,
+ * expenses:submit, a draft only, with a dry run of the recoverable VAT per
+ * line).
  * Services are mocked: they have their own database tests.
  */
 
@@ -27,34 +28,30 @@ vi.mock('@/lib/expense-reports/manage-expense-reports.service', () => ({ listExp
 vi.mock('@/lib/expense-reports/manage-category-rules.service', () => ({
   listCategoryRules: vi.fn(async () => ({ rules: [{ id: 'r1', keyword: 'sncf', category: 'TRANSPORT', accountCode: null, priority: 0 }] })),
 }))
-vi.mock('@/lib/mcp/full-control/pending-actions', () => ({
-  createPendingAction: vi.fn(async () => ({ id: 'action-1', approvalUrl: 'http://kledg.test/ai-actions/action-1', expiresAt: new Date('2026-10-05T00:00:00Z') })),
-  claimApprovedAction: vi.fn(),
-  finishAction: vi.fn(),
-}))
+vi.mock('@/lib/expense-reports/manage-expense-claimants.service', () => ({ listClaimants: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { expenseActorOf } from '@/lib/expense-reports/actor'
 import { createExpenseReport, getExpenseReport, listExpenseReports } from '@/lib/expense-reports/manage-expense-reports.service'
-import { createPendingAction } from '@/lib/mcp/full-control/pending-actions'
+import { listClaimants } from '@/lib/expense-reports/manage-expense-claimants.service'
+import { writeAuditLog } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
-import { NotFoundError } from '@/lib/accounting/errors'
+import { ForbiddenError, NotFoundError } from '@/lib/accounting/errors'
 import type { ToolResult } from '@/lib/mcp/tool-result'
-import type { ExecutionMode } from '@/lib/ai-access/access'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
 
 type Handler = (args: Record<string, unknown>) => Promise<ToolResult>
 
-function server(options: { canAdmin?: boolean; executionMode?: ExecutionMode } = {}) {
+function server(options: { canWrite?: boolean } = {}) {
   const handlers = new Map<string, Handler>()
   registerKledgTools(
     { registerTool: (name: string, _config: unknown, handler: Handler) => handlers.set(name, handler) } as never,
     {
       user: { id: 'u1', email: 'a@b.c', name: 'Camille', role: 'user' },
-      canWrite: true,
-      canAdmin: options.canAdmin ?? false,
+      canWrite: options.canWrite ?? true,
+      canAdmin: false,
       caller: { kind: 'apiKey', apiKeyId: 'k1' },
-      executionMode: options.executionMode ?? 'validation',
+      executionMode: 'validation',
     },
   )
   return handlers
@@ -123,7 +120,19 @@ describe('list_expense_reports and get_expense_report', () => {
   })
 })
 
-describe('create_draft_expense_report (full control)', () => {
+describe('list_expense_claimants', () => {
+  it('checks entries:read and lists the claimants the user may see, without personal data beyond names', async () => {
+    vi.mocked(listClaimants).mockResolvedValue({
+      claimants: [{ id: 'cl-1', kind: 'EMPLOYEE', name: 'Camille Martin', personId: null, userId: 'u1', accountCode: '421', auxiliaryAccountNumber: 'S00001', _count: { reports: 3 } }],
+    } as never)
+    const data = parse(await server({ canWrite: false }).get('list_expense_claimants')!({ companyId: 'c1' }))
+    expect(guard.require).toHaveBeenCalledWith('c1', { entries: ['read'] })
+    expect(expenseActorOf).toHaveBeenCalledWith(expect.objectContaining({ id: 'u1' }), 'c1')
+    expect(data.claimants).toEqual([{ id: 'cl-1', kind: 'EMPLOYEE', name: 'Camille Martin', auxiliaryAccountNumber: 'S00001', account: '421', reports: 3, isYou: true }])
+  })
+})
+
+describe('create_draft_expense_report (kledg:write)', () => {
   const args = {
     companyId: 'c1',
     periodStart: '2026-03-01',
@@ -139,16 +148,17 @@ describe('create_draft_expense_report (full control)', () => {
     db.company.findUniqueOrThrow.mockResolvedValue({ isVatExempt: false } as never)
   })
 
-  it('is absent without full control', () => {
-    expect(server().has('create_draft_expense_report')).toBe(false)
+  it('is absent from a read-only connection and present with kledg:write', () => {
+    expect(server({ canWrite: false }).has('create_draft_expense_report')).toBe(false)
+    expect(server().has('create_draft_expense_report')).toBe(true)
   })
 
-  it('in validation mode, returns the recoverable VAT per line as a dry run and records a pending action, writing nothing', async () => {
-    const data = parse(await server({ canAdmin: true }).get('create_draft_expense_report')!(args))
-    expect(guard.requireFullControl).toHaveBeenCalledWith('c1', { expenses: ['submit'] })
+  it('with dryRun, returns the recoverable VAT per line and writes nothing', async () => {
+    const data = parse(await server().get('create_draft_expense_report')!({ ...args, dryRun: true }))
+    expect(guard.require).toHaveBeenCalledWith('c1', { expenses: ['submit'] })
     expect(data).toMatchObject({
       dryRun: true,
-      actionId: 'action-1',
+      changes: 'Aucune\u00a0: aperçu seulement.',
       preview: {
         totalOwed: 261.6,
         recoverableVat: 10,
@@ -160,13 +170,13 @@ describe('create_draft_expense_report (full control)', () => {
         ],
       },
     })
-    expect(createPendingAction).toHaveBeenCalled()
     expect(createExpenseReport).not.toHaveBeenCalled()
+    expect(writeAuditLog).not.toHaveBeenCalled()
   })
 
-  it('in automatic mode, records the report in cents for the user’s own claimant', async () => {
+  it('records the draft in cents for the user’s own claimant, audited, with the link to review it', async () => {
     vi.mocked(createExpenseReport).mockResolvedValue({ id: 'ndf-9', number: 'NDF-0009', status: 'draft', totalInclTaxCents: 26_160, recoverableVatCents: 1_000 } as never)
-    const data = parse(await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_expense_report')!(args))
+    const data = parse(await server().get('create_draft_expense_report')!(args))
     expect(createExpenseReport).toHaveBeenCalledWith(
       'c1',
       expect.objectContaining({
@@ -181,18 +191,35 @@ describe('create_draft_expense_report (full control)', () => {
       { userId: 'u1', canManage: false },
       { source: 'mcp' },
     )
-    expect(data).toMatchObject({ executed: true, result: { reportId: 'ndf-9', number: 'NDF-0009', status: 'draft', totalOwed: 261.6 } })
+    expect(data).toMatchObject({ reportId: 'ndf-9', number: 'NDF-0009', status: 'draft', totalOwed: 261.6, changes: { reportCreated: 'ndf-9', status: 'draft' } })
+    expect(data.reviewUrl).toMatch(/\/c1\/expense-reports\/ndf-9$/)
+    expect(writeAuditLog).toHaveBeenCalledWith('info', expect.stringContaining('create_draft_expense_report'), expect.objectContaining({ action: 'MCP_WRITE', companyId: 'c1' }))
+  })
+
+  it('refuses a user whose role cannot submit reports, before anything is read', async () => {
+    guard.require.mockRejectedValueOnce(new ForbiddenError('Accès refusé'))
+    const result = await server().get('create_draft_expense_report')!(args)
+    expect(result).toEqual({ content: [{ type: 'text', text: 'Accès refusé' }], isError: true })
+    expect(createExpenseReport).not.toHaveBeenCalled()
+  })
+
+  it('answers invalid arguments in French', async () => {
+    const result = await server().get('create_draft_expense_report')!({ ...args, periodStart: '03/2026' })
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('periodStart')
+    expect(result.content[0].text).toMatch(/Format attendu/)
+    expect(guard.require).not.toHaveBeenCalled()
   })
 
   it('resolves a claimant by its auxiliary number and refuses an unknown one, and a report without lines', async () => {
     db.expenseClaimant.findFirst.mockResolvedValueOnce({ id: 'c-a' } as never)
     vi.mocked(createExpenseReport).mockResolvedValue({ id: 'ndf-10', number: 'NDF-0010', status: 'draft', totalInclTaxCents: 0, recoverableVatCents: 0 } as never)
-    await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_expense_report')!({ ...args, claimant: 'a00001' })
+    await server().get('create_draft_expense_report')!({ ...args, claimant: 'a00001' })
     expect(db.expenseClaimant.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: 'c1', OR: [{ id: 'a00001' }, { auxiliaryAccountNumber: 'A00001' }] } }))
     expect(vi.mocked(createExpenseReport).mock.calls[0][1]).toMatchObject({ claimantId: 'c-a' })
     db.expenseClaimant.findFirst.mockResolvedValueOnce(null as never)
-    expect((await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_expense_report')!({ ...args, claimant: 'X1' })).isError).toBe(true)
-    const empty = await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_expense_report')!({ ...args, expenses: [], trips: [] })
+    expect((await server().get('create_draft_expense_report')!({ ...args, claimant: 'X1' })).isError).toBe(true)
+    const empty = await server().get('create_draft_expense_report')!({ ...args, expenses: [], trips: [] })
     expect(empty.content[0].text).toMatch(/au moins une dépense/)
   })
 })

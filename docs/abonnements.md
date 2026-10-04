@@ -1,6 +1,6 @@
 # Abonnements
 
-Les paiements récurrents repérés dans les opérations bancaires de la société (logiciels, forfaits, loyers, assurances), avec leur coût annuel, leur prochaine échéance et ce qui a changé. Code : `lib/subscriptions`, page `/subscriptions` (Banque, Abonnements), outil MCP `list_detected_subscriptions`.
+Les paiements récurrents repérés dans les opérations bancaires de la société (logiciels, forfaits, loyers, assurances), avec leur coût annuel, leur prochaine échéance et ce qui a changé. Code : `lib/subscriptions`, page `/subscriptions` (Banque, Abonnements), outils MCP `list_detected_subscriptions` et, avec l'accès brouillons, `classify_subscription` et `add_subscription_to_budget`.
 
 ## Détection
 
@@ -60,4 +60,11 @@ La page propose de créer une [règle d'affectation](regles-d-affectation.md) à
 
 ## MCP
 
-`list_detected_subscriptions` (droit `banking:read`) : les abonnements détectés, en euros, avec leur statut, leur décision et la ligne de budget ; les abonnements ignorés (`includeIgnored`) et les charges récurrentes hors abonnements (`includeRecurringCharges`) sur demande. Voir [mcp.md](mcp.md).
+`list_detected_subscriptions` (droit `banking:read`) : les abonnements détectés, en euros, avec leur statut, leur décision et la ligne de budget ; les abonnements ignorés (`includeIgnored`) et les charges récurrentes hors abonnements (`includeRecurringCharges`) sur demande.
+
+Avec l'accès Lecture et brouillons (`kledg:write`), comme les routes :
+
+- `classify_subscription` (droit `banking:reconcile`) : confirmer, ignorer, compter une charge récurrente comme abonnement, ou remettre à traiter ;
+- `add_subscription_to_budget` (droits `budgets:manage` et `banking:reconcile`) : ajouter l'abonnement comme élément récurrent d'une ligne de charges et le confirmer, dans la même transaction.
+
+Voir [mcp.md](mcp.md).

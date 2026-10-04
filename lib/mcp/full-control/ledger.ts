@@ -38,6 +38,8 @@ const createAccountTool = fullControlTool({
     fiscalYearId: z.string().optional().describe('Fiscal year id, from list_fiscal_years. Defaults to the current fiscal year.'),
   },
   permission: { ledger: ['manage'] },
+  amounts: 'none',
+  never: 'changes a PCG account or an account of a closed fiscal year.',
   confirmation: false,
   async execute({ companyId, code, label, parentCode, fiscalYearId }) {
     const fiscalYear = await targetFiscalYear(companyId, fiscalYearId)
@@ -69,6 +71,8 @@ const createJournalTool = fullControlTool({
     label: z.string().min(1).max(255),
   },
   permission: { ledger: ['manage'] },
+  amounts: 'none',
+  never: 'changes or deletes an existing journal.',
   confirmation: false,
   async execute({ companyId, code, label }) {
     const journal = await createJournal(companyId, { code, label })
@@ -98,6 +102,9 @@ const createFixedAssetTool = fullControlTool({
     isFullyPaid: z.boolean().optional(),
   },
   permission: { ledger: ['manage'] },
+  amounts: 'euros',
+  units: 'Dates as yyyy-mm-dd, durations in years.',
+  never: 'books the depreciation entries (generate_depreciation does).',
   confirmation: false,
   async execute({ companyId, assetAccountCode, depreciationAccountCode, expenseAccountCode, ...input }) {
     const fiscalYear = await fiscalYearOfDay(companyId, input.depreciationStartDate ?? input.acquisitionDate).catch(() =>

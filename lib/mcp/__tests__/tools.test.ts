@@ -76,8 +76,22 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   letter_entry_lines: true,
   unletter_entry_lines: true,
   create_draft_invoice: true,
-  create_draft_expense_report: true,
 }
+
+/** Draft-level tools (kledg:write) of lib/mcp/drafts, besides create_draft_entry. */
+const DRAFT_TOOLS = [
+  'create_budget',
+  'create_budget_line',
+  'update_budget_line',
+  'classify_subscription',
+  'add_subscription_to_budget',
+  'create_provision',
+  'record_provision_assessment',
+  'create_investment_grant',
+  'prepare_year_end_entries',
+  'create_draft_expense_report',
+  'update_year_end_formalities',
+]
 
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
 const caller = { kind: 'apiKey' as const, apiKeyId: 'k1' }
@@ -141,15 +155,21 @@ describe('registerKledgTools', () => {
     }
   })
 
-  it('only exposes create_draft_entry with write access', () => {
+  it('only exposes create_draft_entry and the draft tools with write access', () => {
     const readOnly = fakeServer()
     registerKledgTools(readOnly as never, { user, canWrite: false, canAdmin: false, caller, executionMode: 'validation' })
-    expect(readOnly.tools.has('create_draft_entry')).toBe(false)
+    for (const name of ['create_draft_entry', ...DRAFT_TOOLS]) expect(readOnly.tools.has(name), name).toBe(false)
 
     const writer = fakeServer()
     registerKledgTools(writer as never, { user, canWrite: true, canAdmin: false, caller, executionMode: 'validation' })
-    expect(writer.tools.has('create_draft_entry')).toBe(true)
-    expect(writer.tools.get('create_draft_entry')?.annotations?.readOnlyHint).toBe(false)
+    const added = [...writer.tools.keys()].filter((name) => !readOnly.tools.has(name)).sort()
+    expect(added).toEqual(['create_draft_entry', ...DRAFT_TOOLS].sort())
+    for (const name of added) {
+      expect(writer.tools.get(name)?.annotations?.readOnlyHint, name).toBe(false)
+      expect(writer.tools.get(name)?.description, name).toContain('kledg:write')
+      // Draft tools never follow the full control flow.
+      expect(writer.tools.get(name)?.inputSchema?.shape, name).not.toHaveProperty('actionId')
+    }
   })
 })
 
@@ -224,7 +244,7 @@ describe('full control tools', () => {
   // through registerFullControlTool (define.ts), which checks
   // guard.requireFullControl before any preview or action.
   const dir = path.resolve(__dirname, '../full-control')
-  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts', 'expense-reports.ts']
+  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks full control first, in the single registration path', () => {
@@ -251,6 +271,40 @@ describe('full control tools', () => {
       expect(registered, file).toBe(source.split('fullControlTool({').length - 1)
     }
     expect(declared).toBe(Object.keys(FULL_CONTROL_TOOLS).length)
+  })
+})
+
+describe('draft tools', () => {
+  // Every draft tool is declared with draftTool() and registered through
+  // registerDraftTool (drafts/define.ts), which parses the arguments, then
+  // checks every right of the tool through the company guard before the
+  // service runs.
+  const dir = path.resolve(__dirname, '../drafts')
+  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts']
+  const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
+
+  it('checks the company guard first, in the single registration path', () => {
+    const handler = define.slice(define.indexOf('server.registerTool('))
+    const guardAt = handler.indexOf('for (const permission of permissions) await guard.require(args.companyId, permission)')
+    expect(guardAt).toBeGreaterThan(0)
+    expect(handler.indexOf('parseInput(inputSchema, raw)')).toBeLessThan(guardAt)
+    expect(handler.indexOf('tool.execute(')).toBeGreaterThan(guardAt)
+    expect(define.split('server.registerTool(').length).toBe(2)
+  })
+
+  it('declares every tool through draftTool and never registers or checks access ad hoc', () => {
+    let declared = 0
+    for (const file of toolFiles) {
+      const source = readFileSync(path.join(dir, file), 'utf8')
+      expect(source, file).not.toContain('server.registerTool(')
+      for (const bypass of ['requireCompanyPermission', 'requireCompanyAccess', 'getUserRolesForCompany', 'isGlobalAdmin', 'guard.require(', 'validateEntries', 'postInvoice', 'postExpenseReport']) {
+        expect(source, `${file}: ${bypass}`).not.toContain(bypass)
+      }
+      const count = source.split('draftTool({').length - 1
+      declared += count
+      expect(source.split('  register(').length - 1, file).toBe(count)
+    }
+    expect(declared).toBe(DRAFT_TOOLS.length)
   })
 })
 

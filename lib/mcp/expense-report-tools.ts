@@ -11,23 +11,32 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
+import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
 import { expenseActorOf } from '@/lib/expense-reports/actor'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-reports/categories'
 import { getExpenseReport, listExpenseReports } from '@/lib/expense-reports/manage-expense-reports.service'
+import { listClaimants } from '@/lib/expense-reports/manage-expense-claimants.service'
 import { EXPENSE_STATUS_FILTERS } from '@/lib/expense-reports/status'
 import { fromCents } from '@/lib/utils/money'
 
 const companyId = z.string().describe('Company id, from list_companies.')
 
 export function registerExpenseReportReadTools(server: McpServer, access: McpAccess, guard: CompanyGuard) {
-  const readOnly = { readOnlyHint: true, openWorldHint: false } as const
+  const readOnly = READ_ONLY
 
   server.registerTool(
     'list_expense_reports',
     {
       title: 'Notes de frais',
-      description:
-        'Lists the expense reports (notes de frais) of a company, latest period first: number, claimant (salarié, dirigeant or associé), period, total owed, recoverable VAT and status (draft, submitted, validated, posted, reimbursed: reimbursed is derived from the lettering of the claimant account). A user who cannot validate reports only sees their own.',
+      description: describeTool({
+        summary:
+          'Lists the expense reports (notes de frais) of a company, latest period first: number, claimant (salarié, dirigeant or associé), period, total owed, recoverable VAT and status (draft, submitted, validated, posted, reimbursed: reimbursed is derived from the lettering of the claimant account). A user who cannot validate reports only sees their own.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'shows another person’s report to a user who cannot validate reports, or changes anything (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         status: z.enum(EXPENSE_STATUS_FILTERS).default('all'),
@@ -66,8 +75,15 @@ export function registerExpenseReportReadTools(server: McpServer, access: McpAcc
     'get_expense_report',
     {
       title: 'Note de frais',
-      description:
-        'One expense report with its lines: date, supplier, category, account, amount paid, VAT shown and the part recoverable with the reason (no recovery on passenger transport and staff lodging, CGI ann. II art. 206, IV, 2; a receipt over 150 € HT needs an invoice in the company name), mileage trips with the scale year applied, its entry and status.',
+      description: describeTool({
+        summary:
+          'One expense report with its lines: date, supplier, category, account, amount paid, VAT shown and the part recoverable with the reason (no recovery on passenger transport and staff lodging, CGI ann. II art. 206, IV, 2; a receipt over 150 € HT needs an invoice in the company name), mileage trips with the scale year applied, its entry and status.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'euros',
+        units: 'VAT rates in percent, distances in km.',
+        never: 'submits, validates or posts a report (read only).',
+      }),
       inputSchema: z.object({ companyId, reportId: z.string().describe('Expense report id, from list_expense_reports.') }),
       annotations: readOnly,
     },
@@ -107,6 +123,32 @@ export function registerExpenseReportReadTools(server: McpServer, access: McpAcc
           })),
           entry: report.entry,
           lettering: report.letteringCode,
+        })
+      }),
+  )
+
+  server.registerTool(
+    'list_expense_claimants',
+    {
+      title: 'Bénéficiaires de notes de frais',
+      description: describeTool({
+        summary:
+          'Lists the claimants of expense reports of a company (salarié, dirigeant or associé) with their id, auxiliary account number (S00001...) and account, and their number of reports: the claimant to pass to create_draft_expense_report. A user who cannot validate reports only sees their own claimant.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'none',
+        never: 'creates or changes a claimant, or shows another person to a user who cannot validate reports (read only).',
+      }),
+      inputSchema: z.object({ companyId }),
+      annotations: readOnly,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { entries: ['read'] })
+        const actor = await expenseActorOf(access.user, args.companyId)
+        const { claimants } = await listClaimants(args.companyId, actor)
+        return json({
+          claimants: claimants.map((c) => ({ id: c.id, kind: c.kind, name: c.name, auxiliaryAccountNumber: c.auxiliaryAccountNumber, account: c.accountCode, reports: c._count.reports, isYou: c.userId === access.user.id })),
         })
       }),
   )

@@ -67,4 +67,4 @@ Kledg ne passe aucune écriture de frais de gestion lui-même, ni dans la holdin
 | `list_management_fee_conventions` | Conventions de la holding, prix, marge, clé, TVA, filiales (sans leur nom quand la connexion ne peut pas les lire) ; droit `reports:read` |
 | `preview_management_fees` | Calcul d'une période : charges retenues et exclues, base, marge, montant HT, TVA et TTC de chaque filiale ; `reports:read` dans la holding et dans chaque filiale |
 
-Aucun outil ne prépare les factures : la décision se prend dans Kledg.
+Aucun outil ne prépare les factures, même en contrôle total : générer les factures de frais de gestion engage la holding et chaque filiale (prix de transfert, TVA, numérotation de la série), la décision se prend dans Kledg par une personne qui a les droits dans chaque société (décision documentée dans [mcp.md](mcp.md#ce-que-le-serveur-ne-fait-pas)).

@@ -24,7 +24,7 @@ Page **États, Balance auxiliaire**, `GET /api/reports/auxiliary-balance` et son
 
 ## Balance âgée
 
-Page **États, Balance âgée**, `GET /api/reports/aged-balance` et son export Excel, outil MCP `get_aged_balance`, widget « Créances et dettes échues ».
+Page **États, Balance âgée**, `GET /api/reports/aged-balance` et son export Excel, outil MCP `get_aged_balance` (et `get_auxiliary_balance` pour la balance auxiliaire), widget « Créances et dettes échues ».
 
 - Lignes validées des comptes 411 et 401, datées au plus tard le jour de la balance et ouvertes ce jour-là (non lettrées, ou lettrées après).
 - **Échéance** d'une facture (débit client, crédit fournisseur) = date de l'écriture + délai de paiement de la société ; un règlement, un avoir ou une avance non lettrés comptent à leur propre date, en déduction.

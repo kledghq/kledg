@@ -77,6 +77,8 @@ const reconcileTransaction = fullControlTool({
   description: `Reconciles a bank transaction (rapprochement): with counterpart lines, creates the DRAFT entry (bank line added by Kledg) and links it, atomically; with entryId, links an existing entry; with withoutEntry, only marks it reconciled. Refused (409) when the transaction is already reconciled, so a retry never creates a second entry. ${ACTS_AS_USER}`,
   input: reconcileInput,
   permission: { banking: ['reconcile'] },
+  amounts: 'euros',
+  never: 'validates the draft entry it creates.',
   confirmation: false,
   async execute({ companyId, transactionId, entryId, journalCode, date, description, reference, lines, withoutEntry }) {
     if (lines && lines.length > 0) {
@@ -114,6 +116,8 @@ const unreconcileTransactionTool = fullControlTool({
   description: `Undoes the reconciliation of a bank transaction: deletes the draft entry the reconciliation created, or only unlinks an entry it did not create. Refused when that entry is validated or in a closed fiscal year (reverse it instead). ${ACTS_AS_USER} ${TWO_STEP}`,
   input: { transactionId },
   permission: { banking: ['reconcile'] },
+  amounts: 'none',
+  never: 'deletes a validated entry or touches a closed fiscal year (refused).',
   confirmation: true,
   destructive: true,
   async preview({ companyId, transactionId }) {
@@ -154,6 +158,9 @@ const runRules = fullControlTool({
     transactionIds: z.array(z.string().min(1)).min(1).max(500).optional().describe('Only these transactions (default: every unreconciled transaction of the current fiscal year).'),
   },
   permission: { banking: ['reconcile'] },
+  amounts: 'none',
+  never: 'validates the entries the rules create (drafts), or reconciles a transaction twice.',
+  idempotent: true,
   confirmation: true,
   async preview({ companyId, transactionIds }) {
     const result = await processTransactions({ companyId, transactionIds, autoApply: false })
@@ -232,6 +239,8 @@ const listRulesTool = fullControlTool({
   description: `Lists the assignment rules (règles d'affectation) of a company with their conditions and entry lines, highest priority first. ${ACTS_AS_USER}`,
   input: {},
   permission: { banking: ['read'] },
+  amounts: 'euros',
+  never: 'changes a rule (read only).',
   confirmation: false,
   readOnly: true,
   execute: async ({ companyId }) => (await listRules(companyId)).map(summarizeRule),
@@ -244,6 +253,8 @@ const createRuleTool = fullControlTool({
   description: `Creates an assignment rule (règle d'affectation): conditions on bank transactions and the entry lines to book when they match (applied by run_rules). ${ACTS_AS_USER}`,
   input: ruleInput,
   permission: { ledger: ['manage'] },
+  amounts: 'euros',
+  never: 'runs the rule (run_rules does).',
   confirmation: false,
   execute: async ({ companyId, ...input }) => summarizeRule(await createRule(companyId, input)),
   audit: (_args, rule) => ({ ruleId: rule.id, name: rule.name }),
@@ -255,6 +266,8 @@ const updateRuleTool = fullControlTool({
   description: `Replaces an assignment rule (règle d'affectation): its settings, all its conditions and all its entry lines (give the complete rule, as list_rules returns it). Entries already created stay. ${ACTS_AS_USER}`,
   input: { ruleId: z.string().min(1).describe('Rule id, from list_rules.'), ...ruleInput },
   permission: { ledger: ['manage'] },
+  amounts: 'euros',
+  never: 'runs the rule (run_rules does).',
   confirmation: false,
   idempotent: true,
   execute: async ({ companyId, ruleId, ...input }) => summarizeRule(await updateRule(companyId, ruleId, input)),
@@ -267,6 +280,8 @@ const deleteRuleTool = fullControlTool({
   description: `Deletes an assignment rule (règle d'affectation). Entries it already created stay. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: { ruleId: z.string().min(1).describe('Rule id, from list_rules.') },
   permission: { ledger: ['manage'] },
+  amounts: 'none',
+  never: 'deletes the entries the rule created.',
   confirmation: true,
   destructive: true,
   preview: async ({ companyId, ruleId }) => ({ ruleToDelete: summarizeRule(await findRule(companyId, ruleId)) }),
@@ -282,6 +297,8 @@ const listBankAccounts = fullControlTool({
   description: `Lists the bank connections of a company (Qonto, Revolut, Ponto or MANUAL for statement files) and their accounts, with the ids sync_bank and import_statement need. ${ACTS_AS_USER}`,
   input: {},
   permission: { banking: ['read'] },
+  amounts: 'euros',
+  never: 'returns bank credentials, or changes anything (read only).',
   confirmation: false,
   readOnly: true,
   async execute({ companyId }) {
@@ -320,6 +337,8 @@ const createBankAccount = fullControlTool({
     ledgerAccountCode: z.string().trim().min(3).max(8).describe('Existing 512 account number, e.g. 512000.'),
   },
   permission: { banking: ['manage'] },
+  amounts: 'none',
+  never: 'connects a bank or stores credentials (that stays in the interface).',
   confirmation: false,
   execute: ({ companyId, name, iban, ledgerAccountCode }) =>
     createManualAccount(companyId, { name, iban: iban || null, currency: 'EUR', ledgerAccountCode }),
@@ -332,6 +351,9 @@ const syncBank = fullControlTool({
   description: `Synchronizes one bank connection now (accounts, balances, transactions) from what the provider holds, like the scheduled sync. Never asks Ponto for a new bank refresh (Ponto reserves it to the user present on the page) and respects the per-company limit of bank calls. Idempotent: transactions already there are not duplicated. ${ACTS_AS_USER}`,
   input: { connectionId: z.string().min(1).describe('Bank connection id, from list_bank_accounts.') },
   permission: { banking: ['reconcile'] },
+  amounts: 'none',
+  never: 'asks the bank for a new refresh (Ponto), stores credentials or reconciles transactions.',
+  openWorld: true,
   confirmation: false,
   idempotent: true,
   async execute({ companyId, connectionId }) {
@@ -379,6 +401,9 @@ const importStatementTool = fullControlTool({
   description: `Imports a bank statement file (CSV, Excel, OFX/QFX, camt.053) into a bank account. ${ACTS_AS_USER} ${TWO_STEP} The dry run is the analysis: format, lines to import, exact duplicates (always skipped) and probable duplicates (same day and amount as an existing transaction, skipped unless kept), period, totals, errors. Importing the same file twice creates nothing the second time.`,
   input: importInput,
   permission: { banking: ['reconcile'] },
+  amounts: 'euros',
+  never: 'imports a transaction twice (exact duplicates are skipped) or reconciles the imported lines.',
+  idempotent: true,
   confirmation: true,
   async preview({ companyId, bankAccountId, fileName, contentBase64, options, keep }) {
     const analysis = await analyzeStatement({

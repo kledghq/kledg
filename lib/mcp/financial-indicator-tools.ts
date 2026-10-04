@@ -11,6 +11,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { CompanyGuard } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
+import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
 import { getFinancialIndicators } from '@/lib/reports/financial-indicators/get-financial-indicators.service'
 import type { FinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 import { fromCents } from '@/lib/utils/money'
@@ -42,14 +43,20 @@ const ratiosOf = (i: FinancialIndicators) => ({
 })
 
 export function registerFinancialIndicatorTools(server: McpServer, guard: CompanyGuard) {
-  const readOnly = { readOnlyHint: true, openWorldHint: false } as const
+  const readOnly = READ_ONLY
 
   server.registerTool(
     'get_sig',
     {
       title: 'Soldes intermédiaires de gestion',
-      description:
-        "Returns the soldes intermédiaires de gestion (SIG) of a fiscal year and of the previous one, from the validated entries (closing entries excluded, like the income statement), per the PCG account mapping and the lines of cerfa 2052-SD/2053-SD: marge commerciale, production de l'exercice, valeur ajoutée, excédent brut d'exploitation (EBE), résultat d'exploitation, résultat courant avant impôts, résultat exceptionnel, résultat de l'exercice (equal to the income statement result), plus-values de cession, and the capacité d'autofinancement (CAF, additive method, checked against the subtractive method). Amounts in euros.",
+      description: describeTool({
+        summary:
+          "Returns the soldes intermédiaires de gestion (SIG) of a fiscal year and of the previous one, from the validated entries (closing entries excluded, like the income statement), per the PCG account mapping and the lines of cerfa 2052-SD/2053-SD: marge commerciale, production de l'exercice, valeur ajoutée, excédent brut d'exploitation (EBE), résultat d'exploitation, résultat courant avant impôts, résultat exceptionnel, résultat de l'exercice (equal to the income statement result), plus-values de cession, and the capacité d'autofinancement (CAF, additive method, checked against the subtractive method).",
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: input,
       annotations: readOnly,
     },
@@ -69,8 +76,15 @@ export function registerFinancialIndicatorTools(server: McpServer, guard: Compan
     'get_financial_ratios',
     {
       title: 'Ratios financiers',
-      description:
-        "Returns the balance sheet indicators and ratios of a fiscal year and of the previous one: besoin en fonds de roulement (stocks + créances clients + autres créances d'exploitation - dettes fournisseurs - dettes fiscales et sociales, from the balance sheet lines), trésorerie nette (placements + disponibilités - concours bancaires), dettes financières, capitaux propres, DSO and DPO in days (receivables and payables including VAT over sales and purchases brought to TTC with the VAT recorded on them, over the days elapsed in the year until asOf), taux de marge, taux de marque, EBE and result over turnover, and ratio d'endettement (dettes financières / capitaux propres). Amounts in euros, ratios as fractions (0.25 = 25 %), null when the denominator is zero or negative.",
+      description: describeTool({
+        summary:
+          "Returns the balance sheet indicators and ratios of a fiscal year and of the previous one: besoin en fonds de roulement (stocks + créances clients + autres créances d'exploitation - dettes fournisseurs - dettes fiscales et sociales, from the balance sheet lines), trésorerie nette (placements + disponibilités - concours bancaires), dettes financières, capitaux propres, DSO and DPO in days (receivables and payables including VAT over sales and purchases brought to TTC with the VAT recorded on them, over the days elapsed in the year until asOf), taux de marge, taux de marque, EBE and result over turnover, and ratio d'endettement (dettes financières / capitaux propres).",
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        units: 'Ratios as fractions (0.25 = 25 %), null when the denominator is zero or negative; DSO and DPO in days.',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: input,
       annotations: readOnly,
     },

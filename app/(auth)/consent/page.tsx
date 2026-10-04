@@ -37,7 +37,7 @@ const SCOPE_LABELS: Record<string, string> = {
   email: 'Voir votre adresse email',
   offline_access: 'Rester connecté sans vous redemander votre accord',
   [READ_SCOPE]: 'Consulter votre comptabilité : sociétés, comptes, écritures, états, transactions, échéances',
-  [WRITE_SCOPE]: 'Proposer des écritures en brouillon, que vous validerez vous-même',
+  [WRITE_SCOPE]: 'Préparer des brouillons (écritures, notes de frais, budget, provisions), que vous vérifierez vous-même',
   [ADMIN_SCOPE]: 'Agir comme vous : valider, rapprocher, importer, clôturer, dans la limite de vos droits',
 }
 
@@ -173,7 +173,7 @@ function ConsentForm() {
     level === 'admin'
       ? ' et agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice...'
       : level === 'write'
-        ? ' et proposer des écritures en brouillon, que vous validerez vous-même.'
+        ? " et préparer des brouillons (écritures, notes de frais, budget, provisions, données de l'approbation des comptes), que vous vérifierez vous-même dans Kledg."
         : ", sans pouvoir proposer d'écritures."
 
   return (

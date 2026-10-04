@@ -1,16 +1,16 @@
 /**
- * Full control tool on expense reports: create a draft report (brouillon)
- * from receipts. A thin wrapper over
- * lib/expense-reports/manage-expense-reports.service.ts: amounts computed
- * by Kledg in cents, recoverable VAT by the rules of
- * lib/expense-reports/vat-recovery.ts, mileage by the official scale of the
- * year, receipts that are attachments of the company, the claimant chosen
- * by the user's role (their own report unless they validate reports).
- * Follows the connection's execution mode (approval in Kledg or automatic):
- * the dry run shows the totals and the recoverable VAT of each line.
+ * Draft-level tool of expense reports: create_draft_expense_report records
+ * a draft report (brouillon) from receipts and trips, for the connected
+ * user or, for a user who validates reports, for another claimant. A thin
+ * wrapper over lib/expense-reports/manage-expense-reports.service.ts, with
+ * the right of POST /api/expense-reports (expenses:submit): amounts
+ * computed by Kledg in cents, recoverable VAT by the rules of
+ * lib/expense-reports/vat-recovery.ts, mileage by the official scale of
+ * the year, receipts that are attachments of the company, the claimant
+ * chosen by the user's role (lib/expense-reports/actor.ts).
  *
  * The report stays a brouillon: submitting, validating and posting it are
- * done by people in Kledg.
+ * done by people in Kledg. dryRun: true returns the totals without writing.
  */
 
 import { z } from 'zod'
@@ -25,12 +25,13 @@ import { createExpenseReport, type ExpenseLineBody } from '@/lib/expense-reports
 import { RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
 import { rateToBasisPoints } from '@/lib/invoices/amounts'
 import { fromCents, toCents } from '@/lib/utils/money'
-import { fullControlTool, type RegisterTool } from './define'
-import { ACTS_AS_USER, TWO_STEP } from './descriptions'
+import { kledgPageUrl } from '@/lib/mcp/tool-meta'
+import { draftTool, type RegisterDraftTool } from './define'
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
 
 const input = {
+  dryRun: z.boolean().default(false).describe('true: only return the totals and the recoverable VAT per line, nothing is recorded.'),
   claimant: z
     .string()
     .max(64)
@@ -75,7 +76,7 @@ const input = {
     .default([]),
 }
 
-type Args = z.infer<z.ZodObject<typeof input>> & { companyId: string }
+type Args = Omit<z.infer<z.ZodObject<typeof input>>, 'dryRun'> & { companyId: string }
 
 async function resolveClaimant(companyId: string, ref: string | undefined): Promise<string | undefined> {
   if (!ref) return undefined
@@ -129,51 +130,66 @@ function linesOf(args: Args): ExpenseLineBody[] {
   return lines
 }
 
-const createDraftExpenseReportTool = fullControlTool({
+async function previewOf(args: Args) {
+  const lines = linesOf(args)
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: args.companyId }, select: { isVatExempt: true } })
+  const { rules } = await listCategoryRules(args.companyId)
+  const inputs = assignPriorDistances(
+    lines.map<LineInput>((l) => ({
+      kind: l.kind,
+      date: l.date,
+      category: l.kind === 'MILEAGE' ? 'MILEAGE' : (l.category ?? matchCategoryRule(rules, l)?.category ?? 'OTHER'),
+      amountInclTaxCents: l.amountInclTaxCents,
+      vatRateBp: l.vatRateBp,
+      vatCents: l.vatCents ?? null,
+      receiptKind: l.receiptKind,
+      vehicleType: l.vehicleType ?? null,
+      fiscalPower: l.fiscalPower ?? null,
+      electric: l.electric,
+      distanceKm: l.distanceKm ?? null,
+    })),
+    {},
+  )
+  const totals = computeReport(inputs, { vatExempt: company.isVatExempt })
+  return {
+    periodStart: args.periodStart,
+    periodEnd: args.periodEnd,
+    totalOwed: fromCents(totals.totalInclTaxCents),
+    recoverableVat: fromCents(totals.recoverableVatCents),
+    charges: fromCents(totals.totalExpenseCents),
+    lines: totals.lines.map((l, i) => ({
+      label: lines[i].label,
+      category: inputs[i].category,
+      amount: fromCents(l.amountInclTaxCents),
+      recoverableVat: fromCents(l.recoverableVatCents),
+      recovery: RECOVERY_LABELS[l.reason],
+      problem: l.error,
+    })),
+  }
+}
+
+const createDraftExpenseReportTool = draftTool({
   name: 'create_draft_expense_report',
   title: 'Préparer une note de frais',
-  description: `Records an expense report (note de frais) in Kledg as a draft (brouillon) from receipts: expenses with the amount paid and the VAT shown, and mileage trips paid by the official scale of their year (no VAT). Kledg computes the recoverable VAT of each line (none on passenger transport or staff lodging, CGI ann. II art. 206, IV, 2; 80 % on fuel; only with an invoice in the company name, or a ticket of 150 € HT at most). The report stays a draft: the person submits it and a validator validates and posts it in Kledg. ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the totals and the VAT recovered per line (the mileage amounts of the dry run do not count the claimant's earlier trips of the year; the recorded report does).`,
+  summary:
+    "Records an expense report (note de frais) in Kledg as a draft (brouillon) from receipts: expenses with the amount paid and the VAT shown, and mileage trips paid by the official scale of their year (no VAT). For the connected user, or for another claimant (id or auxiliary number from list_expense_claimants) when the user validates reports. Kledg computes the recoverable VAT of each line (none on passenger transport or staff lodging, CGI ann. II art. 206, IV, 2; 80 % on fuel; only with an invoice in the company name, or a ticket of 150 € HT at most). dryRun: true shows the totals and the VAT recovered per line without recording (its mileage amounts do not count the claimant's earlier trips of the year; the recorded report does).",
+  never: 'submits, validates, posts or reimburses the report: the person submits it and a validator validates and posts it in Kledg.',
+  amounts: 'euros',
+  units: 'VAT rates in percent, distances in km.',
   input,
   permission: { expenses: ['submit'] },
-  confirmation: true,
-  async preview(args) {
-    const lines = linesOf(args)
-    const company = await prisma.company.findUniqueOrThrow({ where: { id: args.companyId }, select: { isVatExempt: true } })
-    const { rules } = await listCategoryRules(args.companyId)
-    const inputs = assignPriorDistances(
-      lines.map<LineInput>((l) => ({
-        kind: l.kind,
-        date: l.date,
-        category: l.kind === 'MILEAGE' ? 'MILEAGE' : (l.category ?? matchCategoryRule(rules, l)?.category ?? 'OTHER'),
-        amountInclTaxCents: l.amountInclTaxCents,
-        vatRateBp: l.vatRateBp,
-        vatCents: l.vatCents ?? null,
-        receiptKind: l.receiptKind,
-        vehicleType: l.vehicleType ?? null,
-        fiscalPower: l.fiscalPower ?? null,
-        electric: l.electric,
-        distanceKm: l.distanceKm ?? null,
-      })),
-      {},
-    )
-    const totals = computeReport(inputs, { vatExempt: company.isVatExempt })
-    return {
-      periodStart: args.periodStart,
-      periodEnd: args.periodEnd,
-      totalOwed: fromCents(totals.totalInclTaxCents),
-      recoverableVat: fromCents(totals.recoverableVatCents),
-      charges: fromCents(totals.totalExpenseCents),
-      lines: totals.lines.map((l, i) => ({
-        label: lines[i].label,
-        category: inputs[i].category,
-        amount: fromCents(l.amountInclTaxCents),
-        recoverableVat: fromCents(l.recoverableVatCents),
-        recovery: RECOVERY_LABELS[l.reason],
-        problem: l.error,
-      })),
+  destructive: false,
+  idempotent: false,
+  async execute({ dryRun, ...args }, ctx) {
+    if (dryRun) {
+      return {
+        dryRun: true,
+        preview: await previewOf(args),
+        changes: 'Aucune\u00a0: aperçu seulement.',
+        reviewUrl: kledgPageUrl(args.companyId, 'expense-reports'),
+        message: "Aperçu seulement\u00a0: rien n'a été enregistré. Rappelez l'outil sans dryRun pour enregistrer la note en brouillon.",
+      }
     }
-  },
-  async execute(args, ctx) {
     const actor = await expenseActorOf(ctx.access.user, args.companyId)
     const report = await createExpenseReport(
       args.companyId,
@@ -187,12 +203,14 @@ const createDraftExpenseReportTool = fullControlTool({
       status: report.status,
       totalOwed: fromCents(report.totalInclTaxCents),
       recoverableVat: fromCents(report.recoverableVatCents),
-      message: 'Note de frais enregistrée en brouillon : soumettez-la dans Kledg pour qu’elle soit validée puis comptabilisée.',
+      changes: { reportCreated: report.id, number: report.number, status: report.status },
+      reviewUrl: kledgPageUrl(args.companyId, `expense-reports/${report.id}`),
+      message: 'Note de frais enregistrée en brouillon\u00a0: soumettez-la dans Kledg pour qu’elle soit validée puis comptabilisée.',
     }
   },
-  audit: (_args, result) => ({ reportId: result.reportId, number: result.number }),
+  audit: (_args, result) => ('reportId' in result ? { reportId: result.reportId, number: result.number } : null),
 })
 
-export function registerExpenseReportTools(register: RegisterTool) {
+export function registerExpenseReportDraftTools(register: RegisterDraftTool) {
   register(createDraftExpenseReportTool)
 }
