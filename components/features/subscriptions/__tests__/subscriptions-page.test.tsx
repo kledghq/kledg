@@ -24,17 +24,18 @@ const detected = detectSubscriptions(
   [
     ...['2026-01-14', '2026-02-14', '2026-03-14'].map((day, i) => ({ id: `p${i}`, day, amountCents: 3_999, side: 'debit' as const, label: null, counterpartyName: 'Telecom Pro' })),
     ...['2026-01-05', '2026-02-05', '2026-03-05'].map((day, i) => ({ id: `s${i}`, day, amountCents: 250_000, side: 'debit' as const, label: null, counterpartyName: 'Virement Epargne' })),
+    ...['2026-01-15', '2026-02-15', '2026-03-16'].map((day, i) => ({ id: `u${i}`, day, amountCents: 260_000, side: 'debit' as const, label: 'PRLV URSSAF', counterpartyName: 'URSSAF' })),
   ],
   { today: '2026-03-20' },
 )
 const view = (id: string, decision: SubscriptionView['decision']): SubscriptionView => {
   const s = detected.subscriptions.find((d) => d.id === id)!
-  return { ...s, decision, suggestedAccountCode: null, lastTransactionId: s.transactionIds[s.transactionIds.length - 1] }
+  return { ...s, decision, countsAsSubscription: s.kind === 'subscription' ? decision?.status !== 'ignored' : decision?.status === 'confirmed', suggestedAccountCode: null, lastTransactionId: s.transactionIds[s.transactionIds.length - 1] }
 }
 const LIST: SubscriptionList = {
   today: '2026-03-20',
   observedUntil: '2026-03-14',
-  items: [view('s0', { id: 'd1', status: 'ignored', budgetLine: null, decidedAt: '2026-03-15T00:00:00.000Z' }), view('p0', null)],
+  items: [view('u0', null), view('s0', { id: 'd1', status: 'ignored', budgetLine: null, decidedAt: '2026-03-15T00:00:00.000Z' }), view('p0', null)],
   totals: { activeCount: 1, activeAnnualizedCents: 47_988 },
 }
 
@@ -67,6 +68,20 @@ describe('SubscriptionsPage', () => {
 
     await user.click(screen.getByRole('tab', { name: /Ignorés/ }))
     expect(within(screen.getByRole('table')).getByText('Virement Epargne')).toBeInTheDocument()
+  })
+
+  it('keeps salaries, social charges and taxes in their own tab, out of the subscriptions to process', async () => {
+    const user = userEvent.setup()
+    render(<SubscriptionsPage companyId="acme" />)
+    const table = await screen.findByRole('table')
+    expect(within(table).queryByText('URSSAF')).toBeNull()
+
+    await user.click(screen.getByRole('tab', { name: /Charges récurrentes/ }))
+    const charges = screen.getByRole('table')
+    expect(within(charges).getByText('URSSAF')).toBeInTheDocument()
+    expect(plain(within(charges).getAllByRole('row')[1].textContent)).toContain('charge récurrente : organismes sociaux (libellé)')
+    await user.click(within(charges).getByRole('button', { name: 'Actions sur URSSAF' }))
+    expect(await screen.findByRole('menuitem', { name: 'Compter comme abonnement' })).toBeInTheDocument()
   })
 
   it('sends a decision with the subscription id only', async () => {

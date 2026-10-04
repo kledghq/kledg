@@ -30,6 +30,15 @@
  *    at the last day the bank lines cover (not today: lines imported
  *    monthly would make everything look overdue); price changed when the
  *    amount moved once and the new amount has been paid at most three times.
+ * 6. Kind: salaries, social charges, taxes, associates' current accounts and
+ *    loan repayments recur but are not subscriptions. They are reported as
+ *    recurring charges (kind `recurring_charge`), never dropped, so a user
+ *    still sees them and can count one as a subscription. The account a
+ *    reconciled payment was booked to decides (`ledgerClass`, given by the
+ *    caller from the reconciliation entry, latest classified payment
+ *    first); a series without any reconciled payment falls back on a
+ *    conservative list of French payroll and tax payees in the counterparty
+ *    or label (`recurringChargeOfText`).
  */
 
 export const SUBSCRIPTION_CADENCES = ['weekly', 'monthly', 'quarterly', 'yearly'] as const
@@ -60,6 +69,74 @@ export interface BankLine {
   side: 'debit' | 'credit'
   label: string | null
   counterpartyName: string | null
+  /**
+   * What the entry this line is reconciled with books it to: a reason when
+   * its counterpart account is not a subscription (ledgerChargeReason),
+   * 'other' for any other account (rent, insurance, a supplier), null or
+   * absent when the line is not reconciled.
+   */
+  ledgerClass?: ChargeReason | 'other' | null
+}
+
+/** Why a recurring debit is not a subscription. */
+export type ChargeReason = 'personnel' | 'social' | 'state' | 'associates' | 'loans'
+
+export const CHARGE_REASON_LABELS: Record<ChargeReason, string> = {
+  personnel: 'Personnel',
+  social: 'Organismes sociaux',
+  state: 'État, impôts et taxes',
+  associates: "Comptes courants d'associés",
+  loans: 'Emprunts',
+}
+
+export type SubscriptionKind = 'subscription' | 'recurring_charge'
+
+/**
+ * Accounts whose payments recur without being subscriptions (PCG art.
+ * 932-1, classes 1 and 4): 16 emprunts et dettes assimilées, 42 personnel,
+ * 43 sécurité sociale et autres organismes sociaux, 44 État et autres
+ * collectivités publiques, 455 associés, comptes courants. Longest prefix
+ * first is not needed: they do not overlap.
+ */
+const LEDGER_CHARGE_PREFIXES: ReadonlyArray<readonly [string, ChargeReason]> = [
+  ['16', 'loans'],
+  ['42', 'personnel'],
+  ['43', 'social'],
+  ['44', 'state'],
+  ['455', 'associates'],
+]
+
+/** The reason an account is not a subscription's, or 'other' (rent 613, insurance 616, a supplier 401...). */
+export function ledgerChargeReason(accountCode: string): ChargeReason | 'other' {
+  return LEDGER_CHARGE_PREFIXES.find(([prefix]) => accountCode.startsWith(prefix))?.[1] ?? 'other'
+}
+
+/**
+ * Payees of salaries, social charges and taxes in French bank labels, as
+ * whole words of the normalized text. Conservative on purpose: names that
+ * are also insurers or software vendors (complementary health insurance,
+ * provident funds, "paie") are left out, the user can ignore those.
+ */
+const CHARGE_PAYEES: ReadonlyArray<readonly [string, ChargeReason]> = [
+  ['SALAIRE', 'personnel'],
+  ['SALAIRES', 'personnel'],
+  ['URSSAF', 'social'],
+  ['AGIRC', 'social'],
+  ['ARRCO', 'social'],
+  ['RETRAITE COMPLEMENTAIRE', 'social'],
+  ['POLE EMPLOI', 'social'],
+  ['FRANCE TRAVAIL', 'social'],
+  ['DGFIP', 'state'],
+  ['IMPOTS', 'state'],
+  ['IMPOT', 'state'],
+  ['TRESOR PUBLIC', 'state'],
+  ['FINANCES PUBLIQUES', 'state'],
+]
+
+/** The reason a counterparty or label names a payroll, social or tax payee, or null. */
+export function recurringChargeOfText(counterpartyName: string | null, label: string | null): ChargeReason | null {
+  const text = ` ${words(`${counterpartyName ?? ''} ${label ?? ''}`).join(' ')} `
+  return CHARGE_PAYEES.find(([payee]) => text.includes(` ${payee} `))?.[1] ?? null
 }
 
 export interface PriceChange {
@@ -91,6 +168,12 @@ export interface DetectedSubscription {
   priceChange: PriceChange | null
   /** The amount moved more than once (an energy bill, a usage based plan). */
   variableAmount: boolean
+  /** A subscription, or a recurring charge that is not one (salary, social charges, taxes, loan). */
+  kind: SubscriptionKind
+  /** Why it is a recurring charge, null for a subscription. */
+  chargeReason: ChargeReason | null
+  /** What told: the account of a reconciled payment, the counterparty or label, or nothing (a subscription by default). */
+  classifiedBy: 'ledger' | 'label' | null
   /** Payments of the series, oldest first. */
   transactionIds: string[]
 }
@@ -336,6 +419,18 @@ function medianOfLastThree(amounts: readonly number[]): number {
   return [...last].sort((a, b) => a - b)[1]
 }
 
+/** Kind of a series: the latest payment whose account is known decides, else the payees of the labels. */
+function classify(series: readonly KeyedLine[]): Pick<DetectedSubscription, 'kind' | 'chargeReason' | 'classifiedBy'> {
+  const booked = [...series].reverse().find((l) => l.ledgerClass)
+  if (booked?.ledgerClass) {
+    return booked.ledgerClass === 'other'
+      ? { kind: 'subscription', chargeReason: null, classifiedBy: 'ledger' }
+      : { kind: 'recurring_charge', chargeReason: booked.ledgerClass, classifiedBy: 'ledger' }
+  }
+  const reason = [...series].reverse().map((l) => recurringChargeOfText(l.counterpartyName, l.label)).find(Boolean)
+  return reason ? { kind: 'recurring_charge', chargeReason: reason, classifiedBy: 'label' } : { kind: 'subscription', chargeReason: null, classifiedBy: null }
+}
+
 function describe(series: readonly KeyedLine[], cadence: SubscriptionCadence, missed: number, observedUntil: string): DetectedSubscription {
   const rule = CADENCES[cadence]
   const amounts = series.map((l) => l.amountCents)
@@ -367,6 +462,7 @@ function describe(series: readonly KeyedLine[], cadence: SubscriptionCadence, mi
     status: overdue ? 'possibly_stopped' : recentChange ? 'price_changed' : 'active',
     priceChange,
     variableAmount: runs.length > 2,
+    ...classify(series),
     transactionIds: series.map((l) => l.id),
   }
 }

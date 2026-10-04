@@ -14,18 +14,20 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Amount, EmptyState, PageHeader, StatCard, StatusBadge, formatAmount, formatDisplayDate, type StatusTone } from '@/components/shared'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { responseError } from '@/hooks/use-cursor-list'
-import { CADENCE_LABELS, STATUS_LABELS, type SubscriptionStatus } from '@/lib/subscriptions/detect'
+import { CADENCE_LABELS, CHARGE_REASON_LABELS, STATUS_LABELS, type SubscriptionStatus } from '@/lib/subscriptions/detect'
 import type { SubscriptionList, SubscriptionView } from '@/lib/subscriptions/detect-subscriptions.service'
 import { AddToBudgetDialog } from './add-to-budget-dialog'
 
-type Filter = 'todo' | 'confirmed' | 'ignored' | 'all'
+type Filter = 'todo' | 'confirmed' | 'charges' | 'ignored' | 'all'
 type Decision = 'confirmed' | 'ignored' | 'pending'
 
 const STATUS_TONES: Record<SubscriptionStatus, StatusTone> = { active: 'success', price_changed: 'warning', possibly_stopped: 'neutral' }
 
 const FILTERS: Array<{ value: Filter; label: string; matches: (s: SubscriptionView) => boolean }> = [
-  { value: 'todo', label: 'À traiter', matches: (s) => s.decision === null },
-  { value: 'confirmed', label: 'Confirmés', matches: (s) => s.decision?.status === 'confirmed' },
+  { value: 'todo', label: 'À traiter', matches: (s) => s.countsAsSubscription && s.decision === null },
+  { value: 'confirmed', label: 'Confirmés', matches: (s) => s.countsAsSubscription && s.decision?.status === 'confirmed' },
+  // Salaries, social charges, taxes, loans: recurring, but not in the subscriptions nor their yearly cost
+  { value: 'charges', label: 'Charges récurrentes', matches: (s) => !s.countsAsSubscription && s.decision?.status !== 'ignored' },
   { value: 'ignored', label: 'Ignorés', matches: (s) => s.decision?.status === 'ignored' },
   { value: 'all', label: 'Tous', matches: () => true },
 ]
@@ -37,6 +39,9 @@ const day = (value: string) => formatDisplayDate(value, 'short')
 /** One line of context under the counterparty: rhythm, history, price change, budget. */
 function details(s: SubscriptionView): string {
   const parts = [`${CADENCE_LABELS[s.cadence]}, ${s.occurrences} paiements depuis le ${day(s.firstDay)}`]
+  if (s.chargeReason) {
+    parts.push(`charge récurrente : ${CHARGE_REASON_LABELS[s.chargeReason].toLowerCase()} (${s.classifiedBy === 'ledger' ? 'compte du rapprochement' : 'libellé'})`)
+  }
   if (s.missedPayments > 0) parts.push(`${s.missedPayments} manqué${s.missedPayments > 1 ? 's' : ''}`)
   if (s.priceChange) {
     parts.push(`passé de ${formatAmount(s.priceChange.previousAmountCents / 100)} à ${formatAmount(s.priceChange.newAmountCents / 100)} le ${day(s.priceChange.sinceDay)}`)
@@ -125,7 +130,7 @@ export function SubscriptionsPage({ companyId }: { companyId: string }) {
       entries.push(
         <DropdownMenuItem key="confirm" onSelect={() => decide(s, 'confirmed')}>
           <Check aria-hidden />
-          Confirmer
+          {s.kind === 'recurring_charge' ? 'Compter comme abonnement' : 'Confirmer'}
         </DropdownMenuItem>,
       )
     }
@@ -181,9 +186,11 @@ export function SubscriptionsPage({ companyId }: { companyId: string }) {
       ? 'Rien à traiter : chaque abonnement détecté a une décision.'
       : filter === 'confirmed'
         ? 'Aucun abonnement confirmé.'
-        : filter === 'ignored'
-          ? 'Aucun abonnement ignoré.'
-          : 'Aucun abonnement détecté.'
+        : filter === 'charges'
+          ? 'Aucune charge récurrente hors abonnements (salaires, cotisations sociales, impôts, emprunts).'
+          : filter === 'ignored'
+            ? 'Aucun abonnement ignoré.'
+            : 'Aucun abonnement détecté.'
 
   return (
     <div className="space-y-6">
@@ -228,7 +235,7 @@ export function SubscriptionsPage({ companyId }: { companyId: string }) {
       ) : data ? (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard label="Abonnements actifs" value={<span className="num">{data.totals.activeCount}</span>} hint="Hors ignorés et peut-être arrêtés" />
+            <StatCard label="Abonnements actifs" value={<span className="num">{data.totals.activeCount}</span>} hint="Hors salaires, charges sociales, impôts et emprunts" />
             <StatCard label="Coût annuel" value={<Amount value={data.totals.activeAnnualizedCents / 100} />} hint="Montant actuel multiplié par le rythme" />
             <StatCard
               label="Opérations lues jusqu'au"
@@ -249,6 +256,13 @@ export function SubscriptionsPage({ companyId }: { companyId: string }) {
                 </TabsList>
               </Tabs>
 
+              {filter === 'charges' ? (
+                <p className="text-muted-foreground max-w-prose text-sm">
+                  Salaires, cotisations sociales, impôts et remboursements d&apos;emprunt reviennent eux aussi, mais ce ne sont pas des abonnements&nbsp;: ils ne
+                  comptent pas dans le coût annuel. Kledg les reconnaît au compte de l&apos;écriture rapprochée, sinon au libellé. «&nbsp;Compter comme
+                  abonnement&nbsp;» corrige une erreur.
+                </p>
+              ) : null}
               {shown.length === 0 ? (
                 <p className="text-muted-foreground py-6 text-sm">{emptyMessage}</p>
               ) : (

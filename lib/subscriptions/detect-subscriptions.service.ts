@@ -4,6 +4,16 @@
  * decision a user took about it and the class 6 account of its latest
  * reconciled payment, to suggest a budget line.
  *
+ * A payment reconciled with an entry (bank_transactions.reconciledWith, set
+ * by lib/reconciliation/service.ts) is classified by the counterpart of the
+ * bank line in that entry: the account debited with the largest amount
+ * outside class 5. Salaries (42), social bodies (43), the State (44),
+ * associates (455) and loans (16) make the series a recurring charge, not a
+ * subscription; any other account (rent 613, insurance 616, a supplier)
+ * makes it a subscription. Detection runs once to find the series, the
+ * entries of their payments are read, then it runs again with the classes:
+ * grouping never depends on them, so the series are the same.
+ *
  * Detection runs at each read and is never stored: it depends on lines that
  * a sync, an import or a deletion change at any time, and it reads a few
  * thousand rows at most. Only decisions are stored (subscription_decisions).
@@ -19,7 +29,7 @@ import { transactionOfCompany } from '@/lib/api/resources'
 import { normalizeSide } from '@/lib/reconciliation/service'
 import { addIsoDays, calendarDayOf, isoDateToUtc, todayUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { toCents } from '@/lib/utils/money'
-import { detectSubscriptions, matchDecisions, type BankLine, type DetectedSubscription, type SubscriptionCadence } from './detect'
+import { detectSubscriptions, ledgerChargeReason, matchDecisions, type BankLine, type DetectedSubscription, type SubscriptionCadence } from './detect'
 
 export const SUBSCRIPTION_NOT_FOUND = 'Abonnement introuvable : actualisez la page, les opérations bancaires ont pu changer.'
 
@@ -41,6 +51,11 @@ export interface SubscriptionDecisionView {
 
 export interface SubscriptionView extends DetectedSubscription {
   decision: SubscriptionDecisionView | null
+  /**
+   * Counted among the subscriptions (page, totals): a subscription not
+   * ignored, or a recurring charge a user confirmed as a subscription.
+   */
+  countsAsSubscription: boolean
   /** Class 6 account of the latest payment reconciled with an entry, to pick a budget line. */
   suggestedAccountCode: string | null
   /** Latest payment, to prefill an assignment rule (règle d'affectation). */
@@ -52,7 +67,7 @@ export interface SubscriptionList {
   /** Last day the bank lines cover: an overdue payment is judged at that day. */
   observedUntil: string | null
   items: SubscriptionView[]
-  /** Subscriptions neither ignored nor possibly stopped, and their yearly cost. */
+  /** Subscriptions counted as such, neither ignored nor possibly stopped, and their yearly cost (recurring charges left out). */
   totals: { activeCount: number; activeAnnualizedCents: number }
 }
 
@@ -106,22 +121,31 @@ async function loadBankLines(companyId: string, today: string) {
   return { lines, entryOf }
 }
 
-/** Class 6 account debited by each entry (the largest debit), for the entries given. */
-async function chargeAccountOfEntries(companyId: string, entryIds: string[]): Promise<Map<string, string>> {
+interface EntryAccounts {
+  /** Counterpart of the bank line: the account debited with the largest amount outside class 5. */
+  counterpart: string | null
+  /** Class 6 account debited with the largest amount, to suggest a budget line. */
+  charge: string | null
+}
+
+/** Accounts debited by each entry of the company, for the entries given. */
+async function accountsOfEntries(companyId: string, entryIds: string[]): Promise<Map<string, EntryAccounts>> {
   if (entryIds.length === 0) return new Map()
   const lines = await prisma.entryLine.findMany({
-    where: { accountingEntryId: { in: entryIds }, accountingEntry: { companyId }, account: { code: { startsWith: '6' } }, debit: { gt: 0 } },
+    where: { accountingEntryId: { in: entryIds }, accountingEntry: { companyId }, debit: { gt: 0 }, NOT: { account: { code: { startsWith: '5' } } } },
     select: { accountingEntryId: true, debit: true, account: { select: { code: true } } },
   })
-  const best = new Map<string, { code: string; cents: number }>()
+  const largest = (current: { code: string; cents: number } | undefined, code: string, cents: number) =>
+    !current || cents > current.cents || (cents === current.cents && code < current.code) ? { code, cents } : current
+  const counterpart = new Map<string, { code: string; cents: number }>()
+  const charge = new Map<string, { code: string; cents: number }>()
   for (const line of lines) {
     const cents = toCents(line.debit) ?? 0
-    const current = best.get(line.accountingEntryId)
-    if (!current || cents > current.cents || (cents === current.cents && line.account.code < current.code)) {
-      best.set(line.accountingEntryId, { code: line.account.code, cents })
-    }
+    const code = line.account.code
+    counterpart.set(line.accountingEntryId, largest(counterpart.get(line.accountingEntryId), code, cents))
+    if (code.startsWith('6')) charge.set(line.accountingEntryId, largest(charge.get(line.accountingEntryId), code, cents))
   }
-  return new Map([...best].map(([entryId, { code }]) => [entryId, code]))
+  return new Map(entryIds.map((id) => [id, { counterpart: counterpart.get(id)?.code ?? null, charge: charge.get(id)?.code ?? null }]))
 }
 
 /**
@@ -135,7 +159,15 @@ export async function listDetectedSubscriptions(companyId: string, options: { to
     loadBankLines(companyId, today),
     prisma.subscriptionDecision.findMany({ where: { companyId }, select: DECISION_SELECT, orderBy: { id: 'asc' } }),
   ])
-  const { observedUntil, subscriptions } = detectSubscriptions(lines, { today })
+  // First pass: the series; then the entries of their reconciled payments; second pass with the account classes
+  const firstPass = detectSubscriptions(lines, { today })
+  const entryIds = new Set(firstPass.subscriptions.flatMap((s) => s.transactionIds.map((id) => entryOf.get(id)).filter((id): id is string => !!id)))
+  const accountsOfEntry = await accountsOfEntries(companyId, [...entryIds])
+  const classified = lines.map((line) => {
+    const counterpart = accountsOfEntry.get(entryOf.get(line.id) ?? '')?.counterpart
+    return counterpart ? { ...line, ledgerClass: ledgerChargeReason(counterpart) } : line
+  })
+  const { observedUntil, subscriptions } = detectSubscriptions(classified, { today })
 
   const matched = matchDecisions(
     subscriptions,
@@ -143,24 +175,20 @@ export async function listDetectedSubscriptions(companyId: string, options: { to
   )
   const decisionById = new Map(decisions.map((d) => [d.id, d]))
 
-  const latestEntries = subscriptions.flatMap((s) => {
-    const entry = [...s.transactionIds].reverse().map((id) => entryOf.get(id)).find(Boolean)
-    return entry ? [entry] : []
-  })
-  const accountOfEntry = await chargeAccountOfEntries(companyId, [...new Set(latestEntries)])
-
   const items = subscriptions.map((s): SubscriptionView => {
     const decisionId = matched.get(s.id)
     const decision = decisionId ? decisionById.get(decisionId) : undefined
-    const reconciled = [...s.transactionIds].reverse().map((id) => entryOf.get(id)).find(Boolean)
+    const charge = [...s.transactionIds].reverse().map((id) => accountsOfEntry.get(entryOf.get(id) ?? '')?.charge).find(Boolean)
+    const view = decision ? decisionView(decision) : null
     return {
       ...s,
-      decision: decision ? decisionView(decision) : null,
-      suggestedAccountCode: reconciled ? (accountOfEntry.get(reconciled) ?? null) : null,
+      decision: view,
+      countsAsSubscription: s.kind === 'subscription' ? view?.status !== 'ignored' : view?.status === 'confirmed',
+      suggestedAccountCode: charge ?? null,
       lastTransactionId: s.transactionIds[s.transactionIds.length - 1],
     }
   })
-  const active = items.filter((s) => s.decision?.status !== 'ignored' && s.status !== 'possibly_stopped')
+  const active = items.filter((s) => s.countsAsSubscription && s.status !== 'possibly_stopped')
   return {
     today,
     observedUntil,

@@ -130,6 +130,60 @@ describe.skipIf(!available)('subscriptions (PostgreSQL)', () => {
     expect(forB.items[0].transactionIds.some((id) => rows.some((r) => r.id === id))).toBe(false)
   })
 
+  it('keeps salaries, social charges and taxes out of the subscriptions, by the reconciled entry or the label', async () => {
+    for (const [code, label] of [['421000', 'Personnel, rémunérations dues'], ['613200', 'Locations immobilières']]) {
+      books.accounts[code] = (await prisma.account.create({ data: { companyId: books.companyId, fiscalYearId: books.fiscalYearId, code, label } })).id
+    }
+    /** Monthly debits of company A, the latest one reconciled with a validated entry debiting `account` (with VAT on rent). */
+    async function series(name: string, label: string | null, amount: number, account?: string) {
+      const rows = []
+      for (const month of ['01', '02', '03', '04']) {
+        seq += 1
+        rows.push(
+          await prisma.bankTransaction.create({
+            data: { bankAccountId, externalTransactionId: `kind-${seq}`, date: new Date(`2026-${month}-05T00:00:00Z`), amount, side: 'debit', label, counterpartyName: name },
+          }),
+        )
+      }
+      if (account) {
+        const vat = account === '613200' ? Math.round(amount * 100 / 6) / 100 : 0
+        const entry = await svc.createEntry({
+          companyId: books.companyId,
+          journalId: books.journals.BQ,
+          date: '2026-04-05',
+          description: name,
+          status: 'validated',
+          lines: [
+            { accountId: books.accounts[account], debit: String(Math.round((amount - vat) * 100) / 100), credit: '0' },
+            ...(vat ? [{ accountId: books.accounts['445660'], debit: String(vat), credit: '0' }] : []),
+            { accountId: books.accounts['512000'], debit: '0', credit: String(amount) },
+          ],
+        })
+        await prisma.bankTransaction.update({ where: { id: rows[3].id }, data: { reconciled: true, reconciledWith: entry.id } })
+      }
+      return rows
+    }
+    const salary = await series('Président', 'VIR MENSUEL', 3_120, '421000')
+    const urssaf = await series('URSSAF', 'PRLV SEPA URSSAF', 2_600)
+    // The label mentions taxes, the entry says rent: a subscription
+    const rent = await series('SCI Bureaux', 'LOYER ET IMPOTS FONCIERS', 1_200, '613200')
+
+    const list = await detect.listDetectedSubscriptions(books.companyId, { today: TODAY })
+    const byId = (id: string) => list.items.find((s) => s.id === id)!
+    expect(byId(salary[0].id)).toMatchObject({ kind: 'recurring_charge', chargeReason: 'personnel', classifiedBy: 'ledger', countsAsSubscription: false })
+    expect(byId(urssaf[0].id)).toMatchObject({ kind: 'recurring_charge', chargeReason: 'social', classifiedBy: 'label', countsAsSubscription: false })
+    expect(byId(rent[0].id)).toMatchObject({ kind: 'subscription', classifiedBy: 'ledger', countsAsSubscription: true, suggestedAccountCode: '613200' })
+    // Only the rent counts in the yearly cost
+    expect(list.totals).toEqual({ activeCount: 1, activeAnnualizedCents: 1_440_000 })
+
+    // A user may count a recurring charge as a subscription, and take it back
+    const counted = await decide.decideSubscription(books.companyId, { subscriptionId: urssaf[0].id, status: 'confirmed' }, { today: TODAY })
+    expect(counted).toMatchObject({ kind: 'recurring_charge', countsAsSubscription: true })
+    expect((await detect.listDetectedSubscriptions(books.companyId, { today: TODAY })).totals).toEqual({ activeCount: 2, activeAnnualizedCents: 1_440_000 + 3_120_000 })
+    await decide.decideSubscription(books.companyId, { subscriptionId: urssaf[0].id, status: 'pending' }, { today: TODAY })
+    expect((await detect.listDetectedSubscriptions(books.companyId, { today: TODAY })).totals.activeCount).toBe(1)
+  })
+
   it('keeps a decision through a price increase, and never writes two decisions for one series', async () => {
     const rows = await phonePlan()
     const confirmed = await decide.decideSubscription(books.companyId, { subscriptionId: rows[0].id, status: 'confirmed' }, { today: TODAY })
