@@ -1,0 +1,207 @@
+/**
+ * Automatic bank reconciliation against PostgreSQL
+ * (lib/services/banking/reconciliation-service.ts, skipped without the test
+ * database server): a bank line of an entry (class 51, PCG art. 932-1)
+ * matches a transaction of the same amount to the cent, on the opposite side,
+ * within one calendar day; one entry reconciles one transaction, a
+ * transaction whose entry was deleted is released, and a second run links
+ * nothing twice.
+ */
+
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+await vi.hoisted(async () => {
+  const { useTestDatabase } = await import('@/lib/__tests__/helpers/test-db')
+  useTestDatabase('cov_auto_reconcile')
+})
+
+import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+
+const available = await testDatabaseAvailable()
+
+let prisma: typeof import('@/lib/prisma').prisma
+let svc: typeof import('@/lib/services/banking/reconciliation-service')
+let createEntry: typeof import('@/lib/accounting/services/entry-lifecycle.service').createEntry
+
+const ids = {} as Record<string, string>
+let counter = 0
+const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
+
+async function seed() {
+  await prepareTestDatabase('cov_auto_reconcile')
+  counter = 0
+  const company = await prisma.company.create({ data: { name: 'Atelier', slug: 'atelier', siren: '123456789' } })
+  const fy = await prisma.fiscalYear.create({ data: { companyId: company.id, year: 2025, startDate: day('2025-01-01'), endDate: day('2025-12-31') } })
+  const bq = await prisma.journal.create({ data: { companyId: company.id, code: 'BQ', label: 'Banque' } })
+  const od = await prisma.journal.create({ data: { companyId: company.id, code: 'OD', label: 'OD' } })
+  const account = async (code: string) => (await prisma.account.create({ data: { companyId: company.id, fiscalYearId: fy.id, code, label: code } })).id
+  const connection = await prisma.bankConnection.create({ data: { companyId: company.id, login: 'login', secretKeyEncrypted: 'encrypted' } })
+  const bankAccount = await prisma.bankAccount.create({ data: { bankConnectionId: connection.id, externalAccountId: 'ext', name: 'Compte courant' } })
+  Object.assign(ids, {
+    company: company.id,
+    bq: bq.id,
+    od: od.id,
+    bank: await account('512000'),
+    client: await account('411000'),
+    supplier: await account('401000'),
+    bankAccount: bankAccount.id,
+  })
+}
+
+async function transaction(amount: string, side: 'debit' | 'credit', date: string, extra: Record<string, unknown> = {}) {
+  counter += 1
+  return (
+    await prisma.bankTransaction.create({
+      data: { bankAccountId: ids.bankAccount, externalTransactionId: `t-${counter}`, amount, side, date: day(date), label: `Opération ${counter}`, ...extra },
+    })
+  ).id
+}
+
+/** Money in: 512 debit / 411 credit. Money out: 401 debit / 512 credit. */
+async function entry(direction: 'in' | 'out', amount: string, date: string, journalId = ids.bq) {
+  const lines =
+    direction === 'in'
+      ? [
+          { accountId: ids.bank, debit: amount, credit: 0 },
+          { accountId: ids.client, debit: 0, credit: amount },
+        ]
+      : [
+          { accountId: ids.supplier, debit: amount, credit: 0 },
+          { accountId: ids.bank, debit: 0, credit: amount },
+        ]
+  return (await createEntry({ companyId: ids.company, journalId, date, description: `${direction} ${amount}`, status: 'validated', lines })).id
+}
+
+const reconciledWith = async (transactionId: string) =>
+  (await prisma.bankTransaction.findUniqueOrThrow({ where: { id: transactionId }, select: { reconciledWith: true } })).reconciledWith
+
+describe.skipIf(!available)('automatic bank reconciliation (PostgreSQL)', () => {
+  beforeAll(async () => {
+    await prepareTestDatabase('cov_auto_reconcile')
+    ;({ prisma } = await import('@/lib/prisma'))
+    svc = await import('@/lib/services/banking/reconciliation-service')
+    ;({ createEntry } = await import('@/lib/accounting/services/entry-lifecycle.service'))
+  })
+  beforeEach(seed)
+  afterAll(async () => {
+    await prisma?.$disconnect()
+  })
+
+  it('links entries to the transaction of the same amount, opposite side, within one day', async () => {
+    const receipt = await entry('in', '120.00', '2025-03-10')
+    const payment = await entry('out', '45.50', '2025-03-31')
+    const credit = await transaction('120.00', 'credit', '2025-03-11')
+    const debit = await transaction('45.50', 'debit', '2025-04-01')
+    const wrongSide = await transaction('120.00', 'debit', '2025-03-10')
+    const oneCentOff = await transaction('45.51', 'debit', '2025-03-31')
+
+    const result = await svc.autoReconcile({ companyId: ids.company })
+
+    expect(result).toEqual({
+      success: true,
+      matched: 2,
+      reconciledCount: 2,
+      total: 2,
+      unreconciledOrphanedCount: 0,
+      message: '2 transactions rapprochées sur 2 écritures analysées',
+    })
+    expect(await reconciledWith(credit)).toBe(receipt)
+    expect(await reconciledWith(debit)).toBe(payment)
+    expect(await reconciledWith(wrongSide)).toBeNull()
+    expect(await reconciledWith(oneCentOff)).toBeNull()
+    const claimed = await prisma.bankTransaction.findUniqueOrThrow({ where: { id: credit } })
+    expect([claimed.reconciled, claimed.reconciledAt instanceof Date]).toEqual([true, true])
+
+    // A second run links nothing twice
+    expect(await svc.autoReconcile({ companyId: ids.company })).toMatchObject({ matched: 0, total: 0, message: '0 transaction rapprochée sur 0 écriture analysée' })
+  })
+
+  it('does not match a transaction two days away, nor entries of another journal', async () => {
+    await entry('in', '80.00', '2025-05-10')
+    await entry('in', '90.00', '2025-05-10', ids.od)
+    const far = await transaction('80.00', 'credit', '2025-05-12')
+    const otherJournal = await transaction('90.00', 'credit', '2025-05-10')
+
+    const result = await svc.autoReconcile({ companyId: ids.company })
+
+    expect(result).toMatchObject({ matched: 0, total: 1, message: '0 transaction rapprochée sur 1 écriture analysée' })
+    expect(await reconciledWith(far)).toBeNull()
+    expect(await reconciledWith(otherJournal)).toBeNull()
+  })
+
+  it('reconciles one transaction per entry when two transactions match', async () => {
+    const receipt = await entry('in', '30.00', '2025-06-01')
+    const first = await transaction('30.00', 'credit', '2025-06-01')
+    const second = await transaction('30.00', 'credit', '2025-06-02')
+
+    expect((await svc.autoReconcile({ companyId: ids.company })).matched).toBe(1)
+    const links = [await reconciledWith(first), await reconciledWith(second)]
+    expect(links.filter((l) => l === receipt)).toHaveLength(1)
+    expect(links.filter((l) => l === null)).toHaveLength(1)
+  })
+
+  it('limits the run to the period when both bounds are given', async () => {
+    await entry('in', '10.00', '2025-01-15')
+    await entry('in', '20.00', '2025-02-15')
+    const january = await transaction('10.00', 'credit', '2025-01-15')
+    const february = await transaction('20.00', 'credit', '2025-02-15')
+
+    const result = await svc.autoReconcile({ companyId: ids.company, startDate: '2025-02-01T00:00:00.000Z', endDate: '2025-02-28T23:59:59.999Z' })
+
+    expect(result).toMatchObject({ matched: 1, total: 1 })
+    expect(await reconciledWith(january)).toBeNull()
+    expect(await reconciledWith(february)).not.toBeNull()
+  })
+
+  it('releases transactions whose entry no longer exists', async () => {
+    const orphan = await transaction('15.00', 'credit', '2025-07-01', { reconciled: true, reconciledAt: day('2025-07-02'), reconciledWith: 'deleted-entry' })
+
+    const result = await svc.autoReconcile({ companyId: ids.company })
+
+    expect(result).toMatchObject({ unreconciledOrphanedCount: 1, message: '1 transaction dé-rapprochée (écriture supprimée). 0 transaction rapprochée sur 0 écriture analysée' })
+    const released = await prisma.bankTransaction.findUniqueOrThrow({ where: { id: orphan } })
+    expect([released.reconciled, released.reconciledAt, released.reconciledWith]).toEqual([false, null, null])
+  })
+
+  it('reports released transactions when the company has no BQ journal', async () => {
+    await prisma.journal.delete({ where: { id: ids.bq } })
+    await transaction('15.00', 'credit', '2025-07-01', { reconciled: true, reconciledWith: 'deleted-entry' })
+
+    expect(await svc.autoReconcile({ companyId: ids.company })).toEqual({
+      success: true,
+      matched: 0,
+      reconciledCount: 0,
+      total: 0,
+      unreconciledOrphanedCount: 1,
+      message: '1 transaction dé-rapprochée (écriture supprimée). Aucun journal BQ.',
+    })
+  })
+
+  describe('attemptBankReconciliation', () => {
+    it('ignores lines on accounts of another company or outside class 51', async () => {
+      const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
+      const otherFy = await prisma.fiscalYear.create({ data: { companyId: other.id, year: 2025, startDate: day('2025-01-01'), endDate: day('2025-12-31') } })
+      const foreignBank = await prisma.account.create({ data: { companyId: other.id, fiscalYearId: otherFy.id, code: '512000', label: 'Banque' } })
+      const txId = await transaction('60.00', 'credit', '2025-08-01')
+
+      const foreign = await svc.attemptBankReconciliation(ids.company, 'entry-x', [{ accountId: foreignBank.id, debit: 60, credit: 0, description: '' }], day('2025-08-01'))
+      const notBank = await svc.attemptBankReconciliation(ids.company, 'entry-x', [{ accountId: ids.client, debit: 60, credit: 0, description: '' }], day('2025-08-01'))
+      expect([foreign, notBank]).toEqual([{ matched: false }, { matched: false }])
+      expect(await reconciledWith(txId)).toBeNull()
+
+      const own = await svc.attemptBankReconciliation(ids.company, 'entry-y', [{ accountId: ids.bank, debit: 60, credit: 0, description: '' }], day('2025-07-31'))
+      expect(own).toEqual({ matched: true, transactionId: txId })
+      expect(await reconciledWith(txId)).toBe('entry-y')
+    })
+  })
+
+  describe('AutoReconcileBodySchema', () => {
+    it('accepts an empty body or two dates and refuses an unreadable date in French', () => {
+      expect(svc.AutoReconcileBodySchema.parse(undefined)).toEqual({})
+      expect(svc.AutoReconcileBodySchema.parse({ startDate: '2025-01-01', endDate: '2025-01-31' })).toEqual({ startDate: '2025-01-01', endDate: '2025-01-31' })
+      const refused = svc.AutoReconcileBodySchema.safeParse({ startDate: 'hier' })
+      expect(refused.success).toBe(false)
+      expect(refused.error?.issues[0]?.message).toBe('Date invalide')
+    })
+  })
+})
