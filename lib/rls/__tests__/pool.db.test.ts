@@ -133,6 +133,18 @@ describe.skipIf(!available)('row level security: database layer', () => {
     }
   })
 
+  it('cannot create objects in the public schema (no shadowing of the SECURITY DEFINER functions)', async () => {
+    const raw = new Pool({ connectionString: testAppDatabaseUrl('rls_pool'), max: 1 })
+    try {
+      await expect(raw.query('CREATE TABLE public.kledg_shadow (id int)')).rejects.toThrow(/permission denied/)
+      await expect(
+        raw.query("CREATE FUNCTION public.kledg_rls_scope() RETURNS text[] LANGUAGE sql AS 'SELECT NULL::text[]'"),
+      ).rejects.toThrow(/permission denied|must be owner|already exists/)
+    } finally {
+      await raw.end()
+    }
+  })
+
   it('applies the context to the callback form of pool.query too', async () => {
     const context: RlsContext = { access: 'user', userId: 'u-callback' }
     const row = await withUserContext(context.userId, () =>

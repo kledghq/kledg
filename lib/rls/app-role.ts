@@ -33,6 +33,11 @@ export function appRoleStatements(role: string, password?: string): string[] {
   END IF;
 END $$`,
     ...(password ? [`ALTER ROLE "${role}" ${login}`] : []),
+    // Before PostgreSQL 15 every role may create objects in public, which
+    // would let the app role shadow a function or table that the SECURITY
+    // DEFINER functions resolve through search_path. Only the owner creates.
+    `REVOKE CREATE ON SCHEMA public FROM PUBLIC`,
+    `REVOKE CREATE ON SCHEMA public FROM "${role}"`,
     `GRANT USAGE ON SCHEMA public TO "${role}"`,
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${role}"`,
     // The migration history belongs to the migration role only.
