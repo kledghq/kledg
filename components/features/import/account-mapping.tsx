@@ -192,7 +192,7 @@ export function AccountMappingComponent({
           const newMapping = { ...prevMapping }
           preview.forEach((account) => {
             // Only add if not already defined by user
-            if (account.mappedToAccountId && !newMapping[account.code]) {
+            if (account.mappedToAccountId && !(account.code in newMapping)) {
               newMapping[account.code] = account.mappedToAccountId
             }
           })
@@ -251,7 +251,8 @@ export function AccountMappingComponent({
     setAccountMapping((prev) => {
       const newMapping = { ...prev }
       if (kledgAccountId === '__none__') {
-        delete newMapping[fecAccountCode]
+        // null: create the file account, even when an existing account was matched automatically
+        newMapping[fecAccountCode] = null
       } else {
         newMapping[fecAccountCode] = kledgAccountId
       }
@@ -393,7 +394,8 @@ export function AccountMappingComponent({
                 <TableBody>
                   {accountsPreview.map((account) => {
                     // Trouver le compte mappé (explicite ou automatique)
-                    const mappedAccountId = accountMapping[account.code] || account.mappedToAccountId
+                    const mappedAccountId =
+                      account.code in accountMapping ? accountMapping[account.code] : account.mappedToAccountId
                     const mappedAccount = mappedAccountId 
                       ? existingAccountsList.find(acc => acc.id === mappedAccountId)
                       : null

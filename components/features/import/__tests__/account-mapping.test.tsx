@@ -231,11 +231,8 @@ describe('AccountMappingComponent', () => {
     })
   })
 
-  // BUG: components/features/import/account-mapping.tsx:396: the row falls back to the automatic
-  // match (`accountMapping[code] || account.mappedToAccountId`), so choosing "Créer : 41100000" on
-  // an account matched automatically is dropped from the mapping sent on but the row keeps
-  // showing the existing account: the screen and what is imported disagree.
-  it.skip('shows the create choice on an account matched automatically', async () => {
+  // Choosing "Créer" on an account matched automatically is shown as such, not as the match
+  it('shows the create choice on an account matched automatically', async () => {
     const user = userEvent.setup()
     install()
     renderMapping()
