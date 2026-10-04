@@ -4,7 +4,8 @@
  * mocked:
  * - a new user is created verified, with a generated password when email is
  *   off, or a "choose your password" welcome email when it is on;
- * - an existing user is added without a new account;
+ * - an existing confirmed user is added without a new account (an
+ *   unconfirmed one is reset first: lib/__tests__/security/account-preregistration.db.test.ts);
  * - one membership per user and company, valid roles only, French errors;
  * - the company's organization is created once, with a readable slug.
  * Skipped when the test database server is unreachable.
@@ -97,12 +98,13 @@ describe.skipIf(!available)('addMemberToCompany', () => {
   })
 
   it('adds an existing user without creating an account', async () => {
-    await prisma.user.create({ data: { id: 'u-existing', email: 'deja@example.fr', name: 'Déjà là' } })
+    await prisma.user.create({ data: { id: 'u-existing', email: 'deja@example.fr', name: 'Déjà là', emailVerified: true } })
     const result = await addMemberToCompany({ companyId, email: 'DEJA@example.fr', role: 'companyAdmin' })
     expect(result).toEqual({
       userId: 'u-existing',
       memberId: result.memberId,
       createdUser: false,
+      resetUnconfirmedUser: false,
       generatedPassword: undefined,
       welcomeEmailSent: false,
       roles: ['companyAdmin'],
