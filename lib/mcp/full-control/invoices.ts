@@ -73,6 +73,9 @@ const createDraftInvoiceTool = fullControlTool({
   description: `Records a purchase or sales invoice in Kledg as a draft (brouillon), with its lines and several VAT rates: totals are computed by Kledg (VAT per rate on the sum of the line totals, CGI ann. II art. 242 nonies A). With post: true it also creates the DRAFT entry (AC or VE journal) in the fiscal year containing the invoice date; a person validates it in Kledg. Kledg records invoices, it does not issue or send them. ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the totals and VAT breakdown.`,
   input,
   permission: { entries: ['create'] },
+  amounts: 'euros',
+  units: 'VAT rates in percent, dates as yyyy-mm-dd.',
+  never: 'issues, sends or validates the invoice or its entry: both stay drafts.',
   confirmation: true,
   async preview(args) {
     const tiers = await resolveTiers(args.companyId, args.tiers)

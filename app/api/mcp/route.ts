@@ -1,11 +1,12 @@
 import { createMcpHandler } from 'mcp-handler'
 import { withMcpUser, type McpAccess } from '@/lib/mcp/auth'
 import { registerKledgTools } from '@/lib/mcp/tools'
+import { registerKledgPrompts } from '@/lib/mcp/prompts'
 
 export const maxDuration = 60
 
 const BASE_INSTRUCTIONS =
-  "Kledg is the user's French accounting (PCG 2026). Call list_companies first to get company ids. Amounts are in euros. Never present a draft entry as booked: create_draft_entry creates drafts until they are validated."
+  "Kledg is the user's French accounting (PCG 2026). Call list_companies first to get company ids. Every amount a tool takes or returns is in euros (decimal numbers, two decimals at most), never in cents. Never present a draft as booked: draft-level tools (create_draft_entry, prepare_year_end_entries...) create drafts a person validates in Kledg; give the user the reviewUrl they return. The prompts (Clôture du mois, Préparer la clôture de l'exercice, Revue budgétaire, Santé financière, Approbation des comptes) are guided workflows over these tools."
 
 /** Server instructions, with how high-impact tools run for this connection (its execution mode). */
 function instructionsFor(access: McpAccess): string {
@@ -22,7 +23,10 @@ function instructionsFor(access: McpAccess): string {
  */
 const handler = withMcpUser((request, access) => {
   const mcp = createMcpHandler(
-    (server) => registerKledgTools(server, access),
+    (server) => {
+      registerKledgTools(server, access)
+      registerKledgPrompts(server, access)
+    },
     {
       serverInfo: { name: 'kledg', version: '0.1.0' },
       instructions: instructionsFor(access),

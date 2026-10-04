@@ -81,7 +81,7 @@ export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
 
 export const ACCESS_LEVEL_DESCRIPTIONS: Record<AccessLevel, string> = {
   read: 'Consulter les sociétés, comptes, écritures, états et transactions.',
-  write: 'Consulter, et proposer des écritures en brouillon que vous validerez vous-même.',
+  write: "Consulter, et préparer des brouillons que vous vérifierez vous-même dans Kledg (écritures, notes de frais, budget, provisions, données de l'approbation des comptes)\u00a0: rien n'est validé ni comptabilisé.",
   admin:
     "L'assistant pourra agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice..., dans la limite de vos droits sur les sociétés choisies. Réservez ce choix à un assistant en qui vous avez toute confiance.",
 }

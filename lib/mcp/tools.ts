@@ -39,6 +39,11 @@ import { registerSubscriptionReadTools } from '@/lib/mcp/subscription-tools'
 import { registerFinancialIndicatorTools } from '@/lib/mcp/financial-indicator-tools'
 import { registerYearEndReadTools } from '@/lib/mcp/year-end-tools'
 import { registerApprovalReadTools } from '@/lib/mcp/approval-tools'
+import { registerDeadlineReadTools } from '@/lib/mcp/deadline-tools'
+import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
+import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
+import { registerDraftTools } from '@/lib/mcp/drafts'
+import { READ_ONLY, describeTool, kledgPageUrl, writeAnnotations } from '@/lib/mcp/tool-meta'
 
 const MAX_ROWS = 200
 
@@ -72,14 +77,20 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-M
 export function registerKledgTools(server: McpServer, access: McpAccess) {
   const { user, canWrite } = access
   const guard = companyGuard(access)
-  const readOnly = { readOnlyHint: true, openWorldHint: false } as const
+  const readOnly = READ_ONLY
 
   server.registerTool(
     'list_companies',
     {
       title: 'Lister les sociétés',
-      description:
-        'Lists the companies this connection can access on this Kledg instance (the user may have limited it to some of their companies), with their SIREN, legal form, fiscal regimes and current fiscal year. Start here to get company ids.',
+      description: describeTool({
+        summary:
+          'Lists the companies this connection can access on this Kledg instance (the user may have limited it to some of their companies), with their SIREN, legal form, fiscal regimes and current fiscal year. Start here to get company ids.',
+        access: 'read',
+        permission: 'membership',
+        amounts: 'none',
+        never: "lists a company outside the connection's grant or an archived company, and never changes anything (read only).",
+      }),
       inputSchema: z.object({}),
       annotations: readOnly,
     },
@@ -119,7 +130,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'list_fiscal_years',
     {
       title: 'Lister les exercices',
-      description: 'Lists the fiscal years of a company with their dates and whether they are closed.',
+      description: describeTool({
+        summary:
+          'Lists the fiscal years of a company with their dates and whether they are closed.',
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'none',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: z.object({ companyId }),
       annotations: readOnly,
     },
@@ -139,7 +158,14 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'list_journals',
     {
       title: 'Lister les journaux',
-      description: 'Lists the accounting journals of a company (code and label, e.g. AC achats, VE ventes, BQ banque).',
+      description: describeTool({
+        summary:
+          'Lists the accounting journals of a company (code and label, e.g. AC achats, VE ventes, BQ banque, OD opérations diverses).',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'none',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: z.object({ companyId }),
       annotations: readOnly,
     },
@@ -159,8 +185,14 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'search_accounts',
     {
       title: 'Rechercher des comptes',
-      description:
-        'Searches the chart of accounts (PCG 2026) of a company by account number prefix or label. Use it to find the right account before proposing an entry.',
+      description: describeTool({
+        summary:
+          'Searches the chart of accounts (PCG 2026) of a company in a fiscal year by account number prefix or label. Use it to find the right account before proposing an entry.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'none',
+        never: 'creates an account (create_account does, in full control); changes anything (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         fiscalYearId,
@@ -194,7 +226,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'get_trial_balance',
     {
       title: 'Balance générale',
-      description: 'Returns the trial balance (balance générale) of a company between two dates: debit, credit and balance per account.',
+      description: describeTool({
+        summary:
+          'Returns the trial balance (balance générale) of a company between two dates: debit, credit and balance per account.',
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: z.object({ companyId, startDate: isoDate, endDate: isoDate }),
       annotations: readOnly,
     },
@@ -209,7 +249,14 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'get_balance_sheet',
     {
       title: 'Bilan',
-      description: 'Returns the balance sheet (bilan actif / passif, PCG 2026 layout) of a company for a fiscal year.',
+      description: describeTool({
+        summary:
+          'Returns the balance sheet (bilan actif / passif, PCG 2026 layout) of a company for a fiscal year, complete or simplified.',
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         fiscalYearId,
@@ -229,7 +276,14 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'get_income_statement',
     {
       title: 'Compte de résultat',
-      description: 'Returns the income statement (compte de résultat: produits, charges, résultat) of a company for a fiscal year.',
+      description: describeTool({
+        summary:
+          'Returns the income statement (compte de résultat: produits, charges, résultat) of a company for a fiscal year, complete or simplified.',
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         fiscalYearId,
@@ -249,8 +303,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'list_entries',
     {
       title: 'Lister les écritures',
-      description:
-        'Lists accounting entries (écritures) with their id and lines, newest first. Filter by date range, journal code, account number prefix or status.',
+      description: describeTool({
+        summary:
+          'Lists accounting entries (écritures) with their id, number, status (draft or validated) and lines, newest first. Filter by date range, journal code, account number prefix or status.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         fiscalYearId,
@@ -332,8 +393,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'list_bank_transactions',
     {
       title: 'Lister les transactions bancaires',
-      description:
-        'Lists bank transactions of a company, newest first. By default only transactions not yet reconciled with an accounting entry, which are the ones that need work.',
+      description: describeTool({
+        summary:
+          'Lists bank transactions of a company, newest first, with amount, side (debit: money out, credit: money in), label, counterparty and reconciliation state. By default only transactions not yet reconciled with an accounting entry, which are the ones that need work.',
+        access: 'read',
+        permission: { banking: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd, VAT rates in percent.',
+        never: 'reconciles or changes a transaction (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         onlyUnreconciled: z.boolean().default(true),
@@ -380,8 +448,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'get_aged_balance',
     {
       title: 'Balance âgée',
-      description:
-        "Returns the aged balance (balance âgée) of a company on a day: unlettered customer (411) and supplier (401) lines per tiers (auxiliary account, else account), bucketed by days past their due date (not due, 0-30, 31-60, 61-90, over 90 days). Due date = entry date + the company's payment terms (30 days by default, capped at 60 days or 45 days end of month by Code de commerce art. L441-10). Amounts in euros, positive when owed.",
+      description: describeTool({
+        summary:
+          "Returns the aged balance (balance âgée) of a company on a day: unlettered customer (411) and supplier (401) lines per tiers (auxiliary account, else account), bucketed by days past their due date (not due, 0-30, 31-60, 61-90, over 90 days). Due date = entry date + the company's payment terms (30 days by default, capped at 60 days or 45 days end of month by Code de commerce art. L441-10). Positive when owed.",
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'letters lines or sends a reminder (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         fiscalYearId,
@@ -419,8 +494,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'list_missing_receipts',
     {
       title: 'Justificatifs manquants',
-      description:
-        'Lists bank transactions without a supporting document (justificatif, Code de commerce art. L123-22: kept 10 years), newest first, at or above an amount threshold, over a fiscal year or a period, optionally for one bank account. Receipts are attached at the bank (Qonto) and synced into Kledg.',
+      description: describeTool({
+        summary:
+          'Lists bank transactions without a supporting document (justificatif, Code de commerce art. L123-22: kept 10 years), newest first, at or above an amount threshold, over a fiscal year or a period, optionally for one bank account. Receipts are attached at the bank (Qonto) and synced into Kledg.',
+        access: 'read',
+        permission: { banking: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'attaches or requests a receipt (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         fiscalYearId: z.string().optional().describe('Fiscal year id, from list_fiscal_years: its dates bound the list.'),
@@ -468,8 +550,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'list_tiers',
     {
       title: 'Clients et fournisseurs',
-      description:
-        'Lists the customers and suppliers (tiers) of a company with their auxiliary account number (FEC CompAuxNum, used by lettering and the aged balance), identifiers, default accounts and payment terms. Use the id or the auxiliary number with list_invoices and create_draft_invoice.',
+      description: describeTool({
+        summary:
+          'Lists the customers and suppliers (tiers) of a company with their auxiliary account number (FEC CompAuxNum, used by lettering and the aged balance), identifiers, default accounts and payment terms. Use the id or the auxiliary number with list_invoices and create_draft_invoice.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'none',
+        units: 'VAT rates in percent, payment terms in days.',
+        never: 'changes anything (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         kind: z.enum(['CUSTOMER', 'SUPPLIER']).optional(),
@@ -506,8 +595,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'list_invoices',
     {
       title: 'Factures',
-      description:
-        'Lists the purchase or sales invoices recorded in Kledg, newest first, with their totals, status (draft, posted, partially_paid, paid: derived from lettering and the bank payments recorded) and amount still due. Kledg records invoices (entered or imported from Qonto); it does not issue them.',
+      description: describeTool({
+        summary:
+          'Lists the purchase or sales invoices recorded in Kledg, newest first, with their totals, status (draft, posted, partially_paid, paid: derived from lettering and the bank payments recorded) and amount still due.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'issues, sends or posts an invoice: Kledg records invoices (entered or imported from Qonto), it does not issue them (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         direction: z.enum(['SALE', 'PURCHASE']),
@@ -559,8 +655,15 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     'get_invoice',
     {
       title: 'Facture',
-      description:
-        'One invoice with its lines (quantity, unit price excluding tax, VAT rate, account), VAT breakdown per rate, entry, payments recorded from the bank and status.',
+      description: describeTool({
+        summary:
+          'One invoice with its lines (quantity, unit price excluding tax, VAT rate, account), VAT breakdown per rate, entry, payments recorded from the bank and status.',
+        access: 'read',
+        permission: { entries: ['read'] },
+        amounts: 'euros',
+        units: 'VAT rates in percent.',
+        never: 'issues, sends or posts an invoice (read only).',
+      }),
       inputSchema: z.object({ companyId, invoiceId: z.string().describe('Invoice id, from list_invoices.') }),
       annotations: readOnly,
     },
@@ -609,20 +712,33 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerFinancialIndicatorTools(server, guard)
   registerYearEndReadTools(server, guard)
   registerApprovalReadTools(server, guard)
+  registerDeadlineReadTools(server, guard)
+  registerBankingReadTools(server, guard)
+  registerThirdPartyReadTools(server, guard)
 
   // Full control (kledg:admin): validate, reconcile, import, close... Never
   // registered without it; each tool checks it again through the guard.
   if (access.canAdmin) registerFullControlTools(server, access, guard)
 
-  // Only clients granted kledg:write (and API keys) can propose entries.
+  // Only clients granted kledg:write (and API keys of that level) can prepare drafts.
   if (!canWrite) return
+
+  // Draft-level tools of the recent features (budgets, subscriptions, year-end
+  // work, expense reports, approval of the accounts): lib/mcp/drafts.
+  registerDraftTools(server, access, guard)
 
   server.registerTool(
     'create_draft_entry',
     {
       title: 'Proposer une écriture',
-      description:
-        'Creates a DRAFT accounting entry. Debits must equal credits. The entry is not validated: a person reviews and validates it in Kledg. Use search_accounts and list_journals first to pick existing account numbers and journal codes.',
+      description: describeTool({
+        summary:
+          'Creates a DRAFT accounting entry. Debits must equal credits. A person reviews and validates it in Kledg, which then gives it its definitive number. Use search_accounts and list_journals first to pick existing account numbers and journal codes. Answers the entry id and the link to review it.',
+        access: 'write',
+        permission: { entries: ['create'] },
+        amounts: 'euros',
+        never: 'validates or posts the entry, and never writes in a closed fiscal year.',
+      }),
       inputSchema: z.object({
         companyId,
         journalCode: z.string().describe('Journal code, e.g. "AC", "VE", "BQ", "OD".'),
@@ -640,7 +756,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           )
           .min(2),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      annotations: writeAnnotations({ destructive: false, idempotent: false }),
     },
     (args) =>
       run(async () => {
@@ -696,6 +812,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           created: true,
           status: 'draft',
           entryId: entry.id,
+          changes: { entryCreated: entry.id, status: 'draft' },
+          reviewUrl: kledgPageUrl(args.companyId, 'entries'),
           message:
             'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
         })

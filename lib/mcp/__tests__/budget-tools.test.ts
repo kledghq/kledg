@@ -1,5 +1,6 @@
 /**
- * MCP tool get_budget_report: the company guard with reports:read, the
+ * MCP read tools of budgets: list_budgets and get_budget (lines with their
+ * ids, monthly amounts and recurring items, in euros), and get_budget_report: the company guard with reports:read, the
  * fiscal year of the company (the current one by default, another
  * company's id refused), amounts in euros, monthly detail on request. The
  * report service is mocked (it has its own database tests); the comparison
@@ -26,9 +27,11 @@ vi.mock('@/lib/accounting/fiscal-year-utils', async (importOriginal) => ({
   getActiveFiscalYear: vi.fn(async () => ({ id: 'fy-2026' })),
 }))
 vi.mock('@/lib/budgets/get-budget-report.service', () => ({ getBudgetReportOfFiscalYear: vi.fn() }))
+vi.mock('@/lib/budgets/manage-budgets.service', () => ({ listBudgets: vi.fn(), findBudgetOfFiscalYear: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { getBudgetReportOfFiscalYear } from '@/lib/budgets/get-budget-report.service'
+import { findBudgetOfFiscalYear, listBudgets } from '@/lib/budgets/manage-budgets.service'
 import { buildBudgetComparison } from '@/lib/budgets/report'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
@@ -37,13 +40,13 @@ import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
 
 type Handler = (args: Record<string, unknown>) => Promise<ToolResult>
 
-function tools() {
+function tools(name = 'get_budget_report') {
   const handlers = new Map<string, Handler>()
   registerKledgTools(
     { registerTool: (name: string, _config: unknown, handler: Handler) => handlers.set(name, handler) } as never,
     { user: { id: 'u1', email: 'a@b.c', name: 'Camille', role: 'user' }, canWrite: false, canAdmin: false, caller: { kind: 'apiKey', apiKeyId: 'k1' }, executionMode: 'validation' },
   )
-  return handlers.get('get_budget_report')!
+  return handlers.get(name)!
 }
 
 const parse = (result: ToolResult) => JSON.parse(result.content[0].text)
@@ -109,6 +112,61 @@ describe('get_budget_report', () => {
     vi.mocked(getBudgetReportOfFiscalYear).mockRejectedValueOnce(new NotFoundError("Budget introuvable : cet exercice n'a pas de budget."))
     expect(await tools()({ companyId: 'c1', monthly: false })).toEqual({
       content: [{ type: 'text', text: "Budget introuvable : cet exercice n'a pas de budget." }],
+      isError: true,
+    })
+  })
+})
+
+describe('list_budgets and get_budget', () => {
+  it('lists the budgets of the company in euros', async () => {
+    vi.mocked(listBudgets).mockResolvedValue({ items: [{ id: 'b1', fiscalYear, lineCount: 2, chargesCents: 1_000_050, produitsCents: 2_000_000, resultatCents: 999_950 }] })
+    const data = parse(await tools('list_budgets')({ companyId: 'c1' }))
+    expect(guard.require).toHaveBeenCalledWith('c1', { reports: ['read'] })
+    expect(data.budgets).toEqual([{ id: 'b1', fiscalYear, lines: 2, charges: 10_000.5, produits: 20_000, resultat: 9_999.5 }])
+  })
+
+  it('returns every line with its id, months and recurring items in euros', async () => {
+    vi.mocked(findBudgetOfFiscalYear).mockResolvedValue({
+      id: 'b1',
+      fiscalYear,
+      lineCount: 1,
+      chargesCents: 360_000,
+      produitsCents: 0,
+      resultatCents: -360_000,
+      months: ['2026-01', '2026-02'],
+      editable: true,
+      lines: [
+        {
+          id: 'l1',
+          accountPrefix: '613',
+          label: 'Loyers',
+          side: 'charges',
+          amounts: [],
+          recurringItems: [{ id: 'r1', label: 'Bail', amountCents: 180_000, frequency: 'MONTHLY', startMonth: '2026-01', endMonth: null }],
+          plannedMonths: [180_000, 180_000],
+          annualCents: 360_000,
+        },
+      ],
+    })
+    const data = parse(await tools('get_budget')({ companyId: 'c1' }))
+    expect(findBudgetOfFiscalYear).toHaveBeenCalledWith('c1', 'fy-2026')
+    expect(data.lines).toEqual([
+      {
+        id: 'l1',
+        accountPrefix: '613',
+        label: 'Loyers',
+        side: 'charges',
+        annualBudget: 3_600,
+        amounts: [],
+        recurringItems: [{ id: 'r1', label: 'Bail', amount: 1_800, frequency: 'MONTHLY', startMonth: '2026-01', endMonth: null }],
+        plannedByMonth: [1_800, 1_800],
+      },
+    ])
+    expect(data).toMatchObject({ id: 'b1', charges: 3_600, resultat: -3_600, editable: true })
+
+    vi.mocked(findBudgetOfFiscalYear).mockResolvedValue(null)
+    expect(await tools('get_budget')({ companyId: 'c1' })).toEqual({
+      content: [{ type: 'text', text: "Cet exercice n'a pas de budget\u00a0: créez-le avec create_budget, ou dans Kledg." }],
       isError: true,
     })
   })

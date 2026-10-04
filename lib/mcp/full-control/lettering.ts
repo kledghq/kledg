@@ -37,6 +37,8 @@ const listUnletteredTool = fullControlTool({
   description: `Lists the unlettered lines (lignes non lettrées) of a third-party account with their ids, amounts, auxiliary account and running balance, and the automatic lettering proposals (same tiers and amount, payments reconciled with the bank first). Use the line ids with letter_entry_lines. ${ACTS_AS_USER}`,
   input: accountInput,
   permission: { entries: ['read'] },
+  amounts: 'euros',
+  never: 'letters lines (read only).',
   confirmation: false,
   readOnly: true,
   async execute({ companyId, accountCode, fiscalYearId }) {
@@ -86,6 +88,8 @@ const letterTool = fullControlTool({
   description: `Letters lines of a third-party account together (lettrage): they get the next code of the account (AA, AB...) and today's date, written to the FEC (EcritureLet, DateLet). Only lines of validated entries, debits equal to credits (no partial lettering), one auxiliary account at most, in an open fiscal year. ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the lines, their totals, the code they would take and the reasons it would be refused.`,
   input: letterInput,
   permission: { entries: ['update'] },
+  amounts: 'euros',
+  never: 'letters an unbalanced group, draft lines or lines of a closed fiscal year.',
   confirmation: true,
   async preview({ companyId, accountCode, fiscalYearId, lineIds }) {
     const preview = await previewLettering(companyId, { accountId: await accountIdOf(companyId, accountCode, fiscalYearId), lineIds })
@@ -111,6 +115,8 @@ const unletterTool = fullControlTool({
   description: `Removes a lettering code (délettrage) from every line of a third-party account that carries it, in an open fiscal year. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: { ...accountInput, code: z.string().min(1).max(20).describe('Lettering code to remove, e.g. AB.') },
   permission: { entries: ['update'] },
+  amounts: 'none',
+  never: 'unletters in a closed fiscal year.',
   confirmation: true,
   destructive: true,
   async preview({ companyId, accountCode, fiscalYearId, code }) {

@@ -89,6 +89,8 @@ const validateEntriesTool = fullControlTool({
   description: `Validates draft entries (validation des écritures): each one gets its definitive number in the fiscal year sequence, in date order, and can never be edited or deleted afterwards (PCG art. 1031-3), only reversed. ${ACTS_AS_USER} ${TWO_STEP} The dry run lists the entries, their totals, the numbers they would receive and the problems that would make some fail (unbalanced, closed fiscal year, already validated).`,
   input: { entryIds: entryIdsInput },
   permission: { entries: ['validate'] },
+  amounts: 'euros',
+  never: 'validates an unbalanced entry, an entry of a closed fiscal year or of another company; a validated entry can then only be reversed.',
   confirmation: true,
   destructive: true,
   async preview({ companyId, entryIds }) {
@@ -159,6 +161,9 @@ const reverseEntryTool = fullControlTool({
   description: `Reverses a validated entry (contre-passation): creates and validates a new entry with debits and credits swapped, linked to the original, dated like it or on the given day of an open fiscal year. This is the only way to correct a validated entry. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: reverseInput,
   permission: { entries: ['create', 'validate'] },
+  amounts: 'euros',
+  units: 'Dates as yyyy-mm-dd.',
+  never: 'deletes or edits the validated entry: it adds the reversing entry.',
   confirmation: true,
   destructive: true,
   async preview({ companyId, entryId, date }) {
@@ -223,6 +228,9 @@ const updateDraftEntryTool = fullControlTool({
   description: `Edits a DRAFT entry: journal, date, description, reference or all its lines (amounts in euros, balanced). A validated entry is refused: reverse it with reverse_entry instead. The entry stays a draft; use validate_entries to validate it. ${ACTS_AS_USER}`,
   input: updateInput,
   permission: { entries: ['update'] },
+  amounts: 'euros',
+  units: 'Dates as yyyy-mm-dd.',
+  never: 'changes a validated entry (refused).',
   confirmation: false,
   idempotent: true,
   async execute({ companyId, entryId, journalCode, date, description, reference, lines }) {
@@ -263,6 +271,8 @@ const deleteDraftEntryTool = fullControlTool({
   description: `Deletes a DRAFT entry and its lines. A validated entry is refused: reverse it with reverse_entry instead. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: deleteInput,
   permission: { entries: ['delete'] },
+  amounts: 'none',
+  never: 'deletes a validated entry (refused).',
   confirmation: true,
   destructive: true,
   async preview({ companyId, entryId }) {

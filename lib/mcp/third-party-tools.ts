@@ -1,0 +1,71 @@
+/**
+ * Read tool of the auxiliary balance (balance auxiliaire, docs/lettrage-et-tiers.md):
+ * get_auxiliary_balance. Same rule as GET /api/reports/auxiliary-balance:
+ * the company guard with reports:read, then the service of the report
+ * page scopes everything by company. The aged balance is get_aged_balance
+ * (lib/mcp/tools.ts). Amounts in euros.
+ */
+
+import type { McpServer } from '@modelcontextprotocol/server'
+import { z } from 'zod'
+import type { CompanyGuard } from '@/lib/mcp/company-access'
+import { json, run } from '@/lib/mcp/tool-result'
+import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
+import { AuxiliaryBalanceQuerySchema, getAuxiliaryBalance } from '@/lib/reports/third-parties/get-third-party-reports.service'
+import type { AuxiliarySection } from '@/lib/reports/third-parties/third-party-balances'
+import { parseInput } from '@/lib/api/zod-fields'
+import { fromCents } from '@/lib/utils/money'
+
+const MAX_ROWS = 200
+
+const amounts = (t: { openingCents: number; debitCents: number; creditCents: number; closingCents: number; unletteredCents: number }) => ({
+  opening: fromCents(t.openingCents),
+  debit: fromCents(t.debitCents),
+  credit: fromCents(t.creditCents),
+  closing: fromCents(t.closingCents),
+  unlettered: fromCents(t.unletteredCents),
+})
+
+const section = (s: AuxiliarySection) => ({
+  totals: amounts(s.totals),
+  tiers: s.tiers.slice(0, MAX_ROWS).map((t) => ({ tiers: t.code, label: t.label, accounts: t.accountCodes, ...amounts(t) })),
+  truncated: s.tiers.length > MAX_ROWS,
+})
+
+export function registerThirdPartyReadTools(server: McpServer, guard: CompanyGuard) {
+  server.registerTool(
+    'get_auxiliary_balance',
+    {
+      title: 'Balance auxiliaire',
+      description: describeTool({
+        summary:
+          'Returns the auxiliary balance (balance auxiliaire) of a period within one fiscal year (the whole year by default): per customer (411) and supplier (401), by auxiliary account, the opening balance, the debits and credits of the period, the closing balance and the part still unlettered at the end of the period; with the totals. Balances are signed debit minus credit, like the trial balance (a customer owing money is positive, a supplier owed money is negative).',
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        units: 'Dates as yyyy-mm-dd.',
+        never: 'letters lines or changes anything (read only).',
+      }),
+      inputSchema: z.object({
+        companyId: z.string().describe('Company id, from list_companies.'),
+        fiscalYearId: z.string().max(64).optional().describe('Fiscal year id, from list_fiscal_years. Defaults to the fiscal year containing the dates, else today.'),
+        startDate: z.string().optional().describe('First day of the period (yyyy-mm-dd), within the fiscal year.'),
+        endDate: z.string().optional().describe('Last day of the period (yyyy-mm-dd), within the fiscal year.'),
+        kind: z.enum(['customers', 'suppliers', 'all']).default('all'),
+      }),
+      annotations: READ_ONLY,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { reports: ['read'] })
+        const query = parseInput(AuxiliaryBalanceQuerySchema, { fiscalYearId: args.fiscalYearId, startDate: args.startDate, endDate: args.endDate })
+        const report = await getAuxiliaryBalance(args.companyId, query)
+        return json({
+          fiscalYear: report.fiscalYear,
+          period: report.period,
+          ...(args.kind !== 'suppliers' && { customers: section(report.customers) }),
+          ...(args.kind !== 'customers' && { suppliers: section(report.suppliers) }),
+        })
+      }),
+  )
+}

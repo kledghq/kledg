@@ -34,6 +34,7 @@ import { enforceRateLimit } from '@/lib/rate-limit'
 import type { Permission } from '@/lib/rbac/authorize'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
+import { READ_ONLY, describeTool, writeAnnotations } from '@/lib/mcp/tool-meta'
 import type { ExecutionMode } from '@/lib/ai-access/access'
 import { claimApprovedAction, createPendingAction, finishAction } from './pending-actions'
 import { TWO_STEP, stepFor } from './descriptions'
@@ -59,9 +60,17 @@ interface ToolBase<S extends Shape, R> {
   /** Main ids written to the audit log with the action; null for plain reads (not audited). */
   audit: ((args: Args<S>, result: R) => Record<string, unknown>) | null
   execute: (args: Args<S>, ctx: FullControlContext) => Promise<R>
+  /** 'euros' when the tool takes or returns amounts (lib/mcp/tool-meta.ts). */
+  amounts: 'euros' | 'none'
+  /** Extra unit notes (rates, dates). */
+  units?: string
+  /** What the tool never does, starting with a verb (describeTool). */
+  never: string
   readOnly?: boolean
   destructive?: boolean
   idempotent?: boolean
+  /** The tool calls a third party (a bank). */
+  openWorld?: boolean
 }
 
 export interface DirectTool<S extends Shape, R> extends ToolBase<S, R> {
@@ -109,7 +118,7 @@ const dryRunFields = {
 }
 
 /** Name of the assistant for the audit log: the OAuth client's name or the API key's name. */
-async function assistantOf(access: McpAccess): Promise<{ kind: string; id: string; name: string | null }> {
+export async function assistantOf(access: McpAccess): Promise<{ kind: string; id: string; name: string | null }> {
   if (access.caller.kind === 'oauth') {
     const client = await prisma.oauthClient.findUnique({ where: { clientId: access.caller.clientId }, select: { name: true } })
     return { kind: 'oauth', id: access.caller.clientId, name: client?.name ?? null }
@@ -167,7 +176,14 @@ export function registerFullControlTool<S extends Shape, P, R>(
   const automatic = mode === 'automatic'
   const base = z.object({ companyId: companyIdInput, ...tool.input })
   const inputSchema = tool.confirmation ? base.extend(automatic ? dryRunFields : confirmFields) : base
-  const description = tool.confirmation ? tool.description.replace(TWO_STEP, stepFor(mode)) : tool.description
+  const description = describeTool({
+    summary: tool.confirmation ? tool.description.replace(TWO_STEP, stepFor(mode)) : tool.description,
+    access: 'admin',
+    permission: tool.permission,
+    amounts: tool.amounts,
+    units: tool.units,
+    never: tool.never,
+  })
 
   server.registerTool(
     tool.name,
@@ -175,12 +191,9 @@ export function registerFullControlTool<S extends Shape, P, R>(
       title: tool.title,
       description,
       inputSchema,
-      annotations: {
-        readOnlyHint: tool.readOnly ?? false,
-        destructiveHint: tool.destructive ?? false,
-        idempotentHint: tool.idempotent ?? false,
-        openWorldHint: false,
-      },
+      annotations: tool.readOnly
+        ? { ...READ_ONLY, openWorldHint: tool.openWorld ?? false }
+        : writeAnnotations({ destructive: tool.destructive ?? false, idempotent: tool.idempotent ?? false, openWorld: tool.openWorld }),
     },
     (raw: unknown) =>
       run(async () => {

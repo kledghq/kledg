@@ -12,6 +12,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
+import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
 import type { GroupAccess } from '@/lib/management-fees/access'
 import { computeConventionFees } from '@/lib/management-fees/compute-management-fees.service'
 import { listConventions } from '@/lib/management-fees/manage-conventions.service'
@@ -20,7 +21,7 @@ import { fromCents } from '@/lib/utils/money'
 const companyId = z.string().describe('Holding company id, from list_companies.')
 
 export function registerManagementFeeTools(server: McpServer, access: McpAccess, guard: CompanyGuard) {
-  const readOnly = { readOnlyHint: true, openWorldHint: false } as const
+  const readOnly = READ_ONLY
   const group: GroupAccess = {
     userId: access.user.id,
     require: (id, permission) => guard.require(id, permission),
@@ -31,8 +32,15 @@ export function registerManagementFeeTools(server: McpServer, access: McpAccess,
     'list_management_fee_conventions',
     {
       title: 'Conventions de frais de gestion',
-      description:
-        'Lists the management fee conventions (conventions de prestations de services) of a holding with its subsidiaries: pricing (cost plus a mark-up, or a fixed amount), mark-up, share of the costs charged, allocation key (equal, revenue, custom percentages), VAT rate, accounts and subsidiaries. Subsidiaries the connection cannot read are listed without their name.',
+      description: describeTool({
+        summary:
+          'Lists the management fee conventions (conventions de prestations de services) of a holding with its subsidiaries: pricing (cost plus a mark-up, or a fixed amount), mark-up, share of the costs charged, allocation key (equal, revenue, custom percentages), VAT rate, accounts and subsidiaries. Subsidiaries the connection cannot read are listed without their name.',
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        units: 'Percentages in percent.',
+        never: 'names a subsidiary outside the connection’s grant or changes anything (read only).',
+      }),
       inputSchema: z.object({ companyId }),
       annotations: readOnly,
     },
@@ -74,8 +82,15 @@ export function registerManagementFeeTools(server: McpServer, access: McpAccess,
     'preview_management_fees',
     {
       title: 'Calcul des frais de gestion',
-      description:
-        'Computes the management fees of a convention for a period, without invoicing: the holding’s pooled charges (validated entries, class 6 minus the excluded accounts), the service share and the mark-up (cost plus), or the fixed amount; then each subsidiary’s amount excluding tax, VAT and total, split by the key so the parts sum exactly to the total. Needs read access to the holding and to every subsidiary of the convention.',
+      description: describeTool({
+        summary:
+          'Computes the management fees of a convention for a period: the holding’s pooled charges (validated entries, class 6 minus the excluded accounts), the service share and the mark-up (cost plus), or the fixed amount; then each subsidiary’s amount excluding tax, VAT and total, split by the key so the parts sum exactly to the total. Needs read access to the holding and to every subsidiary of the convention.',
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        units: 'Percentages in percent.',
+        never: 'generates, posts or sends an invoice: generating management fee invoices is a decision taken in Kledg, never through MCP (read only).',
+      }),
       inputSchema: z.object({
         companyId,
         conventionId: z.string().describe('Convention id, from list_management_fee_conventions.'),
