@@ -140,6 +140,9 @@ model Company {
   dashboardLayouts           DashboardLayout[]
   tiers                      Tiers[]
   invoices                   Invoice[]
+  expenseClaimants           ExpenseClaimant[]
+  expenseReports             ExpenseReport[]
+  expenseCategoryRules       ExpenseCategoryRule[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -315,6 +318,7 @@ model AccountingEntry {
   reversalOf              AccountingEntry?         @relation("EntryReversal", fields: [reversalOfId], references: [id], onDelete: NoAction)
   reversedBy              AccountingEntry?         @relation("EntryReversal")
   invoice                 Invoice?                 @relation("InvoiceEntry")
+  expenseReport           ExpenseReport?           @relation("ExpenseReportEntry")
   vatTransfers            InvoicePayment[]         @relation("InvoicePaymentVatTransfer")
   // Tous les comptes d'une écriture doivent appartenir au même exercice fiscal
 
@@ -913,10 +917,11 @@ model Person {
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  address      Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
-  shareholders Shareholder[] // Link to shareholders (type PHYSICAL)
-  company      Company?      @relation(fields: [companyId], references: [id])
-  companyId    String?
+  address          Address?          @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  shareholders     Shareholder[] // Link to shareholders (type PHYSICAL)
+  expenseClaimants ExpenseClaimant[]
+  company          Company?          @relation(fields: [companyId], references: [id])
+  companyId        String?
 
   @@unique([companyId, email])
   @@index([email])
@@ -948,6 +953,7 @@ model Attachment {
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   integration     Integration?     @relation(fields: [integrationId], references: [id], onDelete: SetNull)
   bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  expenseLines    ExpenseLine[]
 
   @@unique([integrationId, externalAttachmentId])
   @@index([companyId])
@@ -1126,6 +1132,7 @@ model User {
   mcpPendingActions McpPendingAction[]
   dashboardLayouts  DashboardLayout[]
   preference        UserPreference?
+  expenseClaimants  ExpenseClaimant[]
 
   @@unique([email])
   @@map("user")
@@ -1812,4 +1819,166 @@ model InvoicePayment {
   @@index([invoiceId])
   @@index([vatTransferEntryId])
   @@map("invoice_payments")
+}
+
+enum ExpenseClaimantKind {
+  EMPLOYEE // Salarié : compte 421 par défaut
+  DIRIGEANT // Dirigeant non associé : compte 467 par défaut
+  ASSOCIE // Associé (dirigeant ou non) : compte courant 455 par défaut
+}
+
+enum ExpenseReportStatus {
+  DRAFT // Brouillon : modifiable par son auteur
+  SUBMITTED // Soumise : attend la validation
+  VALIDATED // Validée : prête à comptabiliser (comptabilisée et remboursée se déduisent de l'écriture)
+}
+
+enum ExpenseLineKind {
+  EXPENSE // Dépense avec un justificatif
+  MILEAGE // Indemnité kilométrique (barème, sans TVA)
+}
+
+enum ExpenseReceiptKind {
+  NONE // Aucun justificatif
+  RECEIPT // Ticket ou facture simplifiée (150 € HT au plus)
+  INVOICE // Facture au nom de la société
+}
+
+/// A person the company reimburses expenses to: an employee, a dirigeant or
+/// an associé, linked to a Person of the company or to a member (user).
+/// Its account is credited with what the company owes (421, 455, 467 by
+/// kind, or the code set here) with its auxiliary account number, so that
+/// lettering pairs a report with its reimbursement
+/// (lib/expense-reports/manage-expense-claimants.service.ts).
+model ExpenseClaimant {
+  id                     String              @id @default(cuid())
+  companyId              String
+  kind                   ExpenseClaimantKind
+  name                   String
+  personId               String?
+  userId                 String?
+  /// Account credited by the reports (421..., 455..., 467...); null: the default of the kind.
+  accountCode            String?
+  /// Auxiliary account number (FEC CompAuxNum) on the credited line, unique in the company.
+  auxiliaryAccountNumber String
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  person  Person?         @relation(fields: [personId], references: [id], onDelete: SetNull)
+  user    User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reports ExpenseReport[]
+
+  @@unique([companyId, auxiliaryAccountNumber])
+  @@unique([companyId, userId])
+  @@unique([companyId, personId])
+  @@index([personId])
+  @@index([userId])
+  @@map("expense_claimants")
+}
+
+/// An expense report (note de frais) of one claimant for one period
+/// (lib/expense-reports). Its amounts are computed from its lines in cents
+/// (lib/expense-reports/amounts.ts). Brouillon, soumise and validée are
+/// stored; comptabilisée (entryId set) and remboursée (the claimant line of
+/// the entry is lettered) are derived.
+model ExpenseReport {
+  id             String              @id @default(cuid())
+  companyId      String
+  claimantId     String
+  /// NDF-0001, NDF-0002... unique in the company.
+  number         String
+  label          String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         ExpenseReportStatus @default(DRAFT)
+  /// What the company owes the claimant (TTC of the expenses plus the mileage allowances).
+  totalInclTax   Decimal             @db.Decimal(15, 2)
+  /// VAT the company recovers (44566).
+  recoverableVat Decimal             @db.Decimal(15, 2)
+  /// Charges: totalInclTax minus recoverableVat.
+  totalExpense   Decimal             @db.Decimal(15, 2)
+  createdById    String?
+  submittedAt    DateTime?
+  submittedById  String?
+  validatedAt    DateTime?
+  validatedById  String?
+  /// Why a validator sent the report back to its author.
+  returnNote     String?
+  /// Draft entry created by posting (null: not posted). Deleting that draft brings the report back to validée.
+  entryId        String?             @unique
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  claimant ExpenseClaimant  @relation(fields: [claimantId], references: [id], onDelete: Restrict)
+  entry    AccountingEntry? @relation("ExpenseReportEntry", fields: [entryId], references: [id], onDelete: SetNull)
+  lines    ExpenseLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([claimantId])
+  @@map("expense_reports")
+}
+
+/// One expense of a report, or one trip paid by the mileage scale.
+model ExpenseLine {
+  id                  String             @id @default(cuid())
+  reportId            String
+  position            Int
+  kind                ExpenseLineKind    @default(EXPENSE)
+  date                DateTime
+  supplierName        String?
+  label               String
+  /// Category key of lib/expense-reports/categories.ts (default account and VAT rule).
+  category            String
+  /// Expense account; null: the default account of the category.
+  accountCode         String?
+  amountInclTax       Decimal            @db.Decimal(15, 2)
+  /// VAT rate in basis points (2000 = 20 %).
+  vatRateBp           Int                @default(0)
+  /// VAT shown on the receipt.
+  vatAmount           Decimal            @default(0) @db.Decimal(15, 2)
+  /// Part of vatAmount the company recovers (lib/expense-reports/vat-recovery.ts).
+  recoverableVat      Decimal            @default(0) @db.Decimal(15, 2)
+  receiptKind         ExpenseReceiptKind @default(NONE)
+  /// A receipt already in Kledg (a Qonto attachment): Kledg stores no file.
+  receiptAttachmentId String?
+  /// Reference of a paper or emailed receipt kept by the company.
+  receiptReference    String?
+  /// Mileage: CAR, MOTORCYCLE or MOPED, fiscal power, electric (+20 %), distance.
+  vehicleType         String?
+  fiscalPower         Int?
+  electric            Boolean            @default(false)
+  distanceKm          Int?
+  /// Kilometres of the same vehicle already counted in the year before this trip (scale bands are annual).
+  priorDistanceKm     Int?
+  /// Year of the mileage scale applied.
+  scaleYear           Int?
+
+  report            ExpenseReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  receiptAttachment Attachment?   @relation(fields: [receiptAttachmentId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([receiptAttachmentId])
+  @@map("expense_lines")
+}
+
+/// Automatic category of expense lines: a keyword found in the supplier name
+/// or the label gives the category (and optionally the account). Highest
+/// priority first (lib/expense-reports/category-rules.ts).
+model ExpenseCategoryRule {
+  id          String   @id @default(cuid())
+  companyId   String
+  keyword     String
+  category    String
+  accountCode String?
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("expense_category_rules")
 }

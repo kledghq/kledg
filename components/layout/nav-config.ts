@@ -22,12 +22,14 @@ import {
   ListTree,
   Package,
   Receipt,
+  ReceiptText,
   Scale,
   ScrollText,
   Table,
   TrendingDown,
   Upload,
   Users,
+  Wallet,
   Workflow,
   type LucideIcon,
 } from "lucide-react"
@@ -68,6 +70,8 @@ export const navGroups: NavGroup[] = [
       { title: "Factures d'achat", url: "/invoices/purchases", icon: FileInput },
       { title: "Factures de vente", url: "/invoices/sales", icon: FileOutput },
       { title: "Tiers", url: "/tiers", icon: BookUser },
+      { title: "Notes de frais", url: "/expense-reports", icon: ReceiptText },
+      { title: "Mes notes de frais", url: "/expense-reports/mine", icon: Wallet },
     ],
   },
   {
@@ -128,6 +132,10 @@ const subPages: Array<{ path: string; title: string }> = [
   { path: "/invoices/[id]/edit", title: "Modifier la facture" },
   { path: "/invoices/[id]", title: "Facture" },
   { path: "/tiers/new", title: "Nouveau tiers" },
+  { path: "/expense-reports/new", title: "Nouvelle note de frais" },
+  { path: "/expense-reports/settings", title: "Bénéficiaires et catégories" },
+  { path: "/expense-reports/[id]/edit", title: "Modifier la note de frais" },
+  { path: "/expense-reports/[id]", title: "Note de frais" },
   { path: "/tiers/[id]", title: "Tiers" },
 ]
 

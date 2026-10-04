@@ -76,6 +76,7 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   letter_entry_lines: true,
   unletter_entry_lines: true,
   create_draft_invoice: true,
+  create_draft_expense_report: true,
 }
 
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
@@ -223,7 +224,7 @@ describe('full control tools', () => {
   // through registerFullControlTool (define.ts), which checks
   // guard.requireFullControl before any preview or action.
   const dir = path.resolve(__dirname, '../full-control')
-  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts']
+  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts', 'expense-reports.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks full control first, in the single registration path', () => {
