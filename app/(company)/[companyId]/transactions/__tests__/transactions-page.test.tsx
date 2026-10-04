@@ -14,6 +14,8 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ companyId: 'c1' }),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/c1/transactions',
+  // No filter in the URL (the missing receipts list links here with ?q=...).
+  useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/components/features/accounting/transaction-filters', async (importOriginal) => {
