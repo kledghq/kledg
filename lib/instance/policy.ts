@@ -37,7 +37,11 @@ export async function companyCreationRefusal(actor: InstanceActor): Promise<Acti
   return actor.role === 'admin' ? null : { message: "La création de sociétés est réservée aux administrateurs de l'instance." }
 }
 
-/** Called once `actor` created the company `companyId` (after it is ready). Kledg: nothing. */
+/**
+ * Called once `actor` created the company `companyId` (after it is ready).
+ * Throwing removes the company and fails the request
+ * (lib/companies/create-company.service.ts). Kledg: nothing.
+ */
 export async function afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void> {
   void companyId
   void actor

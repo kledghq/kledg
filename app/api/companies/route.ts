@@ -19,12 +19,12 @@ export const GET = authedRoute({}, async ({ user }) => NextResponse.json(await l
 export const POST = authedRoute({ body: CreateCompanySchema }, async ({ body, user }) => {
   const actor = { id: user.id, email: user.email, role: user.role }
   await assertCompanyCreationAllowed(actor)
-  const company = await createCompany(body, actor)
+  // The instance hook runs before the company is kept: a failure removes it (KLEDG-SEC-012).
+  const company = await createCompany(body, actor, { afterCreated: (companyId) => afterCompanyCreated(companyId, actor) })
   await writeAuditLog('info', 'Company created', {
     action: 'CREATE_COMPANY',
     companyId: company.id,
     metadata: { userId: user.id, fiscalYearId: company.fiscalYearId },
   })
-  await afterCompanyCreated(company.id, actor)
   return NextResponse.json(company, { status: 201 })
 })

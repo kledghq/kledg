@@ -72,7 +72,10 @@ without a company to the wizard, and the companies page shows the "Créer"
 button. A refusal answers 403 with the message, its link in the response
 (`{ error, link }`); the wizard page shows the message and the link instead
 of the form. `afterCompanyCreated` runs once the company is ready (a fork
-records who owns it, for instance); Kledg does nothing there.
+records who owns it, for instance); Kledg does nothing there. When it
+throws, the company is removed (with its organization and memberships) and
+the request fails: no company stays that the instance did not take in
+charge (an unbilled, unrestricted company).
 
 ### Read-only companies
 

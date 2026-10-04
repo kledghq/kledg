@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import { hashPassword } from 'better-auth/crypto'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { roles } from '@/lib/permissions'
@@ -22,6 +23,12 @@ export type AddMemberResult = {
   userId: string
   memberId: string
   createdUser: boolean
+  /**
+   * The address belonged to an account never confirmed: it was taken over
+   * like a new account (sessions, password, keys and assistants of whoever
+   * registered it are gone) and the person chooses their password.
+   */
+  resetUnconfirmedUser: boolean
   /** Only set when email is disabled: the admin must pass it on manually. */
   generatedPassword?: string
   /** True when a "choose your password" email was sent. */
@@ -39,6 +46,37 @@ function assertValidRole(role: string): asserts role is CompanyRoleName {
 
 function generatePassword(): string {
   return randomBytes(12).toString('base64url')
+}
+
+/**
+ * KLEDG-SEC-011 (kledg-cloud KLEDG-CLOUD-004). An account whose address was
+ * never confirmed proves nothing about who registered it: on an instance
+ * with public sign-up, anyone can register a colleague's address before an
+ * administrator adds it to a company. Before the membership is granted, the
+ * account is reset like a new one: every session ends, the password is
+ * replaced (`password`), other sign-in methods, API keys, assistant grants
+ * and tokens, pending assistant actions and reset tokens are removed, and
+ * the address counts as confirmed by the welcome link, as for a new account.
+ */
+async function resetUnconfirmedAccount(userId: string, name: string, password: string): Promise<void> {
+  const hashed = await hashPassword(password)
+  await prisma.$transaction(async (tx) => {
+    await tx.session.deleteMany({ where: { userId } })
+    await tx.authAccount.deleteMany({ where: { userId, providerId: { not: 'credential' } } })
+    const credential = await tx.authAccount.updateMany({ where: { userId, providerId: 'credential' }, data: { password: hashed } })
+    if (credential.count === 0) {
+      await tx.authAccount.create({ data: { id: randomBytes(16).toString('hex'), accountId: userId, providerId: 'credential', userId, password: hashed } })
+    }
+    await tx.apikey.deleteMany({ where: { referenceId: userId } })
+    await tx.oauthConsent.deleteMany({ where: { userId } })
+    await tx.oauthAccessToken.deleteMany({ where: { userId } })
+    await tx.oauthRefreshToken.deleteMany({ where: { userId } })
+    await tx.aiAccessGrant.deleteMany({ where: { userId } })
+    await tx.mcpPendingAction.deleteMany({ where: { userId } })
+    await tx.mcpConfirmation.deleteMany({ where: { userId } })
+    await tx.verification.deleteMany({ where: { value: userId } })
+    await tx.user.update({ where: { id: userId }, data: { emailVerified: true, name } })
+  })
 }
 
 export async function addMemberToCompany(
@@ -59,8 +97,23 @@ export async function addMemberToCompany(
   let user = await prisma.user.findUnique({ where: { email } })
   let generatedPassword: string | undefined
   let createdUser = false
+  let resetUnconfirmedUser = false
 
   let welcomeEmailSent = false
+
+  if (user && !user.emailVerified) {
+    const existingMember = await prisma.member.findFirst({ where: { userId: user.id, organizationId: organization.id }, select: { id: true } })
+    if (existingMember) throw new ConflictError('Cet utilisateur est déjà membre de cette société')
+    const password = generatePassword()
+    await resetUnconfirmedAccount(user.id, input.name?.trim() || email.split('@')[0], password)
+    resetUnconfirmedUser = true
+    if (await isEmailEnabled()) {
+      await auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password?welcome=1' } })
+      welcomeEmailSent = true
+    } else {
+      generatedPassword = password
+    }
+  }
 
   if (!user) {
     const password = generatePassword()
@@ -122,6 +175,7 @@ export async function addMemberToCompany(
     userId: user.id,
     memberId: member.id,
     createdUser,
+    resetUnconfirmedUser,
     generatedPassword,
     welcomeEmailSent,
     roles: roleList,

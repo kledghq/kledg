@@ -25,7 +25,7 @@ export const POST = adminRoute({ company: fromParam('id'), body: AddMemberSchema
   await writeAuditLog('info', 'Membre ajouté à la société', {
     action: 'MEMBER_ADDED',
     companyId,
-    metadata: { memberId: added.memberId, userId: added.userId, role: body.role, createdUser: added.createdUser },
+    metadata: { memberId: added.memberId, userId: added.userId, role: body.role, createdUser: added.createdUser, resetUnconfirmedUser: added.resetUnconfirmedUser },
   })
   return NextResponse.json(added, { status: 201 })
 })

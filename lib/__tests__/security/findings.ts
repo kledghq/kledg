@@ -174,6 +174,69 @@ export const NEW_FINDINGS = {
       'waits for the email. Residual: one verification row insert vs a lookup, well under network jitter. ' +
       'lib/__tests__/security/reset-timing.db.test.ts.',
   },
+  'KLEDG-SEC-010': {
+    id: 'KLEDG-SEC-010',
+    title: 'Concurrent management fee generations invoice a subsidiary or a period twice',
+    status: 'fixed',
+    fixedIn: '0389592',
+    severity: 'low',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:N/I:L/A:N', // 3.1
+    area: 'business-logic/race',
+    note:
+      'lib/management-fees/bill-management-fees.service.ts generateManagementFeeInvoices checked the overlap with ' +
+      'invoiced periods, then looked each billing up and created the sales invoice, each step in its own statement ' +
+      'and without a lock. Two generations of one convention at once (a double click, two tabs, two users with ' +
+      'entries:create in the holding) both passed the checks: three concurrent runs of the same quarter recorded 4 ' +
+      'draft sales invoices for 2 subsidiaries (one billing pointing at the last one, the others orphaned in the ' +
+      'invoice series, CGI ann. II art. 242 nonies A), and Q1 with February to April both succeeded (overlapping ' +
+      'periods invoiced, i.e. management fees charged twice to a subsidiary); some runs failed with a raw unique ' +
+      'violation (500). In the subsidiary, six concurrent runs with purchaseDrafts recorded 2 or 3 supplier tiers ' +
+      'for the holding and as many draft purchase invoices of one number (a write duplicated in another company). ' +
+      'Drafts only, nothing posted, hence low. Fixed: the holding side (overlap check again, billings, tiers, sales ' +
+      'invoices) runs in one transaction under pg_advisory_xact_lock per convention and reads the state again ' +
+      'there (0389592); the purchase draft of a subsidiary is found or created in one transaction under a lock per ' +
+      'subsidiary, in its own scope (772c16c); createInvoice accepts the caller transaction. ' +
+      'lib/management-fees/__tests__/management-fees.db.test.ts ([KLEDG-SEC-010] tests, also under KLEDG_RLS=enforce).',
+  },
+  'KLEDG-SEC-011': {
+    id: 'KLEDG-SEC-011',
+    title: 'Account pre-registration takeover when an unconfirmed address is added to a company',
+    status: 'fixed',
+    fixedIn: '13431d1',
+    severity: 'medium',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N', // 6.8
+    area: 'auth/account',
+    note:
+      'Tracked in kledg-cloud as KLEDG-CLOUD-004. lib/rbac/add-member-to-company.service.ts addMemberToCompany ' +
+      'reused an existing user found by email as is. On an instance whose policy opens sign-up and requires ' +
+      'confirmed addresses (the hosted policy), an attacker registers a colleague\'s address before an ' +
+      'administrator adds it to a company: the account keeps the attacker\'s password, sessions, API keys and ' +
+      'assistant grants (an all-companies key then reaches the new company), and opens to the attacker once the ' +
+      'victim confirms the address. Fixed: an account whose address was never confirmed is reset like a new one ' +
+      'before the membership is granted (sessions ended, password replaced, other sign-in methods, API keys, ' +
+      'OAuth consents and tokens, assistant grants, pending assistant actions and reset tokens removed, address ' +
+      'confirmed by the welcome link, or a generated password returned without email); confirmed accounts are ' +
+      'added as before. lib/__tests__/security/account-preregistration.db.test.ts (policy with ' +
+      'REQUIRE_EMAIL_VERIFICATION).',
+  },
+  'KLEDG-SEC-012': {
+    id: 'KLEDG-SEC-012',
+    title: 'A failing after-creation instance hook leaves an unassigned company',
+    status: 'fixed',
+    fixedIn: 'af23c2b',
+    severity: 'medium',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:N/I:H/A:N', // 5.3
+    area: 'business-logic/instance-policy',
+    note:
+      'Tracked in kledg-cloud as KLEDG-CLOUD-006. POST /api/companies created the company (and made a user creator ' +
+      'its administrator), then called the instance hook afterCompanyCreated (ownership, billing assignment of a ' +
+      'hosted instance) outside any rollback: a hook failure answered 500 but kept the company, unbilled and outside ' +
+      'the instance\'s restrictions (companyWriteRefusal reads what the hook records). Fixed: createCompany runs the ' +
+      'hook before answering and, when it throws, removes the company with its organization and memberships in the ' +
+      'context it was created in, then fails the request; nothing blocks a new attempt. Kledg\'s own hook does ' +
+      'nothing, so a standard instance was not affected. app/api/__tests__/company-creation-policy.db.test.ts ' +
+      '([KLEDG-SEC-012], throwing hook).',
+  },
 } as const satisfies Record<string, Finding>
 
 /** Weaknesses the brief says another workstream is already fixing. Tests are expected-secure, skipped. */
