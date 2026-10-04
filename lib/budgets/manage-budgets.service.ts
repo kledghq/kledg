@@ -22,7 +22,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { PCG_ACCOUNTS } from '@/lib/accounting/pcg-data'
 import { writeAuditLog } from '@/lib/audit'
-import { optionalText } from '@/lib/api/zod-fields'
+import { optionalText, parseInput } from '@/lib/api/zod-fields'
 import { calendarDayOf } from '@/lib/utils/date'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { fiscalYearMonths, isMonthKey, type MonthKey } from './months'
@@ -377,6 +377,37 @@ export async function updateBudgetLine(companyId: string, lineId: string, input:
     }
   })
   return getLine(companyId, lineId)
+}
+
+/** A recurring item another feature adds to a line (a detected subscription, lib/subscriptions). */
+export type NewRecurringItem = z.input<typeof RecurringItemSchema>
+
+/**
+ * Appends a recurring item to a line of an open budget of the company, in
+ * the caller's transaction (under the budget's lock, like every write here).
+ * `side` restricts the line to charges or produits. The same label with the
+ * same frequency on the line is a 409, so a retried request adds nothing
+ * twice. Returns the line's budget and fiscal year.
+ */
+export async function addRecurringItemInTx(tx: Tx, companyId: string, lineId: string, input: NewRecurringItem, options: { side?: BudgetSide } = {}) {
+  const item = parseInput(RecurringItemSchema, input)
+  const found = await tx.budgetLine.findFirst({ where: { id: lineId, budget: { companyId } }, select: { budgetId: true } })
+  if (!found) throw new NotFoundError(BUDGET_LINE_NOT_FOUND)
+  const budget = await lockOpenBudget(tx, companyId, found.budgetId)
+  const line = await tx.budgetLine.findUniqueOrThrow({ where: { id: lineId }, select: { accountPrefix: true, recurringItems: { select: { label: true, frequency: true, position: true } } } })
+  if (options.side && sideOfAccount(line.accountPrefix) !== options.side) {
+    throw new ValidationError(`Choisissez une ligne de ${options.side === 'charges' ? 'charges (classe 6)' : 'produits (classe 7)'} : la ligne ${line.accountPrefix} n'en est pas une.`)
+  }
+  if (line.recurringItems.length >= MAX_RECURRING_ITEMS) {
+    throw new ConflictError(`La ligne ${line.accountPrefix} a déjà ${MAX_RECURRING_ITEMS} éléments récurrents.`)
+  }
+  if (line.recurringItems.some((existing) => existing.label === item.label && existing.frequency === item.frequency)) {
+    throw new ConflictError(`La ligne ${line.accountPrefix} a déjà l'élément récurrent « ${item.label} ».`)
+  }
+  const [planned] = linePlan({ recurringItems: [item] }, monthsOfFiscalYear(budget.fiscalYear), budget.fiscalYear.year).items
+  const position = line.recurringItems.reduce((max, existing) => Math.max(max, existing.position + 1), 0)
+  await tx.budgetRecurringItem.create({ data: { ...planned, position, lineId } })
+  return { budgetId: budget.id, lineId, accountPrefix: line.accountPrefix, fiscalYear: fiscalYearView(budget.fiscalYear) }
 }
 
 export async function deleteBudgetLine(companyId: string, lineId: string): Promise<void> {
