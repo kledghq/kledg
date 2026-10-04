@@ -52,7 +52,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { shareholderSchema, type ShareholderFormData } from './company-informations-schemas'
+import { optionalNumberInput, shareholderSchema, type ShareholderFormData } from './company-informations-schemas'
 import type { Shareholder } from './company-informations-types'
 import { CreatePersonForm } from './create-person-form'
 import { logger } from '@/lib/logger'
@@ -515,9 +515,13 @@ export function ShareholdersManagement({
                           </DialogContent>
                         </Dialog>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Sélectionnez une personne existante ou créez-en une nouvelle avec le bouton +
-                      </p>
+                      {errorsShareholder.personId ? (
+                        <p className="text-sm text-destructive">{errorsShareholder.personId.message}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Sélectionnez une personne existante ou créez-en une nouvelle avec le bouton +
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -617,7 +621,7 @@ export function ShareholdersManagement({
                         type="number"
                         step="1"
                         min="1"
-                        {...registerShareholder('numberOfShares', { valueAsNumber: true })}
+                        {...registerShareholder('numberOfShares', { setValueAs: optionalNumberInput })}
                         placeholder="0"
                         className="w-full"
                       />
@@ -632,7 +636,7 @@ export function ShareholdersManagement({
                         type="number"
                         step="0.01"
                         min="0"
-                        {...registerShareholder('capitalAmount', { valueAsNumber: true })}
+                        {...registerShareholder('capitalAmount', { setValueAs: optionalNumberInput })}
                         placeholder="0.00"
                         className="w-full"
                       />
