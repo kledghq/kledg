@@ -25,7 +25,8 @@ export function LoginForm({ extra }: { extra?: React.ReactNode }) {
   useEffect(() => {
     const errorParam = searchParams.get('error')
     if (errorParam) {
-      setError(decodeURIComponent(errorParam))
+      // Already decoded by URLSearchParams: decoding again throws on a literal "%".
+      setError(errorParam)
       router.replace('/login')
     }
   }, [searchParams, router])
