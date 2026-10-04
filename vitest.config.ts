@@ -14,6 +14,17 @@ export default defineConfig({
     testTimeout: 20_000,
     hookTimeout: 60_000,
     exclude: ['**/node_modules/**', '.next', 'dist', '.claude/**'],
+    // `pnpm test:coverage`: source files of the app only (tests, generated
+    // Prisma client and type declarations excluded). Run it with the database
+    // tests enabled (KLEDG_REQUIRE_TEST_DB=1), or the services they cover read
+    // as untested.
+    coverage: {
+      provider: 'v8',
+      include: ['app/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'hooks/**/*.{ts,tsx}'],
+      exclude: ['**/__tests__/**', '**/*.test.{ts,tsx}', '**/*.d.ts', 'lib/generated/**'],
+      reporter: ['text-summary', 'json-summary', 'html'],
+      reportsDirectory: 'coverage',
+    },
     projects: [
       {
         extends: true,
