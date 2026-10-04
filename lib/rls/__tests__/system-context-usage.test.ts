@@ -20,6 +20,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/banking/sync-banks.service.ts': ['cron:bank-sync'],
   // A company created by a user the instance policy allows: it has no member yet, and its organization and membership are system writes.
   'lib/companies/create-company.service.ts': ['company-creation'],
+  // Re-encryption after a rotation of the auth secret: every company's sealed credentials, at server start.
+  'lib/crypto/reencrypt.ts': ['secret-rotation'],
 }
 
 function files(entry: string): string[] {

@@ -22,6 +22,8 @@ import type { RateLimitRule } from '@/lib/instance/types'
 export const RATE_LIMITS = {
   /** First-run setup, per client IP. */
   setup: { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+  /** Bank sync cron called without CRON_SECRET (lib/banking/sync-banks.service.ts), instance-wide. */
+  'cron-keyless': { window: 86_400, max: 4, message: 'Synchronisation déjà lancée récemment.' },
   /** Email change of one's account, per user. */
   'account-change-email': { window: 3600, max: 5, message: "Trop de demandes de changement d'adresse. Réessayez dans une heure." },
   /** Password change, per user. */

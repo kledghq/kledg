@@ -101,17 +101,17 @@ describe("/setup view", () => {
   it("shows the form only with the right token in the link, a neutral page otherwise", async () => {
     const { setupView } = await import("@/lib/setup");
     process.env.SETUP_TOKEN = "a-long-enough-setup-token-0123";
-    expect(setupView("a-long-enough-setup-token-0123")).toBe("form");
-    expect(setupView(undefined)).toBe("pending");
-    expect(setupView("")).toBe("pending");
-    expect(setupView("a-long-enough-setup-token-0124")).toBe("pending");
+    expect(await setupView("a-long-enough-setup-token-0123")).toBe("form");
+    expect(await setupView(undefined)).toBe("pending");
+    expect(await setupView("")).toBe("pending");
+    expect(await setupView("a-long-enough-setup-token-0124")).toBe("pending");
   });
 
   it("says why setup is blocked when no usable token is configured, whatever the link", async () => {
     const { setupView } = await import("@/lib/setup");
     delete process.env.SETUP_TOKEN;
-    expect(setupView("anything")).toBe("blocked");
+    expect(await setupView("anything")).toBe("blocked");
     process.env.SETUP_TOKEN = "short";
-    expect(setupView("short")).toBe("blocked");
+    expect(await setupView("short")).toBe("blocked");
   });
 });

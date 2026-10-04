@@ -2,8 +2,11 @@
  * Scheduled bank sync (lib/banking/sync-banks.service.ts) through its two
  * cron routes, /api/cron/sync-banks and its former path /api/cron/sync-qonto,
  * with Prisma and syncIntegration mocked:
- * - the CRON_SECRET bearer token is required (401 without it, with a wrong
- *   one, or when the instance has no CRON_SECRET);
+ * - with CRON_SECRET, its bearer token is required (401 without it or with
+ *   a wrong one);
+ * - without CRON_SECRET (keyless mode), anyone may call the route, so it only
+ *   syncs integrations not synced for 20 hours, is limited instance-wide,
+ *   and answers with a count only;
  * - every active bank integration is synced, Qonto with transactions only;
  * - a failing integration is reported with a French reason and does not
  *   stop the others; the summary lists each run.
@@ -13,6 +16,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
 vi.mock('@/lib/integrations/sync', () => ({ syncIntegration: vi.fn() }))
+vi.mock('@/lib/rate-limit', async () => ({
+  ...(await vi.importActual<typeof import('@/lib/rate-limit')>('@/lib/rate-limit')),
+  withinRateLimit: vi.fn(async () => true),
+}))
 vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
 import { prisma } from '@/lib/prisma'
@@ -22,6 +29,7 @@ import { IntegrationFeature } from '@/lib/integrations/types'
 import { ExternalServiceError, INTERNAL_ERROR_MESSAGE } from '@/lib/accounting/errors'
 import { UNEXPECTED_BANK_ERROR_MESSAGE } from '@/lib/banking/errors'
 import { syncAllBankIntegrations } from '@/lib/banking/sync-banks.service'
+import { withinRateLimit } from '@/lib/rate-limit'
 import { GET as syncBanks } from '@/app/api/cron/sync-banks/route'
 import { GET as syncQonto } from '@/app/api/cron/sync-qonto/route'
 
@@ -67,10 +75,27 @@ describe.each([
     expect(syncIntegration).not.toHaveBeenCalled()
   })
 
-  it('answers 401 when the instance has no CRON_SECRET, even to an empty bearer', async () => {
+  it('without CRON_SECRET, syncs only integrations not synced for 20 hours and reveals nothing but a count', async () => {
     delete process.env.CRON_SECRET
-    expect((await handler(cron('Bearer '))).status).toBe(401)
-    expect((await handler(cron('Bearer undefined'))).status).toBe(401)
+    const before = Date.now()
+    const response = await handler(cron())
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true, synced: 3 })
+    expect(withinRateLimit).toHaveBeenCalledWith('cron-keyless', 'instance')
+    const where = db.integration.findMany.mock.calls[0]?.[0]?.where as { OR: [unknown, { lastSyncAt: { lt: Date } }] }
+    expect(where.OR[0]).toEqual({ lastSyncAt: null })
+    const cutoff = where.OR[1].lastSyncAt.lt.getTime()
+    expect(before - cutoff).toBeGreaterThanOrEqual(20 * 3_600_000 - 1000)
+    expect(before - cutoff).toBeLessThanOrEqual(20 * 3_600_000 + 1000)
+  })
+
+  it('without CRON_SECRET, does nothing once the instance-wide limit is reached', async () => {
+    delete process.env.CRON_SECRET
+    vi.mocked(withinRateLimit).mockResolvedValueOnce(false)
+    const response = await handler(cron('Bearer whatever'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ success: true, synced: 0, skipped: 'rate-limited' })
+    expect(db.integration.findMany).not.toHaveBeenCalled()
     expect(syncIntegration).not.toHaveBeenCalled()
   })
 

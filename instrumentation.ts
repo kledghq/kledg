@@ -1,0 +1,13 @@
+/**
+ * Runs once per server instance, before it handles requests (Next.js
+ * instrumentation). Only Node.js work here: the proxy runs elsewhere.
+ */
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return
+  // After a rotation of the auth secret, credentials sealed with the old one
+  // are sealed again with the new one (lib/crypto/reencrypt.ts). Nothing to do
+  // when no older secret is configured. A failure never blocks the start.
+  const { reencryptStoredSecrets } = await import('@/lib/crypto/reencrypt')
+  const { logger } = await import('@/lib/logger')
+  await reencryptStoredSecrets().catch((error: unknown) => logger.error('Secret rotation: re-encryption failed', error))
+}

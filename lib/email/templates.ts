@@ -46,6 +46,20 @@ export function resetPasswordEmail(to: string, url: string): EmailMessage {
   }
 }
 
+export function setupLinkEmail(to: string, url: string, ttlMinutes: number): EmailMessage {
+  return {
+    to,
+    subject: `Votre lien d'installation ${APP_NAME}`,
+    html: layout(
+      'Créer le compte administrateur',
+      `Votre instance ${APP_NAME} est en ligne. Ce lien ouvre la création du compte administrateur ; il est valable ${ttlMinutes} minutes.`,
+      { label: 'Créer mon compte', url },
+      "Si vous n'avez pas déployé Kledg, ignorez cet email : sans ce lien, personne ne peut créer le compte.",
+    ),
+    text: `Créez le compte administrateur de votre instance ${APP_NAME} (lien valable ${ttlMinutes} minutes) : ${url}`,
+  }
+}
+
 export function verifyEmailEmail(to: string, url: string): EmailMessage {
   return {
     to,
