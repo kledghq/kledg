@@ -193,6 +193,12 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
     [`${prefix}FreeClaimant`]: freeClaimant.id,
     [`${prefix}ExpenseRule`]: expenseRule.id,
   })
+  // Budget of the fiscal year, with a line
+  const budget = await prisma.budget.create({
+    data: { companyId: company.id, fiscalYearId: fy.id, lines: { create: [{ accountPrefix: '706', label: 'Prestations de services', amounts: { create: [{ month: '2026-01', amount: 1000 }] } }] } },
+    include: { lines: true },
+  })
+  Object.assign(ids, { [`${prefix}Budget`]: budget.id, [`${prefix}BudgetLine`]: budget.lines[0].id })
   const fixedAsset = await prisma.fixedAsset.create({
     data: {
       companyId: company.id,
@@ -407,6 +413,11 @@ const ROUTE_MODULES = {
   expenseClaimantOptions: () => import('@/app/api/expense-claimants/options/route'),
   expenseRules: () => import('@/app/api/expense-category-rules/route'),
   expenseRule: () => import('@/app/api/expense-category-rules/[id]/route'),
+  budgets: () => import('@/app/api/budgets/route'),
+  budget: () => import('@/app/api/budgets/[id]/route'),
+  budgetLines: () => import('@/app/api/budgets/[id]/lines/route'),
+  budgetReport: () => import('@/app/api/budgets/[id]/report/route'),
+  budgetLine: () => import('@/app/api/budget-lines/[id]/route'),
 }
 
 interface Call {
@@ -571,6 +582,11 @@ const WRITES: Call[] = [
   { label: 'create expense category rule', route: 'expenseRules', method: 'POST', path: () => '/api/expense-category-rules', body: () => ({ companyId: A(), keyword: 'uber', category: 'TRANSPORT' }) },
   { label: 'update expense category rule', route: 'expenseRule', method: 'PATCH', path: () => `/api/expense-category-rules/${ids.aExpenseRule}`, params: p({ id: () => ids.aExpenseRule }), body: () => ({ priority: 2 }) },
   { label: 'delete expense category rule', route: 'expenseRule', method: 'DELETE', path: () => `/api/expense-category-rules/${ids.aExpenseRule}`, params: p({ id: () => ids.aExpenseRule }) },
+  { label: 'create budget', route: 'budgets', method: 'POST', path: () => '/api/budgets', body: () => ({ companyId: A(), fiscalYearId: ids.aFy }) },
+  { label: 'delete budget', route: 'budget', method: 'DELETE', path: () => `/api/budgets/${ids.aBudget}`, params: p({ id: () => ids.aBudget }) },
+  { label: 'create budget line', route: 'budgetLines', method: 'POST', path: () => `/api/budgets/${ids.aBudget}/lines`, params: p({ id: () => ids.aBudget }), body: () => ({ accountPrefix: '6064' }) },
+  { label: 'update budget line', route: 'budgetLine', method: 'PATCH', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }), body: () => ({ amounts: [{ month: '2026-02', amountCents: 5_000 }] }) },
+  { label: 'delete budget line', route: 'budgetLine', method: 'DELETE', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }) },
 ]
 
 /** Reads of company A (viewer: allowed, non-member: 404, anonymous: 401). */
@@ -644,6 +660,9 @@ const READS: Call[] = [
   { label: 'list expense claimants', route: 'expenseClaimants', method: 'GET', path: () => `/api/expense-claimants?companyId=${A()}` },
   { label: 'list expense category rules', route: 'expenseRules', method: 'GET', path: () => `/api/expense-category-rules?companyId=${A()}` },
   { label: 'list expense receipts', route: 'expenseReceipts', method: 'GET', path: () => `/api/expense-reports/receipts?companyId=${A()}` },
+  { label: 'list budgets', route: 'budgets', method: 'GET', path: () => `/api/budgets?companyId=${A()}` },
+  { label: 'read budget', route: 'budget', method: 'GET', path: () => `/api/budgets/${ids.aBudget}`, params: p({ id: () => ids.aBudget }) },
+  { label: 'budget against the books', route: 'budgetReport', method: 'GET', path: () => `/api/budgets/${ids.aBudget}/report`, params: p({ id: () => ids.aBudget }) },
 ]
 
 /** What the accountant must not do. */

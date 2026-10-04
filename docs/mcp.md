@@ -105,6 +105,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_invoice` | Une facture avec ses lignes, son détail de TVA par taux, son écriture et ses règlements ; droit `entries:read` |
 | `list_expense_reports` | Notes de frais avec bénéficiaire, période, total à rembourser, TVA récupérable et statut (brouillon, soumise, validée, comptabilisée, remboursée) ([notes de frais](notes-de-frais.md)) ; droit `entries:read`, puis seulement ses propres notes sans le droit de valider |
 | `get_expense_report` | Une note de frais avec ses lignes, la TVA récupérable de chacune et sa raison, les trajets et le barème appliqué ; mêmes droits |
+| `get_budget_report` | Budget d'un exercice comparé aux écritures validées : par ligne (début de compte de classe 6 ou 7), budget, réel, écart et pourcentage, comptes hors budget, totaux et résultat, jusqu'à un mois ou mois par mois ([budget](budget.md)) ; droit `reports:read` |
 
 ### Lecture et brouillons d'écritures (`kledg:write`)
 

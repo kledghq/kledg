@@ -143,6 +143,7 @@ model Company {
   expenseClaimants           ExpenseClaimant[]
   expenseReports             ExpenseReport[]
   expenseCategoryRules       ExpenseCategoryRule[]
+  budgets                    Budget[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -233,8 +234,11 @@ model FiscalYear {
   accounts                Account[]                @relation("FiscalYearAccounts")
   accountingEntries       AccountingEntry[]
   fixedAssetDepreciations FixedAssetDepreciation[]
+  budget                  Budget?
 
   @@unique([companyId, year])
+  /// Target of composite foreign keys that keep a child row in the company of its fiscal year (budgets).
+  @@unique([id, companyId])
   @@index([companyId])
   @@index([startDate, endDate])
   @@map("fiscal_years")
@@ -1981,4 +1985,83 @@ model ExpenseCategoryRule {
 
   @@index([companyId])
   @@map("expense_category_rules")
+}
+
+/// How often a recurring budget item falls due, from its first month
+/// (lib/budgets/recurring.ts).
+enum BudgetFrequency {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+/// Budget of a fiscal year (docs/budget.md): one per fiscal year, compared
+/// with the validated entries of that year (lib/budgets/budget-report.service.ts).
+model Budget {
+  id           String   @id @default(cuid())
+  companyId    String
+  fiscalYearId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// On (fiscalYearId, companyId): the fiscal year is always one of the budget's company.
+  fiscalYear FiscalYear   @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+  lines      BudgetLine[]
+
+  /// One budget per fiscal year (a fiscal year belongs to one company).
+  @@unique([fiscalYearId, companyId])
+  @@index([companyId])
+  @@map("budgets")
+}
+
+/// A line of a budget: the class 6 or 7 accounts whose number starts with
+/// `accountPrefix` (an account goes to the line with the longest matching
+/// prefix). A prefix, not an account id: accounts belong to one fiscal year.
+model BudgetLine {
+  id            String   @id @default(cuid())
+  budgetId      String
+  accountPrefix String
+  label         String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  budget         Budget                @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  amounts        BudgetLineAmount[]
+  recurringItems BudgetRecurringItem[]
+
+  @@unique([budgetId, accountPrefix])
+  @@map("budget_lines")
+}
+
+/// Amount entered for one calendar month (`yyyy-mm`) of a budget line.
+model BudgetLineAmount {
+  id     String  @id @default(cuid())
+  lineId String
+  month  String
+  amount Decimal @db.Decimal(15, 2)
+
+  line BudgetLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+
+  @@unique([lineId, month])
+  @@map("budget_line_amounts")
+}
+
+/// A recurring amount of a budget line (subscription, rent, insurance),
+/// expanded into the months of the fiscal year from `startMonth` to
+/// `endMonth` (inclusive, `yyyy-mm`), added to the amounts entered by month.
+model BudgetRecurringItem {
+  id         String          @id @default(cuid())
+  lineId     String
+  label      String
+  amount     Decimal         @db.Decimal(15, 2)
+  frequency  BudgetFrequency
+  startMonth String
+  endMonth   String?
+  position   Int             @default(0)
+
+  line BudgetLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+
+  @@index([lineId])
+  @@map("budget_recurring_items")
 }

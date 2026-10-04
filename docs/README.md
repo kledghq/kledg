@@ -12,6 +12,7 @@
 - [Lettrage et tiers](lettrage-et-tiers.md) : lettrage des comptes de tiers, balance auxiliaire, balance âgée, justificatifs manquants
 - [Factures et tiers](factures-et-tiers.md) : clients et fournisseurs, factures d'achat et de vente, comptabilisation, TVA sur les encaissements, règlements, import Qonto, facturation électronique
 - [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, validation, comptabilisation et remboursement
+- [Budget](budget.md) : budget de l'exercice par compte et par mois, éléments récurrents, comparaison avec les écritures validées
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
 
 La documentation utilisateur (prise en main, import FEC, banque, clôture) est publiée sur [kledg.com](https://www.kledg.com).
