@@ -11,7 +11,7 @@ import type { InstanceAction, InstanceActor } from './types'
 
 export { actionRefusalMessage, afterCompanyCreated, companyCreationRefusal, companyWriteRefusal, isActionAllowed } from './policy'
 export { INSTANCE_ACTIONS, type ActionRefusal, type InstanceAction, type InstanceActor } from './types'
-export { isSelfAuthenticatedApiPath } from './api-paths'
+export { isInstancePublicPage, isSelfAuthenticatedApiPath } from './api-paths'
 
 /** Throws a 403 ForbiddenError with the policy's message when `action` is refused to `actor`. */
 export async function assertActionAllowed(action: InstanceAction, actor: InstanceActor | null = null): Promise<void> {

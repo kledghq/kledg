@@ -23,6 +23,7 @@ import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { DELEGATED_FINDINGS, skip } from './findings'
+import { isSelfAuthenticatedApiPath } from '@/lib/instance/api-paths'
 
 await vi.hoisted(async () => {
   // Some route modules instantiate Better Auth / Prisma at import time. No
@@ -95,7 +96,14 @@ const routeFiles: RouteFile[] = walk(APP_API)
   .map((abs) => ({ abs, rel: relative(ROOT, abs), methods: exportedMethods(readFileSync(abs, 'utf8')) }))
   .sort((a, b) => a.rel.localeCompare(b.rel))
 
-const protectedRoutes = routeFiles.filter((r) => !(r.rel in PUBLIC_ROUTES) && !(r.rel in DELEGATED))
+/**
+ * Routes of a customised instance that authenticate requests themselves,
+ * declared with their reason in SELF_AUTHENTICATED_API_ROUTES
+ * (lib/instance/policy.ts): their own tests cover them. Kledg declares none.
+ */
+const selfAuthenticated = (rel: string) => isSelfAuthenticatedApiPath(`/${rel.replace(/^app\//, '').replace(/route\.ts$/, '')}`)
+
+const protectedRoutes = routeFiles.filter((r) => !(r.rel in PUBLIC_ROUTES) && !(r.rel in DELEGATED) && !selfAuthenticated(r.rel))
 
 async function callAnonymous(abs: string, method: Method): Promise<number> {
   const mod = (await import(pathToFileURL(abs).href)) as Record<string, unknown>

@@ -62,3 +62,10 @@ export async function companyWriteRefusal(companyId: string): Promise<ActionRefu
  * (lib/api/__tests__/routes.test.ts) accepts their handlers unwrapped.
  */
 export const SELF_AUTHENTICATED_API_ROUTES: Readonly<Record<string, string>> = {}
+
+/**
+ * Pages of the instance that open without a session (a sign-up page, legal
+ * notices), as paths: each one and the paths under it. The proxy lets them
+ * through like /login; each page decides for itself what it shows.
+ */
+export const PUBLIC_PAGES: readonly string[] = []

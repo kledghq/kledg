@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { PATH_HEADER } from '@/lib/request-path'
-import { isSelfAuthenticatedApiPath } from '@/lib/instance/api-paths'
+import { isInstancePublicPage, isSelfAuthenticatedApiPath } from '@/lib/instance/api-paths'
 import { withResolvedClientIp } from '@/lib/client-ip'
 import { buildContentSecurityPolicy, NONCE_HEADER } from '@/lib/security-headers'
 import { isPwaPublicPath } from '@/lib/pwa/paths'
@@ -32,9 +32,10 @@ export async function proxy(request: NextRequest) {
   const isAuthenticated = Boolean(sessionCookie)
 
   const publicRoutes = ['/login', '/setup', '/forgot-password', '/reset-password']
-  const isPublicRoute = publicRoutes.some(
-    route => pathname === route || pathname.startsWith(route + '/'),
-  )
+  // Plus the pages the instance policy opens (lib/instance/policy.ts, PUBLIC_PAGES).
+  const isPublicRoute =
+    publicRoutes.some(route => pathname === route || pathname.startsWith(route + '/')) ||
+    isInstancePublicPage(pathname)
 
   // Auth endpoints, OAuth discovery, the MCP endpoint (bearer tokens), cron
   // jobs (CRON_SECRET) and the routes the instance policy declares

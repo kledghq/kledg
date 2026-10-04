@@ -24,6 +24,7 @@ companyCreationRefusal(actor: InstanceActor): Promise<ActionRefusal | null>
 afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
 companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
+PUBLIC_PAGES: readonly string[]
 ```
 
 Kledg checks every restrictable action through `lib/instance`
@@ -87,9 +88,15 @@ answers null.
 
 `SELF_AUTHENTICATED_API_ROUTES` maps API path prefixes to the reason they are
 safe without a session (an API key, a `CRON_SECRET` bearer token). The
-request proxy (`proxy.ts`) lets them through and the route architecture test
+request proxy (`proxy.ts`) lets them through, the route architecture test
 (`lib/api/__tests__/routes.test.ts`) accepts their handlers without a route
-wrapper. Keep the policy file free of database and Node imports: the proxy
+wrapper, and the route coverage guard
+(`lib/__tests__/security/route-coverage.test.ts`) leaves them to their own
+tests.
+
+`PUBLIC_PAGES` lists pages that open without a session (a sign-up page,
+legal notices): the proxy lets each path and the paths under it through,
+like `/login`. Kledg declares none. Keep the policy file free of database and Node imports: the proxy
 imports it. A hook that needs the database (a quota, a subscription) loads
 its module inside the function (`const { check } = await import('@/lib/x')`),
 so the proxy never runs it.
