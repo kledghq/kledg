@@ -95,7 +95,7 @@ describe.skipIf(!available)('append-only audit log', () => {
 
   it('audits member additions, role changes and removals', async () => {
     await prisma.user.create({ data: { id: 'u-admin', email: 'admin@test.local', name: 'Admin', role: 'admin' } })
-    await prisma.user.create({ data: { id: 'u-marie', email: 'marie@test.local', name: 'Marie', role: 'user' } })
+    await prisma.user.create({ data: { id: 'u-marie', email: 'marie@test.local', name: 'Marie', role: 'user', emailVerified: true } })
     const company = await prisma.company.create({ data: { name: 'Alpha', slug: 'alpha', siren: '111111111' } })
     await prisma.organization.create({ data: { id: 'org-a', name: 'Alpha', slug: 'org-alpha', createdAt: new Date(), companyId: company.id } })
 
