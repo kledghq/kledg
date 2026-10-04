@@ -11,20 +11,21 @@ import type { Block, GeneratedDocument } from './model'
 const styles = StyleSheet.create({
   page: { paddingTop: 42, paddingBottom: 56, paddingHorizontal: 52, fontSize: 10, fontFamily: 'Helvetica', lineHeight: 1.45, color: '#000' },
   header: { marginBottom: 18, paddingBottom: 8, borderBottom: '0.75 solid #000' },
-  company: { fontSize: 12, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
+  company: { fontSize: 12, fontWeight: 'bold', marginBottom: 2 },
   headerLine: { fontSize: 8.5 },
-  title: { fontSize: 13, fontFamily: 'Helvetica-Bold', textAlign: 'center', marginTop: 4, marginBottom: 4, textTransform: 'uppercase' },
+  title: { fontSize: 13, fontWeight: 'bold', textAlign: 'center', marginTop: 4, marginBottom: 4, textTransform: 'uppercase' },
   subtitle: { fontSize: 9.5, textAlign: 'center', marginBottom: 16 },
-  heading: { fontSize: 10.5, fontFamily: 'Helvetica-Bold', marginTop: 12, marginBottom: 4 },
+  heading: { fontSize: 10.5, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
   paragraph: { marginBottom: 7, textAlign: 'justify' },
   note: { marginTop: 6, marginBottom: 7, fontSize: 8.5, color: '#333' },
   listItem: { flexDirection: 'row', marginBottom: 3, paddingLeft: 10 },
   bullet: { width: 12 },
   listText: { flex: 1 },
-  table: { marginTop: 4, marginBottom: 10, borderTop: '0.5 solid #000', borderLeft: '0.5 solid #000' },
+  table: { marginTop: 4, marginBottom: 10, borderRight: '0.5 solid #000', borderBottom: '0.5 solid #000' },
   row: { flexDirection: 'row' },
-  cell: { flex: 1, padding: 4, borderRight: '0.5 solid #000', borderBottom: '0.5 solid #000', fontSize: 9 },
-  headCell: { fontFamily: 'Helvetica-Bold' },
+  cell: { flex: 1, padding: 4, borderLeft: '0.5 solid #000', borderTop: '0.5 solid #000', fontSize: 9 },
+  firstCell: { flex: 2 },
+  headCell: { fontWeight: 'bold' },
   numeric: { textAlign: 'right' },
   signatures: { marginTop: 18, flexDirection: 'row', flexWrap: 'wrap' },
   signer: { width: '50%', paddingRight: 12, marginBottom: 46 },
@@ -59,7 +60,7 @@ function BlockView({ block }: { block: Block }) {
         <View style={styles.table}>
           <View style={styles.row} fixed>
             {block.columns.map((c, i) => (
-              <Text key={i} style={[styles.cell, styles.headCell, block.numeric?.includes(i) ? styles.numeric : {}]}>
+              <Text key={i} style={[styles.cell, styles.headCell, i === 0 ? styles.firstCell : {}, block.numeric?.includes(i) ? styles.numeric : {}]}>
                 {pdfText(c)}
               </Text>
             ))}
@@ -67,7 +68,7 @@ function BlockView({ block }: { block: Block }) {
           {block.rows.map((r, ri) => (
             <View key={ri} style={styles.row} wrap={false}>
               {r.map((c, i) => (
-                <Text key={i} style={[styles.cell, block.numeric?.includes(i) ? styles.numeric : {}]}>
+                <Text key={i} style={[styles.cell, i === 0 ? styles.firstCell : {}, block.numeric?.includes(i) ? styles.numeric : {}]}>
                   {pdfText(c)}
                 </Text>
               ))}

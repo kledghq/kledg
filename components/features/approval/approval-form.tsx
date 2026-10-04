@@ -112,6 +112,34 @@ const RESOLUTION_TITLES: Record<(typeof RESOLUTION_IDS)[number], string> = {
   powers: 'Pouvoirs pour les formalités',
 }
 
+const NO_VOTE = { unanimous: false, for: 0, against: 0, abstain: 0 }
+
+/**
+ * The saved details with every field the form shows present: react-hook-form
+ * compares values and defaults key by key, so a field missing from the
+ * defaults would read as an edit once its control registers it. The decision
+ * mode shown is the regime's default until the user picks one.
+ */
+function formDefaults(view: ApprovalView): FormInput {
+  const d = view.details
+  return {
+    ...d,
+    decisionMode: d.decisionMode ?? view.pack.decisionMode,
+    meeting: { ...d.meeting, date: d.meeting.date ?? null, convocationDate: d.meeting.convocationDate ?? null },
+    chair: { name: d.chair?.name ?? null, title: d.chair?.title ?? null },
+    statutoryRule: d.statutoryRule ?? null,
+    votes: Object.fromEntries(view.pack.resolutions.map((r) => [r.id, d.votes[r.id] ?? NO_VOTE])),
+    priorDividends: d.priorDividends ?? null,
+    nonDeductibleExpensesCents: d.nonDeductibleExpensesCents ?? null,
+    regulatedAgreements: d.regulatedAgreements ?? null,
+    hasAuditor: d.hasAuditor ?? null,
+    groupMember: d.groupMember ?? null,
+    filedOnline: d.filedOnline ?? null,
+    approvedOn: d.approvedOn ?? null,
+    filedOn: d.filedOn ?? null,
+  }
+}
+
 export function ApprovalForm({
   view,
   saving,
@@ -123,14 +151,15 @@ export function ApprovalForm({
 }) {
   const { pack, context } = view
   const regime = pack.regime
-  const form = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(ApprovalDetailsSchema), defaultValues: view.details })
+  const defaults = React.useMemo(() => formDefaults(view), [view])
+  const form = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(ApprovalDetailsSchema), defaultValues: defaults })
   const { control, register, handleSubmit, reset, formState } = form
   const officers = useFieldArray({ control, name: 'officers' })
   const mode = useWatch({ control, name: 'decisionMode' }) ?? pack.decisionMode
   const produce = useWatch({ control, name: 'managementReport.produce' })
   const category = useWatch({ control, name: 'size.category' })
 
-  React.useEffect(() => reset(view.details), [view.details, reset])
+  React.useEffect(() => reset(defaults), [defaults, reset])
 
   React.useEffect(() => {
     if (!formState.isDirty || saving) return
@@ -232,7 +261,7 @@ export function ApprovalForm({
         <CardHeader>
           <CardTitle>Dirigeants</CardTitle>
           <CardDescription>
-            Le {regime.officerTitle.singular} signe les documents{regime.form === 'SASU' || regime.form === 'SAS' ? ' : dans une SAS ou une SASU, le dirigeant est le président, jamais un gérant' : ''}.
+            Le {regime.officerTitle.singular} signe les documents.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -301,7 +330,7 @@ export function ApprovalForm({
                           </Field>
                         )}
                         {sole && h.kind === 'PHYSICAL' ? null : (
-                          <Field label={sole ? 'Représentant (personne morale)' : 'Mandataire ou représentant'} htmlFor={`proxy-${h.id}`} optional={!sole}>
+                          <Field label={sole ? 'Représentant' : 'Représenté par'} htmlFor={`proxy-${h.id}`} optional={!sole}>
                             <Input
                               id={`proxy-${h.id}`}
                               list="approval-people"
@@ -632,7 +661,7 @@ export function ApprovalForm({
         <div className="bg-background sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-sm">
           <span className="text-sm">Modifications non enregistrées</span>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => reset(view.details)}>
+            <Button type="button" variant="outline" onClick={() => reset(defaults)}>
               Annuler les modifications
             </Button>
             <Button type="submit" loading={saving}>

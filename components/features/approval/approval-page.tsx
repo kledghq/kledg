@@ -19,6 +19,12 @@ import { ApprovalForm } from './approval-form'
 
 const euros = (cents: number) => cents / 100
 
+/** The accounts to approve are those of the latest fiscal year already ended. */
+const latestEnded = (years: Array<{ id: string; endDate: string }>) => {
+  const today = new Date().toISOString().slice(0, 10)
+  return [...years].filter((fy) => fy.endDate.slice(0, 10) < today).sort((a, b) => b.endDate.localeCompare(a.endDate))[0]?.id
+}
+
 /**
  * Approbation des comptes: the documents to have the year's accounts
  * approved by the associés (convocation, management report, minutes or
@@ -60,7 +66,7 @@ export function ApprovalPage({ companyId }: { companyId: string }) {
         description="Les documents pour faire approuver les comptes de l'exercice par les associés, puis les déposer au greffe, selon la forme juridique de la société."
         docsHref={docsUrl('calendar')}
       />
-      <FiscalYearSelector id="approval-fiscal-year" companyId={companyId} value={fiscalYearId} onValueChange={setFiscalYearId} showLabel={false} showPeriod={false} className="w-48" />
+      <FiscalYearSelector id="approval-fiscal-year" companyId={companyId} value={fiscalYearId} onValueChange={setFiscalYearId} showLabel={false} showPeriod={false} className="w-48" pickDefault={latestEnded} />
 
       {error ? (
         <EmptyState bordered title="L'approbation des comptes ne s'est pas chargée" description={error} action={<Button size="sm" onClick={reload}>Réessayer</Button>} />
