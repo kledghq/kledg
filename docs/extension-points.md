@@ -25,6 +25,7 @@ afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
 companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
 PUBLIC_PAGES: readonly string[]
+SETUP_PENDING_REDIRECT: string | null
 REQUIRE_EMAIL_VERIFICATION: boolean
 INSTANCE_RATE_LIMITS: Record<string, RateLimitRule>
 ```
@@ -117,7 +118,14 @@ maximum, French message without dashes). Kledg declares none.
 
 `PUBLIC_PAGES` lists pages that open without a session (a sign-up page,
 legal notices): the proxy lets each path and the paths under it through,
-like `/login`. Kledg declares none. Keep the policy file free of database and Node imports: the proxy
+like `/login`. Kledg declares none.
+
+`SETUP_PENDING_REDIRECT` is where `/setup` sends a visitor without the
+installation link while the instance has no administrator yet (a hosted
+service before launch: its waitlist). Kledg: `null`, the neutral
+"Installation en cours" page.
+
+Keep the policy file free of database and Node imports: the proxy
 imports it. A hook that needs the database (a quota, a subscription) loads
 its module inside the function (`const { check } = await import('@/lib/x')`),
 so the proxy never runs it.

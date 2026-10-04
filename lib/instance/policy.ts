@@ -90,3 +90,11 @@ export const INSTANCE_RATE_LIMITS = {} as const satisfies Record<string, RateLim
  * through like /login; each page decides for itself what it shows.
  */
 export const PUBLIC_PAGES: readonly string[] = []
+
+/**
+ * Where to send a visitor of /setup without the installation link while
+ * the instance has no administrator yet (a hosted service before launch:
+ * its waitlist), instead of the neutral "Installation en cours" page.
+ * Kledg: null, the neutral page.
+ */
+export const SETUP_PENDING_REDIRECT: string | null = null

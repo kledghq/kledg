@@ -6,7 +6,7 @@ import {
   setupTokenStatus,
   setupView,
 } from "@/lib/setup";
-import { isActionAllowed } from "@/lib/instance";
+import { isActionAllowed, SETUP_PENDING_REDIRECT } from "@/lib/instance";
 import { AuthShell } from "@/components/brand/auth-shell";
 import {
   Card,
@@ -121,6 +121,7 @@ export default async function SetupPage({
     );
   }
   if (view === "pending") {
+    if (SETUP_PENDING_REDIRECT) redirect(SETUP_PENDING_REDIRECT);
     return (
       <AuthShell>
         <SetupPending />
