@@ -57,6 +57,7 @@ import { Amount, ConfirmDeleteDialog, EmptyState, PageHeader, formatAmount, form
 import { OpeningBalanceNotice } from '@/components/features/accounting/opening-balance-notice'
 import { plural, pluralWord } from '@/lib/utils/plural'
 import { docsUrl } from '@/lib/docs-links'
+import { defaultFiscalYearDates } from '@/lib/accounting/default-fiscal-year-dates'
 
 interface FiscalYear {
   id: string
@@ -147,35 +148,16 @@ export default function FiscalYearsPage() {
     const year = watch('year')
 
     if (year && companyData) {
-      const closingDay = companyData.closingDay || 31
-      const closingMonth = companyData.closingMonth || 12
-
-      // Vérifier si c'est le premier exercice
-      const isFirstFiscalYear = fiscalYears.length === 0
-      
-      let startDate: Date
-      if (isFirstFiscalYear && companyData.foundationDate) {
-        // Pour le premier exercice, utiliser la date de création
-        startDate = new Date(companyData.foundationDate)
-      } else {
-        // Sinon, calculer : jour/mois de clôture de l'année précédente + 1 jour
-        startDate = new Date(year - 1, closingMonth - 1, closingDay)
-        startDate.setDate(startDate.getDate() + 1)
-      }
-
-      // Date de fin : jour/mois de clôture de l'année (automatique)
-      const endDate = new Date(year, closingMonth - 1, closingDay)
-
-      // Formater les dates en YYYY-MM-DD
-      const formatDate = (date: Date) => {
-        const y = date.getFullYear()
-        const m = String(date.getMonth() + 1).padStart(2, '0')
-        const d = String(date.getDate()).padStart(2, '0')
-        return `${y}-${m}-${d}`
-      }
-
-      setValue('startDate', formatDate(startDate))
-      setValue('endDate', formatDate(endDate))
+      // Clamped to the length of the month, like the server (29 February in a common year is the 28th)
+      const { startDate, endDate } = defaultFiscalYearDates({
+        year,
+        closingDay: companyData.closingDay,
+        closingMonth: companyData.closingMonth,
+        foundationDate: companyData.foundationDate,
+        isFirstFiscalYear: fiscalYears.length === 0,
+      })
+      setValue('startDate', startDate)
+      setValue('endDate', endDate)
     }
   }, [watch('year'), fiscalYears.length, companyData, setValue, dialogOpen])
 
