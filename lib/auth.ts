@@ -14,6 +14,7 @@ import { getAppUrl, getMcpResourceUrl, getTrustedOrigins } from './config'
 import { sendEmail } from './email'
 import { changeEmailVerificationEmail, resetPasswordEmail, verifyEmailEmail, welcomeEmail } from './email/templates'
 import { actionRefusalMessage, authActionOf, isActionAllowed } from './instance'
+import { REQUIRE_EMAIL_VERIFICATION } from './instance/policy'
 import { authRateLimit, isAccountRouteOnlyPath, isOrganizationMutationPath, isUserRouteOnlyPath } from './auth-policy'
 import { isEmailChangeToken } from './account/verification-token'
 import { checkAccountDeletion } from './account/deletion-guards'
@@ -37,6 +38,10 @@ function createAuth() {
     // Accounts are created by the instance administrator (or by /setup for the
     // very first one): there is no public sign-up on a self-hosted instance.
     disableSignUp: true,
+    // An instance whose policy requires verified addresses (lib/instance/policy.ts)
+    // refuses to sign in an account until its address is confirmed; the
+    // sign-in attempt sends the link again (sendOnSignIn below). Kledg: off.
+    requireEmailVerification: REQUIRE_EMAIL_VERIFICATION,
     // A reset is how a user evicts someone who knows the old password: every
     // session of the account ends, including the one that may be stolen.
     revokeSessionsOnPasswordReset: true,
@@ -55,6 +60,7 @@ function createAuth() {
     },
   },
   emailVerification: {
+    sendOnSignIn: REQUIRE_EMAIL_VERIFICATION,
     sendVerificationEmail: async ({ user, url, token }) => {
       // Email changes (lib/account/change-email.service.ts) reuse this hook
       // with the new address: the link switches the account to it.

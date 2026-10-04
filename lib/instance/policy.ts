@@ -64,6 +64,16 @@ export async function companyWriteRefusal(companyId: string): Promise<ActionRefu
 export const SELF_AUTHENTICATED_API_ROUTES: Readonly<Record<string, string>> = {}
 
 /**
+ * Whether accounts must confirm their email address before they can sign in
+ * (Better Auth's requireEmailVerification, lib/auth.ts): an unconfirmed
+ * account is refused at sign-in and the attempt sends the confirmation link
+ * again. Member accounts created from a company's Membres page are marked
+ * confirmed (their welcome link proves the address); other accounts confirm
+ * at their first sign-in. Kledg: no (accounts are created by the administrator).
+ */
+export const REQUIRE_EMAIL_VERIFICATION: boolean = false
+
+/**
  * Pages of the instance that open without a session (a sign-up page, legal
  * notices), as paths: each one and the paths under it. The proxy lets them
  * through like /login; each page decides for itself what it shows.

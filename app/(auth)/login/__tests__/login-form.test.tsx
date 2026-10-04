@@ -66,6 +66,15 @@ describe('LoginForm', () => {
     expect(screen.getByRole('button', { name: 'Se connecter' })).toBeEnabled()
   })
 
+  it('explains in French that the address must be confirmed first (instances that require it)', async () => {
+    auth.signIn.mockResolvedValue({ data: null, error: { code: 'EMAIL_NOT_VERIFIED', message: 'Email not verified' } })
+    render(<LoginForm />)
+    await signIn()
+    const message = await screen.findByText(/^Confirmez d’abord votre adresse email/)
+    expect(message.textContent).toBe('Confirmez d’abord votre adresse email\u00a0: nous venons de vous renvoyer le lien de confirmation.')
+    expect(nav.push).not.toHaveBeenCalled()
+  })
+
   it('continues an OAuth authorization at the URL the server returns', async () => {
     const location = { href: 'http://localhost/login' }
     vi.stubGlobal('location', location)

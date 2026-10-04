@@ -25,6 +25,7 @@ afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
 companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
 PUBLIC_PAGES: readonly string[]
+REQUIRE_EMAIL_VERIFICATION: boolean
 ```
 
 Kledg checks every restrictable action through `lib/instance`
@@ -93,6 +94,15 @@ request proxy (`proxy.ts`) lets them through, the route architecture test
 wrapper, and the route coverage guard
 (`lib/__tests__/security/route-coverage.test.ts`) leaves them to their own
 tests.
+
+`REQUIRE_EMAIL_VERIFICATION` (Kledg: false) turns on Better Auth's
+`requireEmailVerification` and `sendOnSignIn` (`lib/auth.ts`): an account
+whose address is not confirmed is refused at sign-in, the login page says so
+in French, and the attempt sends the confirmation link again. Member
+accounts created from a company's Membres page are marked confirmed; other
+accounts (first-run setup, Utilisateurs page) confirm at their first sign-in.
+Better Auth's own sign-up endpoint stays closed (`disableSignUp`): an
+instance with public sign-up serves its own sign-up route.
 
 `PUBLIC_PAGES` lists pages that open without a session (a sign-up page,
 legal notices): the proxy lets each path and the paths under it through,
