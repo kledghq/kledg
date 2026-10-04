@@ -33,6 +33,7 @@ vi.mock('@/lib/import/fec', () => ({
 }))
 
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({
+  getFiscalYearForDate: vi.fn().mockResolvedValue({ id: 'fy-1', year: 2026 }),
   getOrCreateActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }),
 }))
 
@@ -170,10 +171,11 @@ describe('POST /api/import', () => {
     const CSV = 'date,journal,entryNumber,account,debit,credit,description\n2026-03-01,VT,1,411000,100,0,Vente\n2026-03-01,VT,1,706000,0,100,Vente\n'
 
     beforeEach(() => {
-      db.journal.upsert.mockResolvedValue({ id: 'journal-1' })
+      db.journal.findUnique.mockResolvedValue(null)
+      db.journal.create.mockResolvedValue({ id: 'journal-1' })
       db.account.findFirst.mockResolvedValue(null)
       db.account.create.mockImplementation(async (args) => ({ id: `acc-${args.data.code}` }))
-      db.accountingEntry.findFirst.mockResolvedValue(null)
+      db.accountingEntry.findMany.mockResolvedValue([])
     })
 
     it('records a failed entry with the generic message, never the database error', async () => {

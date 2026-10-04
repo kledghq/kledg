@@ -274,6 +274,55 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
     })
   })
 
+  describe('journals of several fiscal years', () => {
+    // Regression: every account was created in the most recent open year, so
+    // the entries of an earlier open year were all refused ("hors de
+    // l'exercice 2026"). An entry takes its accounts in the year of its date.
+    let fy2026: string
+    beforeEach(async () => {
+      fy2026 = (
+        await prisma.fiscalYear.create({
+          data: { companyId: ids.company, year: 2026, startDate: new Date('2026-01-01T00:00:00Z'), endDate: new Date('2026-12-31T00:00:00Z') },
+        })
+      ).id
+    })
+
+    it('imports a journal of the earlier open year into that year', async () => {
+      const file = await workbook([
+        ['2025-11-05', 'VE', 'P1', '411000', 60, null, 'Vente 2025', null],
+        ['2025-11-05', 'VE', 'P1', '706000', null, 60, 'Vente 2025', null],
+      ])
+
+      const result = await importExcel({ companyId: ids.company, file })
+
+      expect(result).toMatchObject({ success: true, entriesCreated: 1, accountsCreated: 2, errors: [] })
+      const [entry] = await entriesWithLines()
+      expect(entry.fiscalYearId).toBe(ids.fy2025)
+      expect(entry.lines.every((l) => l.account.fiscalYearId === ids.fy2025)).toBe(true)
+    })
+
+    it('takes the accounts of each year in a journal spanning two years', async () => {
+      const csv = [
+        'date,journal,entryNumber,account,debit,credit,description,reference',
+        '2025-12-31,OD,S1,512000,10,,Fin 2025,',
+        '2025-12-31,OD,S1,706000,,10,Fin 2025,',
+        '2026-01-02,OD,S2,512000,20,,Début 2026,',
+        '2026-01-02,OD,S2,706000,,20,Début 2026,',
+      ].join('\n')
+
+      const result = await importCSV({ companyId: ids.company, content: csv })
+
+      expect(result).toMatchObject({ success: true, entriesCreated: 2, accountsCreated: 4, errors: [] })
+      const entries = await entriesWithLines()
+      expect(entries.map((e) => [e.description, e.fiscalYearId, e.entryNumber])).toEqual([
+        ['Fin 2025', ids.fy2025, '1'],
+        ['Début 2026', fy2026, '1'],
+      ])
+      const accounts = await prisma.account.findMany({ where: { companyId: ids.company }, orderBy: [{ fiscalYearId: 'asc' }, { code: 'asc' }] })
+      expect(accounts.map((a) => `${a.fiscalYearId === ids.fy2025 ? 2025 : 2026}:${a.code}`).sort()).toEqual(['2025:512000', '2025:706000', '2026:512000', '2026:706000'])
+    })
+  })
+
   it('returns the PCG art. 511-1 warning for an entry without description', async () => {
     const file = await workbook([
       ['2025-06-01', 'OD', 'W1', '512000', 10, null, null, null],

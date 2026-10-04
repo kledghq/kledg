@@ -9,6 +9,7 @@ import { handleError, ValidationError } from '@/lib/accounting/errors'
 import { fromCents } from '@/lib/utils/money'
 import { importAmountCents } from './amount'
 import { loadExistingEntries } from './duplicate-entries'
+import { journalAccounts } from './journal-accounts'
 
 interface CSVImportOptions {
   companyId: string
@@ -105,9 +106,10 @@ export async function importCSV(
       entriesMap.get(entryKey)!.push(row)
     }
 
-    // Créer les journaux et comptes nécessaires
+    // Create the journals of the file
     const journalsMap = new Map<string, string>()
-    const accountsMap = new Map<string, string>()
+    // Accounts are taken in the fiscal year of each entry (journal-accounts.ts)
+    const accounts = journalAccounts(companyId, result)
 
     for (const row of rows) {
       const journalCode = String(row[defaultMapping.journalColumn] || 'OD')
@@ -129,35 +131,6 @@ export async function importCSV(
           (await prisma.journal.create({ data: { companyId, code: journalCode, label: journalCode }, select: { id: true } }))
         if (!existingJournal) result.journalsCreated++
         journalsMap.set(journalCode, journal.id)
-      }
-
-      // Créer le compte
-      if (!accountsMap.has(accountCode)) {
-        // Get active fiscal year
-        const { getOrCreateActiveFiscalYear } = await import('@/lib/accounting/fiscal-year-utils')
-        const activeFiscalYear = await getOrCreateActiveFiscalYear(companyId)
-        
-        let account = await prisma.account.findFirst({
-          where: {
-            companyId,
-            code: accountCode,
-            fiscalYearId: activeFiscalYear.id,
-          },
-        })
-        
-        if (!account) {
-          account = await prisma.account.create({
-            data: {
-              companyId,
-              code: accountCode,
-              label: accountCode,
-              fiscalYearId: activeFiscalYear.id,
-            },
-          })
-          result.accountsCreated++
-        }
-        
-        accountsMap.set(accountCode, account.id)
       }
     }
 
@@ -192,8 +165,13 @@ export async function importCSV(
           result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
           continue
         }
+        const fiscalYearId = await accounts.fiscalYearId(entryDate)
+        const lineAccountIds: string[] = []
+        for (const l of lines) {
+          lineAccountIds.push(await accounts.accountId(fiscalYearId, String(l[defaultMapping.accountColumn] || '')))
+        }
         const entryLines: EntryLine[] = lines.map((l, i) => ({
-          accountId: accountsMap.get(String(l[defaultMapping.accountColumn]))!,
+          accountId: lineAccountIds[i],
           debit: fromCents(amounts[i].debit ?? 0),
           credit: fromCents(amounts[i].credit ?? 0),
           description: String(l[defaultMapping.descriptionColumn] || ''),

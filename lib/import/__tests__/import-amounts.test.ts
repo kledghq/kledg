@@ -11,15 +11,20 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    journal: { upsert: vi.fn(async ({ create }: { create: { code: string } }) => ({ id: `j-${create.code}` })) },
+    journal: {
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async ({ data }: { data: { code: string } }) => ({ id: `j-${data.code}` })),
+    },
     account: {
       findFirst: vi.fn(async ({ where }: { where: { code: string } }) => ({ id: `a-${where.code}` })),
       create: vi.fn(),
     },
-    accountingEntry: { findFirst: vi.fn(async () => null) },
+    // No entry imported yet (lib/import/duplicate-entries.ts)
+    accountingEntry: { findMany: vi.fn(async () => []) },
   },
 }))
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({
+  getFiscalYearForDate: vi.fn(async () => ({ id: 'fy', year: 2025 })),
   getOrCreateActiveFiscalYear: vi.fn(async () => ({ id: 'fy' })),
 }))
 vi.mock('@/lib/accounting/services', () => ({

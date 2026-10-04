@@ -11,6 +11,7 @@ import { handleError, ValidationError } from '@/lib/accounting/errors'
 import { fromCents } from '@/lib/utils/money'
 import { importAmountCents } from './amount'
 import { loadExistingEntries } from './duplicate-entries'
+import { journalAccounts } from './journal-accounts'
 
 interface ExcelImportOptions {
   companyId: string
@@ -150,9 +151,10 @@ export async function importExcel(
       entryKeysSample: Array.from(entriesMap.keys()).slice(0, 5),
     })
 
-    // Create necessary journals and accounts
+    // Create the journals of the file
     const journalsMap = new Map<string, string>()
-    const accountsMap = new Map<string, string>()
+    // Accounts are taken in the fiscal year of each entry (journal-accounts.ts)
+    const accounts = journalAccounts(companyId, result)
 
     for (const row of rows) {
       const journalCode = String(row[defaultMapping.journalColumn] || 'OD')
@@ -174,42 +176,6 @@ export async function importExcel(
           (await prisma.journal.create({ data: { companyId, code: journalCode, label: journalCode }, select: { id: true } }))
         if (!existingJournal) result.journalsCreated++
         journalsMap.set(journalCode, journal.id)
-      }
-
-      // Create the account
-      if (!accountsMap.has(accountCode)) {
-        // Get active fiscal year
-        const { getOrCreateActiveFiscalYear } = await import('@/lib/accounting/fiscal-year-utils')
-        const activeFiscalYear = await getOrCreateActiveFiscalYear(companyId)
-
-        logger.debug('[import/excel] Active fiscal year for accounts', {
-          companyId,
-          activeFiscalYearId: activeFiscalYear.id,
-          activeFiscalYearYear: activeFiscalYear.year,
-          accountCode,
-        })
-
-        let account = await prisma.account.findFirst({
-          where: {
-            companyId,
-            code: accountCode,
-            fiscalYearId: activeFiscalYear.id,
-          },
-        })
-        
-        if (!account) {
-          account = await prisma.account.create({
-            data: {
-              companyId,
-              code: accountCode,
-              label: accountCode,
-              fiscalYearId: activeFiscalYear.id,
-            },
-          })
-          result.accountsCreated++
-        }
-        
-        accountsMap.set(accountCode, account.id)
       }
     }
 
@@ -253,22 +219,23 @@ export async function importExcel(
           result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
           continue
         }
+        const fiscalYearId = await accounts.fiscalYearId(entryDate)
+        const lineAccountIds: string[] = []
+        for (const l of lines) {
+          lineAccountIds.push(await accounts.accountId(fiscalYearId, String(l[defaultMapping.accountColumn] || '')))
+        }
         const entryLines: EntryLine[] = lines.map((l, i) => ({
-          accountId: accountsMap.get(String(l[defaultMapping.accountColumn]))!,
+          accountId: lineAccountIds[i],
           debit: fromCents(amounts[i].debit ?? 0),
           credit: fromCents(amounts[i].credit ?? 0),
           description: String(l[defaultMapping.descriptionColumn] || ''),
         }))
 
         const accountIds = entryLines.map((l) => l.accountId)
-        const missingAccount = entryLines.some((l) => !l.accountId)
-        if (missingAccount) {
-          logger.debug('[import/excel] Missing accountId in entryLines', {
+        if (entryLines.some((l) => !l.accountId)) {
+          logger.debug('[import/excel] Missing account code in entry lines', {
             entryNumber,
-            entryLinesRaw: lines.map((l) => ({
-              accountColumn: l[defaultMapping.accountColumn],
-              resolvedId: accountsMap.get(String(l[defaultMapping.accountColumn])),
-            })),
+            accountColumns: lines.map((l) => l[defaultMapping.accountColumn]),
           })
         }
 
