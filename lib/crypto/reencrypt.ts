@@ -1,0 +1,128 @@
+/**
+ * Re-encryption after a rotation of the auth secret (lib/crypto/encryption-key.ts).
+ *
+ * Every value sealed at rest is tried with the current key; one that only an
+ * older key opens is sealed again with the current key. Run at server start
+ * (instrumentation.ts) while older secrets are still configured, so the
+ * operator rotates by setting BETTER_AUTH_SECRETS="2:<new>,1:<old>",
+ * redeploying, then dropping the old secret. Idempotent, and serialized by a
+ * PostgreSQL advisory lock: concurrent server starts skip it.
+ *
+ * Sealed values: BankConnection.secretKeyEncrypted (former Qonto
+ * connections), the secret fields of Integration.credentials
+ * (lib/banking/credentials.ts) and UpdateConnection.tokenEncrypted.
+ */
+
+import { prisma } from '@/lib/prisma'
+import { decrypt, encrypt } from '@/lib/integrations/encryption'
+import { SECRET_FIELDS } from '@/lib/banking/credentials'
+import { withSystemContext } from '@/lib/rls/context'
+import { logger } from '@/lib/logger'
+import { getEncryptionKey, previousEncryptionKeys } from './encryption-key'
+
+/** Arbitrary constant identifying the re-encryption advisory lock. */
+const REENCRYPT_LOCK_KEY = 4_217_002
+
+export interface ReencryptResult {
+  /** Values sealed again with the current key. */
+  resealed: number
+  /** Values no configured key opens: the integration must be reconnected. */
+  unreadable: number
+}
+
+type Outcome = { kind: 'current' } | { kind: 'resealed'; value: string } | { kind: 'unreadable' }
+
+/** What the current key makes of a sealed value: already current, sealed again, or unreadable. */
+export function reseal(sealed: string, current: string, previous: readonly string[]): Outcome {
+  if (opens(sealed, current)) return { kind: 'current' }
+  for (const key of previous) {
+    const plain = tryDecrypt(sealed, key)
+    if (plain !== null) return { kind: 'resealed', value: encrypt(plain, current) }
+  }
+  return { kind: 'unreadable' }
+}
+
+function tryDecrypt(sealed: string, key: string): string | null {
+  try {
+    return decrypt(sealed, key)
+  } catch {
+    return null
+  }
+}
+
+function opens(sealed: string, key: string): boolean {
+  return tryDecrypt(sealed, key) !== null
+}
+
+/**
+ * Seals again every value an older key opens. Does nothing (and reads
+ * nothing) when no older secret is configured.
+ */
+export async function reencryptStoredSecrets(): Promise<ReencryptResult | null> {
+  const current = getEncryptionKey()
+  const previous = previousEncryptionKeys()
+  if (!current || previous.length === 0) return null
+
+  return withSystemContext('secret-rotation', () =>
+    prisma.$transaction(
+      async (tx) => {
+        const [{ locked }] = await tx.$queryRaw<Array<{ locked: boolean }>>`SELECT pg_try_advisory_xact_lock(${REENCRYPT_LOCK_KEY}) AS locked`
+        if (!locked) return null
+        const result: ReencryptResult = { resealed: 0, unreadable: 0 }
+        const count = (outcome: Outcome) => {
+          if (outcome.kind === 'resealed') result.resealed++
+          if (outcome.kind === 'unreadable') result.unreadable++
+        }
+
+        const connections = await tx.bankConnection.findMany({
+          where: { secretKeyEncrypted: { not: '' } },
+          select: { id: true, secretKeyEncrypted: true },
+        })
+        for (const row of connections) {
+          const outcome = reseal(row.secretKeyEncrypted, current, previous)
+          count(outcome)
+          if (outcome.kind === 'resealed') {
+            await tx.bankConnection.update({ where: { id: row.id }, data: { secretKeyEncrypted: outcome.value } })
+          }
+        }
+
+        const integrations = await tx.integration.findMany({
+          where: { credentialsEncrypted: true },
+          select: { id: true, provider: true, credentials: true },
+        })
+        for (const row of integrations) {
+          const credentials = row.credentials && typeof row.credentials === 'object' ? { ...(row.credentials as Record<string, unknown>) } : null
+          if (!credentials) continue
+          let changed = false
+          for (const field of SECRET_FIELDS[row.provider] ?? ['secretKey']) {
+            const value = credentials[field]
+            if (typeof value !== 'string' || value.length === 0) continue
+            const outcome = reseal(value, current, previous)
+            count(outcome)
+            if (outcome.kind === 'resealed') {
+              credentials[field] = outcome.value
+              changed = true
+            }
+          }
+          if (changed) await tx.integration.update({ where: { id: row.id }, data: { credentials: credentials as object } })
+        }
+
+        const updates = await tx.updateConnection.findMany({ select: { id: true, tokenEncrypted: true } })
+        for (const row of updates) {
+          if (!row.tokenEncrypted) continue
+          const outcome = reseal(row.tokenEncrypted, current, previous)
+          count(outcome)
+          if (outcome.kind === 'resealed') {
+            await tx.updateConnection.update({ where: { id: row.id }, data: { tokenEncrypted: outcome.value } })
+          }
+        }
+
+        if (result.resealed > 0 || result.unreadable > 0) {
+          logger.info(`Secret rotation: ${result.resealed} value(s) sealed again with the current key, ${result.unreadable} unreadable`)
+        }
+        return result
+      },
+      { timeout: 60_000, maxWait: 30_000 },
+    ),
+  )
+}

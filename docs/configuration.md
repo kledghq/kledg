@@ -12,7 +12,8 @@ Toutes les variables sont listées dans [`.env.example`](../.env.example).
 | `KLEDG_APP_DB_PASSWORD` | Non | Mot de passe du rôle applicatif pour `pnpm db:rls-role`, à défaut de l'option `--password`. |
 | `DATABASE_SSL` | Non | `false` désactive TLS vers la base, `true` le force. Par défaut : TLS, sauf pour `localhost`, un nom sans point (service Docker `db`, URL interne Render `dpg-...-a`) et les réseaux privés chiffrés par l'hébergeur (`*.railway.internal`, `*.flycast`, `*.internal`). `sslmode=disable` ou `sslmode=require` dans l'URL priment. |
 | `DATABASE_POOL_MAX`, `DATABASE_POOL_IDLE_TIMEOUT_MS` | Non | Taille du pool de connexions par instance du serveur (défaut 10) et durée après laquelle une connexion inutilisée est fermée, en millisecondes (défaut 5000 sur Vercel, 30000 ailleurs). Sur Vercel, l'instance attend que ces connexions inutilisées soient fermées avant d'être suspendue (`attachDatabasePool`). Sur Neon, gardez l'URL avec pooling dans `DATABASE_URL`. Ailleurs, gardez `DATABASE_POOL_MAX` multiplié par le nombre d'instances sous la limite de connexions de votre offre PostgreSQL, en laissant de la marge pour les migrations et `pg_dump`. |
-| `BETTER_AUTH_SECRET` | Oui | Secret de signature des sessions (32 caractères minimum). |
+| `BETTER_AUTH_SECRET` | Oui | Secret de signature des sessions (32 caractères minimum). La clé qui chiffre les identifiants bancaires en est dérivée, sauf avec `ENCRYPTION_KEY`. Pour le changer sans reconnecter les banques, voir [Changer le secret](#changer-le-secret). |
+| `BETTER_AUTH_SECRETS` | Non | Rotation du secret, au format de Better Auth : secrets versionnés séparés par des virgules, le secret courant en premier (`2:<nouveau>,1:<ancien>`). Les anciens servent seulement à relire ce qu'ils ont chiffré. |
 | `BETTER_AUTH_URL` | Selon l'hébergeur | URL publique de l'instance. Par défaut, l'URL fournie par l'hébergeur : URL de production Vercel, `RAILWAY_PUBLIC_DOMAIN`, `RENDER_EXTERNAL_URL`, `https://<FLY_APP_NAME>.fly.dev`, `COOLIFY_URL`. Obligatoire sur Clever Cloud, avec Docker Compose et avec `pnpm start`. Avec un domaine personnalisé, définissez-la : l'URL de l'hébergeur reste acceptée pour la connexion. |
 | `ADMIN_EMAIL` | Oui, jusqu'à la création du premier compte | Seul email autorisé à créer le premier compte administrateur sur `/setup`. Sans `SETUP_TOKEN`, c'est aussi l'adresse qui reçoit le lien d'installation. |
 | `SETUP_TOKEN` | Sans email, jusqu'à la création du premier compte | Avec `ADMIN_EMAIL` et `RESEND_API_KEY`, il est inutile : `/setup` envoie à `ADMIN_EMAIL` un lien d'installation à usage unique, valable 30 minutes (seule son empreinte SHA-256 est stockée, dans la table `verification`). Sinon, jeton exigé par `/setup` (ouvrez `/setup?token=<valeur>` ou saisissez-le dans le formulaire), au moins 16 caractères. Sans lui, `/setup` refuse de créer le compte administrateur : sinon la première personne à ouvrir l'URL d'une instance fraîchement déployée en deviendrait administrateur. `ADMIN_EMAIL` n'est pas un secret et ne le remplace pas. Générez-le avec `openssl rand -base64 24` ; il peut être supprimé une fois l'administrateur créé. |
@@ -34,6 +35,17 @@ Toutes les variables sont listées dans [`.env.example`](../.env.example).
 | `KLEDG_COMMIT`, `KLEDG_VERSION` | Non | Commit et version affichés sur la page **Mises à jour** (arguments de construction de l'image Docker, voir [self-hosting.md](self-hosting.md#docker)). Le commit déployé fourni par l'hébergeur passe avant : `VERCEL_GIT_COMMIT_SHA`, `RAILWAY_GIT_COMMIT_SHA`, `RENDER_GIT_COMMIT`, `CC_COMMIT_ID` (Clever Cloud), `SOURCE_COMMIT` (Coolify). |
 | `KLEDG_DEPLOYS_FROM_GITHUB` | Non | `true` quand l'hébergeur redéploie l'instance à chaque fusion sur la branche principale du dépôt GitHub (Fly.io avec GitHub Actions, Clever Cloud ou Coolify reliés à GitHub, webhook Dokploy) : la page **Mises à jour** propose alors la mise à jour en deux clics. Automatique sur Vercel, et sur Railway et Render quand le déploiement vient d'un commit. `false` la désactive partout. |
 | `SKIP_MIGRATIONS`, `KLEDG_BACKUP`, `KLEDG_BACKUP_DIR`, `KLEDG_BACKUP_KEEP` | Non | Image Docker : ne pas migrer au démarrage, ne pas sauvegarder la base avant une migration (`off`), dossier et nombre de sauvegardes gardées. Voir [self-hosting.md](self-hosting.md#docker). |
+
+## Changer le secret
+
+Si `BETTER_AUTH_SECRET` a pu être lu par quelqu'un d'autre, remplacez-le :
+
+1. Générez un nouveau secret (`openssl rand -base64 32`).
+2. Définissez `BETTER_AUTH_SECRETS=2:<nouveau secret>` et gardez l'ancien dans `BETTER_AUTH_SECRET`, puis redéployez.
+3. Au démarrage, Kledg chiffre de nouveau avec le nouveau secret les identifiants bancaires et le jeton GitHub chiffrés avec l'ancien (`lib/crypto/reencrypt.ts`) ; le journal du serveur indique combien de valeurs ont été traitées. Toutes les sessions se ferment : chacun se reconnecte.
+4. Une fois ce démarrage passé, mettez le nouveau secret dans `BETTER_AUTH_SECRET`, supprimez `BETTER_AUTH_SECRETS` et redéployez : l'ancien secret ne sert plus à rien.
+
+Avec `ENCRYPTION_KEY`, les identifiants bancaires ne dépendent pas du secret : il suffit de le remplacer.
 
 ## Sécurité
 

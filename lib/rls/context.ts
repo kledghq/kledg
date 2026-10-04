@@ -32,6 +32,11 @@ export type SystemReason =
    * yet, lib/companies/create-company.service.ts.
    */
   | 'company-creation'
+  /**
+   * Re-encryption of the credentials sealed with an older auth secret, at
+   * server start, lib/crypto/reencrypt.ts.
+   */
+  | 'secret-rotation'
   /** Command line scripts run by an operator (scripts/). */
   | 'script'
   /** Instance extensions of a fork (docs/extension-points.md), e.g. the demo's throwaway companies. */
