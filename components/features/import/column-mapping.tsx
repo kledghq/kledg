@@ -83,7 +83,8 @@ export function ColumnMapping({ fileContent, onMappingComplete, onCancel, compan
   }
 
   const getSelectValueFromStored = (stored: string | undefined): string => {
-    if (!stored) return '__none__'
+    // '' is a column without a header (mapped), undefined is no column
+    if (stored === undefined) return '__none__'
     if (stored === '') return `__empty_${columns.indexOf('')}`
     return stored
   }

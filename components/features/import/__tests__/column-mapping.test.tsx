@@ -159,10 +159,8 @@ describe('ColumnMapping', () => {
     expect(onMappingComplete).toHaveBeenCalledWith(expect.objectContaining({ JournalLib: '' }))
   })
 
-  // BUG: components/features/import/column-mapping.tsx:86: getSelectValueFromStored returns
-  // '__none__' for the empty string before the `stored === ''` branch, so a field mapped to a
-  // column without a header still reads "-- Aucune --" although it is mapped.
-  it.skip('shows the headerless column chosen for a field', async () => {
+  // A column without a header ('') is a mapped column, not "-- Aucune --"
+  it('shows the headerless column chosen for a field', async () => {
     const user = userEvent.setup()
     renderMapping(['JournalCode;;EcritureNum', 'VT;Ventes;1'].join('\n'))
     await user.click(fieldSelect('Libellé Journal'))
