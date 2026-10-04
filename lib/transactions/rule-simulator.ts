@@ -357,7 +357,7 @@ function calculateSimulationResult(
           ? Number(line.vatRate)
           : null;
 
-    entryLines.push({
+    const mainLine: SimulatedEntryLine = {
       account: {
         code: line.account.code,
         label: line.account.label,
@@ -373,7 +373,8 @@ function calculateSimulationResult(
               amount: vatAmount,
             }
           : undefined,
-    });
+    };
+    entryLines.push(mainLine);
 
     if (line.vatType && line.vatType !== 'none' && vatAmount > 0) {
       const vatAccountDebit = line.vatAccount || rule.defaultVatAccount;
@@ -405,6 +406,12 @@ function calculateSimulationResult(
           line.vatOnDebit,
           vatRecoveryRatio
         );
+        // Unrecovered deductible VAT stays in the cost, as rule-executor.ts writes it
+        const unrecovered = line.vatType === 'deductible' ? vatAmount - vatDebit : 0;
+        if (unrecovered > 0) {
+          if (mainLine.debit > 0) mainLine.debit += unrecovered;
+          else if (mainLine.credit > 0) mainLine.credit += unrecovered;
+        }
         if (vatDebit > 0 || vatCredit > 0) {
           entryLines.push({
             account: { code: vatAccountDebit.code, label: vatAccountDebit.label },

@@ -16,6 +16,7 @@ await vi.hoisted(async () => {
 })
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { toCents } from '@/lib/utils/money'
 
 const available = await testDatabaseAvailable()
 
@@ -25,7 +26,7 @@ let executor: typeof import('@/lib/transactions/rule-executor')
 const ids = {} as Record<string, string>
 let txCounter = 0
 
-const CODES = ['512000', '606100', '607000', '627000', '706000', '445660', '445662', '445710', '445200']
+const CODES = ['411000', '512000', '606100', '607000', '627000', '706000', '445660', '445662', '445710', '44571', '445200']
 
 async function seed() {
   await prepareTestDatabase('cov_rule_executor')
@@ -235,6 +236,57 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
       ['627000', 1, 0],
       ['512000', 0, 1],
     ])
+  })
+
+  describe('partly exempt company (coefficient de déduction, CGI ann. II art. 206)', () => {
+    // Regression: the VAT the company could not recover disappeared, so the
+    // entry of a 120,00 purchase credited the bank with 100,00 or 112,00.
+    const purchaseRule = () => rule('Fournitures', [{ accountCode: '606100', vatType: 'deductible', vatRate: '20', vatAccountCode: '445660' }])
+
+    it('charges the whole TTC amount when no VAT is recoverable', async () => {
+      await prisma.company.update({ where: { id: ids.company }, data: { isVatExempt: true } })
+      const ruleId = await purchaseRule()
+      const txId = await transaction('120.00', 'debit')
+
+      expect(await prepared(ruleId, txId)).toEqual([
+        ['606100', 12000, 0],
+        ['512000', 0, 12000],
+      ])
+      // The rule editor's preview shows the same expense
+      const { simulateRuleFromData } = await import('@/lib/transactions/rule-simulator')
+      const preview = await simulateRuleFromData(
+        { entryLines: [{ accountCode: '606100', lineType: 'auto', amountType: 'full', order: 0, vatType: 'deductible', vatRate: 20, vatAccountCode: '445660' }] },
+        { amount: -120, side: 'debit', label: 'CB' },
+        ids.company,
+      )
+      expect(preview.entryLines.map((l) => [l.account.code, toCents(l.debit), toCents(l.credit)])).toEqual([['606100', 12000, 0]])
+    })
+
+    it('recovers 60 % of the VAT and charges the rest with the expense', async () => {
+      await prisma.company.update({ where: { id: ids.company }, data: { isVatExempt: true } })
+      // March 2025 revenue: 600,00 with VAT, 400,00 exempt, ratio 0,6
+      const { createEntry } = await import('@/lib/accounting/services/entry-lifecycle.service')
+      const sale = (lines: Array<{ accountId: string; debit: string | number; credit: string | number }>) =>
+        createEntry({ companyId: ids.company, journalId: ids.journal, date: '2025-03-01', description: 'Ventes', status: 'validated', lines })
+      await sale([
+        { accountId: ids['411000'], debit: '720.00', credit: 0 },
+        { accountId: ids['706000'], debit: 0, credit: '600.00' },
+        { accountId: ids['44571'], debit: 0, credit: '120.00' },
+      ])
+      await sale([
+        { accountId: ids['411000'], debit: '400.00', credit: 0 },
+        { accountId: ids['706000'], debit: 0, credit: '400.00' },
+      ])
+      const ruleId = await purchaseRule()
+      const txId = await transaction('120.00', 'debit')
+
+      // VAT 20,00: 12,00 recovered, 8,00 added to the 100,00 HT expense
+      expect(await prepared(ruleId, txId)).toEqual([
+        ['606100', 10800, 0],
+        ['445660', 1200, 0],
+        ['512000', 0, 12000],
+      ])
+    })
   })
 
   describe('refusals', () => {

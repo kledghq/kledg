@@ -463,12 +463,13 @@ function calculateEntryLines(
 
     const mainLineAmount = line.vatType && line.vatType !== 'none' ? amountHT : lineAmount;
 
-    entryLines.push({
+    const mainLine: EntryLine = {
       accountId: line.accountId,
       debit: isDebit ? mainLineAmount : 0,
       credit: isCredit ? mainLineAmount : 0,
       description: line.description || transactionLabel,
-    });
+    };
+    entryLines.push(mainLine);
 
     if (line.vatType && line.vatType !== 'none' && vatAmount > 0) {
       const vatAccountDebitId = line.vatAccountId || rule.defaultVatAccountId;
@@ -501,6 +502,14 @@ function calculateEntryLines(
           line.vatOnDebit,
           vatRecoveryRatio
         );
+        // Deductible VAT the company cannot recover (coefficient de déduction,
+        // CGI ann. II art. 206) stays in the cost of the line, so the entry
+        // still adds up to the bank movement
+        const unrecovered = line.vatType === 'deductible' ? vatAmount - vatDebit : 0;
+        if (unrecovered > 0) {
+          if (mainLine.debit > 0) mainLine.debit += unrecovered;
+          else if (mainLine.credit > 0) mainLine.credit += unrecovered;
+        }
         if (vatDebit > 0 || vatCredit > 0) {
           entryLines.push({
             accountId: vatAccountDebitId,
