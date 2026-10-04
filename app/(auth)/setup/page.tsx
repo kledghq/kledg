@@ -90,7 +90,7 @@ function SetupPending() {
         </CardDescription>
       </CardHeader>
       <CardContent className="text-muted-foreground text-xs">
-        Administrateur : ouvrez le lien d&apos;installation{" "}
+        Administrateur : ouvrez le lien d&apos;installation{" "}
         <code className="bg-muted rounded px-1">
           /setup?token=&lt;SETUP_TOKEN&gt;
         </code>
