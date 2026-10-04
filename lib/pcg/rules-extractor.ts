@@ -110,7 +110,8 @@ export function extractPCGRules(
     // Détecter les articles infra-réglementaires (format: ### IR X - ... ou #### IR X - ...)
     const infraRegulatoryMatch = line.match(/^#{3,4} (IR\s*\d+|IR\s*\d+-\d+) - (.+)$/i)
     if (infraRegulatoryMatch) {
-      const irNumber = infraRegulatoryMatch[1].replace(/\s+/g, '')
+      // "IR 3" or "IR3-1": the number without its "IR" prefix (ids "IR3-211-1")
+      const irNumber = infraRegulatoryMatch[1].replace(/^IR/i, '').replace(/\s+/g, '')
       const title = infraRegulatoryMatch[2].trim()
       const article = parseInfraRegulatoryArticle(
         lines,

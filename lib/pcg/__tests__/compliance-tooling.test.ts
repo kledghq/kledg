@@ -85,13 +85,14 @@ describe('PCG rules extraction', () => {
     expect(first.relatedArticles).toEqual(['213-8'])
     expect(first.validationCriteria.map((c) => c.description)).toEqual(["le prix d'achat, droits de douane inclus", 'les coûts directement attribuables'])
     expect(second.id).toBe('213-8')
-    expect([ir.type, ir.title, ir.relatedArticles]).toEqual(['infra-regulatory', "Frais d'acquisition", ['213-8']])
+    // Regression: the "IR" prefix was doubled ("IRIR3-213-8", "IR IR3")
+    expect([ir.id, ir.articleNumber, ir.type, ir.title, ir.relatedArticles]).toEqual(['IR3-213-8', 'IR 3', 'infra-regulatory', "Frais d'acquisition", ['213-8']])
     expect(catalog.rulesByArticle['213-1']).toBe(first)
 
     // Saved and loaded back as JSON
     const saved = path.join(dir, 'out', 'catalog.json')
     saveCatalog(catalog, saved)
-    expect(loadCatalog(saved).rules.map((r) => r.id)).toEqual(catalog.rules.map((r) => r.id))
+    expect(loadCatalog(saved).rules.map((r) => r.id)).toEqual(['213-1', '213-8', 'IR3-213-8'])
   })
 })
 
