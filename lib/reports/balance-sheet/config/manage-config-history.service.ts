@@ -232,13 +232,20 @@ export async function restoreConfigVersion(
       companyId: currentConfig.companyId,
       reportVariant: currentConfig.reportVariant,
       parentId: currentConfig.parentId,
+      // The whole line is restored: a field missing from an older snapshot keeps its current value.
+      section: restoredData.section ?? currentConfig.section,
       lineLabel: restoredData.lineLabel,
+      lineType: restoredData.lineType ?? currentConfig.lineType,
       formCode: restoredData.formCode,
+      amortissementFormCode: restoredData.amortissementFormCode ?? currentConfig.amortissementFormCode,
       accountCodes: restoredData.accountCodes,
       excludedAccountCodes: restoredData.excludedAccountCodes,
+      amortissementAccountCodes: restoredData.amortissementAccountCodes ?? currentConfig.amortissementAccountCodes,
       filterType: restoredData.filterType,
       filterValue: restoredData.filterValue,
       balanceType: restoredData.balanceType,
+      displayType: restoredData.displayType ?? currentConfig.displayType,
+      hideLabel: restoredData.hideLabel ?? currentConfig.hideLabel,
       order: restoredData.order,
       notes: restoredData.notes,
       version: newVersion,
@@ -251,6 +258,12 @@ export async function restoreConfigVersion(
   await prisma.balanceSheetLineConfig.update({
     where: { id: configId },
     data: { isActive: false },
+  })
+
+  // Repoint children to the restored version, as an update does, so the tree stays whole
+  await prisma.balanceSheetLineConfig.updateMany({
+    where: { parentId: configId },
+    data: { parentId: restored.id },
   })
 
   return restored as BalanceSheetLineConfig

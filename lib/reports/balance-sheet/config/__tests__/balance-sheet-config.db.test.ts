@@ -265,6 +265,37 @@ describe.skipIf(!available)('balance sheet layout services', () => {
     })
   })
 
+  it('restores the whole line and keeps its children under it (regression: type, section, columns and children were lost)', async () => {
+    // 2033-A line 028: Immobilisations corporelles, brut / amortissements / net on the actif.
+    const fixed = await line({
+      lineLabel: 'Immobilisations corporelles',
+      section: 'actif',
+      formCode: '028',
+      lineType: 'sum',
+      balanceType: 'auto',
+      displayType: 'brut_amort_net',
+      amortissementAccountCodes: ['281'],
+      hideLabel: true,
+      order: 3,
+    })
+    const child = await line({ lineLabel: 'Matériel', parentId: fixed.id, accountCodes: ['2154'], filterType: 'starts_with' })
+    await createConfigHistorySnapshot(fixed.id)
+    await prisma.balanceSheetLineConfig.update({ where: { id: fixed.id }, data: { version: 2, lineLabel: 'Corporelles' } })
+
+    const restored = await restoreConfigVersion(fixed.id, 1)
+    expect(restored).toMatchObject({
+      lineLabel: 'Immobilisations corporelles',
+      section: 'actif',
+      lineType: 'sum',
+      displayType: 'brut_amort_net',
+      amortissementAccountCodes: ['281'],
+      hideLabel: true,
+    })
+    expect((await prisma.balanceSheetLineConfig.findUniqueOrThrow({ where: { id: child.id } })).parentId).toBe(restored.id)
+    const config = await getBalanceSheetConfig(ids.company, 'simplified')
+    expect(config.lines.map((l) => [l.id, l.children?.map((c) => c.lineLabel)])).toEqual([[restored.id, ['Matériel']]])
+  })
+
   describe('templates', () => {
     it('saves the layout as a private or public template and lists those the company may use', async () => {
       const root = await line({ lineLabel: 'Actif circulant', section: 'actif' })
