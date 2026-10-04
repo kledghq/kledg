@@ -13,6 +13,7 @@
 - [Factures et tiers](factures-et-tiers.md) : clients et fournisseurs, factures d'achat et de vente, comptabilisation, TVA sur les encaissements, règlements, import Qonto, facturation électronique
 - [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, validation, comptabilisation et remboursement
 - [Abonnements](abonnements.md) : paiements récurrents détectés dans les opérations bancaires, rythme, coût annuel, prix modifié ou arrêt, ajout au budget
+- [Indicateurs financiers](indicateurs-financiers.md) : soldes intermédiaires de gestion, capacité d'autofinancement, besoin en fonds de roulement, trésorerie nette, délais de paiement et ratios, avec leurs comptes et les lignes des formulaires
 - [Budget](budget.md) : budget de l'exercice par compte et par mois, éléments récurrents, comparaison avec les écritures validées
 - [Frais de gestion](frais-de-gestion.md) : conventions d'une holding avec ses filiales, coûts majorés d'une marge, clés de répartition, factures de vente et factures d'achat proposées
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation

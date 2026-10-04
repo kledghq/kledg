@@ -12,6 +12,7 @@ import {
   FileCode,
   FileText,
   FolderSearch,
+  Gauge,
   Hourglass,
   Info,
   Landmark,
@@ -96,6 +97,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: "Bilan", url: "/reports/balance-sheet", icon: Scale },
       { title: "Compte de résultat", url: "/reports/income-statement", icon: LineChart },
+      { title: "SIG et ratios", url: "/reports/sig", icon: Gauge },
       { title: "Budget", url: "/budget", icon: Target },
       { title: "Balance", url: "/reports/trial-balance", icon: Table },
       { title: "Grand livre", url: "/reports/grand-livre", icon: BookOpen },
