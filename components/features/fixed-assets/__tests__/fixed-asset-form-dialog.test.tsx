@@ -187,6 +187,25 @@ describe('FixedAssetFormDialog', () => {
     ])
   })
 
+  it('ends the linear plan on the full base when the first month is a prorata', async () => {
+    const { user } = renderForm()
+    // In service on 16 July: PCG art. 214-13 starts depreciation on that day,
+    // so July carries 16/31 of a month and the remainder falls in the month
+    // after the last full year (July 2025), as the server plan does
+    // (lib/fixed-assets/depreciation-plan.ts).
+    await fillLinearAsset(user, { value: '1200', start: '2024-07-16', years: '1' })
+
+    const monthly = tableRows('Tableau prévisionnel mensuel')
+    expect(monthly[1]).toEqual(['juillet 2024', '51,61 €', '51,61 €'])
+    expect(monthly.at(-2)).toEqual(['juillet 2025', '48,39 €', '1 200,00 €'])
+    expect(monthly.at(-1)).toEqual(['Total prévisionnel', '1 200,00 €', '1 200,00 €'])
+    expect(tableRows('Récapitulatif annuel').map((r) => r.slice(0, 1).concat(r.slice(3, 4)))).toEqual([
+      ['2024', '551,61 €'],
+      ['2025', '648,39 €'],
+      ['Total', '0,00 €'],
+    ])
+  })
+
   it('shows the declining schedule with the switch to linear once it gives more', async () => {
     const { user } = renderForm()
     await chooseMethod(user, 'Dégressif')

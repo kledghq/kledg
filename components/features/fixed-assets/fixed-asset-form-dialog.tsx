@@ -178,8 +178,14 @@ function calculateDepreciationSchedule(
 
   const schedule: DepreciationScheduleItem[] = []
 
-  // Calculate total months of depreciation
-  const totalMonths = depreciationDuration ? Number(depreciationDuration) * 12 : Infinity
+  // Calculate total months of depreciation. A start after the first day of
+  // the month makes that month a prorata (PCG art. 214-13): the remainder
+  // falls in one more month after the last full year, so the plan still ends
+  // on the full base, as in the server plan (lib/fixed-assets/depreciation-plan.ts).
+  const firstMonthIsPartial = startDate.getDate() > 1
+  const totalMonths = depreciationDuration
+    ? Number(depreciationDuration) * 12 + (firstMonthIsPartial ? 1 : 0)
+    : Infinity
   // Plan prévisionnel complet depuis l'acquisition, indépendant de ce qui
   // aurait déjà été comptabilisé.
   let cumulative = 0
