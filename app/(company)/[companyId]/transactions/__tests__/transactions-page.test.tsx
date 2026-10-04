@@ -10,12 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+let urlParams = new URLSearchParams()
 vi.mock('next/navigation', () => ({
   useParams: () => ({ companyId: 'c1' }),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/c1/transactions',
-  // No filter in the URL (the missing receipts list links here with ?q=...).
-  useSearchParams: () => new URLSearchParams(),
+  // Filters given in the URL (the missing receipts list links here with them).
+  useSearchParams: () => urlParams,
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/components/features/accounting/transaction-filters', async (importOriginal) => {
@@ -65,6 +66,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  urlParams = new URLSearchParams()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
@@ -83,6 +85,29 @@ describe('transactions page', () => {
     expect(await screen.findByText('LOYER OCTOBRE')).toBeInTheDocument()
     expect(listQueries()[0]).toEqual({ fiscalYearId: 'fy-2026', companyId: 'c1', limit: '100' })
     expect(screen.getByText('Solde avant : 1520.4')).toBeInTheDocument()
+  })
+
+  it('starts from the filters given in the URL (link from the missing receipts list)', async () => {
+    urlParams = new URLSearchParams({ bankAccountId: 'ba-1', search: 'LOYER', hasAttachments: 'without', startDate: '2026-10-01', endDate: '2026-10-31' })
+    render(<TransactionsPage />)
+    await waitFor(() => expect(listQueries().length).toBeGreaterThan(0))
+    expect(listQueries()[0]).toEqual({
+      companyId: 'c1',
+      fiscalYearId: 'fy-2026',
+      limit: '100',
+      bankAccountId: 'ba-1',
+      searchText: 'LOYER',
+      hasAttachments: 'without',
+      startDate: '2026-10-01',
+      endDate: '2026-10-31',
+    })
+  })
+
+  it('ignores filters of the URL it does not understand (bad dates, unknown attachment filter)', async () => {
+    urlParams = new URLSearchParams({ hasAttachments: 'maybe', startDate: '01/10/2026', endDate: 'demain' })
+    render(<TransactionsPage />)
+    await waitFor(() => expect(listQueries().length).toBeGreaterThan(0))
+    expect(listQueries()[0]).toEqual({ companyId: 'c1', fiscalYearId: 'fy-2026', limit: '100' })
   })
 
   it('sends the filters and says when they match nothing', async () => {
