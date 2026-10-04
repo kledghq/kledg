@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { COMPLETE_BALANCE_SHEET_CONFIG_2026, type DefaultBalanceSheetConfigEntry } from './default-pcg-config-complete-2026'
 import { SIMPLIFIED_BALANCE_SHEET_CONFIG_2026 } from './default-pcg-config-simplified-2026'
 import type { BalanceSheetConfig, BalanceSheetLineConfig } from '../types'
+import { LAYOUT_TRANSACTION_OPTIONS, lockLayout } from '../../statements/layout-lock'
 
 /**
  * Recursively creates balance sheet line configurations from nested structure
@@ -113,20 +114,8 @@ export async function createDefaultBalanceSheetConfig(
   }
 }
 
-/**
- * Gets or creates default balance sheet configuration
- * 
- * @param companyId - Company ID
- * @param reportVariant - 'complete' | 'simplified'
- * @returns Configuration (existing or newly created)
- */
-export async function getOrCreateDefaultBalanceSheetConfig(
-  companyId: string,
-  reportVariant: 'complete' | 'simplified' = 'complete'
-): Promise<BalanceSheetConfig> {
-  // Check if configuration already exists
-  // Get all active configurations (not just version 1, as versions can be updated)
-  // We need to get the latest active version for each config
+/** Active rows of the layout of a variant, as root lines with their children. */
+async function activeRootConfigs(companyId: string, reportVariant: 'complete' | 'simplified'): Promise<BalanceSheetLineConfig[]> {
   const allActiveConfigs = await prisma.balanceSheetLineConfig.findMany({
     where: {
       companyId,
@@ -151,20 +140,33 @@ export async function getOrCreateDefaultBalanceSheetConfig(
     }
   }
 
-  // Filter to get only root configs (parentId is null) and sort by order
-  const existingConfigs = Array.from(configsById.values())
+  // Root configs (parentId is null), sorted by order
+  return Array.from(configsById.values())
     .filter(config => !config.parentId)
     .sort((a, b) => a.order - b.order)
+}
 
-  // If configuration exists, return it
-  if (existingConfigs.length > 0) {
-    return {
-      companyId,
-      reportVariant,
-      lines: existingConfigs,
-    }
-  }
+/**
+ * Gets or creates default balance sheet configuration. The creation runs
+ * under the layout lock and checks again that no layout exists: two reports
+ * computed at once create one layout, not one each.
+ *
+ * @param companyId - Company ID
+ * @param reportVariant - 'complete' | 'simplified'
+ * @returns Configuration (existing or newly created)
+ */
+export async function getOrCreateDefaultBalanceSheetConfig(
+  companyId: string,
+  reportVariant: 'complete' | 'simplified' = 'complete'
+): Promise<BalanceSheetConfig> {
+  const existing = await activeRootConfigs(companyId, reportVariant)
+  if (existing.length > 0) return { companyId, reportVariant, lines: existing }
 
-  // Otherwise, create default configuration
-  return createDefaultBalanceSheetConfig(companyId, reportVariant)
+  const created = await prisma.$transaction(async (tx) => {
+    await lockLayout(tx, companyId, 'balance-sheet', reportVariant)
+    // Another report created it while this one waited for the lock.
+    const rows = await tx.balanceSheetLineConfig.count({ where: { companyId, reportVariant, isActive: true } })
+    return rows > 0 ? null : createDefaultBalanceSheetConfig(companyId, reportVariant, tx)
+  }, LAYOUT_TRANSACTION_OPTIONS)
+  return created ?? { companyId, reportVariant, lines: await activeRootConfigs(companyId, reportVariant) }
 }

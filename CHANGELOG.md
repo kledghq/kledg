@@ -37,6 +37,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 - `create_draft_expense_report` est disponible avec l'accès Lecture et brouillons (`kledg:write`, droit `expenses:submit`) au lieu du contrôle total : la note reste un brouillon que la personne soumet et qu'un valideur comptabilise dans Kledg ; `dryRun: true` montre les totaux sans rien enregistrer. La description du niveau Lecture et brouillons (page d'autorisation, paramètres) cite ce que l'assistant peut préparer.
 
+### Corrigé
+
+- Bilan et compte de résultat : deux états calculés en même temps pour une société sans mise en page (comparaison N et N-1, deux utilisateurs) créaient chacun la mise en page par défaut ; chaque ligne existait alors deux fois et les montants n'allaient que sur l'une d'elles, l'autre affichant 0,00. La mise en page par défaut est désormais créée une seule fois, sous un verrou par société et par variante. Une société touchée retrouve une mise en page unique avec « Rétablir la mise en page par défaut ».
+
 ### Sécurité
 
 - Fonctions `SECURITY DEFINER` durcies (migration `20261029090000_definer_function_hardening`) : chemin de recherche `public, pg_temp` sur toutes, et la purge du journal d'audit (`kledg_purge_audit_logs`) n'est plus exécutable que par le propriétaire de la base, plus par le rôle applicatif.

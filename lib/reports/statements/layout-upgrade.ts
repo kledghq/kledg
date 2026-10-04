@@ -14,8 +14,9 @@ import { createDefaultBalanceSheetConfig } from '../balance-sheet/config/create-
 import { createDefaultIncomeStatementConfig } from '../income-statement/config/create-default-pcg-config.service'
 import { defaultBalanceSheetRules, defaultIncomeStatementRules } from './default-rules'
 import { layoutFingerprint, type LayoutRow } from './layout-fingerprint'
+import { LAYOUT_TRANSACTION_OPTIONS, lockLayout, type LayoutKind } from './layout-lock'
 
-export type LayoutKind = 'balance-sheet' | 'income-statement'
+export type { LayoutKind }
 type Variant = 'complete' | 'simplified'
 
 /**
@@ -90,7 +91,7 @@ export async function upgradeLayoutIfUntouched(
   if (status !== 'previous-default') return status
   return prisma.$transaction(
     async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:layout:${companyId}:${kind}:${variant}`}))`
+      await lockLayout(tx, companyId, kind, variant)
       const again = classifyLayout(kind, variant, await storedRows(tx, kind, companyId, variant))
       // Another request upgraded it meanwhile.
       if (again !== 'previous-default') return again === 'default' ? 'upgraded' : again
@@ -103,6 +104,6 @@ export async function upgradeLayoutIfUntouched(
       }
       return 'upgraded'
     },
-    { maxWait: 10_000, timeout: 60_000 }
+    LAYOUT_TRANSACTION_OPTIONS
   )
 }

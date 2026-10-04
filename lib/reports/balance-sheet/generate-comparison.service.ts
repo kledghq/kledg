@@ -5,6 +5,7 @@
 import { generateBalanceSheet } from './generate-balance-sheet.service'
 import type { BalanceSheetComparison, BalanceSheetData, BalanceSheetLine } from './types'
 import { subtractEuros } from '../amounts'
+import { loadFiscalYearOf } from '../statements/load'
 
 /** Net amount of every line of the tree, by line id. */
 function netByLine(lines: BalanceSheetLine[], into = new Map<string, number>()): Map<string, number> {
@@ -30,6 +31,11 @@ export async function generateBalanceSheetComparison(
   previousFiscalYearId: string,
   reportVariant: 'complete' | 'simplified' = 'complete'
 ): Promise<BalanceSheetComparison> {
+  // Both years first: a 404 on one of them must not leave the other balance
+  // sheet running (and creating the default layout) after this call failed.
+  await loadFiscalYearOf(companyId, currentFiscalYearId)
+  await loadFiscalYearOf(companyId, previousFiscalYearId)
+
   // Generate both balance sheets
   const [current, previous] = await Promise.all([
     generateBalanceSheet(companyId, currentFiscalYearId, reportVariant),

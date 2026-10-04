@@ -26,6 +26,7 @@ import { createIncomeStatementLineConfig } from '../income-statement/config/crea
 import { deleteIncomeStatementLineConfig } from '../income-statement/config/delete-income-statement-line-config.service'
 import { updateIncomeStatementLineConfig } from '../income-statement/config/update-income-statement-line-config.service'
 import type { ReportVariant } from '../report-query'
+import { LAYOUT_TRANSACTION_OPTIONS, lockLayout } from '../statements/layout-lock'
 import type {
   BalanceSheetConfigActionSchema,
   ConfigHistoryActionSchema,
@@ -109,9 +110,10 @@ export async function deleteBalanceSheetLine(companyId: string, lineId: string):
 /** Replaces the balance sheet layout of the variant by the PCG default, in one transaction. */
 export function resetBalanceSheetLayout(companyId: string, variant: ReportVariant) {
   return prisma.$transaction(async (tx) => {
+    await lockLayout(tx, companyId, 'balance-sheet', variant)
     await tx.balanceSheetLineConfig.deleteMany({ where: { companyId, reportVariant: variant } })
     return createDefaultBalanceSheetConfig(companyId, variant, tx)
-  })
+  }, LAYOUT_TRANSACTION_OPTIONS)
 }
 
 /** POST .../balance-sheet/config: creates the default layout, or one line (with its section and label visibility). */
@@ -241,7 +243,8 @@ export async function deleteIncomeStatementLine(companyId: string, lineId: strin
 /** Replaces the income statement layout of the variant by the PCG default, in one transaction. */
 export function resetIncomeStatementLayout(companyId: string, variant: ReportVariant) {
   return prisma.$transaction(async (tx) => {
+    await lockLayout(tx, companyId, 'income-statement', variant)
     await tx.incomeStatementLineConfig.deleteMany({ where: { companyId, reportVariant: variant } })
     return createDefaultIncomeStatementConfig(companyId, variant, tx)
-  })
+  }, LAYOUT_TRANSACTION_OPTIONS)
 }

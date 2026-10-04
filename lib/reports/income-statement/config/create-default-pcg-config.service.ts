@@ -8,6 +8,7 @@ import { SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026 } from './default-pcg-config-si
 import { COMPLETE_INCOME_STATEMENT_CONFIG_2026, type DefaultIncomeStatementConfigEntry } from './default-pcg-config-complete-2026'
 import { buildConfigTree } from '../../config/shared/config-tree'
 import type { IncomeStatementConfig, IncomeStatementLineConfig } from '../types'
+import { LAYOUT_TRANSACTION_OPTIONS, lockLayout } from '../../statements/layout-lock'
 
 /**
  * Recursively creates income statement line configurations from nested structure
@@ -114,8 +115,14 @@ export async function getOrCreateDefaultIncomeStatementConfig(
     return { companyId, reportVariant, lines: buildConfigTree(latest) }
   }
 
-  // Otherwise, create default configuration, then reload it as a tree
-  await createDefaultIncomeStatementConfig(companyId, reportVariant)
+  // Otherwise, create the default configuration under the layout lock, unless
+  // another report created it while this one waited (two reports computed at
+  // once create one layout, not one each), then reload it as a tree
+  await prisma.$transaction(async (tx) => {
+    await lockLayout(tx, companyId, 'income-statement', reportVariant)
+    const rows = await tx.incomeStatementLineConfig.count({ where: { companyId, reportVariant, isActive: true } })
+    if (rows === 0) await createDefaultIncomeStatementConfig(companyId, reportVariant, tx)
+  }, LAYOUT_TRANSACTION_OPTIONS)
   const allNewConfigs = await prisma.incomeStatementLineConfig.findMany({
     where: { companyId, reportVariant, isActive: true },
     orderBy: { order: 'asc' },
