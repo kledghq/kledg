@@ -29,6 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ConfirmDeleteDialog, Field, PageHeader } from '@/components/shared'
 import { Plus, Pencil, PlusCircle, Trash2 } from 'lucide-react'
 import { docsUrl } from '@/lib/docs-links'
+import { pluralWord } from '@/lib/utils/plural'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -209,17 +210,23 @@ export default function JournalsPage() {
     if (!companyId) return
     setAddingDefaults(true)
     try {
-      const response = await fetch(`/api/journals?companyId=${companyId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setJournals(Array.isArray(data) ? data : [])
-        toast.success('Journaux par défaut ajoutés (AC, VT, BQ, CA, OD)')
+      const response = await fetch('/api/journals/defaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId }),
+      })
+      const data = (await response.json().catch(() => null)) as { created?: string[]; journals?: Journal[]; error?: string } | null
+      if (response.ok && data) {
+        setJournals(Array.isArray(data.journals) ? data.journals : [])
+        const created = data.created ?? []
+        if (created.length === 0) toast.success('Les journaux par défaut existent déjà')
+        else toast.success(`${pluralWord(created.length, 'Journal ajouté', 'Journaux ajoutés')}\u00a0: ${created.join(', ')}`)
       } else {
-        toast.error('Erreur lors de l\'ajout des journaux par défaut')
+        toast.error(data?.error || "Erreur lors de l'ajout des journaux par défaut")
       }
     } catch (err) {
       logger.error('Error adding default journals:', err)
-      toast.error('Erreur lors de l\'ajout des journaux par défaut')
+      toast.error("Erreur lors de l'ajout des journaux par défaut")
     } finally {
       setAddingDefaults(false)
     }
@@ -247,7 +254,7 @@ export default function JournalsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Journaux"
-        description="Chaque écriture est classée dans un journal selon sa nature&nbsp;: achats (AC), ventes (VT), banque (BQ), caisse (CA), opérations diverses (OD)."
+        description="Chaque écriture est classée dans un journal selon sa nature&nbsp;: achats (AC), ventes (VE), banque (BQ), opérations diverses (OD), à-nouveaux (AN)."
         docsHref={docsUrl('journals')}
         actions={
           <>
@@ -340,7 +347,7 @@ export default function JournalsPage() {
             <TableBody>
               {journals.length === 0 ? (
                 <TableEmpty colSpan={3}>
-                  Aucun journal. Ajoutez les journaux par défaut (AC, VT, BQ, CA, OD) pour commencer.
+                  Aucun journal. Ajoutez les journaux par défaut (AC, VE, BQ, OD, AN) pour commencer.
                 </TableEmpty>
               ) : (
                 journals.map((journal) => (
