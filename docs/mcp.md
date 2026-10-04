@@ -134,6 +134,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `list_doubtful_receivables` | Clients en retard à la clôture au-delà de 30, 60 ou 90 jours, candidats à une dépréciation, avec la dépréciation déjà suivie ; droit `reports:read` |
 | `list_tax_deadlines` | Échéances fiscales et juridiques d'un exercice (TVA, IS, liasse, CFE, approbation et dépôt), jours restants, règle et sources officielles ; dates seulement ; droit `reports:read` |
 | `get_bank_sync_status` | État des flux bancaires : connexions, dernière synchronisation, erreur, consentement, et par compte les opérations non rapprochées et la plus ancienne, sans IBAN ni identifiant ; droit `banking:read` |
+| `list_expenses_to_review` | Dépenses à vérifier du mode simple : transactions non rapprochées avec la catégorie proposée (règles, historique de la contrepartie, dictionnaire des payeurs français, mots du libellé, catégorie de la banque), la confiance, la raison et la question à trancher ([catégories simples](categories-simples.md)) ; droit `banking:read` |
 | `list_expense_claimants` | Bénéficiaires de notes de frais (identifiant, compte auxiliaire) que le rôle de l'utilisateur lui montre ; droit `entries:read` |
 
 ### Lecture et brouillons (`kledg:write`)
@@ -154,6 +155,7 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `prepare_year_end_entries` | Préparer dotations, reprises et quotes-parts de subventions en **brouillons** au journal OD ; une seconde fois ne crée rien | `entries:create` | Oui (brouillons périmés) | Oui |
 | `create_draft_expense_report` | Note de frais en **brouillon** pour l'utilisateur ou, s'il valide les notes, un autre bénéficiaire ; `dryRun` pour un aperçu | `expenses:submit` | Non | Non |
 | `update_year_end_formalities` | Renseigner l'approbation des comptes (dates, taille, mode de décision, votes, affectation proposée, dépôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
+| `accept_expense_suggestion` | Confirmer une dépense à vérifier : la proposition, une catégorie du catalogue (avec la réponse à sa question) ou une règle ; écriture en **brouillon** rapprochée avec la transaction, quel que soit le réglage de validation, sans créer de règle | `banking:reconcile` et `entries:create` | Non | Non |
 
 À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
 
@@ -271,6 +273,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `list_invoices`, `get_invoice` | | `create_draft_invoice` | Créer ou modifier un tiers, comptabiliser une facture existante, import Qonto |
 | Lettrage ([lettrage et tiers](lettrage-et-tiers.md)) | | | `list_unlettered_lines`, `letter_entry_lines`, `unletter_entry_lines` | Propositions automatiques en un clic |
 | Balance âgée et balance auxiliaire | `get_aged_balance`, `get_auxiliary_balance` | | | Exports Excel |
+| Mode simple, dépenses à vérifier ([catégories simples](categories-simples.md)) | `list_expenses_to_review` | `accept_expense_suggestion` (brouillon) | | Valider les saisies du mode simple (voir `validate_entries` en CT), envoyer un justificatif, réglage de validation |
 | Justificatifs manquants | `list_missing_receipts` | | | Joindre une pièce (à la banque) |
 | Échéances fiscales et juridiques | `list_tax_deadlines` | | | Réglages du calendrier |
 | Indicateurs financiers, SIG et ratios ([indicateurs](indicateurs-financiers.md)) | `get_sig`, `get_financial_ratios` | | | Exports CSV et Excel, widgets |

@@ -91,6 +91,7 @@ const DRAFT_TOOLS = [
   'prepare_year_end_entries',
   'create_draft_expense_report',
   'update_year_end_formalities',
+  'accept_expense_suggestion',
 ]
 
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
@@ -280,7 +281,7 @@ describe('draft tools', () => {
   // checks every right of the tool through the company guard before the
   // service runs.
   const dir = path.resolve(__dirname, '../drafts')
-  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts']
+  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks the company guard first, in the single registration path', () => {

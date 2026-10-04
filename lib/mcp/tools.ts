@@ -37,6 +37,7 @@ import { registerBudgetReadTools } from '@/lib/mcp/budget-tools'
 import { registerManagementFeeTools } from '@/lib/mcp/management-fee-tools'
 import { registerGroupTools } from '@/lib/mcp/group-tools'
 import { registerSubscriptionReadTools } from '@/lib/mcp/subscription-tools'
+import { registerSimpleModeReadTools } from '@/lib/mcp/simple-mode-tools'
 import { registerFinancialIndicatorTools } from '@/lib/mcp/financial-indicator-tools'
 import { registerYearEndReadTools } from '@/lib/mcp/year-end-tools'
 import { registerApprovalReadTools } from '@/lib/mcp/approval-tools'
@@ -711,6 +712,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerManagementFeeTools(server, access, guard)
   registerGroupTools(server, access, guard)
   registerSubscriptionReadTools(server, guard)
+  registerSimpleModeReadTools(server, guard)
   registerFinancialIndicatorTools(server, guard)
   registerYearEndReadTools(server, guard)
   registerApprovalReadTools(server, guard)
