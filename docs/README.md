@@ -20,5 +20,6 @@
 - [Frais de gestion](frais-de-gestion.md) : conventions d'une holding avec ses filiales, coûts majorés d'une marge, clés de répartition, factures de vente et factures d'achat proposées
 - [Vue groupe](vue-groupe.md) : vue combinée d'une holding et de ses filiales, flux intragroupe et éliminations indicatives, trésorerie du groupe, tableau des filiales et participations
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
+- [Mode simple](mode-simple.md) : affichage simple ou expert par utilisateur, navigation et accueil du mode simple, vocabulaire sans jargon
 
 La documentation utilisateur (prise en main, import FEC, banque, clôture) est publiée sur [kledg.com](https://www.kledg.com).
