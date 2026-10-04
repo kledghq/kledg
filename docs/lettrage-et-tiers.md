@@ -16,6 +16,8 @@ Page **Saisie, Lettrage** (`/lettering`), API `GET|POST /api/lettering`, `GET /a
 - **Lettrage automatique** (`lib/lettering/match.ts`) : propositions toujours équilibrées, dans cet ordre : même tiers et même montant (dates les plus proches d'abord) ; même montant quand une des lignes n'a pas de compte auxiliaire, seulement si la paire est sans ambiguïté ; reste d'un tiers soldé (30 lignes au plus). Les lignes d'une écriture rapprochée avec une transaction bancaire passent en premier (« Rapprochement bancaire ») : c'est ainsi que le rapprochement propose le lettrage du compte 411 ou 401 qu'il solde, une fois l'écriture validée. « Lettrer les propositions » les applique toutes sous le verrou du compte.
 - Droits : lecture `entries:read`, lettrage et délettrage `entries:update`. Chaque opération est inscrite au journal d'audit (`LETTER_ENTRY_LINES`, `UNLETTER_ENTRY_LINES`, `AUTO_LETTER_ENTRY_LINES`).
 
+- **Tiers** : le nom d'un tiers enregistré (page Tiers, [factures et tiers](factures-et-tiers.md)) remplace le libellé des lignes de son compte auxiliaire. Les règlements enregistrés sur une facture la lettrent dès qu'ils la soldent.
+
 ## Balance auxiliaire
 
 Page **États, Balance auxiliaire**, `GET /api/reports/auxiliary-balance` et son export Excel. Par tiers (compte auxiliaire `CompAuxNum`, sinon le compte lui-même, 411DUPONT par exemple) des comptes 411 et 401, sur une période d'un exercice : solde au début (écriture d'à-nouveaux et lignes antérieures), débit, crédit, solde, et part non lettrée à la fin de la période (une ligne lettrée après la fin compte comme non lettrée). Droit `reports:read` (export : `reports:export`).

@@ -262,6 +262,7 @@ it must hold for every code path, by the database (trigger in a migration).
 | A closed fiscal year never changes (PCG art. 1031-4) | `assertFiscalYearOpen`, `assertDateInOpenFiscalYear` | `kledg_lock_closed_year_*`, `kledg_lock_closed_fiscal_years` |
 | Entries are created through one path | `createEntryInTx` (drafts) and `validateEntryInTx` | |
 | Lettering groups balance, one code sequence per account, never in a closed year (`docs/lettrage-et-tiers.md`) | `lib/lettering/lettering.service.ts` under an advisory lock per account | the triggers leave `letteringCode` and `letteringDate` free on validated lines |
+| An invoice posts once, to the fiscal year containing its date only, with accounts of that year's chart; its amounts come from its lines in cents (`docs/factures-et-tiers.md`) | `lib/invoices/post-invoice.service.ts` under the invoice row lock, `lib/invoices/amounts.ts` | check constraints on `invoices` (TTC = HT + TVA), `invoice_payments.entryLineId` unique |
 
 - Create entries only through `createEntryInTx` / `createEntry`; never
   `prisma.accountingEntry.create` elsewhere.

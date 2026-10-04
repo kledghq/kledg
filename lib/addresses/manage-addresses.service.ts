@@ -136,7 +136,7 @@ export async function assertAddressUsableByCompany(
 
 /**
  * Deletes the addresses of the company among `addressIds` that nothing
- * refers to any more (no company, headquarters, establishment or person
+ * refers to any more (no company, headquarters, establishment, person or tiers
  * link). Call it in the transaction that replaced or removed the links,
  * after the change. The rows are locked first (FOR UPDATE): an attach
  * committed meanwhile is then visible to the reference check, and an attach
@@ -161,6 +161,7 @@ export async function deleteAddressesIfUnused(
       companiesHeadquarters: { none: {} },
       establishments: { none: {} },
       persons: { none: {} },
+      tiers: { none: {} },
     },
   })
   return count

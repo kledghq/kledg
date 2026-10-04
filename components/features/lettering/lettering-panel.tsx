@@ -20,6 +20,8 @@ export interface PanelLine extends SelectionLine {
   reference: string | null
   description: string
   auxiliaryAccountLabel: string | null
+  /** Name of the tiers record of the auxiliary account (Tiers page), when there is one. */
+  tiersName?: string | null
   letteringDate: string | null
   reconciled: boolean
   runningBalanceCents: number
@@ -105,7 +107,9 @@ export function LetteringPanel({ lines, companyId, canWrite, onLetter, onUnlette
     line.auxiliaryAccountNumber ? (
       <span className="block min-w-0">
         <span className="font-mono text-xs">{line.auxiliaryAccountNumber}</span>
-        {line.auxiliaryAccountLabel ? <span className="text-muted-foreground block truncate text-xs">{line.auxiliaryAccountLabel}</span> : null}
+        {line.tiersName || line.auxiliaryAccountLabel ? (
+          <span className="text-muted-foreground block truncate text-xs">{line.tiersName || line.auxiliaryAccountLabel}</span>
+        ) : null}
       </span>
     ) : (
       <span className="text-muted-foreground">-</span>

@@ -167,3 +167,27 @@ describe('auxiliary balance', () => {
     expect(report.customers.tiers[0]).toMatchObject({ openingCents: 10_000, debitCents: 50_000, closingCents: 60_000, unletteredCents: 60_000 })
   })
 })
+
+describe('tiers records (lib/tiers)', () => {
+  const lines = [
+    line({ date: '2026-01-10', auxiliaryAccountNumber: 'C001', auxiliaryAccountLabel: 'MARTIN', debitCents: 10_000 }),
+    line({ date: '2026-01-10', auxiliaryAccountNumber: 'C002', auxiliaryAccountLabel: 'Éole', debitCents: 5_000 }),
+  ]
+  const directory = new Map([['C001', { name: 'Martin SA', terms: { days: 0, endOfMonth: false } }]])
+
+  it('names a tiers after its record and ages its invoices with its own payment terms (Code de commerce art. L441-10)', () => {
+    const report = buildAgedBalance(lines, '2026-01-20', NET30, directory)
+    const martin = report.customers.tiers.find((t) => t.code === 'C001')!
+    const eole = report.customers.tiers.find((t) => t.code === 'C002')!
+    expect(martin).toMatchObject({ label: 'Martin SA', oldestDueDate: '2026-01-10' })
+    expect(martin.buckets.days0to30).toBe(10_000)
+    // No record: the label of the lines and the company's terms
+    expect(eole).toMatchObject({ label: 'Éole', oldestDueDate: '2026-02-09' })
+    expect(eole.buckets.notDue).toBe(5_000)
+  })
+
+  it('names tiers after their record in the auxiliary balance', () => {
+    const report = buildAuxiliaryBalance(lines, '2026-01-01', '2026-01-31', directory)
+    expect(report.customers.tiers.map((t) => t.label)).toEqual(['Martin SA', 'Éole'])
+  })
+})

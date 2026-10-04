@@ -3,6 +3,9 @@ import {
   BookMarked,
   BookOpen,
   BookText,
+  BookUser,
+  FileInput,
+  FileOutput,
   Calendar,
   Contact,
   CalendarClock,
@@ -60,6 +63,14 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Factures",
+    items: [
+      { title: "Factures d'achat", url: "/invoices/purchases", icon: FileInput },
+      { title: "Factures de vente", url: "/invoices/sales", icon: FileOutput },
+      { title: "Tiers", url: "/tiers", icon: BookUser },
+    ],
+  },
+  {
     label: "Saisie",
     items: [
       { title: "Écritures", url: "/entries", icon: FileText },
@@ -113,6 +124,11 @@ const subPages: Array<{ path: string; title: string }> = [
   { path: "/entries/[id]/edit", title: "Modifier l'écriture" },
   { path: "/entries/[id]", title: "Écriture" },
   { path: "/fiscal-years/opening-balances", title: "Bilan d'ouverture" },
+  { path: "/invoices/new", title: "Nouvelle facture" },
+  { path: "/invoices/[id]/edit", title: "Modifier la facture" },
+  { path: "/invoices/[id]", title: "Facture" },
+  { path: "/tiers/new", title: "Nouveau tiers" },
+  { path: "/tiers/[id]", title: "Tiers" },
 ]
 
 function matchesPattern(pattern: string, relativePath: string): boolean {

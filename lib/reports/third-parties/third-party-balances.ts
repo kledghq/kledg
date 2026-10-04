@@ -49,9 +49,17 @@ export interface Tiers {
   accountCodes: string[]
 }
 
-function tiersOf(line: ThirdPartyLine): { code: string; label: string } {
+/**
+ * Tiers records of the company by auxiliary account number (lib/tiers): their
+ * name replaces the label found on the lines, and their payment terms, when
+ * set, replace the company's for their invoices (Code de commerce art.
+ * L441-10 caps apply to both).
+ */
+export type TiersDirectory = ReadonlyMap<string, { name: string; terms: PaymentTerms | null }>
+
+function tiersOf(line: ThirdPartyLine, directory: TiersDirectory = new Map()): { code: string; label: string } {
   const aux = line.auxiliaryAccountNumber?.trim()
-  if (aux) return { code: aux, label: line.auxiliaryAccountLabel?.trim() || line.accountLabel }
+  if (aux) return { code: aux, label: directory.get(aux)?.name || line.auxiliaryAccountLabel?.trim() || line.accountLabel }
   return { code: line.accountCode, label: line.accountLabel }
 }
 
@@ -130,21 +138,26 @@ export function lineDueDate(kind: ThirdPartyKind, line: ThirdPartyLine, terms: P
  * per tiers and per age bucket, sorted by overdue amount (most overdue
  * first), then by total. Tiers whose open lines sum to zero are left out.
  */
-export function buildAgedBalance(lines: readonly ThirdPartyLine[], asOf: string, terms: PaymentTerms): Record<ThirdPartyKind, AgedSection> {
+export function buildAgedBalance(
+  lines: readonly ThirdPartyLine[],
+  asOf: string,
+  terms: PaymentTerms,
+  directory: TiersDirectory = new Map(),
+): Record<ThirdPartyKind, AgedSection> {
   const sections: Record<ThirdPartyKind, Map<string, AgedTiers>> = { customers: new Map(), suppliers: new Map() }
   for (const line of lines) {
     const kind = kindOfAccount(line.accountCode)
     if (!kind || line.date > asOf || !openOn(line, asOf)) continue
     const amount = owedCents(kind, line)
     if (amount === 0) continue
-    const { code, label } = tiersOf(line)
+    const { code, label } = tiersOf(line, directory)
     let tiers = sections[kind].get(code)
     if (!tiers) {
       tiers = { code, label, accountCodes: [], buckets: emptyBuckets(), lineCount: 0, oldestDueDate: null }
       sections[kind].set(code, tiers)
     }
     if (!tiers.accountCodes.includes(line.accountCode)) tiers.accountCodes.push(line.accountCode)
-    const due = lineDueDate(kind, line, terms)
+    const due = lineDueDate(kind, line, directory.get(code)?.terms ?? terms)
     tiers.buckets[bucketOf(daysBetween(due, asOf))] += amount
     tiers.buckets.totalCents += amount
     tiers.lineCount += 1
@@ -190,12 +203,17 @@ export interface AuxiliarySection {
  * of the period. Amounts are signed debit - credit, like the trial balance
  * (a customer balance is a debit, a supplier balance a credit).
  */
-export function buildAuxiliaryBalance(lines: readonly ThirdPartyLine[], start: string, end: string): Record<ThirdPartyKind, AuxiliarySection> {
+export function buildAuxiliaryBalance(
+  lines: readonly ThirdPartyLine[],
+  start: string,
+  end: string,
+  directory: TiersDirectory = new Map(),
+): Record<ThirdPartyKind, AuxiliarySection> {
   const sections: Record<ThirdPartyKind, Map<string, AuxiliaryTiers>> = { customers: new Map(), suppliers: new Map() }
   for (const line of lines) {
     const kind = kindOfAccount(line.accountCode)
     if (!kind || line.date > end) continue
-    const { code, label } = tiersOf(line)
+    const { code, label } = tiersOf(line, directory)
     let tiers = sections[kind].get(code)
     if (!tiers) {
       tiers = { code, label, accountCodes: [], openingCents: 0, debitCents: 0, creditCents: 0, closingCents: 0, unletteredCents: 0 }

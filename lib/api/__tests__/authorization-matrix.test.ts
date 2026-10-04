@@ -21,6 +21,8 @@ const state = await vi.hoisted(async () => {
   useTestDatabase('matrix')
   process.env.BETTER_AUTH_SECRET ??= 'kledg-test-secret-0123456789abcdef0123456789'
   process.env.BETTER_AUTH_URL ??= 'http://localhost:3000'
+  // Routes that reach Qonto (invoice import) must never leave the machine: a closed local port answers at once
+  process.env.QONTO_API_URL = 'http://127.0.0.1:9/v2'
   return { user: null as null | { id: string; email: string; name: string | null; role: string | null } }
 })
 
@@ -114,6 +116,33 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
   })
   await prisma.entryLine.create({ data: { accountingEntryId: payment.id, accountId: bank.id, accountFiscalYearId: fy.id, accountingEntryNumber: '4', debit: 120, credit: 0 } })
   await prisma.accountingEntry.updateMany({ where: { id: { in: [invoice.id, payment.id] } }, data: { status: 'validated' } })
+  // Tiers and invoices: the customer of the lettered invoice above (posted, paid), a draft invoice and a tiers without invoices
+  const customer = await prisma.tiers.create({ data: { companyId: company.id, kind: 'CUSTOMER', name: `Client ${prefix}`, auxiliaryAccountNumber: 'C001' } })
+  const freeTiers = await prisma.tiers.create({ data: { companyId: company.id, kind: 'SUPPLIER', name: `Fournisseur ${prefix}`, auxiliaryAccountNumber: 'F001' } })
+  const invoiceLines = (vatRateBp: number) => ({
+    lines: { create: [{ position: 1, label: 'Vente', quantity: 1, unitPrice: 100, vatRateBp, totalExclTax: 100, accountCode: '706000' }] },
+    vatBreakdown: { create: [{ vatRateBp, baseAmount: 100, vatAmount: vatRateBp ? 20 : 0 }] },
+  })
+  const postedInvoice = await prisma.invoice.create({
+    data: {
+      companyId: company.id, direction: 'SALE', tiersId: customer.id, number: 'V-1', issueDate: new Date('2026-03-03T00:00:00Z'), dueDate: new Date('2026-04-02T00:00:00Z'),
+      totalExclTax: 100, totalVat: 20, totalInclTax: 120, entryId: invoice.id, ...invoiceLines(2000),
+    },
+  })
+  const draftInvoice = await prisma.invoice.create({
+    data: {
+      companyId: company.id, direction: 'SALE', tiersId: customer.id, number: 'V-2', issueDate: new Date('2026-03-05T00:00:00Z'), dueDate: new Date('2026-04-04T00:00:00Z'),
+      totalExclTax: 100, totalVat: 0, totalInclTax: 100, ...invoiceLines(0),
+    },
+    include: { lines: true },
+  })
+  Object.assign(ids, {
+    [`${prefix}Tiers`]: customer.id,
+    [`${prefix}FreeTiers`]: freeTiers.id,
+    [`${prefix}PostedInvoice`]: postedInvoice.id,
+    [`${prefix}DraftInvoice`]: draftInvoice.id,
+    [`${prefix}DraftInvoiceLine`]: draftInvoice.lines[0].id,
+  })
   const connection = await prisma.bankConnection.create({
     data: { companyId: company.id, login: `login-${prefix}`, secretKeyEncrypted: 'encrypted-secret' },
   })
@@ -322,6 +351,20 @@ const ROUTE_MODULES = {
   auxiliaryBalanceExcel: () => import('@/app/api/reports/auxiliary-balance/export-excel/route'),
   missingReceipts: () => import('@/app/api/banking/missing-receipts/route'),
   paymentTerms: () => import('@/app/api/companies/[id]/payment-terms/route'),
+  tiers: () => import('@/app/api/tiers/route'),
+  tiersOne: () => import('@/app/api/tiers/[id]/route'),
+  tiersAttach: () => import('@/app/api/tiers/attach-auxiliary/route'),
+  invoices: () => import('@/app/api/invoices/route'),
+  invoice: () => import('@/app/api/invoices/[id]/route'),
+  invoiceLines: () => import('@/app/api/invoices/[id]/lines/route'),
+  invoicePost: () => import('@/app/api/invoices/[id]/post/route'),
+  invoicePayments: () => import('@/app/api/invoices/[id]/payments/route'),
+  invoicePaymentCandidates: () => import('@/app/api/invoices/[id]/payments/candidates/route'),
+  invoicePayment: () => import('@/app/api/invoices/[id]/payments/[paymentId]/route'),
+  invoiceSettle: () => import('@/app/api/invoices/[id]/settle/route'),
+  invoiceAttachment: () => import('@/app/api/invoices/[id]/attachment/route'),
+  invoicesImportQonto: () => import('@/app/api/invoices/import-qonto/route'),
+  vatSettings: () => import('@/app/api/companies/[id]/vat-settings/route'),
 }
 
 interface Call {
@@ -444,6 +487,34 @@ const WRITES: Call[] = [
   { label: 'export aged balance', route: 'agedBalanceExcel', method: 'GET', path: () => `/api/reports/aged-balance/export-excel?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'export auxiliary balance', route: 'auxiliaryBalanceExcel', method: 'GET', path: () => `/api/reports/auxiliary-balance/export-excel?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'update payment terms', route: 'paymentTerms', method: 'PUT', path: () => `/api/companies/${A()}/payment-terms`, params: p({ id: A }), body: () => ({ days: 45, endOfMonth: true }) },
+  { label: 'create tiers', route: 'tiers', method: 'POST', path: () => '/api/tiers', body: () => ({ companyId: A(), kind: 'CUSTOMER', name: 'Nouveau client' }) },
+  { label: 'update tiers', route: 'tiersOne', method: 'PATCH', path: () => `/api/tiers/${ids.aTiers}`, params: p({ id: () => ids.aTiers }), body: () => ({ name: 'Client renommé' }) },
+  { label: 'delete tiers', route: 'tiersOne', method: 'DELETE', path: () => `/api/tiers/${ids.aFreeTiers}`, params: p({ id: () => ids.aFreeTiers }) },
+  { label: 'create tiers from auxiliary accounts', route: 'tiersAttach', method: 'POST', path: () => '/api/tiers/attach-auxiliary', body: () => ({ companyId: A() }) },
+  {
+    label: 'create invoice',
+    route: 'invoices',
+    method: 'POST',
+    path: () => '/api/invoices',
+    body: () => ({ companyId: A(), direction: 'SALE', tiersId: ids.aTiers, number: 'V-9', issueDate: '2026-03-10', lines: [{ label: 'A', quantity: '1', unitPriceCents: 1000, vatRateBp: 0 }] }),
+  },
+  {
+    label: 'update invoice',
+    route: 'invoice',
+    method: 'PATCH',
+    path: () => `/api/invoices/${ids.aDraftInvoice}`,
+    params: p({ id: () => ids.aDraftInvoice }),
+    body: () => ({ tiersId: ids.aTiers, number: 'V-2', issueDate: '2026-03-05', lines: [{ label: 'B', quantity: '2', unitPriceCents: 1000, vatRateBp: 0 }] }),
+  },
+  { label: 'update invoice line accounts', route: 'invoiceLines', method: 'PATCH', path: () => `/api/invoices/${ids.aDraftInvoice}/lines`, params: p({ id: () => ids.aDraftInvoice }), body: () => ({ lines: [{ id: ids.aDraftInvoiceLine, accountCode: '706000' }] }) },
+  { label: 'delete invoice', route: 'invoice', method: 'DELETE', path: () => `/api/invoices/${ids.aDraftInvoice}`, params: p({ id: () => ids.aDraftInvoice }) },
+  { label: 'post invoice', route: 'invoicePost', method: 'POST', path: () => `/api/invoices/${ids.aDraftInvoice}/post`, params: p({ id: () => ids.aDraftInvoice }) },
+  { label: 'unpost invoice', route: 'invoicePost', method: 'DELETE', path: () => `/api/invoices/${ids.aPostedInvoice}/post`, params: p({ id: () => ids.aPostedInvoice }) },
+  { label: 'record invoice payment', route: 'invoicePayments', method: 'POST', path: () => `/api/invoices/${ids.aPostedInvoice}/payments`, params: p({ id: () => ids.aPostedInvoice }), body: () => ({ entryLineId: ids.aPaymentLine }) },
+  { label: 'remove invoice payment', route: 'invoicePayment', method: 'DELETE', path: () => `/api/invoices/${ids.aPostedInvoice}/payments/none`, params: p({ id: () => ids.aPostedInvoice, paymentId: () => 'none' }) },
+  { label: 'settle invoice', route: 'invoiceSettle', method: 'POST', path: () => `/api/invoices/${ids.aPostedInvoice}/settle`, params: p({ id: () => ids.aPostedInvoice }) },
+  { label: 'import invoices from Qonto', route: 'invoicesImportQonto', method: 'POST', path: () => '/api/invoices/import-qonto', body: () => ({ companyId: A() }) },
+  { label: 'update VAT settings', route: 'vatSettings', method: 'PUT', path: () => `/api/companies/${A()}/vat-settings`, params: p({ id: A }), body: () => ({ servicesVatOnDebits: true }) },
   { label: 'book opening balances', route: 'openingBalances', method: 'POST', path: () => `/api/companies/${A()}/opening-balances`, params: p({ id: A }), body: () => ({ lines: [{ accountCode: '512000', debitCents: 10_000, creditCents: 0 }, { accountCode: '471000', debitCents: 0, creditCents: 10_000 }] }) },
 ]
 
@@ -503,6 +574,12 @@ const READS: Call[] = [
   { label: 'auxiliary balance', route: 'auxiliaryBalance', method: 'GET', path: () => `/api/reports/auxiliary-balance?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'missing receipts', route: 'missingReceipts', method: 'GET', path: () => `/api/banking/missing-receipts?companyId=${A()}&fiscalYearId=${ids.aFy}&minAmount=10` },
   { label: 'payment terms', route: 'paymentTerms', method: 'GET', path: () => `/api/companies/${A()}/payment-terms`, params: p({ id: A }) },
+  { label: 'list tiers', route: 'tiers', method: 'GET', path: () => `/api/tiers?companyId=${A()}` },
+  { label: 'read tiers', route: 'tiersOne', method: 'GET', path: () => `/api/tiers/${ids.aTiers}`, params: p({ id: () => ids.aTiers }) },
+  { label: 'list invoices', route: 'invoices', method: 'GET', path: () => `/api/invoices?companyId=${A()}&direction=SALE` },
+  { label: 'read invoice', route: 'invoice', method: 'GET', path: () => `/api/invoices/${ids.aPostedInvoice}`, params: p({ id: () => ids.aPostedInvoice }) },
+  { label: 'invoice payment candidates', route: 'invoicePaymentCandidates', method: 'GET', path: () => `/api/invoices/${ids.aPostedInvoice}/payments/candidates`, params: p({ id: () => ids.aPostedInvoice }) },
+  { label: 'VAT settings', route: 'vatSettings', method: 'GET', path: () => `/api/companies/${A()}/vat-settings`, params: p({ id: A }) },
   { label: 'tax regime history', route: 'taxRegimes', method: 'GET', path: () => `/api/companies/${A()}/tax-regimes?regimeType=vat`, params: p({ id: A }) },
   { label: 'deadlines of a fiscal year', route: 'deadlines', method: 'GET', path: () => `/api/deadlines?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'deadline settings', route: 'deadlineSettings', method: 'GET', path: () => `/api/companies/${A()}/deadline-settings`, params: p({ id: A }) },
@@ -542,6 +619,7 @@ const ACCOUNTANT_FORBIDDEN = new Set([
   'delete tax regime',
   'update payment terms',
   'update deadline settings',
+  'update VAT settings',
 ])
 
 describe.skipIf(!available)('authorization matrix', () => {
@@ -655,6 +733,39 @@ describe.skipIf(!available)('authorization matrix', () => {
         params: p({ id: A }),
       })
       expect(response.status).toBe(404)
+    })
+
+    it("cannot record an invoice for company B's tiers, nor a payment line of company B", async () => {
+      await reseed()
+      const crossTiers = await call('accountant', {
+        label: 'cross tiers invoice',
+        route: 'invoices',
+        method: 'POST',
+        path: () => '/api/invoices',
+        body: () => ({ companyId: A(), direction: 'SALE', tiersId: ids.bTiers, number: 'X-1', issueDate: '2026-03-10', lines: [{ label: 'A', quantity: '1', unitPriceCents: 1000, vatRateBp: 0 }] }),
+      })
+      expect(crossTiers.status).toBe(404)
+      expect(await prisma.invoice.count({ where: { number: 'X-1' } })).toBe(0)
+      await prisma.entryLine.updateMany({ where: { id: ids.aInvoiceLine }, data: { letteringCode: null, letteringDate: null } })
+      const crossPayment = await call('accountant', {
+        label: 'cross payment',
+        route: 'invoicePayments',
+        method: 'POST',
+        path: () => `/api/invoices/${ids.aPostedInvoice}/payments`,
+        params: p({ id: () => ids.aPostedInvoice }),
+        body: () => ({ entryLineId: ids.bPaymentLine }),
+      })
+      expect(crossPayment.status).toBe(404)
+      expect(await prisma.invoicePayment.count()).toBe(0)
+    })
+
+    it('reads the document route of an invoice without a Qonto document as 404, never another company', async () => {
+      const own = await call('viewer', { label: 'attachment', route: 'invoiceAttachment', method: 'GET', path: () => `/api/invoices/${ids.aPostedInvoice}/attachment`, params: p({ id: () => ids.aPostedInvoice }) })
+      expect(own.status).toBe(404)
+      expect(((await own.json()) as { error: string }).error).toMatch(/Aucun document/)
+      const foreign = await call('memberB', { label: 'attachment', route: 'invoiceAttachment', method: 'GET', path: () => `/api/invoices/${ids.aPostedInvoice}/attachment`, params: p({ id: () => ids.aPostedInvoice }) })
+      expect(foreign.status).toBe(404)
+      expect(((await foreign.json()) as { error: string }).error).not.toMatch(/Aucun document/)
     })
 
     it("cannot create an entry with company B's journal or accounts", async () => {

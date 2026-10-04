@@ -44,6 +44,7 @@ const TOOL_LABELS: Record<string, string> = {
   allocate_result: 'Affecter le résultat',
   letter_entry_lines: 'Lettrer des lignes',
   unletter_entry_lines: 'Délettrer des lignes',
+  create_draft_invoice: 'Enregistrer une facture',
 }
 
 /** Arguments shown without the file content of an import (base64). */

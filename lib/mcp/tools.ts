@@ -30,6 +30,8 @@ import { getAgedBalance } from '@/lib/reports/third-parties/get-third-party-repo
 import type { AgedSection, BucketAmounts } from '@/lib/reports/third-parties/third-party-balances'
 import { listMissingReceipts } from '@/lib/banking/missing-receipts.service'
 import { fromCents, toCents } from '@/lib/utils/money'
+import { listTiers } from '@/lib/tiers/manage-tiers.service'
+import { getInvoice, listInvoices } from '@/lib/invoices/manage-invoices.service'
 
 const MAX_ROWS = 200
 
@@ -451,6 +453,144 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
             bankAccount: t.bankAccount.displayName || t.bankAccount.name,
             reconciled: t.reconciled,
           })),
+        })
+      }),
+  )
+
+  server.registerTool(
+    'list_tiers',
+    {
+      title: 'Clients et fournisseurs',
+      description:
+        'Lists the customers and suppliers (tiers) of a company with their auxiliary account number (FEC CompAuxNum, used by lettering and the aged balance), identifiers, default accounts and payment terms. Use the id or the auxiliary number with list_invoices and create_draft_invoice.',
+      inputSchema: z.object({
+        companyId,
+        kind: z.enum(['CUSTOMER', 'SUPPLIER']).optional(),
+        search: z.string().max(100).optional().describe('Part of the name, auxiliary number, SIREN or VAT number.'),
+        limit: z.number().int().min(1).max(MAX_ROWS).default(100),
+      }),
+      annotations: readOnly,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { entries: ['read'] })
+        const result = await listTiers(args.companyId, { kind: args.kind, search: args.search, limit: args.limit })
+        return json({
+          total: result.total,
+          truncated: result.truncated,
+          tiers: result.tiers.map((t) => ({
+            id: t.id,
+            kind: t.kind,
+            name: t.name,
+            auxiliaryAccountNumber: t.auxiliaryAccountNumber,
+            siren: t.siren,
+            vatNumber: t.vatNumber,
+            collectiveAccount: t.collectiveAccountCode,
+            defaultAccount: t.defaultAccountCode,
+            defaultVatRatePercent: t.defaultVatRateBp === null ? null : t.defaultVatRateBp / 100,
+            paymentTerms: t.paymentTermsDays === null ? null : { days: t.paymentTermsDays, endOfMonth: t.paymentTermsEndOfMonth },
+            invoiceCount: t._count.invoices,
+          })),
+        })
+      }),
+  )
+
+  server.registerTool(
+    'list_invoices',
+    {
+      title: 'Factures',
+      description:
+        'Lists the purchase or sales invoices recorded in Kledg, newest first, with their totals, status (draft, posted, partially_paid, paid: derived from lettering and the bank payments recorded) and amount still due. Kledg records invoices (entered or imported from Qonto); it does not issue them.',
+      inputSchema: z.object({
+        companyId,
+        direction: z.enum(['SALE', 'PURCHASE']),
+        status: z.enum(['all', 'draft', 'posted']).default('all'),
+        tiersId: z.string().optional(),
+        search: z.string().max(100).optional().describe('Part of the number, label or tiers name.'),
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        limit: z.number().int().min(1).max(MAX_ROWS).default(50),
+      }),
+      annotations: readOnly,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { entries: ['read'] })
+        const page = await listInvoices(args.companyId, {
+          direction: args.direction,
+          status: args.status,
+          tiersId: args.tiersId,
+          search: args.search,
+          startDate: args.from,
+          endDate: args.to,
+          limit: args.limit,
+        })
+        return json({
+          truncated: page.nextCursor !== null,
+          invoices: page.items.map((i) => ({
+            id: i.id,
+            number: i.number,
+            creditNote: i.typeCode === '381',
+            issueDate: i.issueDate,
+            dueDate: i.dueDate,
+            tiers: i.tiers.name,
+            tiersAuxiliaryAccount: i.tiers.auxiliaryAccountNumber,
+            totalExclTax: fromCents(i.totalExclTaxCents),
+            totalVat: fromCents(i.totalVatCents),
+            totalInclTax: fromCents(i.totalInclTaxCents),
+            paid: fromCents(i.paidCents),
+            remaining: fromCents(i.remainingCents),
+            status: i.status,
+            entryNumber: i.entry?.entryNumber ?? null,
+            source: i.source,
+          })),
+        })
+      }),
+  )
+
+  server.registerTool(
+    'get_invoice',
+    {
+      title: 'Facture',
+      description:
+        'One invoice with its lines (quantity, unit price excluding tax, VAT rate, account), VAT breakdown per rate, entry, payments recorded from the bank and status.',
+      inputSchema: z.object({ companyId, invoiceId: z.string().describe('Invoice id, from list_invoices.') }),
+      annotations: readOnly,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { entries: ['read'] })
+        const invoice = await getInvoice(args.companyId, args.invoiceId)
+        return json({
+          id: invoice.id,
+          direction: invoice.direction,
+          number: invoice.number,
+          creditNote: invoice.typeCode === '381',
+          issueDate: invoice.issueDate,
+          dueDate: invoice.dueDate,
+          tiers: invoice.tiers,
+          parties: invoice.parties,
+          status: invoice.status,
+          lines: invoice.lines.map((l) => ({
+            label: l.label,
+            quantity: l.quantity,
+            unitPrice: fromCents(l.unitPriceCents),
+            vatRatePercent: l.vatRateBp / 100,
+            totalExclTax: fromCents(l.totalExclTaxCents),
+            accountCode: l.accountCode,
+            nature: l.nature,
+            fixedAsset: l.fixedAsset,
+          })),
+          vatBreakdown: invoice.vatBreakdown.map((b) => ({ ratePercent: b.vatRateBp / 100, base: fromCents(b.baseCents), vat: fromCents(b.vatCents) })),
+          totalExclTax: fromCents(invoice.totalExclTaxCents),
+          totalVat: fromCents(invoice.totalVatCents),
+          totalInclTax: fromCents(invoice.totalInclTaxCents),
+          paid: fromCents(invoice.paidCents),
+          remaining: fromCents(invoice.remainingCents),
+          lettering: invoice.letteringCode,
+          entry: invoice.entry,
+          payments: invoice.payments.map((p) => ({ amount: fromCents(p.amountCents), entryNumber: p.entry.entryNumber, date: p.entry.date })),
+          source: invoice.source,
         })
       }),
   )

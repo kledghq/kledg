@@ -463,18 +463,25 @@ export async function updateDraftEntry(
 
 /** Deletes a draft. A validated entry is refused (409): it can only be reversed. */
 export async function deleteDraftEntry(companyId: string, entryId: string): Promise<{ id: string; description: string | null; reference: string | null }> {
-  return prisma.$transaction(async (db) => {
-    const entry = await db.accountingEntry.findFirst({
-      where: { id: entryId, companyId },
-      select: { id: true, entryNumber: true, status: true, fiscalYearId: true, date: true, description: true, reference: true },
-    })
-    if (!entry) throw new NotFoundError('Écriture introuvable')
-    if (entry.status === 'validated') throw new ConflictError(immutableEntryMessage(entry.entryNumber))
-    await guardFiscalYear(db, companyId, entry.fiscalYearId, entry.date, 'delete')
-    // Lines are deleted by the cascade
-    await db.accountingEntry.delete({ where: { id: entry.id } })
-    return { id: entry.id, description: entry.description, reference: entry.reference }
-  }, TX_OPTIONS)
+  return prisma.$transaction(async (db) => deleteDraftEntryInTx(db, companyId, entryId), TX_OPTIONS)
+}
+
+/** deleteDraftEntry inside the caller's transaction (an invoice unposted with its draft entry). */
+export async function deleteDraftEntryInTx(
+  db: Db,
+  companyId: string,
+  entryId: string,
+): Promise<{ id: string; description: string | null; reference: string | null }> {
+  const entry = await db.accountingEntry.findFirst({
+    where: { id: entryId, companyId },
+    select: { id: true, entryNumber: true, status: true, fiscalYearId: true, date: true, description: true, reference: true },
+  })
+  if (!entry) throw new NotFoundError('Écriture introuvable')
+  if (entry.status === 'validated') throw new ConflictError(immutableEntryMessage(entry.entryNumber))
+  await guardFiscalYear(db, companyId, entry.fiscalYearId, entry.date, 'delete')
+  // Lines are deleted by the cascade
+  await db.accountingEntry.delete({ where: { id: entry.id } })
+  return { id: entry.id, description: entry.description, reference: entry.reference }
 }
 
 export interface ReverseEntryOptions {

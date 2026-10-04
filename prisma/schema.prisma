@@ -46,6 +46,7 @@ model Address {
   companiesHeadquarters Company[]       @relation("CompanyHeadquartersAddress")
   establishments        Establishment[]
   persons               Person[]
+  tiers                 Tiers[]
 
   @@index([companyId])
   @@index([postalCode, city])
@@ -95,6 +96,11 @@ model Company {
   /// (VAT filing day, quarterly CA3, IS and CFE acomptes...): JSON validated by
   /// DeadlineSettingsSchema (lib/deadlines/settings.ts); null: the defaults.
   deadlineSettings       Json?
+  /// VAT on services is due when the price is received (CGI art. 269, 2, c);
+  /// a company may opt to pay it on debits (invoice). False: sales invoices of
+  /// services post their VAT to 44574 "TVA collectée en attente d'encaissement"
+  /// until paid (lib/invoices/posting-plan.ts).
+  servicesVatOnDebits    Boolean           @default(false)
   /// Set when an instance administrator archives the company: read-only and
   /// hidden from the lists (lib/companies/archive-company.service.ts). A company
   /// holding validated entries or a closed fiscal year is archived, never deleted.
@@ -132,6 +138,8 @@ model Company {
   mcpPendingActions          McpPendingAction[]
   onboarding                 CompanyOnboarding?
   dashboardLayouts           DashboardLayout[]
+  tiers                      Tiers[]
+  invoices                   Invoice[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -306,6 +314,8 @@ model AccountingEntry {
   fixedAssetDepreciations FixedAssetDepreciation[] @relation("FixedAssetDepreciationEntry")
   reversalOf              AccountingEntry?         @relation("EntryReversal", fields: [reversalOfId], references: [id], onDelete: NoAction)
   reversedBy              AccountingEntry?         @relation("EntryReversal")
+  invoice                 Invoice?                 @relation("InvoiceEntry")
+  vatTransfers            InvoicePayment[]         @relation("InvoicePaymentVatTransfer")
   // Tous les comptes d'une écriture doivent appartenir au même exercice fiscal
 
   @@unique([entryNumber, fiscalYearId])
@@ -338,8 +348,9 @@ model EntryLine {
   updatedAt              DateTime  @updatedAt
 
   // Relations
-  accountingEntry AccountingEntry @relation("AccountingEntryLines", fields: [accountingEntryId, accountingEntryNumber], references: [id, entryNumber], onDelete: Cascade)
-  account         Account         @relation("AccountEntryLines", fields: [accountId, accountFiscalYearId], references: [id, fiscalYearId], onDelete: NoAction)
+  accountingEntry AccountingEntry  @relation("AccountingEntryLines", fields: [accountingEntryId, accountingEntryNumber], references: [id, entryNumber], onDelete: Cascade)
+  account         Account          @relation("AccountEntryLines", fields: [accountId, accountFiscalYearId], references: [id, fiscalYearId], onDelete: NoAction)
+  invoicePayments InvoicePayment[]
 
   @@index([accountingEntryId])
   @@index([accountId])
@@ -1611,4 +1622,183 @@ model UserPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
+}
+
+enum TiersKind {
+  CUSTOMER // Client (compte collectif 411)
+  SUPPLIER // Fournisseur (compte collectif 401)
+}
+
+enum InvoiceDirection {
+  SALE // Facture émise (journal VE)
+  PURCHASE // Facture reçue (journal AC)
+}
+
+enum InvoiceSource {
+  MANUAL // Saisie dans Kledg
+  QONTO // Importée de Qonto
+}
+
+enum InvoiceLineNature {
+  GOODS // Livraison de biens : TVA exigible à la livraison (CGI art. 269, 2, a)
+  SERVICES // Prestation de services : TVA exigible à l'encaissement sauf option pour les débits (CGI art. 269, 2, c)
+}
+
+/// A customer or supplier of one company (lib/tiers/manage-tiers.service.ts).
+/// Its auxiliary account number is the FEC CompAuxNum of the entry lines it
+/// owns (EntryLine.auxiliaryAccountNumber): lettering, the auxiliary balance
+/// and the aged balance group lines by that number, so attaching a tiers to
+/// existing lines never rewrites a posted line.
+model Tiers {
+  id                     String    @id @default(cuid())
+  companyId              String
+  kind                   TiersKind
+  name                   String
+  siren                  String? // 9 chiffres, contrôle de Luhn (exception La Poste)
+  siret                  String? // 14 chiffres, contrôle de Luhn
+  vatNumber              String? // Numéro de TVA intracommunautaire
+  email                  String?
+  addressId              String? // Adresse appartenant à la société (addresses.companyId)
+  /// Auxiliary account number (FEC CompAuxNum), unique in the company.
+  auxiliaryAccountNumber String
+  /// Collective account (401..., 411...) resolved in the fiscal year of the invoice; null: 401 or 411.
+  collectiveAccountCode  String?
+  /// Expense or revenue account proposed on invoice lines.
+  defaultAccountCode     String?
+  /// VAT rate proposed on invoice lines, in basis points (2000 = 20 %).
+  defaultVatRateBp       Int?
+  /// Payment terms of the tiers; null: the company's (Code de commerce art. L441-10).
+  paymentTermsDays       Int?
+  paymentTermsEndOfMonth Boolean?
+  /// Id of the client or supplier at Qonto (idempotent import).
+  qontoId                String?
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  address  Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  invoices Invoice[]
+
+  @@unique([companyId, auxiliaryAccountNumber])
+  @@unique([companyId, kind, qontoId])
+  @@index([companyId, kind, name])
+  @@index([addressId])
+  @@map("tiers")
+}
+
+/// A purchase or sales invoice of a company, recorded (not issued) by Kledg
+/// (lib/invoices). Its amounts are computed from its lines in cents
+/// (lib/invoices/amounts.ts); posting creates a draft entry in the purchases
+/// (AC) or sales (VE) journal of the fiscal year containing its date and
+/// links it here (entryId). Its payment status is derived from the lettering
+/// of its tiers line and from the bank payments recorded on it.
+model Invoice {
+  id                   String           @id @default(cuid())
+  companyId            String
+  direction            InvoiceDirection
+  tiersId              String
+  number               String
+  issueDate            DateTime
+  dueDate              DateTime
+  /// UNTDID 1001 (EN 16931 BT-3): 380 invoice, 381 credit note.
+  typeCode             String           @default("380")
+  currency             String           @default("EUR")
+  label                String?
+  /// Parties as printed on the document (EN 16931 BT-30 / BT-47 SIREN, BT-31 / BT-48 VAT number), for e-invoicing.
+  sellerSiren          String?
+  sellerVatNumber      String?
+  buyerSiren           String?
+  buyerVatNumber       String?
+  totalExclTax         Decimal          @db.Decimal(15, 2)
+  totalVat             Decimal          @db.Decimal(15, 2)
+  totalInclTax         Decimal          @db.Decimal(15, 2)
+  /// Draft entry created by posting (null: brouillon). Deleting that draft brings the invoice back to brouillon.
+  entryId              String?          @unique
+  source               InvoiceSource    @default(MANUAL)
+  /// Provider id (Qonto invoice uuid): a re-import updates the same invoice.
+  externalId           String?
+  externalStatus       String?
+  /// Provider reference of the PDF (Qonto attachment uuid): Kledg stores no file, it asks Qonto for a fresh link.
+  externalAttachmentId String?
+  attachmentFileName   String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tiers        Tiers                 @relation(fields: [tiersId], references: [id], onDelete: Restrict)
+  entry        AccountingEntry?      @relation("InvoiceEntry", fields: [entryId], references: [id], onDelete: SetNull)
+  lines        InvoiceLine[]
+  vatBreakdown InvoiceVatBreakdown[]
+  payments     InvoicePayment[]
+
+  @@unique([companyId, direction, tiersId, number])
+  @@unique([companyId, source, externalId])
+  @@index([companyId, direction, issueDate])
+  @@index([tiersId])
+  @@map("invoices")
+}
+
+/// One line of an invoice (CGI ann. II art. 242 nonies A, I, 8°: quantity,
+/// designation, unit price excluding tax, VAT rate).
+model InvoiceLine {
+  id           String            @id @default(cuid())
+  invoiceId    String
+  position     Int
+  label        String
+  /// Three decimals at most.
+  quantity     Decimal           @db.Decimal(15, 3)
+  unitPrice    Decimal           @db.Decimal(15, 2)
+  /// VAT rate in basis points (2000 = 20 %, 550 = 5,5 %).
+  vatRateBp    Int
+  /// Quantity x unit price, rounded to the cent (lib/invoices/amounts.ts).
+  totalExclTax Decimal           @db.Decimal(15, 2)
+  /// Expense or revenue account code, resolved in the fiscal year of the invoice.
+  accountCode  String?
+  nature       InvoiceLineNature @default(SERVICES)
+  /// Purchase of a fixed asset: VAT to 44562.
+  fixedAsset   Boolean           @default(false)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
+}
+
+/// VAT breakdown of an invoice per rate (CGI ann. II art. 242 nonies A, I,
+/// 11°; EN 16931 BG-23): computed from the lines for invoices entered in
+/// Kledg, taken from the document for imported ones.
+model InvoiceVatBreakdown {
+  id         String  @id @default(cuid())
+  invoiceId  String
+  vatRateBp  Int
+  baseAmount Decimal @db.Decimal(15, 2)
+  vatAmount  Decimal @db.Decimal(15, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, vatRateBp])
+  @@map("invoice_vat_breakdowns")
+}
+
+/// A bank payment recorded on an invoice: the line of a validated entry
+/// reconciled with a bank transaction, on the invoice's tiers account, on the
+/// opposite side. A line pays one invoice; the invoice is lettered with its
+/// payments once they cover it (lib/invoices/invoice-payments.service.ts).
+model InvoicePayment {
+  id                 String   @id @default(cuid())
+  invoiceId          String
+  entryLineId        String   @unique
+  amount             Decimal  @db.Decimal(15, 2)
+  /// Draft entry moving the VAT of an encaissement-based sale from 44574 to 44571 (CGI art. 269, 2, c).
+  vatTransferEntryId String?
+  createdAt          DateTime @default(now())
+
+  invoice          Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  entryLine        EntryLine        @relation(fields: [entryLineId], references: [id], onDelete: Cascade)
+  vatTransferEntry AccountingEntry? @relation("InvoicePaymentVatTransfer", fields: [vatTransferEntryId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([vatTransferEntryId])
+  @@map("invoice_payments")
 }

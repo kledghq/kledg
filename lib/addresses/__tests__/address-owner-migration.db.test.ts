@@ -228,6 +228,8 @@ describe.skipIf(!available)('address owner migration', () => {
       'companies.headquartersAddressId',
       'establishments.addressId',
       'persons.addressId',
+      // Tiers (20261019090000) create their address through createCompanyAddress and are in deleteAddressesIfUnused
+      'tiers.addressId',
     ])
   })
 })

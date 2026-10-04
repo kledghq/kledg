@@ -156,8 +156,8 @@ content      cards, tables
 ## Navigation
 
 Defined once in `components/layout/nav-config.ts`, ordered by how often a
-small company uses each area: Tableau de bord, Banque, Saisie, États,
-Société. One entry is active at a time (longest URL prefix), with
+small company uses each area: Tableau de bord, Banque, Factures (achats,
+ventes, tiers), Saisie, États, Société. One entry is active at a time (longest URL prefix), with
 `aria-current="page"`. Each entry has its own icon. The sidebar collapses to
 icons (tooltips) and becomes a drawer on phones that closes after navigation.
 

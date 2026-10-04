@@ -26,6 +26,7 @@ import {
   type AgedSection,
   type AuxiliarySection,
   type ThirdPartyLine,
+  type TiersDirectory,
 } from './third-party-balances'
 
 export const FISCAL_YEAR_NOT_FOUND = 'Exercice introuvable pour cette société.'
@@ -134,6 +135,20 @@ export async function loadThirdPartyLines(companyId: string, fiscalYearId: strin
   }))
 }
 
+/** Tiers of the company by auxiliary account number: names and own payment terms (lib/tiers). */
+export async function loadTiersDirectory(companyId: string): Promise<TiersDirectory> {
+  const rows = await prisma.tiers.findMany({
+    where: { companyId },
+    select: { auxiliaryAccountNumber: true, name: true, paymentTermsDays: true, paymentTermsEndOfMonth: true },
+  })
+  return new Map(
+    rows.map((t) => [
+      t.auxiliaryAccountNumber,
+      { name: t.name, terms: t.paymentTermsDays === null ? null : { days: t.paymentTermsDays, endOfMonth: t.paymentTermsEndOfMonth ?? false } },
+    ]),
+  )
+}
+
 export interface AgedBalanceReport {
   fiscalYear: FiscalYearRef
   /** Report day, yyyy-mm-dd. */
@@ -148,8 +163,12 @@ export async function getAgedBalance(companyId: string, query: AgedBalanceQuery,
   const fiscalYear = await resolveFiscalYear(companyId, query.fiscalYearId, query.asOf ?? (calendarDayOf(todayUtc(now)) as string))
   const asOf = query.asOf ?? defaultDay(fiscalYear, now)
   assertWithinYear(asOf, fiscalYear, 'La date')
-  const [terms, lines] = await Promise.all([getPaymentTerms(companyId), loadThirdPartyLines(companyId, fiscalYear.id, asOf)])
-  return { fiscalYear, asOf, terms, ...buildAgedBalance(lines, asOf, terms) }
+  const [terms, lines, directory] = await Promise.all([
+    getPaymentTerms(companyId),
+    loadThirdPartyLines(companyId, fiscalYear.id, asOf),
+    loadTiersDirectory(companyId),
+  ])
+  return { fiscalYear, asOf, terms, ...buildAgedBalance(lines, asOf, terms, directory) }
 }
 
 export interface AuxiliaryBalanceReport {
@@ -167,6 +186,6 @@ export async function getAuxiliaryBalance(companyId: string, query: AuxiliaryBal
   assertWithinYear(startDate, fiscalYear, 'La date de début')
   assertWithinYear(endDate, fiscalYear, 'La date de fin')
   if (endDate < startDate) throw new ValidationError('La date de fin précède la date de début.')
-  const lines = await loadThirdPartyLines(companyId, fiscalYear.id, endDate)
-  return { fiscalYear, period: { startDate, endDate }, ...buildAuxiliaryBalance(lines, startDate, endDate) }
+  const [lines, directory] = await Promise.all([loadThirdPartyLines(companyId, fiscalYear.id, endDate), loadTiersDirectory(companyId)])
+  return { fiscalYear, period: { startDate, endDate }, ...buildAuxiliaryBalance(lines, startDate, endDate, directory) }
 }

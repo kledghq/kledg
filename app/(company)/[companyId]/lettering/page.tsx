@@ -138,7 +138,7 @@ export default function LetteringPage() {
   const tiersOptions = React.useMemo(() => {
     const map = new Map<string, string>()
     for (const line of data?.lines ?? []) {
-      if (line.auxiliaryAccountNumber) map.set(line.auxiliaryAccountNumber, line.auxiliaryAccountLabel ?? '')
+      if (line.auxiliaryAccountNumber) map.set(line.auxiliaryAccountNumber, line.tiersName ?? line.auxiliaryAccountLabel ?? '')
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b))
   }, [data])

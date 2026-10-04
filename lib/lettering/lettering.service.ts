@@ -178,6 +178,8 @@ export interface LetteringLine {
   creditCents: number
   auxiliaryAccountNumber: string | null
   auxiliaryAccountLabel: string | null
+  /** Name of the tiers whose auxiliary account number the line carries (lib/tiers), null without one. */
+  tiersName: string | null
   letteringCode: string | null
   letteringDate: string | null
   /** The entry is reconciled with a bank transaction. */
@@ -275,7 +277,14 @@ export async function listLetteringLines(
   ])
   const truncated = rows.length > MAX_LINES
   const shown = rows.slice(0, MAX_LINES)
-  const reconciled = await reconciledEntryIds(prisma, companyId, [...new Set(shown.map((row) => row.accountingEntry.id))])
+  const auxiliaries = [...new Set(shown.map((row) => row.auxiliaryAccountNumber?.trim()).filter((aux): aux is string => Boolean(aux)))]
+  const [reconciled, tiers] = await Promise.all([
+    reconciledEntryIds(prisma, companyId, [...new Set(shown.map((row) => row.accountingEntry.id))]),
+    auxiliaries.length
+      ? prisma.tiers.findMany({ where: { companyId, auxiliaryAccountNumber: { in: auxiliaries } }, select: { auxiliaryAccountNumber: true, name: true } })
+      : Promise.resolve([]),
+  ])
+  const tiersNames = new Map(tiers.map((t) => [t.auxiliaryAccountNumber, t.name]))
 
   let running = 0
   let debitCents = 0
@@ -298,6 +307,7 @@ export async function listLetteringLines(
       creditCents: credit,
       auxiliaryAccountNumber: row.auxiliaryAccountNumber,
       auxiliaryAccountLabel: row.auxiliaryAccountLabel,
+      tiersName: tiersNames.get(row.auxiliaryAccountNumber?.trim() ?? '') ?? null,
       letteringCode: row.letteringCode,
       letteringDate: calendarDayOf(row.letteringDate),
       reconciled: reconciled.has(row.accountingEntry.id),

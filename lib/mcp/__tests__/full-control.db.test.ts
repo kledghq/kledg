@@ -73,6 +73,7 @@ const FULL_CONTROL_TOOLS = [
   'list_unlettered_lines',
   'letter_entry_lines',
   'unletter_entry_lines',
+  'create_draft_invoice',
 ]
 
 const CHART: Array<[string, string]> = [

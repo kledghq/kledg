@@ -42,6 +42,12 @@ export const companyOfAttachment = (id: string): Promise<CompanyRow> =>
 export const companyOfFiscalYear = (id: string): Promise<CompanyRow> =>
   prisma.fiscalYear.findUnique({ where: { id }, select })
 
+export const companyOfTiers = (id: string): Promise<CompanyRow> =>
+  prisma.tiers.findUnique({ where: { id }, select })
+
+export const companyOfInvoice = (id: string): Promise<CompanyRow> =>
+  prisma.invoice.findUnique({ where: { id }, select })
+
 export async function companyOfBankAccount(id: string): Promise<CompanyRow> {
   const row = await prisma.bankAccount.findUnique({
     where: { id },
