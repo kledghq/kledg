@@ -60,7 +60,7 @@ use the utilities (`bg-chart-breakdown`). A new chart with a new meaning adds
 a series to `CHART_SERIES` (`lib/appearance/palette.ts`), its token to
 `app/globals.css` and a colour to every preset.
 
-Users choose the colours on Paramètres du compte, Apparence
+Users choose the colours on Paramètres, Apparence
 (`/settings/appearance`), stored per user (`user_preferences`,
 `GET/PUT /api/account/appearance`):
 
@@ -169,7 +169,7 @@ API) and, for instance administrators, Instance (État de l'instance, Utilisateu
 jour). Settings are navigated in this sidebar only.
 
 The user menu in the sidebar footer (`components/layout/nav-user.tsx`) stays
-short, like Vercel or Linear: the identity, "Paramètres du compte" (the way
+short, like Vercel or Linear: the identity, "Paramètres" (the way
 into the settings area from company pages), Documentation, "Installer
 l'application" when the browser offers it, and "Se déconnecter". It does not
 repeat the settings pages, and the theme stays in the header (the Apparence

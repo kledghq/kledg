@@ -31,7 +31,7 @@ export interface UserMenuItem {
 export const USER_MENU_ITEMS: readonly UserMenuItem[] = [
   // The profile page shows each refused action disabled with the policy's
   // message, so the page itself is never hidden.
-  { id: 'profile', label: 'Paramètres du compte', href: '/settings/profile', scope: 'account', adminOnly: false, action: null, inMenu: true },
+  { id: 'profile', label: 'Paramètres', href: '/settings/profile', scope: 'account', adminOnly: false, action: null, inMenu: true },
   // Chart colours: a fork that refuses change-appearance can hide the page (filterUserMenu).
   { id: 'appearance', label: 'Apparence', href: '/settings/appearance', scope: 'account', adminOnly: false, action: 'change-appearance', inMenu: false },
   { id: 'assistants', label: 'Assistants IA', href: '/settings/assistants', scope: 'account', adminOnly: false, action: null, inMenu: false },

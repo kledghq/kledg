@@ -86,7 +86,7 @@ describe('NavUser', () => {
     expect(trigger).toHaveTextContent('marie@acme.fr')
     await user.click(trigger)
     const menu = await screen.findByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: 'Paramètres du compte' })).toHaveAttribute('aria-current', 'page')
+    expect(within(menu).getByRole('menuitem', { name: 'Paramètres' })).toHaveAttribute('aria-current', 'page')
     expect(within(menu).getByRole('menuitem', { name: /Documentation/ })).toHaveAttribute('target', '_blank')
     expect(within(menu).queryByRole('menuitem', { name: /Installer/ })).toBeNull()
     expect(within(menu).queryByRole('menuitem', { name: 'Utilisateurs' })).toBeNull()

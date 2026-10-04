@@ -11,7 +11,7 @@ Chaque instance Kledg expose un serveur [MCP](https://modelcontextprotocol.io) s
 | Claude Code | `claude mcp add --transport http kledg https://votre-instance/api/mcp --header "Authorization: Bearer kledg_..."` |
 | Scripts, autres clients | En-tête `Authorization: Bearer <clé API>` ou `x-api-key`. |
 
-Dans Kledg, les **Paramètres du compte** ont deux pages :
+Dans Kledg, les **Paramètres** du compte ont deux pages :
 
 - **Assistants IA** (`/settings/assistants`) : l'URL exacte du serveur, la marche à suivre pour Claude, ChatGPT et Claude Code, et les assistants autorisés avec l'accès, le mode d'exécution et les sociétés de chacun, leur modification et leur révocation ;
 - **Clés API** (`/settings/api-keys`) : la création d'une clé (niveau, mode d'exécution, sociétés) et les clés actives, avec leur modification et leur révocation.
@@ -163,7 +163,7 @@ Les connexions qui existaient avant l'ajout du mode sont en mode automatique. La
 
 En mode validation, les outils à fort impact ne font rien tant que vous ne les avez pas approuvés **vous-même, dans Kledg**. L'assistant ne peut pas les approuver : un texte piégé lu par l'assistant (libellé bancaire, relevé, document) ne peut donc pas lui faire exécuter une validation, une clôture ou une suppression.
 
-1. Appelés sans `actionId`, ils renvoient un aperçu (`dryRun: true`) de ce qui serait fait : écritures et numéros à attribuer, montants, soldes, analyse du relevé, simulation de la clôture, plan d'affectation, avertissements et blocages. Kledg enregistre une **action en attente** et renvoie son `actionId` et le lien `approvalUrl` de la page **Actions IA à approuver** (Paramètres du compte).
+1. Appelés sans `actionId`, ils renvoient un aperçu (`dryRun: true`) de ce qui serait fait : écritures et numéros à attribuer, montants, soldes, analyse du relevé, simulation de la clôture, plan d'affectation, avertissements et blocages. Kledg enregistre une **action en attente** et renvoie son `actionId` et le lien `approvalUrl` de la page **Actions IA à approuver** (Paramètres).
 2. L'assistant vous montre l'aperçu et vous donne le lien. Sur cette page, connecté à Kledg, vous voyez le même aperçu et les paramètres exacts, puis vous cliquez sur **Approuver** ou **Refuser** et saisissez de nouveau votre mot de passe.
 3. Une fois l'action approuvée, l'assistant rappelle l'outil avec les **mêmes arguments** et l'`actionId`. L'action s'exécute alors, une seule fois.
 

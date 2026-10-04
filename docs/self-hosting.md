@@ -303,7 +303,7 @@ jobs:
 
 ### Depuis Kledg (page Mises à jour)
 
-Les administrateurs de l'instance trouvent la page **Mises à jour** dans les paramètres (menu du compte, **Paramètres du compte**, puis **Instance** dans la barre latérale). Sans rien configurer, elle affiche la version installée, la dernière version publiée de Kledg, les notes de version depuis votre version et les migrations de la base que la mise à jour appliquera. Un indicateur « Mise à jour disponible » apparaît dans l'en-tête des administrateurs (masquable jusqu'à la version suivante).
+Les administrateurs de l'instance trouvent la page **Mises à jour** dans les paramètres (menu du compte, **Paramètres**, puis **Instance** dans la barre latérale). Sans rien configurer, elle affiche la version installée, la dernière version publiée de Kledg, les notes de version depuis votre version et les migrations de la base que la mise à jour appliquera. Un indicateur « Mise à jour disponible » apparaît dans l'en-tête des administrateurs (masquable jusqu'à la version suivante).
 
 Quand l'hébergeur redéploie l'instance à chaque fusion sur la branche principale de votre dépôt GitHub, vous pouvez aussi connecter GitHub pour mettre à jour en deux clics. C'est automatique sur Vercel, et sur Railway et Render quand le déploiement vient d'un commit ; ailleurs (Fly.io avec GitHub Actions, Clever Cloud ou Coolify reliés à GitHub, webhook Dokploy), définissez `KLEDG_DEPLOYS_FROM_GITHUB=true`. La page dit, pour chaque hébergeur, comment la fusion arrive jusqu'à l'instance.
 
