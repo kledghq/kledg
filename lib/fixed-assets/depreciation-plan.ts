@@ -114,7 +114,7 @@ export function buildDepreciationPlan(
     const coef = toNumber(asset.decliningCoefficient) || 1.75
     return {
       ...empty,
-      byMonth: buildDecliningMonthlyMap(baseAmount, duration, coef, start),
+      byMonth: buildDecliningMonthlyMap(baseCents, duration, coef, start),
       duration,
     }
   }
@@ -157,10 +157,14 @@ export function buildDepreciationPlan(
 /**
  * Declining-balance plan (French tax rule), prorata in whole months for the
  * first year, switching to linear once the linear rate on the remaining net
- * book value exceeds the declining rate.
+ * book value exceeds the declining rate. Works in cents: each annual
+ * allowance is rounded to the cent, spread over its months with the
+ * remainder on the last one, and the last year takes what is left, so the
+ * months of a year add up to its allowance and the plan ends exactly on the
+ * base.
  */
 function buildDecliningMonthlyMap(
-  baseAmount: number,
+  baseCents: number,
   duration: number,
   coefficient: number,
   depreciationStart: Date
@@ -174,12 +178,12 @@ function buildDecliningMonthlyMap(
   const maxYears = duration + (isFirstYearPartial ? 1 : 0)
 
   const result = new Map<string, number>()
-  let book = baseAmount
+  let bookCents = baseCents
   let switched = false
-  let switchLinearAmountFull = 0
+  let switchLinearFullCents = 0
 
   for (let y = 0; y < maxYears; y++) {
-    if (book <= 0) break
+    if (bookCents <= 0) break
     const yearsLeft = duration - y
     const yearFraction =
       y === 0 && isFirstYearPartial
@@ -188,22 +192,21 @@ function buildDecliningMonthlyMap(
           ? (12 - firstYearMonths) / 12
           : 1
 
-    let yearAmount: number
+    let yearCents: number
     if (switched) {
-      yearAmount = switchLinearAmountFull * yearFraction
+      yearCents = Math.round(switchLinearFullCents * yearFraction)
     } else {
-      const declineFull = book * decliningRate
-      const linearFull = yearsLeft > 0 ? book / yearsLeft : 0
+      const declineFull = bookCents * decliningRate
+      const linearFull = yearsLeft > 0 ? bookCents / yearsLeft : 0
       if (linearFull > declineFull) {
         switched = true
-        switchLinearAmountFull = linearFull
-        yearAmount = linearFull * yearFraction
+        switchLinearFullCents = linearFull
+        yearCents = Math.round(linearFull * yearFraction)
       } else {
-        yearAmount = declineFull * yearFraction
+        yearCents = Math.round(declineFull * yearFraction)
       }
     }
-    if (yearAmount > book) yearAmount = book
-    if (y === maxYears - 1) yearAmount = book // ends exactly on the base
+    if (yearCents > bookCents || y === maxYears - 1) yearCents = bookCents // ends exactly on the base
 
     const calYear = startYear + y
     const monthsCount =
@@ -214,14 +217,14 @@ function buildDecliningMonthlyMap(
           : 12
     const monthStart = y === 0 ? firstMonth : 0
 
-    if (monthsCount > 0) {
-      const monthly = Math.round((yearAmount / monthsCount) * 100) / 100
-      for (let m = monthStart; m < monthStart + monthsCount; m++) {
-        const key = monthKey(calYear, m)
-        result.set(key, monthly)
-      }
+    // Rounded on the cumulative amount: the months add up to the allowance
+    let spreadCents = 0
+    for (let i = 0; i < monthsCount; i++) {
+      const cumulative = Math.round((yearCents * (i + 1)) / monthsCount)
+      result.set(monthKey(calYear, monthStart + i), fromCents(cumulative - spreadCents))
+      spreadCents = cumulative
     }
-    book -= yearAmount
+    bookCents -= yearCents
   }
   return result
 }
