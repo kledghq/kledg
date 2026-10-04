@@ -190,9 +190,12 @@ export const NEW_FINDINGS = {
       'draft sales invoices for 2 subsidiaries (one billing pointing at the last one, the others orphaned in the ' +
       'invoice series, CGI ann. II art. 242 nonies A), and Q1 with February to April both succeeded (overlapping ' +
       'periods invoiced, i.e. management fees charged twice to a subsidiary); some runs failed with a raw unique ' +
-      'violation (500). Drafts only, nothing posted, hence low. Fixed: the holding side (overlap check again, ' +
-      'billings, tiers, sales invoices) runs in one transaction under pg_advisory_xact_lock per convention and ' +
-      'reads the state again there; createInvoice accepts the caller transaction. ' +
+      'violation (500). In the subsidiary, six concurrent runs with purchaseDrafts recorded 2 or 3 supplier tiers ' +
+      'for the holding and as many draft purchase invoices of one number (a write duplicated in another company). ' +
+      'Drafts only, nothing posted, hence low. Fixed: the holding side (overlap check again, billings, tiers, sales ' +
+      'invoices) runs in one transaction under pg_advisory_xact_lock per convention and reads the state again ' +
+      'there (0389592); the purchase draft of a subsidiary is found or created in one transaction under a lock per ' +
+      'subsidiary, in its own scope (follow-up commit); createInvoice accepts the caller transaction. ' +
       'lib/management-fees/__tests__/management-fees.db.test.ts ([KLEDG-SEC-010] tests, also under KLEDG_RLS=enforce).',
   },
 } as const satisfies Record<string, Finding>

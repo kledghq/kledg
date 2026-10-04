@@ -49,6 +49,8 @@ import { CONVENTION_NOT_FOUND, viewSubsidiaries, type Convention } from './manag
 
 type Db = Prisma.TransactionClient | typeof prisma
 
+const TX_OPTIONS = { maxWait: 20_000, timeout: 60_000 } as const
+
 /** Body of POST /api/management-fees/conventions/[id]/invoices. */
 export const GenerateInvoicesBodySchema = z.object({
   periodStart: calendarDay('Date de début de période invalide'),
@@ -154,35 +156,43 @@ async function createSalesInvoice(
   }
 }
 
-/** Inside the subsidiary's scope: its draft purchase invoice of the same number (found again on a retry). */
+/**
+ * Inside the subsidiary's scope: its draft purchase invoice of the same
+ * number (found again on a retry). One transaction under a lock per
+ * subsidiary, so two generations at once find the supplier and the invoice
+ * the other recorded instead of creating them twice (KLEDG-SEC-010).
+ */
 async function proposePurchaseInvoice(subsidiaryId: string, holding: Party, convention: Convention, number: string, amountCents: number, issueDate: string, period: { start: string; end: string }): Promise<string> {
-  const supplierId = await ensureTiers(subsidiaryId, 'SUPPLIER', holding, { accountCode: convention.expenseAccountCode, vatRateBp: convention.vatRateBp })
-  const existing = await prisma.invoice.findFirst({ where: { companyId: subsidiaryId, direction: 'PURCHASE', tiersId: supplierId, number }, select: { id: true } })
-  if (existing) return existing.id
-  const invoice = await createInvoice(
-    subsidiaryId,
-    {
-      direction: 'PURCHASE',
-      tiersId: supplierId,
-      number,
-      issueDate,
-      typeCode: '380',
-      label: convention.label,
-      lines: [
-        {
-          label: lineLabel(convention, period.start, period.end),
-          quantity: '1',
-          unitPriceCents: amountCents,
-          vatRateBp: convention.vatRateBp,
-          accountCode: convention.expenseAccountCode,
-          nature: 'SERVICES',
-          fixedAsset: false,
-        },
-      ],
-    },
-    { source: 'management-fees' },
-  )
-  return invoice.id
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:management-fee-purchase:${subsidiaryId}`}))`
+    const supplierId = await ensureTiers(subsidiaryId, 'SUPPLIER', holding, { accountCode: convention.expenseAccountCode, vatRateBp: convention.vatRateBp }, tx)
+    const existing = await tx.invoice.findFirst({ where: { companyId: subsidiaryId, direction: 'PURCHASE', tiersId: supplierId, number }, select: { id: true } })
+    if (existing) return existing.id
+    const invoice = await createInvoice(
+      subsidiaryId,
+      {
+        direction: 'PURCHASE',
+        tiersId: supplierId,
+        number,
+        issueDate,
+        typeCode: '380',
+        label: convention.label,
+        lines: [
+          {
+            label: lineLabel(convention, period.start, period.end),
+            quantity: '1',
+            unitPriceCents: amountCents,
+            vatRateBp: convention.vatRateBp,
+            accountCode: convention.expenseAccountCode,
+            nature: 'SERVICES',
+            fixedAsset: false,
+          },
+        ],
+      },
+      { source: 'management-fees', db: tx },
+    )
+    return invoice.id
+  }, TX_OPTIONS)
 }
 
 export interface GeneratedBilling {
@@ -235,8 +245,6 @@ const BILLING_SELECT = {
 } satisfies Prisma.ManagementFeeBillingSelect
 
 type BillingRow = Prisma.ManagementFeeBillingGetPayload<{ select: typeof BILLING_SELECT }>
-
-const TX_OPTIONS = { maxWait: 20_000, timeout: 60_000 } as const
 
 /**
  * Serializes the holding's side of the generations of one convention

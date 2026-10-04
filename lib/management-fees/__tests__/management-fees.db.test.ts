@@ -311,6 +311,19 @@ describe.skipIf(!available)('management fees (PostgreSQL)', () => {
       expect(await prisma.managementFeeBilling.count({ where: { salesInvoiceId: { not: null } } })).toBe(2)
     })
 
+    it('[KLEDG-SEC-010] never proposes a purchase invoice twice to a subsidiary when generations run at once', async () => {
+      const created = await asHolding(ACCOUNTANT, (a) => conventions.createConvention(holding.companyId, convention(), a))
+      const generate = () => asHolding(ACCOUNTANT, (a) => billing.generateManagementFeeInvoices(holding.companyId, created.id, { ...Q1, purchaseDrafts: true }, a))
+      const runs = await Promise.allSettled([generate(), generate(), generate(), generate(), generate(), generate()])
+      for (const run of runs) if (run.status === 'rejected') expect(run.reason).toBeInstanceOf(ConflictError)
+      for (const sub of [s1, s2]) {
+        expect(await prisma.invoice.count({ where: { companyId: sub.companyId, direction: 'PURCHASE', number: { startsWith: 'FG-' } } })).toBe(1)
+        expect(await prisma.tiers.count({ where: { companyId: sub.companyId, kind: 'SUPPLIER', siren: '931000012' } })).toBe(1)
+      }
+      const linked = await prisma.managementFeeBilling.findMany({ select: { purchaseInvoiceId: true } })
+      expect(linked.every((b) => b.purchaseInvoiceId !== null)).toBe(true)
+    })
+
     it('[KLEDG-SEC-010] never invoices overlapping periods when generations run at once', async () => {
       const created = await asHolding(ACCOUNTANT, (a) => conventions.createConvention(holding.companyId, convention(), a))
       const generate = (period: { periodStart: string; periodEnd: string }) =>
