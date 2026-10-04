@@ -15,6 +15,8 @@ import { defaultStatements, memberAc } from 'better-auth/plugins/organization/ac
  * - expenses: expense reports (notes de frais). submit = record and submit
  *   one's own reports; validate = see, edit, return and validate everyone's
  *   (docs/notes-de-frais.md). Posting and reimbursement use entries rights.
+ * - budgets: budgets of the fiscal years (docs/budget.md). Reading the budget
+ *   and its comparison with the books needs reports read.
  *
  * Better Auth's organization statements (organization, member, invitation...)
  * only get the read-only member set: the app manages members through its own
@@ -30,6 +32,7 @@ export const statement = {
   settings: ['read', 'update'],
   members: ['manage'],
   expenses: ['submit', 'validate'],
+  budgets: ['manage'],
 } as const
 
 export const ac = createAccessControl(statement)
@@ -43,6 +46,7 @@ const allCompanyPermissions = {
   settings: ['read', 'update'],
   members: ['manage'],
   expenses: ['submit', 'validate'],
+  budgets: ['manage'],
 } as const
 
 /** Everything in the company, including bank credentials, settings and deletion. */
@@ -51,7 +55,7 @@ export const companyAdmin = ac.newRole({
   ...allCompanyPermissions,
 })
 
-/** Keeps the books: entries, ledger, closing, reconciliation, exports. No settings, no bank connections. */
+/** Keeps the books: entries, ledger, closing, reconciliation, exports, budgets. No settings, no bank connections. */
 export const accountant = ac.newRole({
   ...memberAc.statements,
   entries: ['read', 'create', 'update', 'delete', 'validate'],
@@ -61,6 +65,7 @@ export const accountant = ac.newRole({
   reports: ['read', 'export'],
   settings: ['read'],
   expenses: ['submit', 'validate'],
+  budgets: ['manage'],
 })
 
 /**
@@ -110,6 +115,6 @@ export const ROLE_LABELS: Record<string, string> = {
 /** What each role may do, in one sentence, for the help of the Membres page. */
 export const ROLE_DESCRIPTIONS: Record<'companyAdmin' | 'accountant' | 'viewer', string> = {
   companyAdmin: 'gère les connexions bancaires, les informations et les réglages de la société, en plus de la comptabilité.',
-  accountant: 'saisit et valide les écritures et les notes de frais, rapproche la banque et importe les relevés.',
+  accountant: 'saisit et valide les écritures et les notes de frais, établit le budget, rapproche la banque et importe les relevés.',
   viewer: 'consulte sans rien modifier, et dépose ses propres notes de frais.',
 }

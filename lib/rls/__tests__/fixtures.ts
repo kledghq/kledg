@@ -330,6 +330,17 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
       record('expense_lines', p, id('expense_lines'))
       await prisma.expenseCategoryRule.create({ data: { id: id('expense_category_rules'), companyId, keyword: 'sncf', category: 'TRANSPORT' } })
       record('expense_category_rules', p, id('expense_category_rules'))
+
+      await prisma.budget.create({ data: { id: id('budgets'), companyId, fiscalYearId: id('fiscal_years') } })
+      record('budgets', p, id('budgets'))
+      await prisma.budgetLine.create({ data: { id: id('budget_lines'), budgetId: id('budgets'), accountPrefix: '706', label: 'Ventes' } })
+      record('budget_lines', p, id('budget_lines'))
+      await prisma.budgetLineAmount.create({ data: { id: id('budget_line_amounts'), lineId: id('budget_lines'), month: '2026-03', amount: 1000 } })
+      record('budget_line_amounts', p, id('budget_line_amounts'))
+      await prisma.budgetRecurringItem.create({
+        data: { id: id('budget_recurring_items'), lineId: id('budget_lines'), label: 'Abonnement', amount: 50, frequency: 'MONTHLY', startMonth: '2026-01' },
+      })
+      record('budget_recurring_items', p, id('budget_recurring_items'))
     }
     return keys
   })

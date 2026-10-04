@@ -26,6 +26,7 @@ import {
   Scale,
   ScrollText,
   Table,
+  Target,
   TrendingDown,
   Upload,
   Users,
@@ -89,6 +90,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: "Bilan", url: "/reports/balance-sheet", icon: Scale },
       { title: "Compte de résultat", url: "/reports/income-statement", icon: LineChart },
+      { title: "Budget", url: "/budget", icon: Target },
       { title: "Balance", url: "/reports/trial-balance", icon: Table },
       { title: "Grand livre", url: "/reports/grand-livre", icon: BookOpen },
       { title: "Balance auxiliaire", url: "/reports/auxiliary-balance", icon: Contact },

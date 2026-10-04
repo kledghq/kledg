@@ -27,6 +27,8 @@ describe('granted permissions', () => {
       reports: ['read', 'export'],
       settings: ['read', 'update'],
       members: ['manage'],
+      expenses: ['submit', 'validate'],
+      budgets: ['manage'],
     } as const
     for (const role of ['owner', 'companyAdmin', 'accountant', 'viewer']) {
       const granted = grantedPermissions([role], false)
@@ -37,6 +39,13 @@ describe('granted permissions', () => {
         }
       }
     }
+  })
+
+  it('lets administrators and accountants manage budgets, never a viewer', () => {
+    expect(grants(grantedPermissions(['companyAdmin'], false), { budgets: ['manage'] })).toBe(true)
+    expect(grants(grantedPermissions(['accountant'], false), { budgets: ['manage'] })).toBe(true)
+    expect(grants(grantedPermissions(['viewer'], false), { budgets: ['manage'] })).toBe(false)
+    expect(grants(grantedPermissions(['viewer'], false), { reports: ['read'] })).toBe(true)
   })
 
   it('names the roles with ROLE_LABELS', () => {

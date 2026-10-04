@@ -45,28 +45,24 @@ export interface AccountTotalsCents {
   creditCents: number
 }
 
+interface ValidatedLinesFilter {
+  companyId: string
+  fiscalYearId: string
+  from?: Date
+  to?: Date
+  excludeClosingEntries?: boolean
+  /** Only this account. */
+  accountId?: string
+}
+
 /**
- * Debit and credit totals per account of the fiscal year, in cents, over the
- * validated entries dated within [from, to] (both optional, inclusive).
- * Accounts without a line are absent.
+ * FROM and WHERE of every account total: the lines `l` of the validated
+ * entries `e` (journal `j`) of the fiscal year, on its accounts, dated within
+ * [from, to] (both optional, inclusive). One definition, so the yearly and
+ * the monthly totals can never disagree.
  */
-export async function sumAccountTotals(
-  params: {
-    companyId: string
-    fiscalYearId: string
-    from?: Date
-    to?: Date
-    excludeClosingEntries?: boolean
-    /** Only this account. */
-    accountId?: string
-  },
-  db: Db = prisma,
-): Promise<AccountTotalsCents[]> {
-  const { companyId, fiscalYearId, from, to, excludeClosingEntries, accountId } = params
-  const rows = await db.$queryRaw<Array<{ accountId: string; debit: bigint | null; credit: bigint | null }>>`
-    SELECT l."accountId" AS "accountId",
-           SUM(l."debit" * 100)::bigint AS debit,
-           SUM(l."credit" * 100)::bigint AS credit
+function validatedLines({ companyId, fiscalYearId, from, to, excludeClosingEntries, accountId }: ValidatedLinesFilter): Prisma.Sql {
+  return Prisma.sql`
     FROM "entry_lines" l
     JOIN "accounting_entries" e ON e."id" = l."accountingEntryId"
     JOIN "journals" j ON j."id" = e."journalId"
@@ -78,9 +74,47 @@ export async function sumAccountTotals(
       ${from ? Prisma.sql`AND e."date" >= ${sqlTimestamp(from)}` : Prisma.empty}
       ${to ? Prisma.sql`AND e."date" <= ${sqlTimestamp(to)}` : Prisma.empty}
       ${excludeClosingEntries ? Prisma.sql`AND NOT ${IS_CLOSING}` : Prisma.empty}
+  `
+}
+
+/**
+ * Debit and credit totals per account of the fiscal year, in cents, over the
+ * validated entries dated within [from, to] (both optional, inclusive).
+ * Accounts without a line are absent.
+ */
+export async function sumAccountTotals(params: ValidatedLinesFilter, db: Db = prisma): Promise<AccountTotalsCents[]> {
+  const rows = await db.$queryRaw<Array<{ accountId: string; debit: bigint | null; credit: bigint | null }>>`
+    SELECT l."accountId" AS "accountId",
+           SUM(l."debit" * 100)::bigint AS debit,
+           SUM(l."credit" * 100)::bigint AS credit
+    ${validatedLines(params)}
     GROUP BY l."accountId"
   `
   return rows.map((r) => ({ accountId: r.accountId, debitCents: toNumber(r.debit), creditCents: toNumber(r.credit) }))
+}
+
+export interface MonthlyAccountTotalsCents extends AccountTotalsCents {
+  /** Calendar month of the entries, `yyyy-mm`. */
+  month: string
+}
+
+/**
+ * The totals of sumAccountTotals split by calendar month of the entry date
+ * (budget against the books, lib/budgets). Dates are stored at midnight UTC
+ * in a timestamp without time zone, so the month read by `to_char` is the
+ * calendar day's month whatever the session timezone. The months of an
+ * account add up to its sumAccountTotals row.
+ */
+export async function sumAccountTotalsByMonth(params: ValidatedLinesFilter, db: Db = prisma): Promise<MonthlyAccountTotalsCents[]> {
+  const rows = await db.$queryRaw<Array<{ accountId: string; month: string; debit: bigint | null; credit: bigint | null }>>`
+    SELECT l."accountId" AS "accountId",
+           to_char(e."date", 'YYYY-MM') AS month,
+           SUM(l."debit" * 100)::bigint AS debit,
+           SUM(l."credit" * 100)::bigint AS credit
+    ${validatedLines(params)}
+    GROUP BY 1, 2
+  `
+  return rows.map((r) => ({ accountId: r.accountId, month: r.month, debitCents: toNumber(r.debit), creditCents: toNumber(r.credit) }))
 }
 
 export interface LedgerTotalsCents {
