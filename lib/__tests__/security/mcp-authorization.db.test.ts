@@ -187,6 +187,40 @@ describe.skipIf(!available)('MCP authorization boundary', () => {
     expect(await prisma.journal.count({ where: { companyId: ids.cCompany, code: 'ZZ' } })).toBe(0)
   })
 
+  it('management fees never reach a subsidiary outside the grant (inCompany narrows, never widens)', async () => {
+    // A is the holding of B (B records A as shareholder); the owner is a member of both.
+    await prisma.shareholder.create({ data: { companyId: ids.bCompany, type: 'LEGAL', sharePercentage: 100, companyShareholderId: ids.aCompany } })
+    const convention = await prisma.managementFeeConvention.create({
+      data: {
+        companyId: ids.aCompany,
+        label: 'Animation',
+        pricing: 'FIXED',
+        markupBp: 0,
+        fixedAmount: 1000,
+        allocationKey: 'EQUAL',
+        costAccountPrefixes: ['6'],
+        excludedAccountPrefixes: [],
+        startDate: day('2025-01-01'),
+        subsidiaries: { create: [{ subsidiaryId: ids.bCompany, position: 0 }] },
+      },
+    })
+    const args = { companyId: ids.aCompany, conventionId: convention.id, periodStart: '2025-01-01', periodEnd: '2025-03-31' }
+
+    const onlyA = await apiKey('read', ONLY_A())
+    const preview = await call(onlyA, 'preview_management_fees', args)
+    expect(preview.ok).toBe(false)
+    expect(preview.text).toContain('n’est pas accessible')
+    const listed = await call(onlyA, 'list_management_fee_conventions', { companyId: ids.aCompany })
+    expect(listed.ok, listed.text).toBe(true)
+    expect(JSON.parse(listed.text).conventions[0].subsidiaries).toEqual([expect.objectContaining({ id: ids.bCompany, name: null, accessible: false })])
+    expect(listed.text).not.toContain('Societe b')
+
+    const all = await apiKey('read', ALL())
+    const granted = await call(all, 'preview_management_fees', args)
+    expect(granted.ok, granted.text).toBe(true)
+    expect(JSON.parse(granted.text).subsidiaries).toEqual([expect.objectContaining({ id: ids.bCompany, name: 'Societe b', amountExclTax: 1000 })])
+  })
+
   it('an api key with no explicit kledg level is read-only (KLEDG-SEC-008, fixed)', () => {
     expect(apiKeyLevelOf({})).toBe('read')
     expect(apiKeyLevelOf(null)).toBe('read')

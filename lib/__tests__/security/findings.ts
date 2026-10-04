@@ -174,6 +174,27 @@ export const NEW_FINDINGS = {
       'waits for the email. Residual: one verification row insert vs a lookup, well under network jitter. ' +
       'lib/__tests__/security/reset-timing.db.test.ts.',
   },
+  'KLEDG-SEC-010': {
+    id: 'KLEDG-SEC-010',
+    title: 'Concurrent management fee generations invoice a subsidiary or a period twice',
+    status: 'fixed',
+    fixedIn: '0389592',
+    severity: 'low',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:N/I:L/A:N', // 3.1
+    area: 'business-logic/race',
+    note:
+      'lib/management-fees/bill-management-fees.service.ts generateManagementFeeInvoices checked the overlap with ' +
+      'invoiced periods, then looked each billing up and created the sales invoice, each step in its own statement ' +
+      'and without a lock. Two generations of one convention at once (a double click, two tabs, two users with ' +
+      'entries:create in the holding) both passed the checks: three concurrent runs of the same quarter recorded 4 ' +
+      'draft sales invoices for 2 subsidiaries (one billing pointing at the last one, the others orphaned in the ' +
+      'invoice series, CGI ann. II art. 242 nonies A), and Q1 with February to April both succeeded (overlapping ' +
+      'periods invoiced, i.e. management fees charged twice to a subsidiary); some runs failed with a raw unique ' +
+      'violation (500). Drafts only, nothing posted, hence low. Fixed: the holding side (overlap check again, ' +
+      'billings, tiers, sales invoices) runs in one transaction under pg_advisory_xact_lock per convention and ' +
+      'reads the state again there; createInvoice accepts the caller transaction. ' +
+      'lib/management-fees/__tests__/management-fees.db.test.ts ([KLEDG-SEC-010] tests, also under KLEDG_RLS=enforce).',
+  },
 } as const satisfies Record<string, Finding>
 
 /** Weaknesses the brief says another workstream is already fixing. Tests are expected-secure, skipped. */
