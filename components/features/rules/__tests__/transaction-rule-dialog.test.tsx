@@ -410,13 +410,8 @@ describe('TransactionRuleDialog, saving', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  // BUG: components/features/rules/transaction-rule-dialog.tsx:153: the optional
-  // props initialConditions and initialEntryLines default to a new [] on every
-  // render, and the init effect (line 180) depends on them, so a caller that
-  // omits them gets the form reset (name, conditions, lines) on every state
-  // change: typing a name erases it. Fix: module-level constants
-  // (const NO_CONDITIONS: Condition[] = []) as defaults.
-  it.skip('keeps what is typed when the optional initial props are omitted', async () => {
+  // Stable default props: the form keeps what is typed when the initial props are omitted
+  it('keeps what is typed when the optional initial props are omitted', async () => {
     const user = userEvent.setup()
     render(
       <TransactionRuleDialog
@@ -825,12 +820,8 @@ describe('TransactionRuleDialog, simulation', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
   })
 
-  // BUG: components/features/rules/transaction-rule-dialog.tsx:435: the saved
-  // rule simulation throws a fixed "Erreur lors de la simulation" and drops the
-  // { error } of the response, unlike the unsaved branch (line 470) and
-  // docs/conventions.md (Frontend: read { error } and show it). Fix: read the
-  // body as the other branch does.
-  it.skip('shows the API error of a failed simulation of a saved rule', async () => {
+  // The saved rule simulation shows the { error } of the API, like the unsaved one
+  it('shows the API error of a failed simulation of a saved rule', async () => {
     fetchMock.mockResolvedValue(Response.json({ error: 'Règle introuvable' }, { status: 404 }))
     const user = userEvent.setup()
     renderDialog({ editingRule: savedRule })

@@ -140,6 +140,11 @@ interface TransactionRuleDialogProps {
   onSave: () => void
 }
 
+// Stable defaults: a new [] on every render would re-run the init effect
+// (it depends on them) and reset what the user typed.
+const NO_CONDITIONS: Condition[] = []
+const NO_ENTRY_LINES: EntryLine[] = []
+
 /**
  * Transaction rule dialog component
  */
@@ -150,8 +155,8 @@ export function TransactionRuleDialog({
   companyId,
   accounts,
   journals,
-  initialConditions = [],
-  initialEntryLines = [],
+  initialConditions = NO_CONDITIONS,
+  initialEntryLines = NO_ENTRY_LINES,
   initialRuleName = '',
   initialRuleDescription = '',
   initialJournalCode = 'BQ',
@@ -432,7 +437,10 @@ export function TransactionRuleDialog({
             },
           }),
         })
-        if (!response.ok) throw new Error('Erreur lors de la simulation')
+        if (!response.ok) {
+          const error = await response.json().catch(() => null)
+          throw new Error(error?.error || 'Erreur lors de la simulation')
+        }
         const data = await response.json()
         setSimulation(data)
       } else {
