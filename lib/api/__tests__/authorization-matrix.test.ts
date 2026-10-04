@@ -193,6 +193,11 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
     [`${prefix}FreeClaimant`]: freeClaimant.id,
     [`${prefix}ExpenseRule`]: expenseRule.id,
   })
+  // Management fees: a convention without subsidiary, so no other company is involved in the role checks
+  const feeConvention = await prisma.managementFeeConvention.create({
+    data: { companyId: company.id, label: 'Convention', costAccountPrefixes: ['6'], excludedAccountPrefixes: ['695'], startDate: new Date('2026-01-01T00:00:00Z') },
+  })
+  ids[`${prefix}FeeConvention`] = feeConvention.id
   const fixedAsset = await prisma.fixedAsset.create({
     data: {
       companyId: company.id,
@@ -407,6 +412,11 @@ const ROUTE_MODULES = {
   expenseClaimantOptions: () => import('@/app/api/expense-claimants/options/route'),
   expenseRules: () => import('@/app/api/expense-category-rules/route'),
   expenseRule: () => import('@/app/api/expense-category-rules/[id]/route'),
+  feeConventions: () => import('@/app/api/management-fees/conventions/route'),
+  feeConvention: () => import('@/app/api/management-fees/conventions/[id]/route'),
+  feePreview: () => import('@/app/api/management-fees/conventions/[id]/preview/route'),
+  feeInvoices: () => import('@/app/api/management-fees/conventions/[id]/invoices/route'),
+  feeSubsidiaries: () => import('@/app/api/management-fees/subsidiaries/route'),
 }
 
 interface Call {
@@ -571,6 +581,10 @@ const WRITES: Call[] = [
   { label: 'create expense category rule', route: 'expenseRules', method: 'POST', path: () => '/api/expense-category-rules', body: () => ({ companyId: A(), keyword: 'uber', category: 'TRANSPORT' }) },
   { label: 'update expense category rule', route: 'expenseRule', method: 'PATCH', path: () => `/api/expense-category-rules/${ids.aExpenseRule}`, params: p({ id: () => ids.aExpenseRule }), body: () => ({ priority: 2 }) },
   { label: 'delete expense category rule', route: 'expenseRule', method: 'DELETE', path: () => `/api/expense-category-rules/${ids.aExpenseRule}`, params: p({ id: () => ids.aExpenseRule }) },
+  { label: 'create management fee convention', route: 'feeConventions', method: 'POST', path: () => '/api/management-fees/conventions', body: () => ({ companyId: A(), label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
+  { label: 'update management fee convention', route: 'feeConvention', method: 'PATCH', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
+  { label: 'delete management fee convention', route: 'feeConvention', method: 'DELETE', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
+  { label: 'invoice management fees', route: 'feeInvoices', method: 'POST', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}/invoices`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ periodStart: '2026-01-01', periodEnd: '2026-03-31' }) },
 ]
 
 /** Reads of company A (viewer: allowed, non-member: 404, anonymous: 401). */
@@ -644,6 +658,10 @@ const READS: Call[] = [
   { label: 'list expense claimants', route: 'expenseClaimants', method: 'GET', path: () => `/api/expense-claimants?companyId=${A()}` },
   { label: 'list expense category rules', route: 'expenseRules', method: 'GET', path: () => `/api/expense-category-rules?companyId=${A()}` },
   { label: 'list expense receipts', route: 'expenseReceipts', method: 'GET', path: () => `/api/expense-reports/receipts?companyId=${A()}` },
+  { label: 'list management fee conventions', route: 'feeConventions', method: 'GET', path: () => `/api/management-fees/conventions?companyId=${A()}` },
+  { label: 'read management fee convention', route: 'feeConvention', method: 'GET', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
+  { label: 'list management fee invoices', route: 'feeInvoices', method: 'GET', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}/invoices`, params: p({ id: () => ids.aFeeConvention }) },
+  { label: 'list subsidiaries of a holding', route: 'feeSubsidiaries', method: 'GET', path: () => `/api/management-fees/subsidiaries?companyId=${A()}` },
 ]
 
 /** What the accountant must not do. */

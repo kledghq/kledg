@@ -330,6 +330,32 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
       record('expense_lines', p, id('expense_lines'))
       await prisma.expenseCategoryRule.create({ data: { id: id('expense_category_rules'), companyId, keyword: 'sncf', category: 'TRANSPORT' } })
       record('expense_category_rules', p, id('expense_category_rules'))
+
+      // Management fees: the company is the holding; company c stands for the subsidiary (only its id is referenced).
+      await prisma.managementFeeConvention.create({
+        data: { id: id('management_fee_conventions'), companyId, label: 'Convention', costAccountPrefixes: ['6'], excludedAccountPrefixes: ['695'], startDate: day('2026-01-01') },
+      })
+      record('management_fee_conventions', p, id('management_fee_conventions'))
+      await prisma.managementFeeSubsidiary.create({
+        data: { id: id('management_fee_subsidiaries'), conventionId: id('management_fee_conventions'), subsidiaryId: COMPANY.c },
+      })
+      record('management_fee_subsidiaries', p, id('management_fee_subsidiaries'))
+      await prisma.managementFeeBilling.create({
+        data: {
+          id: id('management_fee_billings'),
+          companyId,
+          conventionId: id('management_fee_conventions'),
+          subsidiaryId: COMPANY.c,
+          periodStart: day('2026-01-01'),
+          periodEnd: day('2026-03-31'),
+          amountExclTax: 100,
+          vatRateBp: 2000,
+          vatAmount: 20,
+          amountInclTax: 120,
+          details: {},
+        },
+      })
+      record('management_fee_billings', p, id('management_fee_billings'))
     }
     return keys
   })

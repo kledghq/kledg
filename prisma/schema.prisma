@@ -143,6 +143,10 @@ model Company {
   expenseClaimants           ExpenseClaimant[]
   expenseReports             ExpenseReport[]
   expenseCategoryRules       ExpenseCategoryRule[]
+  managementFeeConventions   ManagementFeeConvention[]
+  managementFeeSubsidiaryOf  ManagementFeeSubsidiary[]
+  managementFeeBillings      ManagementFeeBilling[]      @relation("ManagementFeeBillingHolding")
+  managementFeeBilled        ManagementFeeBilling[]      @relation("ManagementFeeBillingSubsidiary")
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -1743,12 +1747,14 @@ model Invoice {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  company      Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  tiers        Tiers                 @relation(fields: [tiersId], references: [id], onDelete: Restrict)
-  entry        AccountingEntry?      @relation("InvoiceEntry", fields: [entryId], references: [id], onDelete: SetNull)
-  lines        InvoiceLine[]
-  vatBreakdown InvoiceVatBreakdown[]
-  payments     InvoicePayment[]
+  company               Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tiers                 Tiers                 @relation(fields: [tiersId], references: [id], onDelete: Restrict)
+  entry                 AccountingEntry?      @relation("InvoiceEntry", fields: [entryId], references: [id], onDelete: SetNull)
+  lines                 InvoiceLine[]
+  vatBreakdown          InvoiceVatBreakdown[]
+  payments              InvoicePayment[]
+  managementFeeSale     ManagementFeeBilling? @relation("ManagementFeeSalesInvoice")
+  managementFeePurchase ManagementFeeBilling? @relation("ManagementFeePurchaseInvoice")
 
   @@unique([companyId, direction, tiersId, number])
   @@unique([companyId, source, externalId])
@@ -1981,4 +1987,114 @@ model ExpenseCategoryRule {
 
   @@index([companyId])
   @@map("expense_category_rules")
+}
+
+enum ManagementFeePricing {
+  COST_PLUS // Charges de la holding sur la période, majorées d'une marge
+  FIXED // Montant forfaitaire hors taxes par période
+}
+
+enum ManagementFeeAllocationKey {
+  EQUAL // Parts égales (au prorata des jours de présence dans la convention)
+  REVENUE // Au prorata du chiffre d'affaires (comptes 70) de chaque filiale
+  CUSTOM // Pourcentages fixés par la convention (total 100 %)
+}
+
+/// A management fee agreement (convention de prestations de services, frais
+/// de gestion) of a holding with some of its subsidiaries
+/// (lib/management-fees, docs/frais-de-gestion.md). companyId is the holding:
+/// the company recorded as shareholder (Shareholder.companyShareholderId) of
+/// each subsidiary. Rates are integer basis points (500 = 5 %).
+model ManagementFeeConvention {
+  id                      String                     @id @default(cuid())
+  companyId               String
+  label                   String
+  pricing                 ManagementFeePricing       @default(COST_PLUS)
+  /// Mark-up on the cost base (cost plus, OECD TPG chapter VII), in basis points.
+  markupBp                Int                        @default(500)
+  /// Part of the cost pool spent on services to the subsidiaries (the rest: shareholder activity, not chargeable).
+  costShareBp             Int                        @default(10000)
+  /// Charge accounts in the cost pool, by prefix (["6"]: every class 6 account).
+  costAccountPrefixes     String[]
+  /// Charge accounts left out of the pool, by prefix (income tax, penalties, financial and exceptional charges).
+  excludedAccountPrefixes String[]
+  /// FIXED pricing: amount excluding tax of one period for all the subsidiaries.
+  fixedAmount             Decimal?                   @db.Decimal(15, 2)
+  allocationKey           ManagementFeeAllocationKey @default(EQUAL)
+  /// VAT rate of the invoices, in basis points (2000 = 20 %).
+  vatRateBp               Int                        @default(2000)
+  /// Revenue account of the holding's sales invoices (706 prestations de services).
+  revenueAccountCode      String                     @default("706")
+  /// Expense account proposed on the subsidiaries' purchase invoices.
+  expenseAccountCode      String                     @default("6226")
+  /// Series of the sales invoice numbers: <prefix>-<year>-<sequence>.
+  invoicePrefix           String                     @default("FG")
+  startDate               DateTime
+  endDate                 DateTime?
+  notes                   String?
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+
+  company      Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subsidiaries ManagementFeeSubsidiary[]
+  billings     ManagementFeeBilling[]
+
+  @@index([companyId])
+  @@map("management_fee_conventions")
+}
+
+/// A subsidiary party to a convention, with its custom share and the days it
+/// is party to it (signature, exit): a subsidiary present part of a period
+/// gets a share prorated by days.
+model ManagementFeeSubsidiary {
+  id             String    @id @default(cuid())
+  conventionId   String
+  subsidiaryId   String
+  /// CUSTOM key: share in basis points (the shares of a convention add up to 10000).
+  sharePercentBp Int?
+  startDate      DateTime?
+  endDate        DateTime?
+  position       Int       @default(0)
+
+  convention ManagementFeeConvention @relation(fields: [conventionId], references: [id], onDelete: Cascade)
+  subsidiary Company                 @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+
+  @@unique([conventionId, subsidiaryId])
+  @@index([subsidiaryId])
+  @@map("management_fee_subsidiaries")
+}
+
+/// The fee of one subsidiary for one period, as invoiced: the amounts of the
+/// holding's sales invoice (computed once, by lib/management-fees/compute.ts,
+/// with the rounding of lib/invoices/amounts.ts) and the draft purchase
+/// invoice proposed to the subsidiary. companyId is the holding.
+model ManagementFeeBilling {
+  id                String   @id @default(cuid())
+  companyId         String
+  conventionId      String
+  subsidiaryId      String
+  periodStart       DateTime
+  periodEnd         DateTime
+  amountExclTax     Decimal  @db.Decimal(15, 2)
+  vatRateBp         Int
+  vatAmount         Decimal  @db.Decimal(15, 2)
+  amountInclTax     Decimal  @db.Decimal(15, 2)
+  /// How the amount was computed (cost pool, mark-up, key and weights), for the transfer pricing file.
+  details           Json
+  salesInvoiceId    String?  @unique
+  purchaseInvoiceId String?  @unique
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company         Company                 @relation("ManagementFeeBillingHolding", fields: [companyId], references: [id], onDelete: Cascade)
+  convention      ManagementFeeConvention @relation(fields: [conventionId], references: [id], onDelete: NoAction)
+  subsidiary      Company                 @relation("ManagementFeeBillingSubsidiary", fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  salesInvoice    Invoice?                @relation("ManagementFeeSalesInvoice", fields: [salesInvoiceId], references: [id], onDelete: SetNull)
+  purchaseInvoice Invoice?                @relation("ManagementFeePurchaseInvoice", fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([conventionId, subsidiaryId, periodStart, periodEnd])
+  @@index([companyId])
+  @@index([subsidiaryId])
+  @@map("management_fee_billings")
 }

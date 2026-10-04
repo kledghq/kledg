@@ -105,6 +105,8 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_invoice` | Une facture avec ses lignes, son détail de TVA par taux, son écriture et ses règlements ; droit `entries:read` |
 | `list_expense_reports` | Notes de frais avec bénéficiaire, période, total à rembourser, TVA récupérable et statut (brouillon, soumise, validée, comptabilisée, remboursée) ([notes de frais](notes-de-frais.md)) ; droit `entries:read`, puis seulement ses propres notes sans le droit de valider |
 | `get_expense_report` | Une note de frais avec ses lignes, la TVA récupérable de chacune et sa raison, les trajets et le barème appliqué ; mêmes droits |
+| `list_management_fee_conventions` | Conventions de frais de gestion d'une holding avec ses filiales : prix, marge, clé de répartition, TVA ([frais de gestion](frais-de-gestion.md)) ; droit `reports:read` |
+| `preview_management_fees` | Calcul des frais de gestion d'une période, montant HT, TVA et TTC de chaque filiale, sans rien facturer ; droit `reports:read` dans la holding et dans chaque filiale |
 
 ### Lecture et brouillons d'écritures (`kledg:write`)
 

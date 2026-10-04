@@ -57,6 +57,9 @@ export const companyOfExpenseClaimant = (id: string): Promise<CompanyRow> =>
 export const companyOfExpenseCategoryRule = (id: string): Promise<CompanyRow> =>
   prisma.expenseCategoryRule.findUnique({ where: { id }, select })
 
+export const companyOfManagementFeeConvention = (id: string): Promise<CompanyRow> =>
+  prisma.managementFeeConvention.findUnique({ where: { id }, select })
+
 export async function companyOfBankAccount(id: string): Promise<CompanyRow> {
   const row = await prisma.bankAccount.findUnique({
     where: { id },
