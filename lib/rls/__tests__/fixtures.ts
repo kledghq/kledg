@@ -387,6 +387,11 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('investment_grant_transfers'), companyId, grantId: id('investment_grants'), fiscalYearId: id('fiscal_years') },
       })
       record('investment_grant_transfers', p, id('investment_grant_transfers'))
+      // Approval of the accounts (lib/approval)
+      await prisma.accountsApproval.create({
+        data: { id: id('accounts_approvals'), companyId, fiscalYearId: id('fiscal_years'), details: {}, approvedOn: day('2026-06-15') },
+      })
+      record('accounts_approvals', p, id('accounts_approvals'))
     }
     return keys
   })

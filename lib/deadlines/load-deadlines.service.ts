@@ -1,6 +1,6 @@
 /**
  * Loads what the deadline engine needs for one company (regimes, legal form,
- * fiscal years, settings) in three bounded queries, then runs the pure
+ * fiscal years, settings, recorded approvals) in four bounded queries, then runs the pure
  * engine (lib/deadlines/engine.ts). Used by GET /api/deadlines (the
  * Échéances page) and by the "deadlines" source of the dashboard.
  *
@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { addIsoDays, calendarDayOf, todayUtc } from '@/lib/utils/date'
-import { computeDeadlines, missingVatRegime, type DeadlineCompany, type DeadlineFiscalYear } from './engine'
+import { computeDeadlines, missingVatRegime, type DeadlineApproval, type DeadlineCompany, type DeadlineFiscalYear } from './engine'
 import { OVERDUE_DAYS } from './relative'
 import { RULE_LIST } from './rules'
 import { parseDeadlineSettings, type DeadlineSettings } from './settings'
@@ -28,14 +28,23 @@ export const WIDGET_OVERDUE_DAYS = OVERDUE_DAYS
 
 const day = (value: Date) => calendarDayOf(value) as string
 
+/** The "filed online" answer of an approval (lib/approval/schemas.ts), null when not given. */
+function filedOnlineOf(details: unknown): boolean | null {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return null
+  const value = (details as Record<string, unknown>).filedOnline
+  return typeof value === 'boolean' ? value : null
+}
+
 interface CompanyContext {
   company: DeadlineCompany
   fiscalYears: Array<DeadlineFiscalYear & { year: number; isClosed: boolean }>
   settings: DeadlineSettings
+  /** Approval and filing days recorded in the approval pack (lib/approval), by fiscal year id. */
+  approvals: Record<string, DeadlineApproval>
 }
 
 async function loadContext(companyId: string): Promise<CompanyContext> {
-  const [company, fiscalYears, history] = await Promise.all([
+  const [company, fiscalYears, history, approvals] = await Promise.all([
     prisma.company.findUnique({
       where: { id: companyId },
       select: { legalType: true, vatRegime: true, isVatExempt: true, corporateTaxRegime: true, foundationDate: true, deadlineSettings: true },
@@ -51,6 +60,11 @@ async function loadContext(companyId: string): Promise<CompanyContext> {
       orderBy: { startDate: 'asc' },
       take: MAX_REGIME_ROWS,
       select: { regimeType: true, regime: true, startDate: true, endDate: true, isVatExempt: true, establishmentId: true },
+    }),
+    prisma.accountsApproval.findMany({
+      where: { companyId },
+      take: MAX_FISCAL_YEARS,
+      select: { fiscalYearId: true, approvedOn: true, filedOn: true, details: true },
     }),
   ])
   if (!company) throw new NotFoundError('Société non trouvée')
@@ -72,6 +86,12 @@ async function loadContext(companyId: string): Promise<CompanyContext> {
     },
     fiscalYears: fiscalYears.map((fy) => ({ id: fy.id, year: fy.year, startDate: day(fy.startDate), endDate: day(fy.endDate), isClosed: fy.isClosed })),
     settings: parseDeadlineSettings(company.deadlineSettings),
+    approvals: Object.fromEntries(
+      approvals.map((a) => [
+        a.fiscalYearId,
+        { approvedOn: a.approvedOn ? day(a.approvedOn) : null, filedOn: a.filedOn ? day(a.filedOn) : null, filedOnline: filedOnlineOf(a.details) },
+      ]),
+    ),
   }
 }
 
