@@ -896,3 +896,17 @@ export const PCG_ACCOUNTS: PCGAccount[] = [
   { code: '890', label: 'Bilan d\'ouverture', parentCode: '89' },
   { code: '891', label: 'Bilan de clôture', parentCode: '89' },
 ]
+
+/**
+ * Detailed accounts (more than 4 digits) that Kledg posts to itself, so every
+ * chart has them even without the optional accounts: deductible VAT on fixed
+ * assets and on other goods and services, collected VAT (invoices and expense
+ * reports, lib/invoices/posting-plan.ts, lib/expense-reports).
+ */
+export const KLEDG_POSTING_ACCOUNTS: readonly string[] = ['44562', '44566', '44571']
+
+/** Class 8 and accounts of more than 4 digits are optional in a chart, except KLEDG_POSTING_ACCOUNTS. */
+export function isOptionalPcgAccount(code: string): boolean {
+  if (KLEDG_POSTING_ACCOUNTS.includes(code)) return false
+  return code.startsWith('8') || code.length > 4
+}

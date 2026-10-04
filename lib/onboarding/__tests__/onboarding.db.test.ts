@@ -151,6 +151,9 @@ describe.skipIf(!available)('onboarding', () => {
       expect(fy.startDate.toISOString().slice(0, 10)).toBe('2026-01-01')
       expect(fy.endDate.toISOString().slice(0, 10)).toBe('2026-12-31')
       expect(await prisma.account.count({ where: { fiscalYearId: fy.id } })).toBeGreaterThan(100)
+      // The VAT accounts invoices and expense reports post to are in the new chart.
+      const vat = await prisma.account.findMany({ where: { fiscalYearId: fy.id, code: { in: ['44562', '44566', '44571'] } }, select: { code: true } })
+      expect(vat.map((v) => v.code).sort()).toEqual(['44562', '44566', '44571'])
       expect((await prisma.journal.findMany({ where: { companyId: created.id } })).map((j) => j.code).sort()).toEqual(['AC', 'AN', 'BQ', 'OD', 'VE'])
       expect(await prisma.organization.count({ where: { companyId: created.id } })).toBe(1)
       const office = await prisma.establishment.findFirstOrThrow({ where: { companyId: created.id }, include: { address: true } })

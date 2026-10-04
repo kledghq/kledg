@@ -7,16 +7,13 @@
 
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
-import { PCG_ACCOUNTS } from '@/lib/accounting/pcg-data'
+import { PCG_ACCOUNTS, isOptionalPcgAccount } from '@/lib/accounting/pcg-data'
 import { logger } from '@/lib/logger'
 import { targetChartFiscalYearId } from '@/lib/accounting/manage-accounts.service'
 import { seedPCG } from '@/prisma/seeds/pcg'
 import { plural, pluralWord } from '@/lib/utils/plural'
 
-/** Class 8 and accounts of more than 4 digits are optional in the chart. */
-export function isOptionalPcgAccount(code: string): boolean {
-  return code.startsWith('8') || code.length > 4
-}
+export { isOptionalPcgAccount } from '@/lib/accounting/pcg-data'
 
 /** Seeds the PCG accounts in the chart of a fiscal year of the company (404 for another company's year). */
 export async function seedPcgChart(companyId: string, fiscalYearId: string, includeOptionalAccounts: boolean): Promise<void> {

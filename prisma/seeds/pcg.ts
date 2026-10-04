@@ -1,25 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { PCG_ACCOUNTS } from '@/lib/accounting/pcg-data'
-
-/**
- * Vérifie si un compte est facultatif
- * - Comptes avec plus de 4 chiffres
- * - Tous les comptes de la classe 8 (comptes spéciaux)
- */
-function isOptionalAccount(code: string): boolean {
-  // La classe 8 est entièrement optionnelle
-  if (code.startsWith('8')) {
-    return true
-  }
-  // Comptes avec plus de 4 chiffres
-  return code.length > 4
-}
+import { PCG_ACCOUNTS, isOptionalPcgAccount } from '@/lib/accounting/pcg-data'
 
 /**
  * Seed le PCG pour une entreprise et un exercice fiscal
  * @param companyId - ID de l'entreprise
  * @param fiscalYearId - ID de l'exercice fiscal
- * @param includeOptionalAccounts - Si true, inclut les comptes facultatifs (classe 8 et comptes > 4 chiffres)
+ * @param includeOptionalAccounts - Si true, inclut les comptes facultatifs (classe 8 et comptes > 4 chiffres, hors comptes mouvementés par Kledg)
  */
 export async function seedPCG(companyId: string, fiscalYearId: string, includeOptionalAccounts: boolean = false) {
   console.log(`Seeding PCG for company ${companyId}, fiscal year ${fiscalYearId} (optional accounts: ${includeOptionalAccounts})...`)
@@ -27,7 +13,7 @@ export async function seedPCG(companyId: string, fiscalYearId: string, includeOp
   // Filtrer les comptes selon le paramètre
   const accountsToSeed = includeOptionalAccounts
     ? PCG_ACCOUNTS
-    : PCG_ACCOUNTS.filter(account => !isOptionalAccount(account.code))
+    : PCG_ACCOUNTS.filter(account => !isOptionalPcgAccount(account.code))
 
   // Créer un mapping des codes de compte vers les IDs créés
   const accountMap = new Map<string, string>()

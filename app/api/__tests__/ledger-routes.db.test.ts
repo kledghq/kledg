@@ -30,6 +30,7 @@ vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn().mockResolvedValue(undefin
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import { seedMembership } from '@/lib/__tests__/helpers/membership'
+import { isOptionalPcgAccount } from '@/lib/accounting/pcg-data'
 
 const available = await testDatabaseAvailable()
 
@@ -374,7 +375,9 @@ describe.skipIf(!available)('chart of accounts and journal routes', () => {
       expect(added.addedCount).toBeLessThanOrEqual(added.missingCount as number)
       expect(added.message).toMatch(/^\d+ comptes? manquants? ajoutés?$/)
       const required = await prisma.account.findMany({ where: { companyId: ids.company, fiscalYearId: ids.fy } })
-      expect(required.every((a) => a.code.length <= 4 && !a.code.startsWith('8'))).toBe(true)
+      // Only non-optional accounts: up to 4 digits outside class 8, plus the VAT accounts Kledg posts to.
+      expect(required.every((a) => !isOptionalPcgAccount(a.code))).toBe(true)
+      expect(required.some((a) => a.code === '44566')).toBe(true)
 
       // Break one link, then complete again: nothing added, one link fixed
       const a512 = required.find((a) => a.code === '512')!
