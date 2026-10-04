@@ -21,7 +21,11 @@ const companyId = z.string().describe('Holding company id, from list_companies.'
 
 export function registerManagementFeeTools(server: McpServer, access: McpAccess, guard: CompanyGuard) {
   const readOnly = { readOnlyHint: true, openWorldHint: false } as const
-  const group: GroupAccess = { userId: access.user.id, require: (id, permission) => guard.require(id, permission) }
+  const group: GroupAccess = {
+    userId: access.user.id,
+    require: (id, permission) => guard.require(id, permission),
+    companyIds: () => guard.companyIds(),
+  }
 
   server.registerTool(
     'list_management_fee_conventions',

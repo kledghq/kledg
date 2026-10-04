@@ -76,6 +76,18 @@ describe.skipIf(!available)('budget routes (PostgreSQL)', () => {
     await prisma?.$disconnect()
   })
 
+  it('[KLEDG-SEC-015] answers a French 400, never a 500, for an amount beyond the bounds', async () => {
+    const budget = await (await call('accountant', 'budgets', 'POST', '/api/budgets', { companyId: books.companyId, fiscalYearId: books.fiscalYearId })).json()
+    for (const body of [
+      { accountPrefix: '706', amounts: [{ month: '2026-01', amountCents: 1e17 }] },
+      { accountPrefix: '706', recurringItems: [{ label: 'Énorme', amountCents: 1e17, frequency: 'MONTHLY', startMonth: '2026-01' }] },
+    ]) {
+      const response = await call('accountant', 'lines', 'POST', `/api/budgets/${budget.id}/lines`, body, { id: budget.id })
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toMatch(/Montant trop élevé/)
+    }
+  })
+
   it('lets an accountant build the budget and a read-only member follow it', async () => {
     const created = await call('accountant', 'budgets', 'POST', '/api/budgets', { companyId: books.companyId, fiscalYearId: books.fiscalYearId })
     expect(created.status).toBe(201)

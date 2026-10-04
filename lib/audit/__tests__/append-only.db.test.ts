@@ -26,7 +26,8 @@ const state = await vi.hoisted(async () => {
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => state.user }))
 vi.mock('@/lib/email', () => ({ sendEmail: vi.fn(async () => ({ sent: false })), isEmailConfigured: () => false }))
 
-import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { rlsMode } from '@/lib/rls/mode'
 
 const available = await testDatabaseAvailable()
 
@@ -79,9 +80,14 @@ describe.skipIf(!available)('append-only audit log', () => {
     // Rows are inserted with an old date (INSERT is allowed; only UPDATE and DELETE are guarded).
     await prisma.auditLog.create({ data: { action: 'OLD', message: 'ancien', createdAt: old } })
     await prisma.auditLog.create({ data: { action: 'NEW', message: 'récent' } })
-    const [{ purged }] = await prisma.$queryRaw<Array<{ purged: number }>>`SELECT kledg_purge_audit_logs(now()) AS purged`
+    // The purge is the owner's (migration 20261029090000_definer_function_hardening).
+    const [{ purged }] = await queryAsOwner<{ purged: number }>('audit_append_only', 'SELECT kledg_purge_audit_logs(now()) AS purged')
     expect(Number(purged)).toBe(1)
     expect((await prisma.auditLog.findMany()).map((r) => r.action)).toEqual(['NEW'])
+  })
+
+  it.runIf(rlsMode() === 'enforce')('[KLEDG-SEC-013] refuses the purge to the application role', async () => {
+    await expect(prisma.$queryRaw`SELECT kledg_purge_audit_logs(now())`).rejects.toThrow(/permission denied/)
   })
 
   it('keeps the rows of a deleted company, only clearing their company link', async () => {

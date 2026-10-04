@@ -57,6 +57,12 @@ regex), `KLEDG-SEC-005` (Qonto file hosts and address check),
 grants), `KLEDG-SEC-008` (API key default level), and in round 2 `KLEDG-SEC-010`
 (concurrent management fee generations), `KLEDG-SEC-011` (account
 pre-registration takeover, kledg-cloud KLEDG-CLOUD-004) and `KLEDG-SEC-012`
-(company kept when the creation hook fails, kledg-cloud KLEDG-CLOUD-006). Findings from the code
+(company kept when the creation hook fails, kledg-cloud KLEDG-CLOUD-006), plus the
+round 2 hardening notes `KLEDG-SEC-013` (SECURITY DEFINER search_path and
+EXECUTE), `KLEDG-SEC-014` (read-only check fails closed), `KLEDG-SEC-015`
+(amount bounds, French 400), `KLEDG-SEC-016` (self-authenticated paths on
+segments) and `KLEDG-SEC-017` (holding lookups narrowed). Expense report
+self-validation stays a documented control choice (pentest round 2), not a
+finding. Findings from the code
 review carry a `KLEDG-DEL-*` id; all of them are fixed and their tests are
 enabled. `KLEDG-SEC-009` (password reset timing) is fixed too.

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   AMOUNT_ERRORS,
+  amountTooLargeMessage,
   centsToDecimal,
+  exceedsAmountColumn,
+  fitsAmountColumn,
   formatAmountInput,
   formatCentsFr,
   fromCents,
+  MAX_AMOUNT_CENTS,
   parseAmount,
   parseCents,
   toCents,
@@ -72,6 +76,30 @@ describe('parseAmount', () => {
 
   it('accepts the largest Decimal(15,2) amount exactly', () => {
     expect(cents('9 999 999 999 999,99')).toBe(999999999999999)
+  })
+})
+
+describe('amount column bounds', () => {
+  it('fits the Decimal(15, 2) range exactly, BigInt sums included', () => {
+    expect(MAX_AMOUNT_CENTS).toBe(999_999_999_999_999)
+    expect(fitsAmountColumn(MAX_AMOUNT_CENTS)).toBe(true)
+    expect(fitsAmountColumn(-MAX_AMOUNT_CENTS)).toBe(true)
+    expect(fitsAmountColumn(MAX_AMOUNT_CENTS + 1)).toBe(false)
+    expect(fitsAmountColumn(BigInt(MAX_AMOUNT_CENTS) * BigInt(200))).toBe(false)
+    expect(fitsAmountColumn(1e22)).toBe(false)
+    expect(fitsAmountColumn(1.5)).toBe(false)
+  })
+
+  it('tells an amount refused for its size from a malformed one', () => {
+    expect(parseCents('99999999999999')).toBeNull()
+    expect(exceedsAmountColumn('99999999999999')).toBe(true)
+    expect(exceedsAmountColumn('0009999999999999,99')).toBe(false)
+    expect(exceedsAmountColumn(1e15)).toBe(true)
+    expect(exceedsAmountColumn(Infinity)).toBe(true)
+    expect(exceedsAmountColumn(NaN)).toBe(false)
+    expect(exceedsAmountColumn('10.005')).toBe(false)
+    expect(exceedsAmountColumn('abc')).toBe(false)
+    expect(amountTooLargeMessage()).toBe('Montant trop élevé\u00a0: 9 999 999 999 999,99 € au maximum')
   })
 })
 

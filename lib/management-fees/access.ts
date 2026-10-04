@@ -14,6 +14,9 @@
  *   guard (lib/mcp/company-access.ts), which also applies the connection's
  *   company grant, so an assistant never reaches a subsidiary it was not
  *   granted;
+ * - lookups across companies run narrowed explicitly: to the access's own
+ *   bound (an assistant's grant) to find the subsidiaries, then to the
+ *   holding and those subsidiaries (lib/management-fees/holding.ts);
  * - the work in a subsidiary runs in that subsidiary's own row level
  *   security scope (withUserContext narrowed to it, docs/rls.md): the
  *   database still decides from the user's memberships, so a forgotten check
@@ -38,6 +41,13 @@ export interface GroupAccess {
    * `permission`; refuses writes on an archived company.
    */
   require(companyId: string, permission: Permission): Promise<void>
+  /**
+   * The most companies this access reaches, when it is narrower than the
+   * user's memberships (an assistant's company grant); absent or null: every
+   * company of the user. Lookups across companies (the subsidiary candidates)
+   * never run wider than this.
+   */
+  companyIds?(): Promise<readonly string[] | null>
 }
 
 /** Whether a permission only reads (every action is 'read'): allowed on an archived company. */

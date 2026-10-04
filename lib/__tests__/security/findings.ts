@@ -237,6 +237,90 @@ export const NEW_FINDINGS = {
       'nothing, so a standard instance was not affected. app/api/__tests__/company-creation-policy.db.test.ts ' +
       '([KLEDG-SEC-012], throwing hook).',
   },
+  'KLEDG-SEC-013': {
+    id: 'KLEDG-SEC-013',
+    title: 'Audit log purge function: SECURITY DEFINER without pg_temp last, executable by the application role',
+    status: 'fixed',
+    fixedIn: '33913f5',
+    severity: 'info',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:U/C:N/I:N/A:N', // 0.0, hardening
+    area: 'rls/definer-functions',
+    note:
+      'Documented in pentest round 2 (hardening). kledg_purge_audit_logs (migration 20261011090000_audit_log_append_only) ' +
+      'was SECURITY DEFINER with search_path = public only, so pg_temp was searched first, and PUBLIC and the application ' +
+      'role could execute it (GRANT EXECUTE ON ALL FUNCTIONS of db:rls-role). It only deletes rows older than 10 years ' +
+      'and reaching it needs SQL injection, hence no impact today. Fixed: migration 20261029090000_definer_function_hardening ' +
+      'sets search_path = public, pg_temp on every SECURITY DEFINER function missing it and revokes EXECUTE on the purge and ' +
+      'on kledg_assert_fiscal_year_open (called only from definer triggers) from every role but the owner; db:rls-role ' +
+      'revokes them again after its blanket grant (lib/rls/app-role.ts OWNER_ONLY_FUNCTIONS). ' +
+      'lib/rls/__tests__/policy-coverage.db.test.ts lists every definer function from pg_proc ([KLEDG-SEC-013]); ' +
+      'lib/audit/__tests__/append-only.db.test.ts runs the purge as the owner and refuses it to the application role.',
+  },
+  'KLEDG-SEC-014': {
+    id: 'KLEDG-SEC-014',
+    title: 'Read-only company check fails open when the company is invisible',
+    status: 'fixed',
+    fixedIn: 'a96e87f',
+    severity: 'info',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:N/I:N/A:N', // 0.0, hardening
+    area: 'authorization/archive',
+    note:
+      'Documented in pentest round 2 (hardening). assertCompanyWritable (lib/companies/archive-company.service.ts) read ' +
+      'company?.archivedAt: a company missing or invisible to the row level security context passed as writable. Every ' +
+      'caller ran in a context that sees the company, so it held. Fixed: a missing or invisible company is the usual ' +
+      '"Société introuvable" 404. lib/companies/__tests__/company-write-refusal.db.test.ts ([KLEDG-SEC-014], also under ' +
+      'KLEDG_RLS=enforce with a scope that hides an archived company).',
+  },
+  'KLEDG-SEC-015': {
+    id: 'KLEDG-SEC-015',
+    title: 'Amounts beyond the Decimal(15, 2) columns answer a generic 500',
+    status: 'fixed',
+    fixedIn: 'b5fd673',
+    severity: 'info',
+    cvss: 'CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:N', // 0.0, robustness
+    area: 'validation/amounts',
+    note:
+      'Documented in pentest round 2. An invoice of 200 lines at the maximum unit price, or one line of a huge quantity, ' +
+      'exceeded Decimal(15, 2) and the database refused it: a generic 500 instead of a French 400 (no corruption, values ' +
+      'within the range are exact). Fixed centrally: lib/utils/money.ts MAX_AMOUNT_CENTS, fitsAmountColumn, ' +
+      'exceedsAmountColumn, amountTooLargeMessage and lib/api/zod-fields.ts centsField; invoices check every line total, ' +
+      'VAT row and total before the write and in the MCP dry run (lib/invoices/amount-bounds.ts, a6262e6), the Qonto ' +
+      'mapping refuses such a document, unit prices, expense lines and budget amounts use centsField, and an entry amount ' +
+      'beyond the column answers "Montant trop élevé". [KLEDG-SEC-015] tests in app/api/__tests__/invoice-routes.db.test.ts, ' +
+      'budget-routes.db.test.ts, expense-report-routes.db.test.ts, business-logic.db.test.ts (entries) and ' +
+      'lib/invoices/__tests__/qonto-mapping.test.ts.',
+  },
+  'KLEDG-SEC-016': {
+    id: 'KLEDG-SEC-016',
+    title: 'Self-authenticated API paths matched by plain prefix',
+    status: 'fixed',
+    fixedIn: '022c9e1',
+    severity: 'info',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:N', // 0.0, hardening
+    area: 'auth/proxy',
+    note:
+      'Documented in pentest round 2 (hardening). isSelfAuthenticatedApiPath (lib/instance/api-paths.ts) used startsWith: ' +
+      'a fork declaring /api/demo also let /api/demo-admin through the proxy without a session (handlers keep their own ' +
+      'authentication, and Kledg declares no path). Fixed: a declared path covers itself and the paths under it, on ' +
+      'segment boundaries, with or without a trailing slash. lib/instance/__tests__/api-paths.test.ts ([KLEDG-SEC-016]).',
+  },
+  'KLEDG-SEC-017': {
+    id: 'KLEDG-SEC-017',
+    title: 'Holding helpers widen the row level security scope to every company of the user',
+    status: 'fixed',
+    fixedIn: '15d46e9',
+    severity: 'info',
+    cvss: 'CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:N/I:N/A:N', // 0.0, hardening
+    area: 'rls/management-fees',
+    note:
+      'Documented in pentest round 2 (hardening). listHoldingRefs and listSubsidiaryCandidates (lib/management-fees/holding.ts) ' +
+      'called withUserContext(user.id) without companies inside a route narrowed to the holding; every candidate was then ' +
+      'checked with inCompany(reports:read) and no MCP tool called them, so nothing leaked, but a future MCP caller would ' +
+      'have lost its grant narrowing. Fixed: listHoldingRefs runs narrowed to the companies of the switcher; the subsidiary ' +
+      'lookup finds the ids within the access\'s own bound (GroupAccess.companyIds, the MCP company grant through ' +
+      'CompanyGuard.companyIds), then reads the rows narrowed to the holding and those subsidiaries. ' +
+      'lib/management-fees/__tests__/management-fees.db.test.ts ([KLEDG-SEC-017], also under KLEDG_RLS=enforce).',
+  },
 } as const satisfies Record<string, Finding>
 
 /** Weaknesses the brief says another workstream is already fixing. Tests are expected-secure, skipped. */

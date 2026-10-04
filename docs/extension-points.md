@@ -92,9 +92,10 @@ and exports (all GET) keep working. A fork makes a company read-only this
 way (an unpaid subscription, a legal hold) without hiding any data. Kledg
 answers null.
 
-`SELF_AUTHENTICATED_API_ROUTES` maps API path prefixes to the reason they are
-safe without a session (an API key, a `CRON_SECRET` bearer token). The
-request proxy (`proxy.ts`) lets them through, the route architecture test
+`SELF_AUTHENTICATED_API_ROUTES` maps API paths to the reason they are
+safe without a session (an API key, a `CRON_SECRET` bearer token). A path
+covers itself and the paths under it, matched on segments: `/api/demo`
+never covers `/api/demo-admin`. The request proxy (`proxy.ts`) lets them through, the route architecture test
 (`lib/api/__tests__/routes.test.ts`) accepts their handlers without a route
 wrapper, and the route coverage guard
 (`lib/__tests__/security/route-coverage.test.ts`) leaves them to their own

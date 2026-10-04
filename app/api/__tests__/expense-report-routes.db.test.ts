@@ -98,6 +98,15 @@ describe.skipIf(!available)('expense report routes (PostgreSQL)', () => {
     await prisma?.$disconnect()
   })
 
+  it('[KLEDG-SEC-015] answers a French 400, never a 500, for an amount beyond the bounds', async () => {
+    for (const over of [{ amountInclTaxCents: 1e17 }, { vatCents: 1e17 }]) {
+      const response = await call('boss', 'reports', 'POST', '/api/expense-reports', { companyId: books.companyId, periodStart: '2026-03-01', periodEnd: '2026-03-31', lines: [line(over)] })
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toMatch(/Montant trop élevé/)
+    }
+    expect(await prisma.expenseReport.count({ where: { companyId: books.companyId } })).toBe(0)
+  })
+
   it('lets a member who only reads the books file and submit their own report, with amounts computed on the server', async () => {
     const created = await call('employee', 'reports', 'POST', '/api/expense-reports', {
       companyId: books.companyId,

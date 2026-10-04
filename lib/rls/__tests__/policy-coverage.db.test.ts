@@ -16,6 +16,8 @@ await vi.hoisted(async () => {
 
 import { Client } from 'pg'
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { grantTestAppRole, TEST_APP_ROLE } from '@/lib/__tests__/helpers/test-db'
+import { APP_CALLABLE_DEFINER_FUNCTIONS } from '@/lib/rls/app-role'
 import { CHILD_TABLES, COMPANY_TABLES, DEFINER_TRIGGER_FUNCTIONS, RLS_EXEMPT_TABLES } from '@/lib/rls/tables'
 
 const available = await testDatabaseAvailable()
@@ -90,6 +92,37 @@ describe.skipIf(!available)('row level security: policy coverage', () => {
       expect(row.definer, `${row.name} is not SECURITY DEFINER`).toBe(true)
       expect(row.config, row.name).toContain('search_path=public, pg_temp')
     }
+  })
+
+  it('[KLEDG-SEC-013] pins the search_path of every SECURITY DEFINER function to public, then pg_temp', async () => {
+    // A definer function runs with the owner's rights: without pg_temp last,
+    // a temporary object of the caller could shadow what it resolves.
+    const { rows } = await db.query<{ name: string; config: string[] | null }>(
+      `SELECT p.proname AS name, p.proconfig AS config FROM pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public' AND p.prosecdef ORDER BY p.proname`,
+    )
+    expect(rows.length).toBeGreaterThan(DEFINER_TRIGGER_FUNCTIONS.length)
+    const unsafe = rows.filter((row) => !(row.config ?? []).includes('search_path=public, pg_temp')).map((row) => row.name)
+    expect(unsafe).toEqual([])
+  })
+
+  it('[KLEDG-SEC-013] lets the application role and PUBLIC execute only the SECURITY DEFINER functions the application calls', async () => {
+    await grantTestAppRole(db)
+    // Trigger functions cannot be called directly; the others run as the owner when called.
+    const { rows } = await db.query<{ name: string; app: boolean; public: boolean }>(
+      `SELECT p.proname AS name,
+              has_function_privilege($1, p.oid, 'EXECUTE') AS app,
+              (p.proacl IS NULL OR EXISTS (
+                SELECT 1 FROM aclexplode(p.proacl) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')) AS public
+       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public' AND p.prosecdef AND p.prorettype <> 'trigger'::regtype
+       ORDER BY p.proname`,
+      [TEST_APP_ROLE],
+    )
+    expect(rows.map((r) => r.name)).toContain('kledg_purge_audit_logs')
+    expect(rows.filter((r) => r.app).map((r) => r.name)).toEqual([...APP_CALLABLE_DEFINER_FUNCTIONS].sort())
+    expect(rows.filter((r) => r.public && !APP_CALLABLE_DEFINER_FUNCTIONS.includes(r.name)).map((r) => r.name)).toEqual([])
   })
 
   it('evaluates the access functions once per statement (InitPlan), not once per row', async () => {

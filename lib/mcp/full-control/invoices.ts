@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { computeInvoiceTotals, parseQuantity, rateToBasisPoints } from '@/lib/invoices/amounts'
+import { assertInvoiceAmountsFit } from '@/lib/invoices/amount-bounds'
 import { createInvoice } from '@/lib/invoices/manage-invoices.service'
 import { postInvoice } from '@/lib/invoices/post-invoice.service'
 import { fromCents, toCents } from '@/lib/utils/money'
@@ -77,6 +78,7 @@ const createDraftInvoiceTool = fullControlTool({
     const tiers = await resolveTiers(args.companyId, args.tiers)
     const lines = linesOf(args)
     const totals = computeInvoiceTotals(lines)
+    assertInvoiceAmountsFit(totals)
     const problems: string[] = []
     if ((args.direction === 'SALE') !== (tiers.kind === 'CUSTOMER')) problems.push(args.direction === 'SALE' ? 'Une facture de vente s’adresse à un client.' : 'Une facture d’achat vient d’un fournisseur.')
     return {

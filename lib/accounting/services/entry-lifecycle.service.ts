@@ -20,7 +20,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { ConflictError, NotFoundError, ValidationError, handleError } from '../errors'
 import { validateAccountingEntry, validateEntryBalance } from '../validator'
-import { centsToDecimal, parseCents, type AmountInput } from '@/lib/utils/money'
+import { amountTooLargeMessage, centsToDecimal, exceedsAmountColumn, parseCents, type AmountInput } from '@/lib/utils/money'
 import { dayToDate, toEntryDate } from '../entry-date'
 import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 import {
@@ -79,6 +79,7 @@ const text = (value: string | null | undefined): string | null => {
 export function requireCents(value: AmountInput, field: string): number {
   const cents = parseCents(value)
   if (cents === null) {
+    if (exceedsAmountColumn(value)) throw new ValidationError(`${field}\u00a0: ${amountTooLargeMessage()}`)
     throw new ValidationError(`${field} : montant invalide (nombre décimal avec deux décimales au maximum)`)
   }
   return cents

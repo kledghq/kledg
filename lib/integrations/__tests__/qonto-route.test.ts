@@ -20,6 +20,7 @@ const state = vi.hoisted(() => {
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => state.user }))
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
+vi.mock('@/lib/companies/archive-company.service', () => ({ assertCompanyWritable: async () => undefined }))
 vi.mock('@/lib/rbac/authorize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/rbac/authorize')>()),
   getUserRolesForCompany: async () => state.roles,

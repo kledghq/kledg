@@ -26,7 +26,7 @@ import { Prisma, type InvoiceDirection } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { calendarDay, optionalText } from '@/lib/api/zod-fields'
+import { calendarDay, centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { dayToDate } from '@/lib/accounting/entry-date'
 import { getPaymentTerms } from '@/lib/companies/payment-terms.service'
@@ -35,6 +35,7 @@ import { accountCodeError } from '@/lib/tiers/rules'
 import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { computeInvoiceTotals, formatVatRate, isFrenchVatRate, parseQuantity, type InvoiceTotals } from './amounts'
+import { assertInvoiceAmountsFit } from './amount-bounds'
 import { defaultDueDate, invoiceStatus, maxDueDate, remainingCents, type InvoiceStatus } from './status'
 
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
@@ -46,7 +47,7 @@ const directionSchema = z.enum(['SALE', 'PURCHASE'], { error: 'Choisissez une fa
 const lineSchema = z.object({
   label: z.string({ error: 'La désignation est requise' }).trim().min(1, 'La désignation est requise').max(500),
   quantity: z.union([z.string(), z.number()], { error: 'Quantité invalide' }),
-  unitPriceCents: z.number({ error: 'Prix unitaire invalide' }).int('Prix unitaire en centimes').min(0, 'Le prix unitaire ne peut pas être négatif').max(1e13),
+  unitPriceCents: centsField({ min: 0, invalid: 'Prix unitaire invalide', negative: 'Le prix unitaire ne peut pas être négatif', integer: 'Prix unitaire en centimes' }),
   vatRateBp: z.number({ error: 'Taux de TVA invalide' }).int().min(0).max(10000),
   accountCode: optionalText(20),
   nature: z.enum(['GOODS', 'SERVICES']).default('SERVICES'),
@@ -320,6 +321,7 @@ function prepareLines(
   })
   if (errors.length > 0) throw new ValidationError(errors.join(' '))
   const totals = computeInvoiceTotals(prepared)
+  assertInvoiceAmountsFit(totals)
   if (totals.totalInclTaxCents <= 0) throw new ValidationError('Le total de la facture doit être positif.')
   return { prepared, totals }
 }

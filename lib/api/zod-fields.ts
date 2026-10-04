@@ -6,6 +6,7 @@
 
 import { z } from 'zod'
 import { calendarDayOf } from '@/lib/utils/date'
+import { amountTooLargeMessage, MAX_AMOUNT_CENTS } from '@/lib/utils/money'
 import { ValidationError } from '@/lib/accounting/errors'
 
 /** Default zod messages in French (schemas may still set their own): passed to every parse of request input. */
@@ -47,6 +48,23 @@ export const jsonFormField = <T>(schema: z.ZodType<T>, message: string) =>
       }
       return parsed.data
     })
+
+/**
+ * An amount in integer cents. Bounded by the amount columns
+ * (MAX_AMOUNT_CENTS, Decimal(15, 2)) or a tighter `max`, so an overflow is a
+ * French 400 ("Montant trop élevé"), never a database error. `min` defaults
+ * to -max; 0 refuses negative amounts with `negative`. The bounds are checked
+ * before the integer check: 1e17 is too large, not "not an integer".
+ */
+export const centsField = (options: { min?: number; max?: number; invalid?: string; negative?: string; integer?: string } = {}) => {
+  const max = Math.min(options.max ?? MAX_AMOUNT_CENTS, MAX_AMOUNT_CENTS)
+  const min = options.min ?? -max
+  return z
+    .number({ error: options.invalid ?? 'Montant invalide' })
+    .max(max, { error: amountTooLargeMessage(max), abort: true })
+    .min(min, { error: min >= 0 ? (options.negative ?? 'Le montant ne peut pas être négatif') : amountTooLargeMessage(max), abort: true })
+    .int(options.integer ?? 'Montant en centimes entiers')
+}
 
 /**
  * A calendar day sent as yyyy-mm-dd (or an ISO timestamp, read as its UTC

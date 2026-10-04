@@ -13,6 +13,26 @@ const ROLE_NAME = /^[a-z_][a-z0-9_]{0,62}$/
 
 export const DEFAULT_APP_ROLE = 'kledg_app'
 
+/**
+ * SECURITY DEFINER functions the application role calls: the access
+ * functions of the policies and the company identifier check
+ * (lib/companies/identifiers.ts). Every other definer function is a trigger
+ * function or runs from one, or is a maintenance function for the owner
+ * (kledg_purge_audit_logs): migration 20261029090000_definer_function_hardening
+ * revokes EXECUTE on those from PUBLIC and the application role.
+ */
+export const APP_CALLABLE_DEFINER_FUNCTIONS: readonly string[] = [
+  'kledg_company_identifier_taken',
+  'kledg_rls_company_ids',
+  'kledg_rls_unrestricted',
+]
+
+/** Definer functions that only the owner executes (signatures), revoked again after the blanket grant below. */
+export const OWNER_ONLY_FUNCTIONS: readonly string[] = [
+  'kledg_purge_audit_logs(timestamptz)',
+  'kledg_assert_fiscal_year_open(text)',
+]
+
 function quoteLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
@@ -48,6 +68,14 @@ END $$`,
 END $$`,
     `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${role}"`,
     `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO "${role}"`,
+    // Owner-only definer functions (migration 20261029090000_definer_function_hardening).
+    ...OWNER_ONLY_FUNCTIONS.map(
+      (fn) => `DO $$ BEGIN
+  IF to_regprocedure(${quoteLiteral(fn)}) IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION ${fn} FROM "${role}";
+  END IF;
+END $$`,
+    ),
     // Tables and sequences created by later migrations (run by this owner).
     `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "${role}"`,
     `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "${role}"`,

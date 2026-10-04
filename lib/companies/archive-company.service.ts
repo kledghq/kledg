@@ -33,10 +33,13 @@ export const NOT_ARCHIVED = { archivedAt: null } as const
  * Throws a 409 when the company is archived, or when the instance policy
  * makes it read-only (companyWriteRefusal, lib/instance/policy.ts; its link
  * goes in the details). Called on writes of company routes and MCP tools.
+ * Fails closed: a company that does not exist or that the context cannot
+ * see (row level security) is a 404, never writable.
  */
 export async function assertCompanyWritable(companyId: string): Promise<void> {
   const company = await prisma.company.findUnique({ where: { id: companyId }, select: { archivedAt: true } })
-  if (company?.archivedAt) throw new ConflictError(ARCHIVED_COMPANY_MESSAGE)
+  if (!company) throw new NotFoundError(COMPANY_NOT_FOUND_MESSAGE)
+  if (company.archivedAt) throw new ConflictError(ARCHIVED_COMPANY_MESSAGE)
   const refusal = await companyWriteRefusal(companyId)
   if (refusal) throw new ConflictError(refusal.message).withDetails(refusal.link ? { link: refusal.link } : {})
 }
