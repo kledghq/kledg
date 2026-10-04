@@ -1,0 +1,124 @@
+/**
+ * "Dépenses à vérifier" (simple mode): the suggested category and its
+ * reason per line, "OK" sending the suggestion, a question answered in one
+ * click, the meal note sent with the confirmation, "Tout confirmer" with
+ * the sure lines only, the accountant named under the list, and nothing to
+ * click for a read-only member.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
+
+import { toast } from 'sonner'
+import { ExpensesReview } from '../expenses-review'
+import { CompanyAccessProvider } from '@/components/features/companies/company-access'
+import { grantedPermissions } from '@/lib/rbac/granted-permissions'
+import { suggestCategory } from '@/lib/simple/suggest'
+import type { ExpenseToReview, ExpensesToReview } from '@/lib/simple/expenses-to-review.service'
+
+const plain = (text: string | null) => (text ?? '').replace(/[\s  ]+/g, ' ').trim()
+
+function line(id: string, label: string, amountCents: number, history: Array<{ categoryId: string; day: string }> = []): ExpenseToReview {
+  return {
+    id,
+    date: '2026-09-29',
+    side: 'debit',
+    amountCents,
+    name: label.replace(/^(CB|PRLV SEPA) /, ''),
+    label,
+    suggestion: suggestCategory({ side: 'debit', amountCents, label, counterpartyName: null, bankCategory: null }, { history }),
+    hasReceipt: false,
+    canUploadReceipt: true,
+    blockedReason: null,
+  }
+}
+
+const ITEMS = [line('free', 'PRLV SEPA FREE PRO', 4_799), line('mac', 'CB APPLE STORE OPERA', 149_900), line('bistrot', 'CB LE PETIT BISTROT', 6_450, [{ categoryId: 'repas-affaires', day: '2026-08-01' }, { categoryId: 'repas-affaires', day: '2026-07-01' }])]
+const LIST: ExpensesToReview = {
+  items: ITEMS,
+  count: 3,
+  bulkConfirmableIds: ITEMS.filter((i) => i.suggestion.bulkConfirmable).map((i) => i.id),
+  review: { accountantReview: true, setting: null, accountants: [{ name: 'Marc Renaud' }] },
+}
+
+function renderAs(roles: string[]) {
+  return render(
+    <CompanyAccessProvider value={{ granted: grantedPermissions(roles, false), roleLabel: '' }}>
+      <ExpensesReview companyId="atelier-lumen" />
+    </CompanyAccessProvider>,
+  )
+}
+
+describe('ExpensesReview', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/confirm-all')) return new Response(JSON.stringify({ confirmed: [{ transactionId: 'free' }, { transactionId: 'bistrot' }], skipped: [] }), { status: 200 })
+      if (url.includes('/confirm')) return new Response(JSON.stringify({ transactionId: 'x', needsReview: true, learnedRule: null }), { status: 201 })
+      if (init?.method) return new Response('{}', { status: 500 })
+      return new Response(JSON.stringify(LIST), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  it('shows each payment with its suggested category and reason, and names the accountant', async () => {
+    renderAs(['companyAdmin'])
+    const free = (await screen.findByText('FREE PRO')).closest('li')!
+    expect(plain(free.textContent)).toContain('Téléphone et internet')
+    expect(plain(free.textContent)).toContain('Reconnu : opérateur télécom')
+    const mac = screen.getByText('APPLE STORE OPERA').closest('li')!
+    expect(plain(mac.textContent)).toContain('Matériel informatique ?')
+    expect(within(mac).getByRole('button', { name: 'Oui, un ordinateur ou un écran' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Tout confirmer (2)' })).toBeTruthy()
+    expect(plain(screen.getByText(/Une fois confirmées/).textContent)).toBe('Une fois confirmées, ces dépenses sont envoyées à Marc Renaud, votre expert-comptable, pour validation.')
+  })
+
+  it('sends the suggestion on OK, the answer of a question in one click, and the meal note', async () => {
+    const user = userEvent.setup()
+    renderAs(['companyAdmin'])
+    const free = (await screen.findByText('FREE PRO')).closest('li')!
+    await user.click(within(free).getByRole('button', { name: 'OK' }))
+    await waitFor(() => expect(screen.queryByText('FREE PRO')).toBeNull())
+    const [url, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/free/confirm'))!
+    expect(url).toBe('/api/simple/expenses/free/confirm')
+    expect(JSON.parse(String(init.body))).toEqual({ categoryId: 'telephone-internet', answers: {} })
+    expect(toast.success).toHaveBeenCalledWith('Dépense envoyée à votre comptable.')
+
+    const mac = screen.getByText('APPLE STORE OPERA').closest('li')!
+    await user.click(within(mac).getByRole('button', { name: 'Oui, un ordinateur ou un écran' }))
+    const macCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/mac/confirm'))!
+    expect(JSON.parse(String(macCall[1].body))).toEqual({ categoryId: 'materiel-informatique', answers: { durable: 'durable' } })
+
+    const bistrot = screen.getByText('LE PETIT BISTROT').closest('li')!
+    await user.type(within(bistrot).getByLabelText('Note pour votre comptable'), 'Avec Studio Nord')
+    await user.click(within(bistrot).getByRole('button', { name: 'OK' }))
+    const mealCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/bistrot/confirm'))!
+    expect(JSON.parse(String(mealCall[1].body))).toEqual({ categoryId: 'repas-affaires', answers: { 'meal-guests': 'guests' }, note: 'Avec Studio Nord' })
+  })
+
+  it('confirms the sure lines together', async () => {
+    const user = userEvent.setup()
+    renderAs(['companyAdmin'])
+    await user.click(await screen.findByRole('button', { name: 'Tout confirmer (2)' }))
+    const [, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/confirm-all'))!
+    expect(JSON.parse(String(init.body))).toEqual({ companyId: 'atelier-lumen', transactionIds: ['free', 'bistrot'] })
+    await waitFor(() => expect(screen.queryByText('FREE PRO')).toBeNull())
+    expect(toast.success).toHaveBeenCalledWith('2 dépenses classées')
+  })
+
+  it('leaves nothing to click for a read-only member', async () => {
+    renderAs(['viewer'])
+    const free = (await screen.findByText('FREE PRO')).closest('li')!
+    expect((within(free).getByRole('button', { name: 'OK' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Tout confirmer (2)' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('note')).toBeTruthy()
+  })
+})

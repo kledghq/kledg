@@ -4,22 +4,23 @@
  *
  * "Dépenses à vérifier" counts the money that left the bank and is not yet
  * classified: debits of the company's bank accounts not reconciled with an
- * entry. A first approximation from the existing reconciliation state; the
- * categorisation of the simple mode (page simple/depenses) refines it.
+ * entry, nor declined: the lines of the page simple/depenses
+ * (lib/simple/expenses-to-review.service.ts).
  */
 
-import { prisma } from '@/lib/prisma'
-import { transactionOfCompany } from '@/lib/api/resources'
+import { countExpensesToReview } from "./expenses-to-review.service";
 
 export interface SimpleCounts {
   /** Bank debits not reconciled yet. */
-  expensesToCheck: number
+  expensesToCheck: number;
 }
 
 export async function countExpensesToCheck(companyId: string): Promise<number> {
-  return prisma.bankTransaction.count({ where: { ...transactionOfCompany(companyId), side: 'debit', reconciled: false } })
+  return countExpensesToReview(companyId, "debit");
 }
 
-export async function loadSimpleCounts(companyId: string): Promise<SimpleCounts> {
-  return { expensesToCheck: await countExpensesToCheck(companyId) }
+export async function loadSimpleCounts(
+  companyId: string,
+): Promise<SimpleCounts> {
+  return { expensesToCheck: await countExpensesToCheck(companyId) };
 }

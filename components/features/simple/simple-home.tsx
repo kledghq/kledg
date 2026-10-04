@@ -1,9 +1,10 @@
-import Link from 'next/link'
-import { CircleAlert, FileText, HandCoins, UserPlus } from 'lucide-react'
+import Link from "next/link";
+import { CircleAlert, FileText, HandCoins, UserPlus } from "lucide-react";
 
-import type { SimpleHome as SimpleHomeData } from '@/lib/simple/load-simple-home.service'
+import type { SimpleHome as SimpleHomeData } from "@/lib/simple/load-simple-home.service";
 import {
   ACCOUNTANT_PENDING,
+  validationProgress,
   EXPENSES_TO_CHECK_HINT,
   MISSING_RECEIPTS_HINT,
   NO_ACCOUNTANT,
@@ -23,61 +24,69 @@ import {
   profitTitle,
   situationSentence,
   vatTitle,
-} from '@/lib/simple/vocabulary'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Amount, PageHeader, StatCard, formatAmount } from '@/components/shared'
-import { initials } from '@/components/layout/initials'
-import { cn } from '@/lib/utils'
+} from "@/lib/simple/vocabulary";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Amount,
+  PageHeader,
+  StatCard,
+  formatAmount,
+} from "@/components/shared";
+import { initials } from "@/components/layout/initials";
+import { cn } from "@/lib/utils";
 
-const euros = (cents: number) => cents / 100
+const euros = (cents: number) => cents / 100;
 
 interface TodoItem {
-  key: string
-  icon: typeof FileText
-  title: string
-  hint: string
-  href: string
-  action: string
-  primary?: boolean
+  key: string;
+  icon: typeof FileText;
+  title: string;
+  hint: string;
+  href: string;
+  action: string;
+  primary?: boolean;
 }
 
 function todoItems(home: SimpleHomeData, base: string): TodoItem[] {
-  const items: TodoItem[] = []
-  const { expensesToCheck, missingReceipts, customersToChase } = home.todo
+  const items: TodoItem[] = [];
+  const { expensesToCheck, missingReceipts, customersToChase } = home.todo;
   if (expensesToCheck) {
     items.push({
-      key: 'expenses',
+      key: "expenses",
       icon: CircleAlert,
       title: expensesToCheckLabel(expensesToCheck),
       hint: EXPENSES_TO_CHECK_HINT,
       href: `${base}/simple/depenses`,
-      action: 'Vérifier',
+      action: "Vérifier",
       primary: true,
-    })
+    });
   }
   if (missingReceipts) {
     items.push({
-      key: 'receipts',
+      key: "receipts",
       icon: FileText,
       title: missingReceiptsLabel(missingReceipts),
       hint: MISSING_RECEIPTS_HINT,
       href: `${base}/banking/missing-receipts`,
-      action: 'Ajouter',
-    })
+      action: "Ajouter",
+    });
   }
   for (const customer of customersToChase ?? []) {
     items.push({
       key: `chase-${customer.label}`,
       icon: HandCoins,
-      title: chaseLabel(customer.label, formatAmount(euros(customer.overdueCents))),
+      title: chaseLabel(
+        customer.label,
+        formatAmount(euros(customer.overdueCents)),
+      ),
       hint: lateLabel(customer.oldestDueDate, customer.daysLate),
       href: `${base}/invoices/sales`,
-      action: 'Voir les factures',
-    })
+      action: "Voir les factures",
+    });
   }
-  return items
+  return items;
 }
 
 /**
@@ -92,32 +101,56 @@ export function SimpleHome({
   companySlug,
   userName,
 }: {
-  home: SimpleHomeData
-  companyName: string
-  companySlug: string
-  userName: string | null
+  home: SimpleHomeData;
+  companyName: string;
+  companySlug: string;
+  userName: string | null;
 }) {
-  const base = `/${companySlug}`
-  const items = todoItems(home, base)
-  const { bank, receivables, vat, profit, fiscalYear, accountants } = home
+  const base = `/${companySlug}`;
+  const items = todoItems(home, base);
+  const {
+    bank,
+    receivables,
+    vat,
+    profit,
+    fiscalYear,
+    accountants,
+    validation,
+  } = home;
 
   return (
     <div className="space-y-6">
-      <PageHeader title={greeting(userName)} description={situationSentence(companyName, home.today)} />
+      <PageHeader
+        title={greeting(userName)}
+        description={situationSentence(companyName, home.today)}
+      />
 
-      <section aria-label="Vos chiffres" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section
+        aria-label="Vos chiffres"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
         {bank ? (
           <StatCard
             label={SIMPLE_LABELS.bankBalance}
             value={<Amount value={euros(bank.balanceCents)} />}
             hint={
               bank.accounts === 0 ? (
-                <Link href={`${base}/banking`} className="text-link underline-offset-4 hover:underline">
+                <Link
+                  href={`${base}/banking`}
+                  className="text-link underline-offset-4 hover:underline"
+                >
                   {NO_BANK_ACCOUNT_HINT}
                 </Link>
               ) : (
-                <span className={cn(bank.monthChangeCents > 0 && 'text-success')}>
-                  {monthChangeLabel(bank.monthChangeCents, formatAmount(euros(bank.monthChangeCents), { sign: 'always' }))}
+                <span
+                  className={cn(bank.monthChangeCents > 0 && "text-success")}
+                >
+                  {monthChangeLabel(
+                    bank.monthChangeCents,
+                    formatAmount(euros(bank.monthChangeCents), {
+                      sign: "always",
+                    }),
+                  )}
                 </span>
               )
             }
@@ -128,8 +161,13 @@ export function SimpleHome({
             label={SIMPLE_LABELS.receivables}
             value={<Amount value={euros(receivables.totalCents)} />}
             hint={
-              <span className={cn(receivables.overdueCents > 0 && 'text-warning')}>
-                {overdueLabel(receivables.overdueCents, formatAmount(euros(receivables.overdueCents)))}
+              <span
+                className={cn(receivables.overdueCents > 0 && "text-warning")}
+              >
+                {overdueLabel(
+                  receivables.overdueCents,
+                  formatAmount(euros(receivables.overdueCents)),
+                )}
               </span>
             }
           />
@@ -145,7 +183,7 @@ export function SimpleHome({
           <StatCard
             label={profitTitle(profit.beforeTaxCents, fiscalYear.startDate)}
             value={<Amount value={euros(Math.abs(profit.beforeTaxCents))} />}
-            valueClassName={cn(profit.beforeTaxCents < 0 && 'text-destructive')}
+            valueClassName={cn(profit.beforeTaxCents < 0 && "text-destructive")}
             hint={PROFIT_HINT}
           />
         ) : null}
@@ -164,15 +202,27 @@ export function SimpleHome({
             ) : (
               <ul className="divide-y">
                 {items.map((item) => (
-                  <li key={item.key} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
-                    <span aria-hidden className="bg-background text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border">
+                  <li
+                    key={item.key}
+                    className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <span
+                      aria-hidden
+                      className="bg-background text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border"
+                    >
                       <item.icon className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{item.title}</p>
-                      <p className="text-muted-foreground text-sm">{item.hint}</p>
+                      <p className="text-muted-foreground text-sm">
+                        {item.hint}
+                      </p>
                     </div>
-                    <Button asChild size="sm" variant={item.primary ? 'default' : 'outline'}>
+                    <Button
+                      asChild
+                      size="sm"
+                      variant={item.primary ? "default" : "outline"}
+                    >
                       <Link href={item.href}>{item.action}</Link>
                     </Button>
                   </li>
@@ -192,7 +242,9 @@ export function SimpleHome({
             <CardContent className="space-y-4">
               {accountants.length === 0 ? (
                 <>
-                  <p className="text-muted-foreground text-sm">{NO_ACCOUNTANT}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {NO_ACCOUNTANT}
+                  </p>
                   <Button asChild size="sm" variant="outline">
                     <Link href={`${base}/members`}>
                       <UserPlus aria-hidden />
@@ -204,21 +256,60 @@ export function SimpleHome({
                 <>
                   <ul className="space-y-3">
                     {accountants.map((accountant) => {
-                      const name = accountant.name?.trim() || accountant.email
+                      const name = accountant.name?.trim() || accountant.email;
                       return (
-                        <li key={accountant.email} className="flex items-center gap-3">
+                        <li
+                          key={accountant.email}
+                          className="flex items-center gap-3"
+                        >
                           <Avatar className="size-9">
-                            <AvatarFallback className="text-xs font-medium">{initials(name)}</AvatarFallback>
+                            <AvatarFallback className="text-xs font-medium">
+                              {initials(name)}
+                            </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{name}</p>
-                            <p className="text-muted-foreground truncate text-sm">{accountant.email}</p>
+                            <p className="truncate text-sm font-medium">
+                              {name}
+                            </p>
+                            <p className="text-muted-foreground truncate text-sm">
+                              {accountant.email}
+                            </p>
                           </div>
                         </li>
-                      )
+                      );
                     })}
                   </ul>
-                  <p className="text-muted-foreground text-sm">{ACCOUNTANT_PENDING}</p>
+                  {validation && validation.accountantReview ? (
+                    <div className="space-y-2">
+                      <p className="text-sm">
+                        {validationProgress(
+                          validation.classified,
+                          validation.validated,
+                          validation.toValidate,
+                        )}
+                      </p>
+                      {validation.classified > 0 ? (
+                        <div
+                          className="bg-muted h-2 overflow-hidden rounded-full"
+                          role="progressbar"
+                          aria-label="Dépenses validées par votre comptable"
+                          aria-valuemin={0}
+                          aria-valuemax={validation.classified}
+                          aria-valuenow={validation.validated}
+                        >
+                          <div
+                            className="bg-primary h-2"
+                            style={{
+                              width: `${Math.round((validation.validated / validation.classified) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <p className="text-muted-foreground text-sm">
+                    {ACCOUNTANT_PENDING}
+                  </p>
                 </>
               )}
             </CardContent>
@@ -226,5 +317,5 @@ export function SimpleHome({
         ) : null}
       </div>
     </div>
-  )
+  );
 }
