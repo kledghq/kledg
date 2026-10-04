@@ -60,8 +60,9 @@ export async function companyWriteRefusal(companyId: string): Promise<ActionRefu
 }
 
 /**
- * API paths (prefixes of the request path) served by routes that
- * authenticate requests themselves, with the reason. The proxy lets them
+ * API paths served by routes that authenticate requests themselves, with
+ * the reason. A path covers itself and the paths under it, on segment
+ * boundaries (lib/instance/api-paths.ts). The proxy lets them
  * through without a session and the route architecture test
  * (lib/api/__tests__/routes.test.ts) accepts their handlers unwrapped.
  */
