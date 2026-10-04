@@ -272,6 +272,27 @@ describe.skipIf(!available)('company settings routes', () => {
       expect(await errorOf(over)).toMatch(/ne peut pas dépasser 100 %/)
     })
 
+    it('records another company of the user as shareholder, read in its own scope', async () => {
+      // The route narrows its statements to company A (docs/rls.md): the shareholder
+      // company must still be found when the user is a member of it, even as a viewer.
+      const holding = await prisma.company.create({ data: { name: 'Holding Gamma', slug: 'holding-gamma', siren: '333333333' } })
+      await prisma.organization.create({ data: { id: 'org-c', name: 'Holding Gamma', slug: 'org-holding-gamma', createdAt: new Date(), companyId: holding.id } })
+      await prisma.member.create({ data: { id: 'm-u-cadmin-c', userId: 'u-cadmin', organizationId: 'org-c', role: 'viewer', createdAt: new Date() } })
+
+      const created = await create({ type: 'LEGAL', companyShareholderId: holding.id, sharePercentage: 40 })
+      const body = await created.json()
+      expect(created.status).toBe(201)
+      expect(body).toMatchObject({ name: 'Holding Gamma', companyShareholderId: holding.id })
+
+      const { id } = (await (await create({ type: 'LEGAL', name: 'Fonds', sharePercentage: 10 })).json()) as { id: string }
+      const updated = await call('companyAdmin', 'shareholder', 'PATCH', `/api/companies/${A()}/shareholders/${id}`, {
+        params: { id: A(), shareholderId: id },
+        body: { companyShareholderId: holding.id, sharePercentage: 10 },
+      })
+      expect(updated.status).toBe(200)
+      expect(await updated.json()).toMatchObject({ name: 'Holding Gamma', companyShareholderId: holding.id })
+    })
+
     it('refuses a person or a shareholder company the user cannot see', async () => {
       const person = await create({ type: 'PHYSICAL', personId: ids.personB, sharePercentage: 10 })
       expect(person.status).toBe(400)

@@ -20,6 +20,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { getUserRolesForCompany, isGlobalAdmin } from '@/lib/rbac/authorize'
+import { withUserContext } from '@/lib/rls/context'
 import type { CurrentUser } from '@/lib/session'
 import {
   assertTotalPercentage,
@@ -86,15 +87,26 @@ async function assertPersonOfCompany(tx: Prisma.TransactionClient, personId: str
 
 /** A shareholder company must be another company the user can access (member of it, or instance administrator). */
 async function assertShareholderCompany(
-  tx: Prisma.TransactionClient,
   shareholderCompanyId: string,
   companyId: string,
   actor: Actor,
 ): Promise<{ id: string; name: string }> {
-  const company = await tx.company.findUnique({ where: { id: shareholderCompanyId }, select: { id: true, name: true } })
-  const accessible = company && (isGlobalAdmin(actor) || (await getUserRolesForCompany(actor.id, company.id)).length > 0)
-  if (!company || !accessible) throw new ValidationError(UNKNOWN_COMPANY_MESSAGE)
-  if (company.id === companyId) throw new ValidationError("Une société ne peut pas être actionnaire d'elle-même")
+  if (shareholderCompanyId === companyId) throw new ValidationError("Une société ne peut pas être actionnaire d'elle-même")
+  // The route narrows its statements to the company being edited (docs/rls.md),
+  // which hides the shareholder company and its memberships: both are read in
+  // the shareholder company's own scope, where the database still requires the
+  // user's membership. Called before the transaction, whose context is fixed
+  // when it starts.
+  const company = await withUserContext(
+    actor.id,
+    async () => {
+      const accessible = isGlobalAdmin(actor) || (await getUserRolesForCompany(actor.id, shareholderCompanyId)).length > 0
+      if (!accessible) return null
+      return prisma.company.findUnique({ where: { id: shareholderCompanyId }, select: { id: true, name: true } })
+    },
+    { companyIds: [shareholderCompanyId] },
+  )
+  if (!company) throw new ValidationError(UNKNOWN_COMPANY_MESSAGE)
   return company
 }
 
@@ -132,6 +144,10 @@ export function listShareholders(companyId: string) {
 }
 
 export async function createShareholder(companyId: string, input: CreateShareholderInput, actor: Actor) {
+  const shareholderCompany =
+    input.type === 'LEGAL' && input.companyShareholderId
+      ? await assertShareholderCompany(input.companyShareholderId, companyId, actor)
+      : null
   return prisma.$transaction(async (tx) => {
     let personId: string | null = null
     if (input.type === 'PHYSICAL') {
@@ -143,10 +159,6 @@ export async function createShareholder(companyId: string, input: CreateSharehol
       personId = await assertPersonOfCompany(tx, input.personId, companyId)
     }
 
-    const shareholderCompany =
-      input.type === 'LEGAL' && input.companyShareholderId
-        ? await assertShareholderCompany(tx, input.companyShareholderId, companyId, actor)
-        : null
     if (input.type === 'LEGAL' && !input.companyShareholderId && !input.name) {
       throw new ValidationError('Le nom est requis pour une personne morale non-société')
     }
@@ -186,16 +198,15 @@ export async function updateShareholder(
   input: UpdateShareholderInput,
   actor: Actor,
 ) {
+  const shareholderCompany = input.companyShareholderId
+    ? await assertShareholderCompany(input.companyShareholderId, companyId, actor)
+    : null
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shareholder.findFirst({
       where: { id: shareholderId, companyId },
       select: { id: true, type: true, personId: true },
     })
     if (!existing) throw new NotFoundError(SHAREHOLDER_NOT_FOUND_MESSAGE)
-
-    const shareholderCompany = input.companyShareholderId
-      ? await assertShareholderCompany(tx, input.companyShareholderId, companyId, actor)
-      : null
 
     let shareHundredths: number | undefined
     if (input.sharePercentage !== undefined && input.sharePercentage !== null) {
@@ -221,9 +232,12 @@ export async function updateShareholder(
       ...(input.notes !== undefined && { notes: input.notes || null }),
     }
 
-    if (input.type === 'LEGAL' && input.companyShareholderId !== undefined) {
+    // The type may be left out: a legal person keeps its type when it is linked to a company.
+    const type = input.type ?? existing.type
+    if (type === 'LEGAL' && input.companyShareholderId !== undefined) {
       if (shareholderCompany) {
         data.name = shareholderCompany.name
+        data.siret = null
       } else {
         data.name = input.name || null
         data.siret = input.siret || null
