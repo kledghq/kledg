@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/shared'
 import { ReportsEmptyHint } from '@/components/features/onboarding/reports-empty-hint'
-import { BarChart3, BookOpen, Contact, Download, FileText, Hourglass, ScrollText, Table, TrendingDown } from 'lucide-react'
+import { BarChart3, BookOpen, Gauge, Contact, Download, FileText, Hourglass, ScrollText, Table, TrendingDown } from 'lucide-react'
 
 const reports = [
   {
@@ -21,6 +21,13 @@ const reports = [
     url: '/reports/income-statement',
     cta: 'Voir le compte de résultat',
     icon: TrendingDown,
+  },
+  {
+    title: 'SIG et ratios',
+    description: "Soldes intermédiaires de gestion, capacité d'autofinancement, besoin en fonds de roulement, délais de paiement et ratios",
+    url: '/reports/sig',
+    cta: 'Voir les soldes de gestion',
+    icon: Gauge,
   },
   {
     title: 'Balance',

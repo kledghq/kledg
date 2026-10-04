@@ -53,6 +53,13 @@ describe('CSV formula injection neutralisation (lib/reports/csv-safe)', () => {
     expect(csvCell(null)).toBe('')
   })
 
+  it('keeps a negative amount a number, but not an expression starting with a minus sign', () => {
+    expect(csvCell('-1234,56')).toBe('-1234,56')
+    expect(csvCell(-12.5)).toBe('-12.5')
+    expect(csvCell('-1+1')).toBe("'-1+1")
+    expect(csvCell('-12,5;3')).toBe(`"'-12,5;3"`)
+  })
+
   it('builds rows and a document without letting a payload break out', () => {
     const row = buildCsvRow(['=2+5', 'Normal', 'a;b'])
     expect(row).toBe(`'=2+5;Normal;"a;b"`)

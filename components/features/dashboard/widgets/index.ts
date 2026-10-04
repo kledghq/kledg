@@ -18,6 +18,7 @@ import {
 } from './kpi-widgets'
 import { ARapprocherList, BrouillonsList, ComptesBancairesList, DernieresEcrituresList, ReglesList } from './list-widgets'
 import { CreancesDettesEchuesList } from './aged-balance-widget'
+import { BfrKpi, CafKpi, DelaisPaiementKpi, EbeKpi } from './indicator-widgets'
 import type { WidgetProps } from './types'
 
 export type { WidgetProps } from './types'
@@ -36,6 +37,10 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   'kpi-marge': MargeKpi,
   'kpi-creances-clients': CreancesClientsKpi,
   'kpi-dettes-fournisseurs': DettesFournisseursKpi,
+  'kpi-ebe': EbeKpi,
+  'kpi-caf': CafKpi,
+  'kpi-bfr': BfrKpi,
+  'kpi-delais-paiement': DelaisPaiementKpi,
   'chart-produits-charges': ProduitsChargesChart,
   'chart-tresorerie': TresorerieChart,
   'chart-repartition-charges': RepartitionChargesChart,

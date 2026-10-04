@@ -14,11 +14,13 @@
  */
 
 const FORMULA_LEADERS = new Set(['=', '+', '-', '@', '\t', '\r'])
+/** A negative amount ("-1234,56", "-12.5"): a spreadsheet reads it as a number, never as a formula. */
+const NEGATIVE_NUMBER = /^-\d+(?:[.,]\d+)?$/
 
 /** Neutralises one cell value for CSV output. */
 export function csvCell(value: string | number | null | undefined, separator = ';'): string {
   let cell = value == null ? '' : String(value)
-  if (cell.length > 0 && FORMULA_LEADERS.has(cell[0]!)) cell = `'${cell}`
+  if (cell.length > 0 && FORMULA_LEADERS.has(cell[0]!) && !NEGATIVE_NUMBER.test(cell)) cell = `'${cell}`
   if (cell.includes(separator) || cell.includes('"') || cell.includes('\n') || cell.includes('\r')) {
     cell = `"${cell.replaceAll('"', '""')}"`
   }

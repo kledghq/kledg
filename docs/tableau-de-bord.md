@@ -20,6 +20,7 @@ source partagent cette requête. Les montants sont en centimes.
 | Trésorerie | `ledger` | Solde des comptes 512, et soldes déclarés par les banques (comptes remplacés par une connexion directe exclus) |
 | TVA | `ledger` | Estimation d'après les comptes 445 (crédit moins débit : à payer, ou crédit) |
 | Marge commerciale | `ledger` | 707 et 7097 moins 607, 6087, 6097 et 6037 (formulaire 2052, lignes FC, FS, FT) ; sans objet sans marchandises |
+| Excédent brut d'exploitation, Capacité d'autofinancement, Besoin en fonds de roulement, Délais de paiement | `indicators` | Les chiffres de la page SIG et ratios (`lib/reports/financial-indicators`, [indicateurs financiers](indicateurs-financiers.md)) : EBE et résultat d'exploitation, CAF et résultat de l'exercice, BFR et trésorerie nette, délais clients et fournisseurs en jours, TVA comprise ; lien vers la page |
 | Créances clients, Dettes fournisseurs | `ledger` | Soldes des comptes 411 et 401 |
 | Répartition des charges | `ledger` | Postes 60 à 65, puis le reste de la classe 6 |
 | Produits et charges par mois | `monthly` | Agrégat SQL par mois (`lib/reports/dashboard.ts`) |

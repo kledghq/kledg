@@ -28,6 +28,8 @@ import { WIDGET_SOURCES, type WidgetSource } from './widgets'
 import { getAgedBalance } from '@/lib/reports/third-parties/get-third-party-reports.service'
 import { overdueCents, type AgedSection, type ThirdPartyKind } from '@/lib/reports/third-parties/third-party-balances'
 import type { PaymentTerms } from '@/lib/reports/third-parties/payment-terms'
+import { computeFiscalYearIndicators } from '@/lib/reports/financial-indicators/get-financial-indicators.service'
+import type { FinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 
 /** Sources served by GET /api/dashboard/widgets (the checklist has its own route). */
 export const SERVED_SOURCES = WIDGET_SOURCES.filter((s): s is Exclude<WidgetSource, 'onboarding'> => s !== 'onboarding')
@@ -162,6 +164,25 @@ async function loadLedger(companyId: string, fy: FiscalYear, ctx: LoadContext): 
     summary: summarizeLedger(accounts),
     previous,
     bank,
+  }
+}
+
+// ---------------------------------------------------------------- financial indicators
+
+export interface IndicatorsData {
+  fiscalYear: FiscalYearRef | null
+  /** The day the payment delays stop at (today within the fiscal year). */
+  asOf?: string
+  /** SIG, CAF, BFR, delays and ratios (lib/reports/financial-indicators), the same figures as the page. */
+  indicators?: FinancialIndicators
+}
+
+async function loadIndicators(companyId: string, fy: FiscalYear, ctx: LoadContext): Promise<IndicatorsData> {
+  const reference = referenceDay(fy, ctx.now)
+  return {
+    fiscalYear: fiscalYearRef(fy),
+    asOf: calendarDayOf(reference) as string,
+    indicators: await computeFiscalYearIndicators(companyId, fy, reference),
   }
 }
 
@@ -443,6 +464,7 @@ async function loadAgedBalance(companyId: string, fy: FiscalYear, ctx: LoadConte
 
 export interface WidgetDataBySource {
   ledger: LedgerData
+  indicators: IndicatorsData
   monthly: MonthlyData
   treasury: TreasuryData
   reconciliation: ReconciliationData
@@ -460,6 +482,7 @@ type CompanyLoader<S extends ServedSource> = (companyId: string, ctx: LoadContex
 /** Loaders of the sources that read one fiscal year (null fiscal year: the company has none). */
 const FISCAL_YEAR_LOADERS: { [S in ServedSource]?: FiscalYearLoader<S> } = {
   ledger: loadLedger,
+  indicators: loadIndicators,
   monthly: loadMonthly,
   treasury: loadTreasury,
   drafts: loadDrafts,

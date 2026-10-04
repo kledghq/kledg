@@ -39,6 +39,7 @@ export const WIDGET_CATEGORY_LABELS: Record<WidgetCategory, string> = {
  */
 export const WIDGET_SOURCES = [
   'ledger',
+  'indicators',
   'monthly',
   'treasury',
   'reconciliation',
@@ -55,6 +56,7 @@ export type WidgetSource = (typeof WIDGET_SOURCES)[number]
 /** What reading a source requires; the API checks it again on every request. */
 export const SOURCE_PERMISSIONS: Record<WidgetSource, Permission> = {
   ledger: { reports: ['read'] },
+  indicators: { reports: ['read'] },
   monthly: { reports: ['read'] },
   treasury: { reports: ['read'] },
   reconciliation: { banking: ['read'] },
@@ -182,6 +184,42 @@ export const WIDGETS = [
     description: 'Ce que vous devez encore à vos fournisseurs (solde des comptes 401).',
     category: 'kpi',
     source: 'ledger',
+    sizes: KPI_SIZES,
+    defaultSize: 'S',
+  },
+  {
+    id: 'kpi-ebe',
+    title: "Excédent brut d'exploitation",
+    description: "Ce que l'activité dégage avant amortissements, frais financiers et impôt sur les bénéfices (soldes intermédiaires de gestion).",
+    category: 'kpi',
+    source: 'indicators',
+    sizes: KPI_SIZES,
+    defaultSize: 'S',
+  },
+  {
+    id: 'kpi-caf',
+    title: "Capacité d'autofinancement",
+    description: "Le résultat de l'exercice sans les dotations, reprises et cessions : ce qui reste pour investir ou rembourser.",
+    category: 'kpi',
+    source: 'indicators',
+    sizes: KPI_SIZES,
+    defaultSize: 'S',
+  },
+  {
+    id: 'kpi-bfr',
+    title: 'Besoin en fonds de roulement',
+    description: 'Stocks et créances moins dettes fournisseurs, fiscales et sociales, lus au bilan.',
+    category: 'kpi',
+    source: 'indicators',
+    sizes: KPI_SIZES,
+    defaultSize: 'S',
+  },
+  {
+    id: 'kpi-delais-paiement',
+    title: 'Délais de paiement',
+    description: 'Délai moyen de paiement de vos clients et de vos fournisseurs, en jours (DSO et DPO).',
+    category: 'kpi',
+    source: 'indicators',
     sizes: KPI_SIZES,
     defaultSize: 'S',
   },
