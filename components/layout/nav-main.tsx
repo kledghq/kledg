@@ -16,9 +16,10 @@ import {
 /**
  * Company navigation. One item is active at a time: the entry whose URL is
  * the longest prefix of the current path, so detail pages (an account, an
- * entry) keep their section highlighted.
+ * entry) keep their section highlighted. Entries marked holdingOnly appear
+ * only when the current company is in `holdingRefs` (ids and slugs).
  */
-export function NavMain({ groups }: { groups: NavGroup[] }) {
+export function NavMain({ groups, holdingRefs = [] }: { groups: NavGroup[]; holdingRefs?: readonly string[] }) {
   const pathname = usePathname() ?? ""
   const params = useParams()
   const companyId = params?.companyId as string | undefined
@@ -29,10 +30,12 @@ export function NavMain({ groups }: { groups: NavGroup[] }) {
   const activeUrl = findNavEntry(relativePath)?.url
 
   const href = (url: string) => (url === "/" ? base || "/" : `${base}${url}`)
+  const isHolding = companyId !== undefined && holdingRefs.includes(companyId)
+  const visibleGroups = groups.map((group) => ({ ...group, items: group.items.filter((item) => !item.holdingOnly || isHolding) }))
 
   return (
     <>
-      {groups.map((group, index) => (
+      {visibleGroups.map((group, index) => (
         <SidebarGroup key={group.label ?? index} className="py-1">
           {group.label ? <SidebarGroupLabel>{group.label}</SidebarGroupLabel> : null}
           <SidebarMenu>

@@ -54,6 +54,8 @@ export const COMPANY_TABLES: readonly string[] = [
   'expense_reports',
   'expense_category_rules',
   'budgets',
+  'management_fee_conventions',
+  'management_fee_billings',
 ]
 
 /** Child tables reachable through their parent (EXISTS policies): table -> [parent, foreign key]. */
@@ -76,6 +78,7 @@ export const CHILD_TABLES: Readonly<Record<string, readonly [parent: string, for
   budget_lines: ['budgets', 'budgetId'],
   budget_line_amounts: ['budget_lines', 'lineId'],
   budget_recurring_items: ['budget_lines', 'lineId'],
+  management_fee_subsidiaries: ['management_fee_conventions', 'conventionId'],
 }
 
 /** Functions of integrity triggers that must read every row whatever the context (SECURITY DEFINER). */

@@ -14,14 +14,18 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-export function AppSidebar({ companies, ...props }: React.ComponentProps<typeof Sidebar> & { companies?: SwitcherCompany[] }) {
+export function AppSidebar({
+  companies,
+  holdingRefs,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & { companies?: SwitcherCompany[]; holdingRefs?: string[] }) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <TeamSwitcher initialCompanies={companies} />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain groups={navGroups} />
+        <NavMain groups={navGroups} holdingRefs={holdingRefs} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

@@ -20,6 +20,7 @@ import {
   Link2,
   ListChecks,
   ListTree,
+  Network,
   Package,
   Receipt,
   ReceiptText,
@@ -39,6 +40,8 @@ export interface NavItem {
   title: string
   url: string
   icon: LucideIcon
+  /** Shown only in a holding: a company recorded as shareholder of another company (lib/management-fees/holding.ts). */
+  holdingOnly?: boolean
 }
 
 export interface NavGroup {
@@ -73,6 +76,7 @@ export const navGroups: NavGroup[] = [
       { title: "Tiers", url: "/tiers", icon: BookUser },
       { title: "Notes de frais", url: "/expense-reports", icon: ReceiptText },
       { title: "Mes notes de frais", url: "/expense-reports/mine", icon: Wallet },
+      { title: "Frais de gestion", url: "/management-fees", icon: Network, holdingOnly: true },
     ],
   },
   {
@@ -139,6 +143,9 @@ const subPages: Array<{ path: string; title: string }> = [
   { path: "/expense-reports/[id]/edit", title: "Modifier la note de frais" },
   { path: "/expense-reports/[id]", title: "Note de frais" },
   { path: "/tiers/[id]", title: "Tiers" },
+  { path: "/management-fees/new", title: "Nouvelle convention" },
+  { path: "/management-fees/[id]/edit", title: "Modifier la convention" },
+  { path: "/management-fees/[id]", title: "Convention de frais de gestion" },
 ]
 
 function matchesPattern(pattern: string, relativePath: string): boolean {
