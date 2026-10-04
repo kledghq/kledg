@@ -105,6 +105,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/qonto/verify/route.ts': /guardBankConnect\(/,
   'lib/invoices/import-qonto-invoices.service.ts': /limitBankCalls\(/,
   'lib/invoices/read-invoice-attachment.service.ts': /limitBankCalls\(/,
+  'lib/simple/upload-receipt.service.ts': /limitBankCalls\(/,
   'lib/account/change-email.service.ts': /enforceRateLimit\('account-change-email'/,
   'lib/account/change-password.service.ts': /enforceRateLimit\('account-change-password'/,
   'lib/account/delete-account.service.ts': /enforceRateLimit\('account-delete'/,

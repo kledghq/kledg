@@ -30,12 +30,13 @@ export type { Suggestion, SuggestedLine } from './types'
 type Transaction = BankTransaction & { bankAccount: { name: string; iban: string | null } }
 
 /** Counterparty name: the provider's cleaned name, kept on the row since the Qonto sync. */
-export function counterpartyOf(transaction: BankTransaction): string | null {
+export function counterpartyOf(transaction: Pick<BankTransaction, 'counterpartyName' | 'providerData'>): string | null {
   const provider = transaction.providerData as { clean_counterparty_name?: string } | null
   return transaction.counterpartyName?.trim() || provider?.clean_counterparty_name?.trim() || null
 }
 
-function enrich(transaction: Transaction): EnrichedTransaction {
+/** The transaction as the rule matcher reads it: counterparty, bank categories and operation type from the provider data. */
+export function enrichTransaction(transaction: Transaction): EnrichedTransaction {
   const provider = (transaction.providerData ?? {}) as Record<string, unknown>
   const name = (key: string) => ((provider[key] as { name?: string } | null | undefined)?.name ?? null)
   return {
@@ -90,7 +91,7 @@ export function scaleNets(nets: number[], target: number): number[] {
 }
 
 async function fromRule(companyId: string, transaction: Transaction): Promise<Suggestion | null> {
-  const matches = (await findMatchingRules(companyId, enrich(transaction))).filter((m) => m.matched)
+  const matches = (await findMatchingRules(companyId, enrichTransaction(transaction))).filter((m) => m.matched)
   // Highest confidence first; the matcher already orders by rule priority
   matches.sort((a, b) => b.confidence - a.confidence)
   for (const match of matches) {

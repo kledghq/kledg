@@ -101,6 +101,11 @@ model Company {
   /// services post their VAT to 44574 "TVA collectée en attente d'encaissement"
   /// until paid (lib/invoices/posting-plan.ts).
   servicesVatOnDebits    Boolean           @default(false)
+  /// Simple mode (docs/categories-simples.md): whether the entries a user
+  /// confirms in simple mode stay drafts until the accountant validates them.
+  /// Null: the default, on when the company has a member with the accountant
+  /// role (lib/simple/simple-mode-settings.service.ts).
+  simpleModeAccountantReview Boolean?
   /// Set when an instance administrator archives the company: read-only and
   /// hidden from the lists (lib/companies/archive-company.service.ts). A company
   /// holding validated entries or a closed fiscal year is archived, never deleted.
@@ -154,6 +159,7 @@ model Company {
   investmentGrants           InvestmentGrant[]
   investmentGrantTransfers   InvestmentGrantTransfer[]
   accountsApprovals          AccountsApproval[]
+  simpleModeEntries          SimpleModeEntry[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -339,6 +345,7 @@ model AccountingEntry {
   invoice                 Invoice?                 @relation("InvoiceEntry")
   expenseReport           ExpenseReport?           @relation("ExpenseReportEntry")
   vatTransfers            InvoicePayment[]         @relation("InvoicePaymentVatTransfer")
+  simpleModeEntry         SimpleModeEntry?
   // Tous les comptes d'une écriture doivent appartenir au même exercice fiscal
 
   @@unique([entryNumber, fiscalYearId])
@@ -539,6 +546,7 @@ model BankTransaction {
   attachments         Attachment[]
   reconciliationEntry AccountingEntry?      @relation("ReconciliationEntry")
   syncMatch           BankTransactionMatch?
+  simpleModeEntries   SimpleModeEntry[]
 
   /// Company of the bank account's connection, set by the database (trigger
   /// kledg_rls_bank_transaction_company) for the row level security policies
@@ -2419,4 +2427,45 @@ model AccountsApproval {
   @@unique([fiscalYearId, companyId])
   @@index([companyId])
   @@map("accounts_approvals")
+}
+
+/// An entry confirmed in simple mode (docs/categories-simples.md): the plain
+/// language category the user chose for a bank transaction, the answers to
+/// its question, the note for the accountant and whether the accountant must
+/// validate it. The entry itself goes through the entry and reconciliation
+/// services like any other; this row only records where it came from, so the
+/// accountant finds it ("Saisies du mode simple") and the history of a
+/// counterparty feeds the next suggestions. Deleted with its entry (a draft
+/// removed by undoing the reconciliation).
+model SimpleModeEntry {
+  id                String   @id @default(cuid())
+  companyId         String
+  entryId           String   @unique
+  bankTransactionId String?
+  /// Category of the catalogue (lib/simple/categories.ts); null when a transaction rule chose the lines.
+  categoryId        String?
+  /// Transaction rule applied, when the user confirmed a rule's suggestion.
+  ruleId            String?
+  /// Answers to the category's question, { questionId: answerId }.
+  answers           Json?
+  note              String?
+  /// Normalized counterparty (lib/subscriptions/detect.ts counterpartyKey): the history key.
+  counterpartyKey   String
+  /// The entry was left a draft for the accountant (company setting at confirmation).
+  needsReview       Boolean  @default(false)
+  /// Transaction rule created or updated from this choice after repeated identical choices.
+  learnedRuleId     String?
+  /// web or mcp.
+  source            String   @default("web")
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entry           AccountingEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, counterpartyKey])
+  @@index([bankTransactionId])
+  @@map("simple_mode_entries")
 }
