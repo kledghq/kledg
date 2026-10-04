@@ -22,6 +22,7 @@ Related docs: [architecture.md](architecture.md) (folders, principles),
 | Allowlists stay honest | `lib/__tests__/conventions-allowlist.test.ts` |
 | Migrations immutable and additive | `scripts/check-migrations.mjs` (CI) |
 | Authorization of every route and role, no secret in responses | `lib/api/__tests__/authorization-matrix.test.ts` |
+| Every route, service and MCP tool has a test | `lib/__tests__/feature-tests.test.ts` |
 
 ## Architecture
 
@@ -363,6 +364,26 @@ it must hold for every code path, by the database (trigger in a migration).
 | Component | `*.test.tsx` | jsdom | shared components, a11y contracts |
 | Architecture | `lib/__tests__/architecture.test.ts`, `routes.test.ts`... | the source tree | the rules of this document |
 
+- **Every feature has a test** (enforced by `lib/__tests__/feature-tests.test.ts`):
+  - every route file (`app/**/route.ts`) is imported by a test other than the
+    generic guards (authorization matrix, route coverage), which only check
+    status codes;
+  - every service (`lib/**/*.service.ts`) is imported by a test, or by a
+    route that a test imports without mocking the service (routes are thin,
+    so testing the route tests its service);
+  - every MCP tool (`registerTool('name'`, `fullControlTool({ name: 'name'`)
+    is named by a test.
+
+  A `vi.mock` of a module does not count. Files that legitimately have no
+  test of their own go in the `ALLOWLIST` of that test with the reason
+  (types-only module, pure re-export); it is empty today. An entry that gets
+  a test or disappears fails the test until it is removed, so the list stays
+  minimal. The check proves nobody forgot a test, not that the test is good:
+  assert behaviour with concrete values (figures, French messages, rows
+  written, status codes), never a snapshot alone or a bare import.
+- Measure with `pnpm test:coverage` (v8, report in `coverage/`), with the
+  database tests enabled (`KLEDG_REQUIRE_TEST_DB=1`): without them the
+  services they cover read as untested.
 - Deterministic: inject `now` (`todayUtc(now)`) instead of reading the
   clock; set `TZ` explicitly in date tests; no network.
 - Every accounting or tax rule has a test naming its source, and a

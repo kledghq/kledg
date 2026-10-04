@@ -9,6 +9,7 @@ rules are in [docs/conventions.md](../../docs/conventions.md#testing).
 | File | Checks |
 |---|---|
 | `architecture.test.ts` | Import boundaries: client code never reaches server modules |
+| `feature-tests.test.ts` | Every route, service and MCP tool is imported or named by a test (`ALLOWLIST` with reasons) |
 | `conventions-allowlist.test.ts` | `KNOWN_VIOLATIONS` (`eslint/conventions.mjs`) lists only files that still break their rule |
 | `design-system-guards.test.ts` | Design system rules that ESLint cannot express |
 | `accounting-services.test.ts`, `accounting-validator.test.ts` | Entry numbering, entry services and the validators of `lib/accounting/validator.ts` |
