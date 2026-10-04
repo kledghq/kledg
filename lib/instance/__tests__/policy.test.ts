@@ -44,6 +44,12 @@ describe('default instance policy', () => {
   })
 })
 
+describe('read-only companies', () => {
+  it('are never decided by the default policy', async () => {
+    expect(await policy.companyWriteRefusal('c1')).toBeNull()
+  })
+})
+
 describe('company creation', () => {
   const user = { id: 'u2', email: 'user@example.com', role: 'user' }
 

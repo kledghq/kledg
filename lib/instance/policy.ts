@@ -44,6 +44,18 @@ export async function afterCompanyCreated(companyId: string, actor: InstanceActo
 }
 
 /**
+ * Why the data of company `companyId` may not change now (a read-only
+ * company: an unpaid subscription, for instance), or null. Checked on every
+ * write of a company route and of an MCP tool, after the archive check
+ * (lib/companies/archive-company.service.ts); reads and exports stay open.
+ * Kledg: never refused.
+ */
+export async function companyWriteRefusal(companyId: string): Promise<ActionRefusal | null> {
+  void companyId
+  return null
+}
+
+/**
  * API paths (prefixes of the request path) served by routes that
  * authenticate requests themselves, with the reason. The proxy lets them
  * through without a session and the route architecture test

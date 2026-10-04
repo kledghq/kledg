@@ -21,6 +21,7 @@ import { COMPANY_HAS_BOOKS_MESSAGE, ConflictError, NotFoundError } from '@/lib/a
 import { COMPANY_NOT_FOUND_MESSAGE } from '@/lib/rbac/authorize'
 import { writeAuditLog } from '@/lib/audit'
 import type { CurrentUser } from '@/lib/session'
+import { companyWriteRefusal } from '@/lib/instance'
 
 export const ARCHIVED_COMPANY_MESSAGE =
   "Cette société est archivée : elle est en lecture seule. Un administrateur de l'instance peut la restaurer depuis la page Sociétés."
@@ -28,10 +29,16 @@ export const ARCHIVED_COMPANY_MESSAGE =
 /** Filter of the companies shown in lists: archived ones are left out. */
 export const NOT_ARCHIVED = { archivedAt: null } as const
 
-/** Throws a 409 when the company is archived (writes of company routes and MCP tools). */
+/**
+ * Throws a 409 when the company is archived, or when the instance policy
+ * makes it read-only (companyWriteRefusal, lib/instance/policy.ts; its link
+ * goes in the details). Called on writes of company routes and MCP tools.
+ */
 export async function assertCompanyWritable(companyId: string): Promise<void> {
   const company = await prisma.company.findUnique({ where: { id: companyId }, select: { archivedAt: true } })
   if (company?.archivedAt) throw new ConflictError(ARCHIVED_COMPANY_MESSAGE)
+  const refusal = await companyWriteRefusal(companyId)
+  if (refusal) throw new ConflictError(refusal.message).withDetails(refusal.link ? { link: refusal.link } : {})
 }
 
 /** Whether the company holds books that must be kept: a validated entry or a closed fiscal year. */

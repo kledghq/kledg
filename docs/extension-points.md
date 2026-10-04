@@ -22,6 +22,7 @@ isActionAllowed(action: InstanceAction, actor: InstanceActor | null): Promise<bo
 actionRefusalMessage(action: InstanceAction): string
 companyCreationRefusal(actor: InstanceActor): Promise<ActionRefusal | null>
 afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
+companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
 ```
 
@@ -69,6 +70,20 @@ button. A refusal answers 403 with the message, its link in the response
 (`{ error, link }`); the wizard page shows the message and the link instead
 of the form. `afterCompanyCreated` runs once the company is ready (a fork
 records who owns it, for instance); Kledg does nothing there.
+
+### Read-only companies
+
+```ts
+companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
+```
+
+Checked by `assertCompanyWritable` (`lib/companies/archive-company.service.ts`)
+after the archive check, so on every state-changing request of a company
+route (`companyRoute`) and every MCP tool that does more than read. A refusal
+answers 409 with its message and link (`{ error, link }`); reads, reports
+and exports (all GET) keep working. A fork makes a company read-only this
+way (an unpaid subscription, a legal hold) without hiding any data. Kledg
+answers null.
 
 `SELF_AUTHENTICATED_API_ROUTES` maps API path prefixes to the reason they are
 safe without a session (an API key, a `CRON_SECRET` bearer token). The
