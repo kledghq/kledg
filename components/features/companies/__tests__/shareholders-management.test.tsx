@@ -33,7 +33,8 @@ const holding: Row = {
   capitalAmount: null,
   companyShareholderId: 'c-holding',
   personId: null,
-  companyShareholder: { id: 'c-holding', name: 'Holding SAS', siret: '12345678900011', legalType: 'SAS' },
+  // What the API selects (lib/companies/manage-shareholders.service.ts): the SIREN, no SIRET.
+  companyShareholder: { id: 'c-holding', name: 'Holding SAS', siren: '123456789', legalType: 'SAS' },
 }
 const external: Row = {
   id: 'sh3',
@@ -109,7 +110,7 @@ describe('ShareholdersManagement', () => {
 
     const holdingRow = screen.getByText('Holding SAS').closest('tr')!
     expect(within(holdingRow).getByText('Société')).toBeInTheDocument()
-    expect(holdingRow).toHaveTextContent('SIRET : 12345678900011')
+    expect(holdingRow).toHaveTextContent('SIREN : 123456789')
     expect(holdingRow).toHaveTextContent('Non renseigné')
 
     const externalRow = screen.getByText('Fonds Externe').closest('tr')!

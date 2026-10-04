@@ -60,10 +60,11 @@ import type { Address } from '@/lib/utils/address'
 
 // Extended Shareholder interface with nested relations
 interface ShareholderWithRelations extends Shareholder {
+  /** A company of this instance: the API selects its SIREN (a company has no SIRET, its establishments do). */
   companyShareholder?: {
     id: string
     name: string
-    siret: string | null
+    siren: string | null
     legalType: string | null
   } | null
   person?: {
@@ -347,9 +348,9 @@ export function ShareholdersManagement({
                           <div className="font-medium">
                             {editingShareholder.companyShareholder.name}
                           </div>
-                          {editingShareholder.companyShareholder.siret && (
+                          {editingShareholder.companyShareholder.siren && (
                             <div className="text-xs text-muted-foreground">
-                              SIRET&nbsp;: {editingShareholder.companyShareholder.siret}
+                              SIREN&nbsp;: {editingShareholder.companyShareholder.siren}
                             </div>
                           )}
                           {editingShareholder.companyShareholder.legalType && (
@@ -715,8 +716,8 @@ export function ShareholdersManagement({
                         {isCompanyShareholder && shareholder.companyShareholder ? (
                           <div>
                             <div className="font-medium">{shareholder.companyShareholder.name}</div>
-                            {shareholder.companyShareholder.siret && (
-                              <div className="text-xs text-muted-foreground">SIRET&nbsp;: {shareholder.companyShareholder.siret}</div>
+                            {shareholder.companyShareholder.siren && (
+                              <div className="text-xs text-muted-foreground">SIREN&nbsp;: {shareholder.companyShareholder.siren}</div>
                             )}
                           </div>
                         ) : shareholder.type === 'PHYSICAL' && shareholder.person ? (
