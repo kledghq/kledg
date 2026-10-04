@@ -236,8 +236,8 @@ const DETAIL_SELECT = {
   },
 } satisfies Prisma.InvoiceSelect
 
-export async function getInvoice(companyId: string, id: string) {
-  const row = await prisma.invoice.findFirst({ where: { id, companyId }, select: DETAIL_SELECT })
+export async function getInvoice(companyId: string, id: string, db: Db = prisma) {
+  const row = await db.invoice.findFirst({ where: { id, companyId }, select: DETAIL_SELECT })
   if (!row) throw new NotFoundError(INVOICE_NOT_FOUND)
   return {
     ...summaryOf(row),
@@ -412,8 +412,17 @@ async function loadCompany(db: Db, companyId: string) {
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const
 
-export async function createInvoice(companyId: string, input: CreateInvoiceInput, options: { source?: string } = {}): Promise<InvoiceDetail> {
-  const id = await prisma.$transaction(async (tx) => {
+/**
+ * Records an invoice. With `options.db`, runs in the caller's transaction (the
+ * management fee generation, which serializes its invoices under one lock);
+ * else in its own.
+ */
+export async function createInvoice(
+  companyId: string,
+  input: CreateInvoiceInput,
+  options: { source?: string; db?: Prisma.TransactionClient } = {},
+): Promise<InvoiceDetail> {
+  const run = async (tx: Prisma.TransactionClient) => {
     const company = await loadCompany(tx, companyId)
     const tiers = await loadTiersForInvoice(tx, companyId, input.tiersId, input.direction)
     const { prepared, totals } = prepareLines(input.direction, input.lines, company)
@@ -438,13 +447,14 @@ export async function createInvoice(companyId: string, input: CreateInvoiceInput
       select: { id: true },
     })
     return created.id
-  }, TX_OPTIONS)
+  }
+  const id = options.db ? await run(options.db) : await prisma.$transaction(run, TX_OPTIONS)
   await writeAuditLog('info', `Invoice recorded: ${input.number}`, {
     action: 'CREATE_INVOICE',
     companyId,
     metadata: { invoiceId: id, direction: input.direction, source: options.source ?? 'web' },
   })
-  return getInvoice(companyId, id)
+  return getInvoice(companyId, id, options.db)
 }
 
 /** Locks an invoice row of the company and returns its state (FOR UPDATE: posting and edits never interleave). */

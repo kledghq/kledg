@@ -297,6 +297,33 @@ describe.skipIf(!available)('management fees (PostgreSQL)', () => {
       expect((await prisma.invoice.findFirstOrThrow({ where: { companyId: s1.companyId, direction: 'PURCHASE' } })).totalExclTax.toString()).toBe('7875')
     })
 
+    // KLEDG-SEC-010 (lib/__tests__/security/findings.ts): two generations at once
+    // used to pass the overlap check and the billing lookup together, then both
+    // recorded a sales invoice for the same subsidiary.
+    it('[KLEDG-SEC-010] never invoices a subsidiary twice when generations run at once', async () => {
+      const created = await asHolding(ACCOUNTANT, (a) => conventions.createConvention(holding.companyId, convention(), a))
+      const generate = (period: { periodStart: string; periodEnd: string }) =>
+        asHolding(ACCOUNTANT, (a) => billing.generateManagementFeeInvoices(holding.companyId, created.id, { ...period, purchaseDrafts: false }, a))
+      const runs = await Promise.allSettled([generate(Q1), generate(Q1), generate(Q1)])
+      expect(runs.filter((r) => r.status === 'fulfilled').length).toBeGreaterThanOrEqual(1)
+      for (const run of runs) if (run.status === 'rejected') expect(run.reason).toBeInstanceOf(ConflictError)
+      expect(await prisma.invoice.count({ where: { companyId: holding.companyId, direction: 'SALE', number: { startsWith: 'FG-' } } })).toBe(2)
+      expect(await prisma.managementFeeBilling.count({ where: { salesInvoiceId: { not: null } } })).toBe(2)
+    })
+
+    it('[KLEDG-SEC-010] never invoices overlapping periods when generations run at once', async () => {
+      const created = await asHolding(ACCOUNTANT, (a) => conventions.createConvention(holding.companyId, convention(), a))
+      const generate = (period: { periodStart: string; periodEnd: string }) =>
+        asHolding(ACCOUNTANT, (a) => billing.generateManagementFeeInvoices(holding.companyId, created.id, { ...period, purchaseDrafts: false }, a))
+      const runs = await Promise.allSettled([generate(Q1), generate({ periodStart: '2026-02-01', periodEnd: '2026-04-30' })])
+      expect(runs.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected'])
+      const refused = runs.find((r) => r.status === 'rejected') as PromiseRejectedResult
+      expect(refused.reason).toBeInstanceOf(ConflictError)
+      const periods = await prisma.managementFeeBilling.findMany({ select: { periodStart: true }, distinct: ['periodStart'] })
+      expect(periods).toHaveLength(1)
+      expect(await prisma.invoice.count({ where: { companyId: holding.companyId, direction: 'SALE', number: { startsWith: 'FG-' } } })).toBe(2)
+    })
+
     it('checks the right to write in every subsidiary before writing anything', async () => {
       const created = await asHolding(MIXED, (a) =>
         conventions.createConvention(holding.companyId, convention({ allocationKey: 'EQUAL', pricing: 'FIXED', fixedAmountCents: 300_000 }), a),

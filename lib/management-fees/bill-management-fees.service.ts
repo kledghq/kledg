@@ -23,6 +23,10 @@
  *   retried generation completes what is missing and creates nothing twice;
  *   an invoiced billing is never recomputed (Ledgerly overwrote invoiced
  *   fees on recalculation); a period overlapping an invoiced one is refused;
+ * - the holding's side of a generation (overlap check, billings, sales
+ *   invoices) runs in one transaction under a lock per convention, so two
+ *   generations at once never invoice a subsidiary or a period twice
+ *   (KLEDG-SEC-010);
  * - writes in a subsidiary run in its own row level security scope
  *   (inCompany): the holding's context never writes there.
  */
@@ -42,6 +46,8 @@ import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { inCompany, type GroupAccess } from './access'
 import { computeConventionFees, type ManagementFeeComputation, type SubsidiaryIdentity } from './compute-management-fees.service'
 import { CONVENTION_NOT_FOUND, viewSubsidiaries, type Convention } from './manage-conventions.service'
+
+type Db = Prisma.TransactionClient | typeof prisma
 
 /** Body of POST /api/management-fees/conventions/[id]/invoices. */
 export const GenerateInvoicesBodySchema = z.object({
@@ -67,10 +73,16 @@ const tiersIdentifiers = (party: Party) => ({
 })
 
 /** The tiers of `party` in the current company (found by SIREN), or a new one. */
-async function ensureTiers(companyId: string, kind: 'CUSTOMER' | 'SUPPLIER', party: Party, defaults: { accountCode: string; vatRateBp: number }): Promise<string> {
+async function ensureTiers(
+  companyId: string,
+  kind: 'CUSTOMER' | 'SUPPLIER',
+  party: Party,
+  defaults: { accountCode: string; vatRateBp: number },
+  tx?: Prisma.TransactionClient,
+): Promise<string> {
   const ids = tiersIdentifiers(party)
   // By SIREN; by name for a company whose SIREN does not pass the checksum (it is then not copied to the tiers).
-  const existing = await prisma.tiers.findFirst({
+  const existing = await (tx ?? prisma).tiers.findFirst({
     where: { companyId, kind, ...(ids.siren ? { siren: ids.siren } : { name: party.name, siren: null }) },
     select: { id: true },
     orderBy: { createdAt: 'asc' },
@@ -79,15 +91,15 @@ async function ensureTiers(companyId: string, kind: 'CUSTOMER' | 'SUPPLIER', par
   const created = await createTiers(
     companyId,
     { kind, name: party.name, ...ids, defaultAccountCode: defaults.accountCode, defaultVatRateBp: defaults.vatRateBp },
-    { source: 'management-fees' },
+    { source: 'management-fees', db: tx },
   )
   return created.id
 }
 
 /** Next number of the series <prefix>-<year>- among the company's sales invoices. */
-async function nextInvoiceNumber(companyId: string, prefix: string, year: string): Promise<string> {
+async function nextInvoiceNumber(db: Db, companyId: string, prefix: string, year: string): Promise<string> {
   const stem = `${prefix}-${year}-`
-  const rows = await prisma.invoice.findMany({ where: { companyId, direction: 'SALE', number: { startsWith: stem } }, select: { number: true }, take: 10_000 })
+  const rows = await db.invoice.findMany({ where: { companyId, direction: 'SALE', number: { startsWith: stem } }, select: { number: true }, take: 10_000 })
   const last = rows.reduce((max, r) => {
     const n = /^\d+$/.test(r.number.slice(stem.length)) ? Number(r.number.slice(stem.length)) : 0
     return Math.max(max, n)
@@ -99,10 +111,18 @@ function lineLabel(convention: Convention, start: string, end: string): string {
   return `Prestations de services (convention « ${convention.label} ») du ${formatIsoDateFr(start)} au ${formatIsoDateFr(end)}`.slice(0, 500)
 }
 
-/** Creates the holding's sales invoice in the series; retries with the next number when a concurrent generation took it. */
-async function createSalesInvoice(holdingId: string, convention: Convention, tiersId: string, amountCents: number, issueDate: string, period: { start: string; end: string }) {
+/** Creates the holding's sales invoice in the series, in `tx`; retries with the next number when an invoice entered meanwhile took it. */
+async function createSalesInvoice(
+  tx: Prisma.TransactionClient,
+  holdingId: string,
+  convention: Convention,
+  tiersId: string,
+  amountCents: number,
+  issueDate: string,
+  period: { start: string; end: string },
+) {
   for (let attempt = 0; ; attempt += 1) {
-    const number = await nextInvoiceNumber(holdingId, convention.invoicePrefix, issueDate.slice(0, 4))
+    const number = await nextInvoiceNumber(tx, holdingId, convention.invoicePrefix, issueDate.slice(0, 4))
     try {
       return await createInvoice(
         holdingId,
@@ -125,10 +145,10 @@ async function createSalesInvoice(holdingId: string, convention: Convention, tie
             },
           ],
         },
-        { source: 'management-fees' },
+        { source: 'management-fees', db: tx },
       )
     } catch (error) {
-      const taken = error instanceof ConflictError && (await prisma.invoice.findFirst({ where: { companyId: holdingId, direction: 'SALE', number }, select: { id: true } }))
+      const taken = error instanceof ConflictError && (await tx.invoice.findFirst({ where: { companyId: holdingId, direction: 'SALE', number }, select: { id: true } }))
       if (!taken || attempt >= 4) throw error
     }
   }
@@ -183,8 +203,8 @@ const BILLING_KEY = (conventionId: string, subsidiaryId: string, start: string, 
 })
 
 /** Refuses a period overlapping an invoiced billing of another period (double invoicing). */
-async function assertNoOverlap(holdingId: string, conventionId: string, start: string, end: string) {
-  const overlapping = await prisma.managementFeeBilling.findMany({
+async function assertNoOverlap(db: Db, holdingId: string, conventionId: string, start: string, end: string) {
+  const overlapping = await db.managementFeeBilling.findMany({
     where: {
       companyId: holdingId,
       conventionId,
@@ -204,6 +224,31 @@ async function assertNoOverlap(holdingId: string, conventionId: string, start: s
   }
 }
 
+const BILLING_SELECT = {
+  id: true,
+  amountExclTax: true,
+  vatAmount: true,
+  amountInclTax: true,
+  salesInvoiceId: true,
+  purchaseInvoiceId: true,
+  salesInvoice: { select: { id: true, number: true, issueDate: true } },
+} satisfies Prisma.ManagementFeeBillingSelect
+
+type BillingRow = Prisma.ManagementFeeBillingGetPayload<{ select: typeof BILLING_SELECT }>
+
+const TX_OPTIONS = { maxWait: 20_000, timeout: 60_000 } as const
+
+/**
+ * Serializes the holding's side of the generations of one convention
+ * (KLEDG-SEC-010): two generations at once used to pass the overlap check
+ * and the billing lookup together, then both invoiced the same subsidiary,
+ * or two overlapping periods. Taken first in the transaction that records
+ * the sales invoices, then the state is read again.
+ */
+async function lockConventionBillings(tx: Prisma.TransactionClient, conventionId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:management-fee-billing:${conventionId}`}))`
+}
+
 /**
  * Invoices the period: the holding's sales invoices and, on request, the
  * subsidiaries' draft purchase invoices. Returns one billing per subsidiary
@@ -215,27 +260,17 @@ export async function generateManagementFeeInvoices(
   input: GenerateInvoicesInput,
   access: GroupAccess,
 ): Promise<{ billings: GeneratedBilling[] }> {
-  // Before computing: an overlap is the first thing to tell, whatever the books say now.
-  await assertNoOverlap(holdingId, conventionId, input.periodStart, input.periodEnd)
+  // Before computing: an overlap is the first thing to tell, whatever the books say now
+  // (checked again under the lock below).
+  await assertNoOverlap(prisma, holdingId, conventionId, input.periodStart, input.periodEnd)
   const computation = await computeConventionFees(holdingId, conventionId, { periodStart: input.periodStart, periodEnd: input.periodEnd }, access)
   const { convention, result } = computation
   const period = computation.period
   const issueDate = input.issueDate ?? period.end
   const parts = result.parts.filter((p) => p.amountExclTaxCents > 0)
   const identities = new Map<string, SubsidiaryIdentity>(computation.subsidiaries.map((s) => [s.id, s]))
-
-  const existing = await prisma.managementFeeBilling.findMany({
-    where: { companyId: holdingId, conventionId, periodStart: dayToDate(period.start), periodEnd: dayToDate(period.end) },
-    select: { id: true, subsidiaryId: true, salesInvoiceId: true, purchaseInvoiceId: true },
-  })
-  const existingBySubsidiary = new Map(existing.map((b) => [b.subsidiaryId, b]))
-  const complete = (subsidiaryId: string) => {
-    const b = existingBySubsidiary.get(subsidiaryId)
-    return Boolean(b?.salesInvoiceId && (!input.purchaseDrafts || b.purchaseInvoiceId))
-  }
-  if (parts.every((p) => complete(p.subsidiaryId))) {
-    throw new ConflictError('Cette période est déjà facturée pour toutes les filiales de la convention.')
-  }
+  const complete = (billing: { salesInvoiceId: string | null; purchaseInvoiceId: string | null } | undefined) =>
+    Boolean(billing?.salesInvoiceId && (!input.purchaseDrafts || billing.purchaseInvoiceId))
 
   // Every right is checked before the first write: a refusal in one
   // subsidiary leaves nothing half done.
@@ -246,44 +281,52 @@ export async function generateManagementFeeInvoices(
   const holding = await prisma.company.findUnique({ where: { id: holdingId }, select: { id: true, name: true, siren: true, vatNumber: true } })
   if (!holding) throw new NotFoundError('Société introuvable')
 
-  const billings: GeneratedBilling[] = []
-  for (const part of parts) {
-    const subsidiary = identities.get(part.subsidiaryId) as SubsidiaryIdentity
-    const key = BILLING_KEY(conventionId, part.subsidiaryId, period.start, period.end)
-    let billing = await prisma.managementFeeBilling.findUnique({
-      where: key,
-      select: { id: true, amountExclTax: true, vatAmount: true, amountInclTax: true, salesInvoiceId: true, purchaseInvoiceId: true, salesInvoice: { select: { id: true, number: true, issueDate: true } } },
+  // The holding's side, in one transaction under the convention's lock: the
+  // overlap and the billings are read again there, so a concurrent
+  // generation finds what this one recorded.
+  const recorded = await prisma.$transaction(async (tx) => {
+    await lockConventionBillings(tx, conventionId)
+    await assertNoOverlap(tx, holdingId, conventionId, period.start, period.end)
+    const existing = await tx.managementFeeBilling.findMany({
+      where: { companyId: holdingId, conventionId, periodStart: dayToDate(period.start), periodEnd: dayToDate(period.end) },
+      select: { subsidiaryId: true, salesInvoiceId: true, purchaseInvoiceId: true },
     })
-    const outcome: GeneratedBilling['outcome'] = billing?.salesInvoiceId ? 'existing' : 'created'
-    if (!billing?.salesInvoiceId) {
-      const amounts = {
-        amountExclTax: centsToDecimal(part.amountExclTaxCents),
-        vatRateBp: convention.vatRateBp,
-        vatAmount: centsToDecimal(part.vatCents),
-        amountInclTax: centsToDecimal(part.amountInclTaxCents),
-        details: billingDetails(computation, part.subsidiaryId) as Prisma.InputJsonValue,
-      }
-      const row = billing
-        ? await prisma.managementFeeBilling.update({ where: { id: billing.id }, data: amounts, select: { id: true } })
-        : await prisma.managementFeeBilling.create({
-            data: { companyId: holdingId, conventionId, subsidiaryId: part.subsidiaryId, periodStart: dayToDate(period.start), periodEnd: dayToDate(period.end), createdById: access.userId, ...amounts },
-            select: { id: true },
-          })
-      let invoice: Awaited<ReturnType<typeof createSalesInvoice>>
-      try {
-        const customerId = await ensureTiers(holdingId, 'CUSTOMER', subsidiary, { accountCode: convention.revenueAccountCode, vatRateBp: convention.vatRateBp })
-        invoice = await createSalesInvoice(holdingId, convention, customerId, part.amountExclTaxCents, issueDate, period)
-      } catch (error) {
-        // A billing without invoice created by this call would block the convention's deletion: remove it, then report.
-        if (!billing) await prisma.managementFeeBilling.delete({ where: { id: row.id } })
-        throw error
-      }
-      billing = await prisma.managementFeeBilling.update({
-        where: { id: row.id },
-        data: { salesInvoiceId: invoice.id },
-        select: { id: true, amountExclTax: true, vatAmount: true, amountInclTax: true, salesInvoiceId: true, purchaseInvoiceId: true, salesInvoice: { select: { id: true, number: true, issueDate: true } } },
-      })
+    const existingBySubsidiary = new Map(existing.map((b) => [b.subsidiaryId, b]))
+    if (parts.every((p) => complete(existingBySubsidiary.get(p.subsidiaryId)))) {
+      throw new ConflictError('Cette période est déjà facturée pour toutes les filiales de la convention.')
     }
+    const rows: Array<{ part: (typeof parts)[number]; billing: BillingRow; outcome: GeneratedBilling['outcome'] }> = []
+    for (const part of parts) {
+      const subsidiary = identities.get(part.subsidiaryId) as SubsidiaryIdentity
+      const key = BILLING_KEY(conventionId, part.subsidiaryId, period.start, period.end)
+      let billing = await tx.managementFeeBilling.findUnique({ where: key, select: BILLING_SELECT })
+      const outcome: GeneratedBilling['outcome'] = billing?.salesInvoiceId ? 'existing' : 'created'
+      if (!billing?.salesInvoiceId) {
+        const amounts = {
+          amountExclTax: centsToDecimal(part.amountExclTaxCents),
+          vatRateBp: convention.vatRateBp,
+          vatAmount: centsToDecimal(part.vatCents),
+          amountInclTax: centsToDecimal(part.amountInclTaxCents),
+          details: billingDetails(computation, part.subsidiaryId) as Prisma.InputJsonValue,
+        }
+        const row = billing
+          ? await tx.managementFeeBilling.update({ where: { id: billing.id }, data: amounts, select: { id: true } })
+          : await tx.managementFeeBilling.create({
+              data: { companyId: holdingId, conventionId, subsidiaryId: part.subsidiaryId, periodStart: dayToDate(period.start), periodEnd: dayToDate(period.end), createdById: access.userId, ...amounts },
+              select: { id: true },
+            })
+        const customerId = await ensureTiers(holdingId, 'CUSTOMER', subsidiary, { accountCode: convention.revenueAccountCode, vatRateBp: convention.vatRateBp }, tx)
+        const invoice = await createSalesInvoice(tx, holdingId, convention, customerId, part.amountExclTaxCents, issueDate, period)
+        billing = await tx.managementFeeBilling.update({ where: { id: row.id }, data: { salesInvoiceId: invoice.id }, select: BILLING_SELECT })
+      }
+      rows.push({ part, billing, outcome })
+    }
+    return rows
+  }, TX_OPTIONS)
+
+  const billings: GeneratedBilling[] = []
+  for (const { part, billing, outcome } of recorded) {
+    const subsidiary = identities.get(part.subsidiaryId) as SubsidiaryIdentity
     const sales = billing.salesInvoice as { id: string; number: string; issueDate: Date }
     const amountExclTaxCents = parseCents(billing.amountExclTax) ?? 0
     let purchaseInvoiceId = billing.purchaseInvoiceId
