@@ -34,6 +34,7 @@ import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 import type { Address } from '@/lib/utils/address'
 import { LEGAL_FORMS, LEGAL_TYPES, companyInitials, isLegalType, type LegalType } from '@/lib/companies/legal-forms'
+import { calendarDayOf, isoDateToLocal, localDateToIso } from '@/lib/utils/date'
 import { CompanyNameWithForm } from './legal-form-tag'
 
 const companySchema = z.object({
@@ -176,11 +177,8 @@ export function CompaniesList({
       phone: company.phone || '',
       email: company.email || '',
       logo: company.logo || '',
-      foundationDate: company.foundationDate 
-        ? (typeof company.foundationDate === 'string' 
-          ? company.foundationDate 
-          : company.foundationDate.toISOString().split('T')[0])
-        : '',
+      // The page passes dates through JSON (ISO timestamps): the form keeps the calendar day.
+      foundationDate: calendarDayOf(company.foundationDate) ?? '',
       closingDay,
       closingMonth,
       vatRegime: company.vatRegime || '',
@@ -403,17 +401,8 @@ export function CompaniesList({
                 <Label htmlFor="edit-foundationDate">Date de création de la société</Label>
                 <DatePicker
                   id="edit-foundationDate"
-                  date={watchEdit('foundationDate') ? new Date(watchEdit('foundationDate') + 'T00:00:00') : undefined}
-                  onDateChange={(date) => {
-                    if (date) {
-                      const year = date.getFullYear()
-                      const month = String(date.getMonth() + 1).padStart(2, '0')
-                      const day = String(date.getDate()).padStart(2, '0')
-                      setValueEdit('foundationDate', `${year}-${month}-${day}`)
-                    } else {
-                      setValueEdit('foundationDate', '')
-                    }
-                  }}
+                  date={isoDateToLocal(watchEdit('foundationDate') ?? '')}
+                  onDateChange={(date) => setValueEdit('foundationDate', date ? localDateToIso(date) : '')}
                   placeholder="Sélectionner la date de création"
                 />
               </div>
