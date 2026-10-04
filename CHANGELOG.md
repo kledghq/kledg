@@ -40,6 +40,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 ### Corrigé
 
 - Bilan et compte de résultat : deux états calculés en même temps pour une société sans mise en page (comparaison N et N-1, deux utilisateurs) créaient chacun la mise en page par défaut ; chaque ligne existait alors deux fois et les montants n'allaient que sur l'une d'elles, l'autre affichant 0,00. La mise en page par défaut est désormais créée une seule fois, sous un verrou par société et par variante. Une société touchée retrouve une mise en page unique avec « Rétablir la mise en page par défaut ».
+- Champs de recherche avec suggestions : dans l'ajout d'un membre et le choix d'un compte, quand les suggestions arrivaient pendant la frappe, le curseur passait dans la liste et les lettres suivantes étaient perdues ; dans tous ces champs (adresse comprise), revenir dans le champ avec la liste ouverte effaçait la recherche. Le curseur reste dans le champ et la recherche est gardée.
 
 ### Sécurité
 

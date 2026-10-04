@@ -52,8 +52,15 @@ export function Autocomplete({
   const search = query ?? localQuery
 
   // cmdk assigns its own id to the input; restore ours so <label htmlFor> works.
+  // cmdk then cannot find its input by id: when the highlighted item changes
+  // (suggestions arriving while the user types) it would move focus to the
+  // list instead, and the next keystrokes would be lost. It only does so for
+  // an element marked cmdk-input, so the mark goes with the id.
   React.useEffect(() => {
-    if (id && inputRef.current) inputRef.current.id = id
+    if (id && inputRef.current) {
+      inputRef.current.id = id
+      inputRef.current.removeAttribute('cmdk-input')
+    }
   })
   const setSearch = onQueryChange ?? setLocalQuery
 
@@ -89,6 +96,10 @@ export function Autocomplete({
                   if (!open) setOpen(true)
                 }}
                 onFocus={() => {
+                  // Focusing the closed field starts a new search. Focus coming
+                  // back while the list is open (a dialog's focus trap, another
+                  // window and back) keeps what was typed.
+                  if (open) return
                   setSearch('')
                   setOpen(true)
                 }}
