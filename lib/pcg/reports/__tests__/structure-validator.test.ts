@@ -29,7 +29,20 @@ describe('validateBalanceSheetStructure (PCG art. 821-1)', () => {
       ),
     )
     expect(result.valid).toBe(false)
-    expect(result.errors).toEqual(["Le bilan n'est pas équilibré : écart de 9.50€ (Actif: 1000.00€, Passif: 990.50€)"])
+    expect(result.errors).toEqual(["Le bilan n'est pas équilibré : écart de 9,50 € (Actif : 1 000,00 €, Passif : 990,50 €)"])
+  })
+
+  it('compares the totals in cents (regression: a one cent gap passed or failed depending on float noise)', () => {
+    const posts = (actif: number, passif: number) =>
+      balanceSheet(
+        { total: actif, actifImmobilise: { incorporelles: fixed(), corporelles: fixed() }, actifCirculant: { stocks: post, creances: post } },
+        { total: passif, capitauxPropres: { capital: post, reserves: post }, dettes: { dettesFournisseurs: post, dettesFiscalesSociales: post } },
+      )
+    // 0.1 + 0.2 is 0.30000000000000004 in floating point: the same 30 cents.
+    expect(validateBalanceSheetStructure(posts(0.1 + 0.2, 0.3)).errors).toEqual([])
+    // 0.03 - 0.02 is 0.009999999999999998, which the 0.01 tolerance let through.
+    expect(validateBalanceSheetStructure(posts(0.03, 0.02)).errors).toEqual(["Le bilan n'est pas équilibré : écart de 0,01 € (Actif : 0,03 €, Passif : 0,02 €)"])
+    expect(validateBalanceSheetStructure(posts(0.31, 0.3)).errors).toEqual(["Le bilan n'est pas équilibré : écart de 0,01 € (Actif : 0,31 €, Passif : 0,30 €)"])
   })
 
   it('makes the missing mandatory posts errors (art. 821-1 III, IV on both sides, I on the passif)', () => {

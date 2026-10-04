@@ -8,6 +8,7 @@
  */
 
 import type { CompleteBalanceSheet } from '@/lib/reports/types'
+import { formatCentsFr, toCents } from '@/lib/utils/money'
 // For now, define a minimal type
 type CompleteIncomeStatement = {
   produits: {
@@ -91,10 +92,13 @@ export function validateBalanceSheetStructure(
   const warnings: string[] = []
 
   // Vérifier l'équilibre du bilan (Art. 511-1)
-  const ecart = Math.abs(balanceSheet.actif.total - balanceSheet.passif.total)
-  if (ecart > 0.01) {
+  // Compared in cents: a one cent gap is an imbalance (the float difference of
+  // 100.01 and 100 is above 0.01, of 0.3 and 0.1 + 0.2 is not zero).
+  const actifCents = toCents(balanceSheet.actif.total) ?? 0
+  const passifCents = toCents(balanceSheet.passif.total) ?? 0
+  if (actifCents !== passifCents) {
     errors.push(
-      `Le bilan n'est pas équilibré : écart de ${ecart.toFixed(2)}€ (Actif: ${balanceSheet.actif.total.toFixed(2)}€, Passif: ${balanceSheet.passif.total.toFixed(2)}€)`
+      `Le bilan n'est pas équilibré : écart de ${formatCentsFr(Math.abs(actifCents - passifCents))} (Actif : ${formatCentsFr(actifCents)}, Passif : ${formatCentsFr(passifCents)})`
     )
   }
 
