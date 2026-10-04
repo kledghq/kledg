@@ -57,6 +57,10 @@ export const COMPANY_TABLES: readonly string[] = [
   'subscription_decisions',
   'management_fee_conventions',
   'management_fee_billings',
+  'provisions',
+  'provision_assessments',
+  'investment_grants',
+  'investment_grant_transfers',
 ]
 
 /** Child tables reachable through their parent (EXISTS policies): table -> [parent, foreign key]. */
@@ -99,6 +103,7 @@ export const DEFINER_TRIGGER_FUNCTIONS: readonly string[] = [
   'kledg_rls_entry_moved',
   'kledg_rls_bank_account_moved',
   'kledg_rls_bank_connection_moved',
+  'kledg_lock_closed_year_adjustments',
 ]
 
 const TABLE_REFERENCE = /\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"public"\.)?"[^"]+"|[\w.]+|\()/gi

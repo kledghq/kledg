@@ -7,7 +7,10 @@
  * suppression de l'enregistrement"): the deletion is refused, naming the
  * entries to reverse first (contre-passation), unless they are already
  * reversed. An asset that leaves the company is recorded as a disposal
- * (cession, mise au rebut), not deleted.
+ * (cession, mise au rebut), not deleted. An asset financed by an
+ * investment grant is not deleted either: the grant's transfer to the
+ * result follows its depreciation (PCG art. 312-1), so the grant must be
+ * changed first (also enforced by the foreign key, ON DELETE RESTRICT).
  */
 
 import { prisma } from '@/lib/prisma'
@@ -19,6 +22,12 @@ export async function deleteFixedAsset(companyId: string, fixedAssetId: string):
   return prisma.$transaction(async (tx) => {
     const asset = await tx.fixedAsset.findFirst({ where: { id: fixedAssetId, companyId }, select: { id: true } })
     if (!asset) throw new NotFoundError('Immobilisation introuvable')
+    const grants = await tx.investmentGrant.count({ where: { fixedAssetId, companyId } })
+    if (grants > 0) {
+      throw new ConflictError(
+        `Cette immobilisation est financée par ${grants > 1 ? `${grants} subventions d'investissement` : "une subvention d'investissement"} dont la reprise suit son amortissement\u00a0: modifiez ${pluralWord(grants, 'la subvention', 'les subventions')} (Saisie, Subventions) avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie.`
+      )
+    }
     const records = await tx.fixedAssetDepreciation.findMany({
       where: { fixedAssetId, companyId, accountingEntryId: { not: null } },
       select: {

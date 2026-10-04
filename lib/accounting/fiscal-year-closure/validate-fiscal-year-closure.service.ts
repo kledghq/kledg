@@ -9,6 +9,7 @@ import { endOfDay, formatTransactionDate, normalizeDate, startOfDay, todayUtc } 
 import { CLOSING_JOURNAL, OPENING_JOURNAL } from './constants'
 import { GUARDED_FISCAL_YEAR_SELECT, isFiscalYearClosed } from '../entry-guards'
 import { findUnpostedDepreciation } from '@/lib/fixed-assets/depreciation-entries'
+import { getYearEndInventory } from '@/lib/year-end/get-year-end-inventory.service'
 import { parseCents } from '@/lib/utils/money'
 import { plural, pluralWord } from '@/lib/utils/plural'
 
@@ -138,6 +139,30 @@ export async function validateFiscalYearClosure(
     const total = unposted.reduce((s, u) => s + u.amountCents, 0)
     warnings.push(
       `${plural(unposted.length, 'dotation')} aux amortissements (${formatAmount(total)} €) ${pluralWord(unposted.length, "n'est pas comptabilisée", 'ne sont pas comptabilisées')} pour cet exercice. Générez-les depuis le tableau des amortissements avant de clôturer si elles ne sont pas déjà passées manuellement.`
+    )
+  }
+
+  // Year-end inventory (PCG art. 322-1 et seq., 214-15 et seq., 312-1): provisions,
+  // impairments and grants are reviewed at each closing; their movements are
+  // proposed as drafts, which block the closing until the user validates them.
+  const inventory = await getYearEndInventory(companyId, fiscalYearId, client)
+  const { toAssess, toCorrect, dotationsCents, reprisesCents, transfersCents } = inventory.totals
+  if (toAssess > 0) {
+    warnings.push(
+      `${plural(toAssess, 'provision ou dépréciation', 'provisions ou dépréciations')} sans montant évalué à la clôture\u00a0: indiquez le montant requis ou la date de fin dans Saisie, Provisions.`
+    )
+  }
+  const pending = [
+    dotationsCents > 0 ? `dotations aux provisions et dépréciations (${formatAmount(dotationsCents)} €)` : null,
+    reprisesCents > 0 ? `reprises (${formatAmount(reprisesCents)} €)` : null,
+    transfersCents > 0 ? `quotes-parts de subventions virées au résultat (${formatAmount(transfersCents)} €)` : null,
+  ].filter((p): p is string => p !== null)
+  if (pending.length > 0) {
+    warnings.push(`Écritures d'inventaire à préparer\u00a0: ${pending.join(', ')}. Préparez-les en brouillon depuis Saisie, Travaux de clôture, puis validez-les.`)
+  }
+  if (toCorrect > 0) {
+    warnings.push(
+      `${plural(toCorrect, "écriture d'inventaire", "écritures d'inventaire")} ne ${pluralWord(toCorrect, 'correspond', 'correspondent')} plus au montant attendu\u00a0: voyez Saisie, Travaux de clôture.`
     )
   }
 

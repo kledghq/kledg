@@ -64,6 +64,12 @@ export async function companyOfBudgetLine(id: string): Promise<CompanyRow> {
   const row = await prisma.budgetLine.findUnique({ where: { id }, select: { budget: { select: { companyId: true } } } })
   return row ? { companyId: row.budget.companyId } : null
 }
+export const companyOfProvision = (id: string): Promise<CompanyRow> =>
+  prisma.provision.findUnique({ where: { id }, select })
+
+export const companyOfInvestmentGrant = (id: string): Promise<CompanyRow> =>
+  prisma.investmentGrant.findUnique({ where: { id }, select })
+
 export const companyOfManagementFeeConvention = (id: string): Promise<CompanyRow> =>
   prisma.managementFeeConvention.findUnique({ where: { id }, select })
 

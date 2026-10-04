@@ -149,6 +149,10 @@ model Company {
   managementFeeSubsidiaryOf  ManagementFeeSubsidiary[]
   managementFeeBillings      ManagementFeeBilling[]      @relation("ManagementFeeBillingHolding")
   managementFeeBilled        ManagementFeeBilling[]      @relation("ManagementFeeBillingSubsidiary")
+  provisions                 Provision[]
+  provisionAssessments       ProvisionAssessment[]
+  investmentGrants           InvestmentGrant[]
+  investmentGrantTransfers   InvestmentGrantTransfer[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -235,11 +239,13 @@ model FiscalYear {
   updatedAt    DateTime  @updatedAt
 
   // Relations
-  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  accounts                Account[]                @relation("FiscalYearAccounts")
-  accountingEntries       AccountingEntry[]
-  fixedAssetDepreciations FixedAssetDepreciation[]
-  budget                  Budget?
+  company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accounts                 Account[]                 @relation("FiscalYearAccounts")
+  accountingEntries        AccountingEntry[]
+  fixedAssetDepreciations  FixedAssetDepreciation[]
+  budget                   Budget?
+  provisionAssessments     ProvisionAssessment[]
+  investmentGrantTransfers InvestmentGrantTransfer[]
 
   @@unique([companyId, year])
   /// Target of composite foreign keys that keep a child row in the company of its fiscal year (budgets).
@@ -324,6 +330,8 @@ model AccountingEntry {
   sourceBankTransaction   BankTransaction?         @relation("ReconciliationEntry", fields: [sourceBankTransactionId], references: [id], onDelete: SetNull)
   lines                   EntryLine[]              @relation("AccountingEntryLines")
   fixedAssetDepreciations FixedAssetDepreciation[] @relation("FixedAssetDepreciationEntry")
+  provisionAssessment     ProvisionAssessment?     @relation("ProvisionAssessmentEntry")
+  investmentGrantTransfer InvestmentGrantTransfer? @relation("InvestmentGrantTransferEntry")
   reversalOf              AccountingEntry?         @relation("EntryReversal", fields: [reversalOfId], references: [id], onDelete: NoAction)
   reversedBy              AccountingEntry?         @relation("EntryReversal")
   invoice                 Invoice?                 @relation("InvoiceEntry")
@@ -806,6 +814,8 @@ model FixedAsset {
   depreciationAccount Account                  @relation("DepreciationAccount", fields: [depreciationAccountId], references: [id], onDelete: NoAction)
   expenseAccount      Account                  @relation("DepreciationExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: NoAction)
   depreciations       FixedAssetDepreciation[]
+  provisions          Provision[]
+  investmentGrants    InvestmentGrant[]
 
   @@index([companyId])
   @@map("fixed_assets")
@@ -2223,4 +2233,158 @@ model ManagementFeeBilling {
   @@index([companyId])
   @@index([subsidiaryId])
   @@map("management_fee_billings")
+}
+
+enum ProvisionCategory {
+  RISK_CHARGE // Provisions pour risques et charges (comptes 151 et 152)
+  FIXED_ASSET // Dépréciations des immobilisations (29)
+  INVENTORY // Dépréciations des stocks et en-cours (39)
+  RECEIVABLE // Dépréciations des comptes de tiers (49)
+  SECURITY // Dépréciations des valeurs mobilières de placement (59)
+}
+
+enum ProvisionNature {
+  OPERATING // Dotations 681, reprises 781
+  FINANCIAL // Dotations 686, reprises 786
+  EXCEPTIONAL // Dotations 687, reprises 787
+}
+
+/// A provision for risks and charges (PCG art. 322-1 et seq.) or an
+/// impairment of an asset (PCG art. 214-15 et seq.), followed from one
+/// closing to the next (lib/provisions, docs/provisions-et-subventions.md).
+/// Both are an allowance: a credit balance account (15, 29, 39, 49, 59)
+/// adjusted at each closing against a dotation (68) or a reprise (78).
+/// The balance required at each closing is a ProvisionAssessment; the
+/// movement is proposed as a draft entry the user validates.
+model Provision {
+  id            String            @id @default(cuid())
+  companyId     String
+  category      ProvisionCategory
+  label         String
+  /// Object of the provision and how it is estimated (PCG art. 322-1: nettement précisée quant à son objet).
+  justification String
+  /// Allowance account credited by a dotation (15xx, 29xx, 39x, 49x, 59x).
+  accountCode   String
+  nature        ProvisionNature   @default(OPERATING)
+  /// Deductible for corporate tax (CGI art. 39, 1-5°); a non-deductible one is added back on the tax return.
+  taxDeductible Boolean           @default(true)
+  /// False for an impairment of goodwill (fonds commercial), which is never reversed (PCG art. 214-19).
+  reversible    Boolean           @default(true)
+  fixedAssetId  String?
+  /// Auxiliary account number (or account) of the doubtful customer of a receivable impairment.
+  tiersCode     String?
+  /// Day of the event that gave rise to it (litigation served, overdue invoice, loss of value noticed).
+  openedOn      DateTime
+  /// Day the risk ended or the asset left the books: no assessment is expected after it.
+  closedOn      DateTime?
+  /// Balance already booked before Kledg followed it (opening entries of a company migrated to Kledg).
+  carriedAmount Decimal           @default(0) @db.Decimal(15, 2)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fixedAsset  FixedAsset?           @relation(fields: [fixedAssetId], references: [id], onDelete: SetNull)
+  assessments ProvisionAssessment[]
+
+  /// Target of the composite foreign key of the assessments (same company).
+  @@unique([id, companyId])
+  @@index([companyId])
+  @@index([fixedAssetId])
+  @@map("provisions")
+}
+
+/// The balance a provision or impairment must show at the closing of one
+/// fiscal year, and the entry booking the movement to reach it. The
+/// movement is read from the entry's lines, so a draft the user edits or a
+/// contre-passation is taken into account.
+model ProvisionAssessment {
+  id           String   @id @default(cuid())
+  companyId    String
+  provisionId  String
+  fiscalYearId String
+  /// Balance required at the closing date of the fiscal year.
+  amount       Decimal  @db.Decimal(15, 2)
+  /// Impairment of a fixed asset: its current value (valeur actuelle, the higher of market value and value in use), when the amount was computed from it.
+  currentValue Decimal? @db.Decimal(15, 2)
+  /// How the amount was estimated (pièce justificative of the closing).
+  basis        String?
+  /// Entry of the dotation or reprise of this closing (draft until the user validates it).
+  entryId      String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  provision  Provision        @relation(fields: [provisionId, companyId], references: [id, companyId], onDelete: Cascade)
+  fiscalYear FiscalYear       @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+  entry      AccountingEntry? @relation("ProvisionAssessmentEntry", fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@unique([provisionId, fiscalYearId])
+  @@index([companyId])
+  @@index([fiscalYearId])
+  @@map("provision_assessments")
+}
+
+enum InvestmentGrantSpreading {
+  ASSET // Same rhythm as the depreciation of the financed fixed asset (PCG art. 312-1)
+  LINEAR // Linear over a duration, for a depreciable asset not followed in Kledg
+  INALIENABILITY // Non-depreciable asset: over the years it is inalienable
+  TENTHS // Non-depreciable asset without inalienability clause: one tenth a year
+}
+
+/// An investment grant (subvention d'investissement) recorded in equity
+/// (131) and transferred to the result (139 to 747) over the life of what
+/// it financed (PCG art. 312-1, CGI art. 42 septies).
+model InvestmentGrant {
+  id                  String                   @id @default(cuid())
+  companyId           String
+  label               String
+  grantor             String?
+  amount              Decimal                  @db.Decimal(15, 2)
+  /// Day the grant was awarded: the first fiscal year of its transfer.
+  grantedOn           DateTime
+  spreading           InvestmentGrantSpreading
+  fixedAssetId        String?
+  /// LINEAR: duration of the depreciation; INALIENABILITY: years of inalienability.
+  durationYears       Int?
+  accountCode         String                   @default("131")
+  transferAccountCode String                   @default("139")
+  incomeAccountCode   String                   @default("747")
+  /// Part already transferred to the result before Kledg followed the grant.
+  carriedAmount       Decimal                  @default(0) @db.Decimal(15, 2)
+  notes               String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  company    Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// RESTRICT: the transfer follows the asset's depreciation, the grant is changed before the asset is deleted.
+  fixedAsset FixedAsset?               @relation(fields: [fixedAssetId], references: [id], onDelete: Restrict)
+  transfers  InvestmentGrantTransfer[]
+
+  /// Target of the composite foreign key of the transfers (same company).
+  @@unique([id, companyId])
+  @@index([companyId])
+  @@index([fixedAssetId])
+  @@map("investment_grants")
+}
+
+/// The entry transferring the share of a grant of one fiscal year to the
+/// result (debit 139, credit 747). The amount is read from the entry.
+model InvestmentGrantTransfer {
+  id           String   @id @default(cuid())
+  companyId    String
+  grantId      String
+  fiscalYearId String
+  entryId      String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  grant      InvestmentGrant  @relation(fields: [grantId, companyId], references: [id, companyId], onDelete: Cascade)
+  fiscalYear FiscalYear       @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+  entry      AccountingEntry? @relation("InvestmentGrantTransferEntry", fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@unique([grantId, fiscalYearId])
+  @@index([companyId])
+  @@index([fiscalYearId])
+  @@map("investment_grant_transfers")
 }
