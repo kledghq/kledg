@@ -29,6 +29,7 @@ vi.mock('@/lib/rbac/authorize', async () => {
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn().mockResolvedValue(undefined) }))
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { seedMembership } from '@/lib/__tests__/helpers/membership'
 
 const available = await testDatabaseAvailable()
 
@@ -61,6 +62,8 @@ describe.skipIf(!available)('POST /api/journals/defaults', () => {
   beforeEach(async () => {
     await prepareTestDatabase('journal_defaults')
     const company = await prisma.company.create({ data: { name: 'Atelier', slug: 'atelier', siren: '123456789' } })
+    // The mocked session user is a member in the database too (row level security).
+    await seedMembership(prisma, 'user-1', company.id)
     const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
     // The company deleted VE and AN and renamed its bank journal
     await prisma.journal.createMany({

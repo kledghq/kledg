@@ -29,6 +29,7 @@ vi.mock('@/lib/rbac/authorize', async () => {
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn().mockResolvedValue(undefined) }))
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { seedMembership } from '@/lib/__tests__/helpers/membership'
 
 const available = await testDatabaseAvailable()
 
@@ -111,6 +112,8 @@ describe.skipIf(!available)('chart of accounts and journal routes', () => {
   beforeEach(async () => {
     await prepareTestDatabase('ledger_routes')
     const company = await prisma.company.create({ data: { name: 'Atelier', slug: 'atelier', siren: '123456789' } })
+    // The mocked session user is a member in the database too (row level security).
+    await seedMembership(prisma, 'user-1', company.id)
     const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
     const fy = await prisma.fiscalYear.create({
       data: { companyId: company.id, year: 2026, startDate: new Date('2026-01-01T00:00:00Z'), endDate: new Date('2026-12-31T00:00:00Z') },

@@ -533,6 +533,11 @@ export async function seedDataset(url: string, profile: Profile): Promise<Datase
       totals.lines += result.lines
       totals.transactions += result.transactions
     }
+    // Triggers are off while seeding: set the company of lines and bank
+    // transactions that the row level security triggers maintain (docs/rls.md).
+    await client.query(`UPDATE "entry_lines" l SET "companyId" = e."companyId" FROM "accounting_entries" e WHERE e."id" = l."accountingEntryId"`)
+    await client.query(`UPDATE "bank_transactions" t SET "companyId" = c."companyId"
+      FROM "bank_accounts" a JOIN "bank_connections" c ON c."id" = a."bankConnectionId" WHERE a."id" = t."bankAccountId"`)
     await client.query('SET session_replication_role = origin')
     await client.query('ANALYZE')
   } finally {

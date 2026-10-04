@@ -13,6 +13,8 @@
  * - KLEDG_BENCH_ONLY: comma separated path names to run
  * - KLEDG_BENCH_OUT: file to write the results to (JSON)
  * - KLEDG_BENCH_VERBOSE=1: print the statements of the first run of each path
+ * - KLEDG_RLS=enforce: measure under row level security (docs/rls.md), as
+ *   the role kledg_app_bench (created with the policies switched on)
  *
  * Requests go through the real route handlers, Better Auth session lookup
  * included (the session cookie of a signed-in user, through a mocked
@@ -202,6 +204,26 @@ describe(`hot paths (${bench.profile})`, () => {
       const url = await createDatabase(bench.database)
       const summary = await seedDataset(url, profile)
       process.stdout.write(`dataset ${JSON.stringify(summary)}\n`)
+    }
+    // KLEDG_RLS=enforce: the application connects as a role subject to the
+    // row level security policies (docs/rls.md), created here by the owner.
+    const { rlsMode } = await import('@/lib/rls/mode')
+    if (rlsMode() === 'enforce') {
+      const { appRoleStatements } = await import('@/lib/rls/app-role')
+      const owner = new Client({ connectionString: process.env.DATABASE_URL })
+      await owner.connect()
+      try {
+        const exists = await owner.query(`SELECT 1 FROM pg_roles WHERE rolname = 'kledg_app_bench'`)
+        const [create, ...grants] = appRoleStatements('kledg_app_bench', 'kledg_app_bench')
+        if (exists.rowCount === 0) await owner.query(create)
+        for (const statement of grants.filter((s) => !s.startsWith('ALTER ROLE'))) await owner.query(statement)
+      } finally {
+        await owner.end()
+      }
+      const app = new URL(process.env.DATABASE_URL!)
+      app.username = 'kledg_app_bench'
+      app.password = 'kledg_app_bench'
+      process.env.DATABASE_URL = app.toString()
     }
 
     // A password for the bench user, then a real sign-in for the session cookie.

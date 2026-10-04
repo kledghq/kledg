@@ -135,7 +135,11 @@ describe.skipIf(!available)('instance user management', () => {
       call(admin, 'PATCH', other.user.id, { action: 'set-role', role: 'user' }),
       call(other, 'PATCH', admin.user.id, { action: 'set-role', role: 'user' }),
     ])
-    expect([first.status, second.status].sort()).toEqual([200, 403])
+    // The loser is refused: 403 when Kledg's own check sees the demotion
+    // first, 401 when Better Auth's setRole does (timing dependent).
+    const statuses = [first.status, second.status].sort()
+    expect(statuses[0]).toBe(200)
+    expect([401, 403]).toContain(statuses[1])
     expect(await prisma.user.count({ where: { role: 'admin' } })).toBe(1)
   })
 
