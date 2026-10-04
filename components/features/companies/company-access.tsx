@@ -16,6 +16,11 @@ interface CompanyAccess {
 // the API still refuses what the role cannot do.
 const CompanyAccessContext = React.createContext<CompanyAccess>({ granted: allPermissions(), roleLabel: '' })
 
+/** "de connecter", but "d'importer", "d'appliquer": French elision before a vowel or a mute h. */
+function elidedDe(what: string): string {
+  return /^[aeiouyàâéèêëîïôûüh]/i.test(what) ? `d'${what}` : `de ${what}`
+}
+
 /** Given by the company layout (app/(company)/[companyId]/layout.tsx) from the user's roles. */
 export function CompanyAccessProvider({ value, children }: { value: CompanyAccess; children: React.ReactNode }) {
   return <CompanyAccessContext.Provider value={value}>{children}</CompanyAccessContext.Provider>
@@ -31,9 +36,9 @@ export function useCompanyAccess() {
     () => ({
       roleLabel: access.roleLabel,
       can: (request: PermissionRequest) => grants(access.granted, request),
-      /** "Votre rôle (Comptable) ne permet pas de connecter une banque." */
+      /** "Votre rôle (Comptable) ne permet pas de connecter une banque", "... d'importer un relevé". */
       denied: (what: string) =>
-        `Votre rôle${access.roleLabel ? ` (${access.roleLabel})` : ''} ne permet pas de ${what} : demandez-le à un administrateur de la société.`,
+        `Votre rôle${access.roleLabel ? ` (${access.roleLabel})` : ''} ne permet pas ${elidedDe(what)} : demandez-le à un administrateur de la société.`,
     }),
     [access],
   )

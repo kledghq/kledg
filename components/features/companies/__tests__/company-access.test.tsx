@@ -32,7 +32,10 @@ describe('bank actions by role', () => {
     const connect = screen.getByRole('button', { name: 'Connecter une banque' })
     expect(connect).toHaveProperty('disabled', true)
     expect(connect.getAttribute('title')).toMatch(/^Votre rôle \(Comptable\) ne permet pas de connecter une banque/)
-    expect(screen.getByRole('button', { name: /Ajouter un compte bancaire/ })).toHaveProperty('disabled', true)
+    const add = screen.getByRole('button', { name: /Ajouter un compte bancaire/ })
+    expect(add).toHaveProperty('disabled', true)
+    // French elision: "d'ajouter", never "de ajouter"
+    expect(add.getAttribute('title')).toMatch(/^Votre rôle \(Comptable\) ne permet pas d'ajouter un compte bancaire\s:/)
   })
 
   it('links to the connection page for a company administrator', () => {
