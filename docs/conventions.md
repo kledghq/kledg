@@ -288,6 +288,14 @@ it must hold for every code path, by the database (trigger in a migration).
 - Authorization everywhere: every route through a wrapper, every row
   scoped by company (see API routes). A non-member gets 404, like a missing
   company, so ids of other companies are never confirmed.
+- **Row level security** repeats the company scoping in PostgreSQL
+  (`KLEDG_RLS=enforce`, [rls.md](rls.md)). A new table gets its
+  `kledg_rls_*` policies in its migration, or an exemption with its reason in
+  `lib/rls/tables.ts` (enforced by `lib/rls/__tests__/policy-coverage.db.test.ts`).
+  Code outside a request (a job, a script) runs inside `withSystemContext`
+  with a documented reason, or `withUserContext`; never as the system on
+  behalf of a user. Cross-company checks (SIREN or slug uniqueness) go
+  through a `SECURITY DEFINER` function that answers a boolean only.
 - Secrets at rest are encrypted with `encrypt`/`decrypt`
   (`lib/integrations/encryption.ts`) and the instance key
   (`lib/crypto/encryption-key.ts`); they are never returned by an API.
