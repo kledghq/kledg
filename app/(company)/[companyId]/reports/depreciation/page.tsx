@@ -162,19 +162,21 @@ export default function DepreciationReportPage() {
       'Durée (années)',
     ]
 
+    // French spreadsheets read "1200,50" as a number in a ";" separated file, not "1200.50"
+    const decimal = (value: number) => value.toFixed(2).replace('.', ',')
     const rows = depreciationTable.map((row) => [
       row.label,
       formatTransactionDate(row.acquisitionDate),
-      row.acquisitionValue.toFixed(2),
-      row.amortizableAmount.toFixed(2),
-      row.previousDepreciation.toFixed(2),
-      row.currentDepreciation.toFixed(2),
-      row.totalDepreciation.toFixed(2),
-      row.netBookValue.toFixed(2),
+      decimal(row.acquisitionValue),
+      decimal(row.amortizableAmount),
+      decimal(row.previousDepreciation),
+      decimal(row.currentDepreciation),
+      decimal(row.totalDepreciation),
+      decimal(row.netBookValue),
       `${row.assetAccount.code} - ${row.assetAccount.label}`,
       `${row.depreciationAccount.code} - ${row.depreciationAccount.label}`,
       row.depreciationMethod === 'linear' ? 'Linéaire' : 'Dégressif',
-      row.depreciationRate ? row.depreciationRate.toFixed(2) : '',
+      row.depreciationRate ? decimal(row.depreciationRate) : '',
       row.depreciationDuration?.toString() || '',
     ])
 
