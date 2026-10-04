@@ -6,6 +6,9 @@
 import { QontoClientBase, qontoPathSegment } from './client-base'
 import type { QontoStatement, QontoStatementsResponse } from './types'
 
+/** Upper bound on statement pages read in one call (100 statements a page). */
+const MAX_STATEMENT_PAGES = 200
+
 /**
  * Statement-related methods for Qonto API
  */
@@ -68,9 +71,10 @@ export class QontoStatements extends QontoClientBase {
   }): Promise<QontoStatement[]> {
     const allStatements: QontoStatement[] = []
     let currentPage = 1
-    let hasMore = true
 
-    while (hasMore) {
+    // Next page only when Qonto names one and the page was not empty; a
+    // missing next_page (undefined) or a runaway response ends the loop.
+    for (let pages = 0; pages < MAX_STATEMENT_PAGES; pages++) {
       const response = await this.getStatements({
         ...options,
         page: currentPage,
@@ -79,8 +83,9 @@ export class QontoStatements extends QontoClientBase {
 
       allStatements.push(...response.statements)
 
-      hasMore = response.meta.next_page !== null
-      currentPage++
+      const next = response.meta?.next_page
+      if (typeof next !== 'number' || next <= currentPage || response.statements.length === 0) break
+      currentPage = next
     }
 
     return allStatements
