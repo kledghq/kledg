@@ -18,7 +18,7 @@ import { ConventionForm } from './convention-form'
 import { ConventionDetail } from './convention-detail'
 
 function pricingSummary(c: ConventionView): string {
-  return c.pricing === 'FIXED' ? `Forfait de ${formatCentsFr(c.fixedAmountCents ?? 0)} € HT par période` : `Coûts majorés de ${formatRateBp(c.markupBp)}`
+  return c.pricing === 'FIXED' ? `Forfait de ${formatCentsFr(c.fixedAmountCents ?? 0)} HT par période` : `Coûts majorés de ${formatRateBp(c.markupBp)}`
 }
 
 /** Loads a JSON resource with the three states of a client fetch. */
