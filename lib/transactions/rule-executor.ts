@@ -494,7 +494,7 @@ function calculateEntryLines(
         });
       } else {
         if (!vatAccountDebitId) {
-          throw new Error(`VAT account not defined for line ${line.id}`);
+          throw new Error(`aucun compte de TVA pour la ligne ${rule.entryLines.indexOf(line) + 1} : choisissez-le dans la règle.`);
         }
         const { vatDebit, vatCredit } = calculateVATLineAmounts(
           line.vatType,

@@ -316,6 +316,18 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
       expect(await executor.prepareRuleEntry(noJournal, 'missing', ids.company)).toEqual({ ok: false, error: 'Transaction introuvable', status: 404 })
     })
 
+    it('says in French which line lacks its VAT account', async () => {
+      // Regression: the English "VAT account not defined for line <id>" reached the user
+      const ruleId = await rule('Sans compte TVA', [{ accountCode: '627000', amountType: 'fixed', amountValue: '1.00' }, { accountCode: '606100', amountType: 'remaining', vatType: 'deductible', vatRate: '20' }])
+      const txId = await transaction('120.00', 'debit')
+
+      expect(await executor.prepareRuleEntry(ruleId, txId, ids.company)).toEqual({
+        ok: false,
+        error: 'La règle « Sans compte TVA » ne peut pas être appliquée : aucun compte de TVA pour la ligne 2 : choisissez-le dans la règle.',
+        status: 400,
+      })
+    })
+
     it('refuses a transaction dated in a closed fiscal year or outside every fiscal year', async () => {
       const ruleId = await rule('Fournitures', [{ accountCode: '606100' }])
       const inClosed = await transaction('10.00', 'debit', { date: new Date('2024-06-01T00:00:00Z') })
