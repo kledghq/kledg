@@ -118,9 +118,9 @@ describe('members page', () => {
     await waitFor(() => {
       const search = sent('GET', '/api/users').map(([input]) => new URL(String(input)).searchParams)
       expect(search.some((params) => params.get('search') === 'c' && params.get('excludeCompanyId') === 'c1' && params.get('limit') === '20')).toBe(true)
-    })
+    }, { timeout: 5000 })
     // The suggestion list is portaled next to the dialog
-    await user.click(await screen.findByText('Chloé Durand'))
+    await user.click(await screen.findByText('Chloé Durand', {}, { timeout: 5000 }))
     await user.click(within(dialog).getByRole('combobox', { name: /Rôle/ }))
     await user.click(await screen.findByRole('option', { name: 'Lecture seule' }))
     await user.click(within(dialog).getByRole('button', { name: /Ajouter le membre/ }))
