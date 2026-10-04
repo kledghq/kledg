@@ -46,15 +46,18 @@ const lines: BankLine[] = [
     id: `p${i}`, day, amountCents: i < 3 ? 3_999 : 4_499, side: 'debit' as const, label: null, counterpartyName: 'Telecom Pro',
   })),
   ...['2025-03-02', '2026-03-03'].map((day, i) => ({ id: `y${i}`, day, amountCents: 12_000, side: 'debit' as const, label: null, counterpartyName: 'Assur Bureau' })),
+  ...['2026-02-15', '2026-03-15', '2026-04-15'].map((day, i) => ({ id: `u${i}`, day, amountCents: 260_000, side: 'debit' as const, label: 'PRLV URSSAF', counterpartyName: null })),
 ]
 const detected = detectSubscriptions(lines, { today: '2026-05-20' })
-const [phone, insurance] = detected.subscriptions
+const byId = (id: string) => detected.subscriptions.find((s) => s.id === id)!
+const [phone, insurance, urssaf] = [byId('p0'), byId('y0'), byId('u0')]
 const list: SubscriptionList = {
   today: '2026-05-20',
   observedUntil: detected.observedUntil,
   items: [
-    { ...phone, decision: { id: 'd1', status: 'confirmed', budgetLine: { id: 'l1', accountPrefix: '626', label: 'Télécommunications', fiscalYear: 2026 }, decidedAt: '2026-05-01T00:00:00.000Z' }, suggestedAccountCode: '626000', lastTransactionId: 'p4' },
-    { ...insurance, decision: { id: 'd2', status: 'ignored', budgetLine: null, decidedAt: '2026-05-01T00:00:00.000Z' }, suggestedAccountCode: null, lastTransactionId: 'y1' },
+    { ...phone, decision: { id: 'd1', status: 'confirmed', budgetLine: { id: 'l1', accountPrefix: '626', label: 'Télécommunications', fiscalYear: 2026 }, decidedAt: '2026-05-01T00:00:00.000Z' }, countsAsSubscription: true, suggestedAccountCode: '626000', lastTransactionId: 'p4' },
+    { ...insurance, decision: { id: 'd2', status: 'ignored', budgetLine: null, decidedAt: '2026-05-01T00:00:00.000Z' }, countsAsSubscription: false, suggestedAccountCode: null, lastTransactionId: 'y1' },
+    { ...urssaf, decision: null, countsAsSubscription: false, suggestedAccountCode: null, lastTransactionId: 'u2' },
   ],
   totals: { activeCount: 1, activeAnnualizedCents: phone.annualizedCents },
 }
@@ -85,6 +88,9 @@ describe('list_detected_subscriptions', () => {
         status: 'price_changed',
         priceChange: { previousAmount: 39.99, newAmount: 44.99, since: '2026-04-14' },
         variableAmount: false,
+        kind: 'subscription',
+        chargeReason: null,
+        countsAsSubscription: true,
         decision: 'confirmed',
         budgetLine: { accountPrefix: '626', label: 'Télécommunications', fiscalYear: 2026 },
         suggestedAccount: '626000',
@@ -92,7 +98,13 @@ describe('list_detected_subscriptions', () => {
     ])
   })
 
-  it('returns the ignored subscriptions on request', async () => {
+  it('returns the ignored subscriptions and the recurring charges on request', async () => {
+    expect(urssaf).toMatchObject({ kind: 'recurring_charge', chargeReason: 'social', classifiedBy: 'label' })
+    const charges = parse(await tool()({ companyId: 'c1', includeIgnored: false, includeRecurringCharges: true }))
+    expect(charges.subscriptions.map((s: { counterparty: string; kind: string; chargeReason: string | null }) => [s.counterparty, s.kind, s.chargeReason])).toEqual([
+      ['Telecom Pro', 'subscription', null],
+      ['PRLV URSSAF', 'recurring_charge', 'social'],
+    ])
     const data = parse(await tool()({ companyId: 'c1', includeIgnored: true }))
     expect(data.subscriptions.map((s: { counterparty: string; cadence: string; decision: string }) => [s.counterparty, s.cadence, s.decision])).toEqual([
       ['Telecom Pro', 'monthly', 'confirmed'],

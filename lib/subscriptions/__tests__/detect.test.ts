@@ -12,7 +12,9 @@ import {
   addCalendarMonths,
   counterpartyKey,
   detectSubscriptions,
+  ledgerChargeReason,
   matchDecisions,
+  recurringChargeOfText,
   type BankLine,
   type DetectedSubscription,
 } from '../detect'
@@ -243,6 +245,49 @@ describe.each(['Pacific/Kiritimati', 'America/Los_Angeles', 'UTC'])('detectSubsc
       ...['2026-01-08', '2026-02-08', '2026-03-08'].map((d) => debit(d, 999, 'Beta')),
     ]
     expect(detect([...lines].reverse(), '2026-03-10')).toEqual(detect(lines, '2026-03-10'))
+  })
+})
+
+describe('recurring charges that are not subscriptions', () => {
+  const monthly = (name: string | null, label: string | null, ledgerClass?: BankLine['ledgerClass'], amountCents = 260_000) =>
+    ['2026-01-15', '2026-02-15', '2026-03-16', '2026-04-15'].map((day, i) => ({ ...debit(day, amountCents, name, label), ledgerClass: i === 3 ? ledgerClass : undefined }))
+
+  it('classifies an account of the reconciled entry: 16, 42, 43, 44 and 455 are not subscriptions, rent and insurance are', () => {
+    expect(['164000', '421000', '425000', '431000', '437000', '444000', '445510', '447000', '455100'].map(ledgerChargeReason)).toEqual([
+      'loans', 'personnel', 'personnel', 'social', 'social', 'state', 'state', 'state', 'associates',
+    ])
+    expect(['613200', '616000', '401000', '626000', '451000', '6411'].map(ledgerChargeReason)).toEqual(['other', 'other', 'other', 'other', 'other', 'other'])
+  })
+
+  it('reports a series booked to a salary account as a recurring charge, whatever its name', () => {
+    const [salary] = detect(monthly('Président', 'VIR PRESIDENT', 'personnel', 312_000)).subscriptions
+    expect(salary).toMatchObject({ cadence: 'monthly', typicalAmountCents: 312_000, kind: 'recurring_charge', chargeReason: 'personnel', classifiedBy: 'ledger' })
+  })
+
+  it('falls back on payroll and tax payees in the counterparty or label of unreconciled lines', () => {
+    expect(detect(monthly(null, 'PRLV SEPA URSSAF ILE DE FRANCE 012026')).subscriptions[0]).toMatchObject({ kind: 'recurring_charge', chargeReason: 'social', classifiedBy: 'label' })
+    expect(detect(monthly('DGFIP', 'PRLV IMPOT SOCIETES')).subscriptions[0]).toMatchObject({ kind: 'recurring_charge', chargeReason: 'state' })
+    expect(detect(monthly(null, 'VIR SALAIRE MARS DUPONT')).subscriptions[0]).toMatchObject({ kind: 'recurring_charge', chargeReason: 'personnel' })
+    const tokens: Array<[string | null, string | null]> = [
+      [null, 'PRLV IMPOTS.GOUV TVA'],
+      ['AGIRC-ARRCO', null],
+      [null, 'CAISSE RETRAITE COMPLEMENTAIRE CADRES'],
+      ['France Travail', null],
+      [null, 'POLE EMPLOI CONTRIBUTION'],
+      ['Trésor Public', null],
+    ]
+    expect(tokens.map(([name, label]) => recurringChargeOfText(name, label))).toEqual(['state', 'social', 'social', 'social', 'social', 'state'])
+    // Whole words only, and software named after payroll stays a subscription
+    expect([['Logiciel Paie', null], ['Salairetech', null], [null, 'MUTUELLE SANTE ENTREPRISE']].map(([n, l]) => recurringChargeOfText(n, l))).toEqual([null, null, null])
+  })
+
+  it('lets the account of the latest reconciled payment override the label, both ways', () => {
+    // A rent whose label happens to mention taxes, reconciled on 613: a subscription
+    expect(detect(monthly('Bailleur', 'LOYER ET IMPOTS FONCIERS', 'other')).subscriptions[0]).toMatchObject({ kind: 'subscription', chargeReason: null, classifiedBy: 'ledger' })
+    // Nothing in the label, reconciled on 431: a recurring charge
+    expect(detect(monthly('Caisse Sociale', null, 'social')).subscriptions[0]).toMatchObject({ kind: 'recurring_charge', classifiedBy: 'ledger' })
+    // Neither: a subscription by default
+    expect(detect(monthly('Nuage Pro', null)).subscriptions[0]).toMatchObject({ kind: 'subscription', chargeReason: null, classifiedBy: null })
   })
 })
 

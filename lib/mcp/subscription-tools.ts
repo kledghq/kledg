@@ -20,10 +20,14 @@ export function registerSubscriptionReadTools(server: McpServer, guard: CompanyG
     {
       title: 'Abonnements détectés',
       description:
-        "Lists the recurring debits (subscriptions) detected in the company's bank transactions over the last three years: debits to the same counterparty at a regular cadence (weekly, monthly, quarterly, yearly), with day jitter and small price changes tolerated. For each: counterparty, cadence, current amount, annualized cost, first, last and next expected payment day, number of payments and missed ones, status (active; price_changed when the amount changed recently; possibly_stopped when the next payment is overdue at the last day the bank lines cover), the user's decision (confirmed or ignored, and the budget line it was added to) and the class 6 account of the latest reconciled payment. Ignored subscriptions are left out unless includeIgnored is true. Detection is recomputed at each call.",
+        "Lists the recurring debits (subscriptions) detected in the company's bank transactions over the last three years: debits to the same counterparty at a regular cadence (weekly, monthly, quarterly, yearly), with day jitter and small price changes tolerated. For each: counterparty, cadence, current amount, annualized cost, first, last and next expected payment day, number of payments and missed ones, status (active; price_changed when the amount changed recently; possibly_stopped when the next payment is overdue at the last day the bank lines cover), the user's decision (confirmed or ignored, and the budget line it was added to) and the class 6 account of the latest reconciled payment. Recurring debits that are not subscriptions (kind recurring_charge: the reconciled payment was booked to 42 personnel, 43 social bodies, 44 State, 455 associates or 16 loans, or the label names a payroll, social or tax payee such as URSSAF or DGFIP) are left out unless includeRecurringCharges is true or a user counted one as a subscription; they are never in activeAnnualizedCost. Ignored subscriptions are left out unless includeIgnored is true. Detection is recomputed at each call.",
       inputSchema: z.object({
         companyId: z.string().describe('Company id, from list_companies.'),
         includeIgnored: z.boolean().default(false).describe('true: also return the subscriptions a user marked as ignored.'),
+        includeRecurringCharges: z
+          .boolean()
+          .default(false)
+          .describe('true: also return recurring debits that are not subscriptions (salaries, social charges, taxes, associates, loans), unless a user counted one as a subscription.'),
       }),
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -31,7 +35,9 @@ export function registerSubscriptionReadTools(server: McpServer, guard: CompanyG
       run(async () => {
         await guard.require(args.companyId, { banking: ['read'] })
         const list = await listDetectedSubscriptions(args.companyId)
-        const items = list.items.filter((s) => args.includeIgnored || s.decision?.status !== 'ignored')
+        const items = list.items
+          .filter((s) => args.includeIgnored || s.decision?.status !== 'ignored')
+          .filter((s) => args.includeRecurringCharges || s.countsAsSubscription || s.decision?.status === 'ignored')
         return json({
           today: list.today,
           observedUntil: list.observedUntil,
@@ -53,6 +59,9 @@ export function registerSubscriptionReadTools(server: McpServer, guard: CompanyG
               ? { previousAmount: fromCents(s.priceChange.previousAmountCents), newAmount: fromCents(s.priceChange.newAmountCents), since: s.priceChange.sinceDay }
               : null,
             variableAmount: s.variableAmount,
+            kind: s.kind,
+            chargeReason: s.chargeReason,
+            countsAsSubscription: s.countsAsSubscription,
             decision: s.decision?.status ?? null,
             budgetLine: s.decision?.budgetLine ? { accountPrefix: s.decision.budgetLine.accountPrefix, label: s.decision.budgetLine.label, fiscalYear: s.decision.budgetLine.fiscalYear } : null,
             suggestedAccount: s.suggestedAccountCode,

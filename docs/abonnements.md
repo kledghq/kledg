@@ -22,6 +22,14 @@ API `GET /api/subscriptions?companyId=` (droit `banking:read`).
 
 La détection est refaite à chaque lecture et n'est pas enregistrée : elle dépend d'opérations qu'une synchronisation, un import ou une suppression changent à tout moment, et elle porte sur quelques milliers de lignes. Deux lectures des mêmes opérations donnent les mêmes abonnements, dans le même ordre (coût annuel décroissant).
 
+## Charges récurrentes hors abonnements
+
+Les salaires, les cotisations sociales, les impôts, les comptes courants d'associés et les remboursements d'emprunt reviennent aussi à date fixe, mais ce ne sont pas des abonnements. Ils restent détectés, avec le type `recurring_charge` et un motif, sous l'onglet « Charges récurrentes » de la page, et ne comptent ni parmi les abonnements actifs ni dans le coût annuel.
+
+- **Par l'écriture rapprochée** (prioritaire) : quand un paiement est rapproché d'une écriture (`bank_transactions.reconciledWith`, posé par le rapprochement, `lib/reconciliation/service.ts`), sa contrepartie est le compte débité du plus gros montant hors classe 5. Les comptes 16 (emprunts), 42 (personnel : 421, 425...), 43 (organismes sociaux : 431, 437...), 44 (État : 444, 445, 447...) et 455 (associés, comptes courants) en font une charge récurrente (PCG art. 932-1) ; tout autre compte (loyer 613, assurance 616, fournisseur 401) en fait un abonnement. Le dernier paiement rapproché de la série décide, même contre le libellé.
+- **Par le libellé**, pour une série sans paiement rapproché : une liste prudente de bénéficiaires français de la paie et des impôts, en mots entiers de la contrepartie ou du libellé : `SALAIRE`, `URSSAF`, `AGIRC`, `ARRCO`, `RETRAITE COMPLEMENTAIRE`, `POLE EMPLOI`, `FRANCE TRAVAIL`, `DGFIP`, `IMPOTS` (dont impots.gouv), `IMPOT`, `TRESOR PUBLIC`, `FINANCES PUBLIQUES` (`lib/subscriptions/detect.ts`, `recurringChargeOfText`). Les mutuelles, les caisses de prévoyance et les logiciels de paie n'y sont pas : ils peuvent être de vrais abonnements, l'utilisateur les ignore au besoin.
+- **Correction** : « Compter comme abonnement » confirme une charge récurrente, qui compte alors parmi les abonnements ; la remettre à traiter la renvoie dans son onglet.
+
 ## Décisions
 
 API `PUT /api/subscriptions/decision` (droit `banking:reconcile`).
@@ -52,4 +60,4 @@ La page propose de créer une [règle d'affectation](regles-d-affectation.md) à
 
 ## MCP
 
-`list_detected_subscriptions` (droit `banking:read`) : les abonnements détectés, en euros, avec leur statut, leur décision et la ligne de budget ; les abonnements ignorés sur demande (`includeIgnored`). Voir [mcp.md](mcp.md).
+`list_detected_subscriptions` (droit `banking:read`) : les abonnements détectés, en euros, avec leur statut, leur décision et la ligne de budget ; les abonnements ignorés (`includeIgnored`) et les charges récurrentes hors abonnements (`includeRecurringCharges`) sur demande. Voir [mcp.md](mcp.md).
