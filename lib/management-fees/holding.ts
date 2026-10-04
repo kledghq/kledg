@@ -18,7 +18,8 @@
  *   user decides.
  *
  * Reads of the subsidiaries' rows run in the user's own row level security
- * context: a subsidiary the user cannot reach is not listed.
+ * context, narrowed explicitly to the companies involved: a subsidiary the
+ * user cannot reach is not listed.
  */
 
 import type { Prisma } from '@prisma/client'
@@ -37,14 +38,22 @@ function reachable(user: Pick<CurrentUser, 'id' | 'role'>): Prisma.CompanyWhereI
 /**
  * Ids and slugs of the user's companies that hold shares in another company
  * the user reaches: the companies whose navigation shows Frais de gestion.
+ * `companyIds` are the user's companies the caller already listed (the
+ * company switcher): the lookup runs narrowed to them, holding and
+ * subsidiaries alike, never to every company of the user.
  */
-export async function listHoldingRefs(user: Pick<CurrentUser, 'id' | 'role'>): Promise<string[]> {
-  const holdings = await withUserContext(user.id, () =>
-    prisma.company.findMany({
-      where: { AND: [reachable(user), { shareholdings: { some: { company: reachable(user) } } }] },
-      select: { id: true, slug: true },
-      take: 500,
-    }),
+export async function listHoldingRefs(user: Pick<CurrentUser, 'id' | 'role'>, companyIds: readonly string[]): Promise<string[]> {
+  if (companyIds.length === 0) return []
+  const among = (where: Prisma.CompanyWhereInput): Prisma.CompanyWhereInput => ({ AND: [reachable(user), { id: { in: [...companyIds] } }, where] })
+  const holdings = await withUserContext(
+    user.id,
+    () =>
+      prisma.company.findMany({
+        where: among({ shareholdings: { some: { company: among({}) } } }),
+        select: { id: true, slug: true },
+        take: 500,
+      }),
+    { companyIds },
   )
   return holdings.flatMap((c) => [c.id, c.slug])
 }
@@ -62,13 +71,35 @@ export interface SubsidiaryCandidate {
  * companies that record the holding as a shareholder.
  */
 export async function listSubsidiaryCandidates(holdingId: string, user: Pick<CurrentUser, 'id' | 'role'>, access: GroupAccess): Promise<SubsidiaryCandidate[]> {
-  const rows = await withUserContext(user.id, () =>
-    prisma.shareholder.findMany({
-      where: { companyShareholderId: holdingId, companyId: { not: holdingId }, company: reachable(user) },
-      select: { sharePercentage: true, company: { select: { id: true, name: true, siren: true } } },
-      orderBy: { company: { name: 'asc' } },
-      take: 200,
-    }),
+  // The subsidiaries are not known before this lookup: it reads only their
+  // ids, within the access's own bound (an assistant's grant), never wider.
+  const bound = (await access.companyIds?.()) ?? null
+  const found = await withUserContext(
+    user.id,
+    () =>
+      prisma.shareholder.findMany({
+        where: {
+          companyShareholderId: holdingId,
+          companyId: bound ? { not: holdingId, in: [...bound] } : { not: holdingId },
+          company: reachable(user),
+        },
+        select: { companyId: true },
+        take: 200,
+      }),
+    bound ? { companyIds: bound } : {},
+  )
+  const subsidiaryIds = [...new Set(found.map((row) => row.companyId))]
+  if (subsidiaryIds.length === 0) return []
+  // The rows themselves, narrowed to the holding and those subsidiaries.
+  const rows = await withUserContext(
+    user.id,
+    () =>
+      prisma.shareholder.findMany({
+        where: { companyShareholderId: holdingId, companyId: { in: subsidiaryIds } },
+        select: { sharePercentage: true, company: { select: { id: true, name: true, siren: true } } },
+        orderBy: { company: { name: 'asc' } },
+      }),
+    { companyIds: [holdingId, ...subsidiaryIds] },
   )
   const candidates: SubsidiaryCandidate[] = []
   for (const row of rows) {

@@ -23,7 +23,7 @@ export default async function DashboardLayout({
   // "Chargement..." state while the client would fetch it
   const companies = (await listCompaniesForUser(user)).map(({ id, slug, name, logo, legalType }) => ({ id, slug, name, logo, legalType }))
   // Holdings show Frais de gestion in their navigation (one definition: lib/management-fees/holding.ts)
-  const holdingRefs = await listHoldingRefs(user)
+  const holdingRefs = await listHoldingRefs(user, companies.map((company) => company.id))
 
   return (
     <AppShell

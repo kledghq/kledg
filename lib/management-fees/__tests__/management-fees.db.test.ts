@@ -144,8 +144,24 @@ describe.skipIf(!available)('management fees (PostgreSQL)', () => {
       expect(candidates[0]).toMatchObject({ sharePercentage: '80' })
     })
 
+    it('lists candidates within the bound of the access only (an assistant grant), never the user\'s other companies', async () => {
+      const bounded = (user: User) => ({ ...accessMod.userGroupAccess(user), companyIds: async () => [holding.companyId, s1.companyId] })
+      const candidates = await withUserContext(ACCOUNTANT.id, () => holdingMod.listSubsidiaryCandidates(holding.companyId, ACCOUNTANT, bounded(ACCOUNTANT)), {
+        companyIds: [holding.companyId],
+      })
+      expect(candidates.map((c) => c.id)).toEqual([s1.companyId])
+    })
+
+    it('looks holdings up among the given companies only', async () => {
+      const all = [holding, s1, s2, other].map((books) => books.companyId)
+      expect(await holdingMod.listHoldingRefs(ACCOUNTANT, all)).toEqual(expect.arrayContaining([holding.companyId, 'mf-holding']))
+      // The holding is not among the companies given, or none of its subsidiaries is.
+      expect(await holdingMod.listHoldingRefs(ACCOUNTANT, [s1.companyId, s2.companyId, other.companyId])).toEqual([])
+      expect(await holdingMod.listHoldingRefs(ACCOUNTANT, [holding.companyId, other.companyId])).toEqual([])
+    })
+
     it('shows the navigation entry in the holding only', async () => {
-      const refs = await holdingMod.listHoldingRefs(ACCOUNTANT)
+      const refs = await holdingMod.listHoldingRefs(ACCOUNTANT, [holding, s1, s2, other].map((books) => books.companyId))
       expect(refs).toEqual(expect.arrayContaining([holding.companyId, 'mf-holding']))
       expect(refs).not.toContain(s1.companyId)
       expect(refs).not.toContain(other.companyId)

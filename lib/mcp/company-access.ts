@@ -108,6 +108,8 @@ export interface CompanyGuard {
   requireFullControl(companyId: string, permission: Permission): Promise<void>
   /** Filter of the companies the caller may list: the user's companies within the grant. */
   companyWhere(): Promise<Prisma.CompanyWhereInput>
+  /** The connection's company grant, or null when it grants every company of the user. */
+  companyIds(): Promise<readonly string[] | null>
 }
 
 export const FULL_CONTROL_REQUIRED_MESSAGE =
@@ -126,6 +128,10 @@ export function companyGuard({ user, caller, canAdmin }: McpAccess): CompanyGuar
     async requireFullControl(companyId, permission) {
       if (!canAdmin) throw new ForbiddenError(FULL_CONTROL_REQUIRED_MESSAGE)
       await require(companyId, permission)
+    },
+    async companyIds() {
+      const scope = await loadCompanyScope(user.id, caller)
+      return scope.all ? null : [...scope.companyIds]
     },
     async companyWhere() {
       const scope = await loadCompanyScope(user.id, caller)
