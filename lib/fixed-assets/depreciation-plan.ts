@@ -63,6 +63,17 @@ function daysInWindow(
   return utcDaysInclusive(effectiveStart, windowEnd)
 }
 
+/**
+ * Coefficient of the declining method by normal duration of use, when the
+ * asset does not give one (CGI art. 39 A, 1): 1,25 for 3 or 4 years, 1,75
+ * for 5 or 6 years, 2,25 beyond 6 years.
+ */
+export function legalDecliningCoefficient(duration: number): number {
+  if (duration > 6) return 2.25
+  if (duration >= 5) return 1.75
+  return 1.25
+}
+
 export interface DepreciationPlan {
   /** Depreciation of each month, keyed "YYYY-MM". */
   byMonth: Map<string, number>
@@ -111,7 +122,8 @@ export function buildDepreciationPlan(
   const duration = durationInput > 0 ? durationInput : Math.round(1 / annualRate)
 
   if (method === 'declining') {
-    const coef = toNumber(asset.decliningCoefficient) || 1.75
+    const given = toNumber(asset.decliningCoefficient)
+    const coef = given > 0 ? given : legalDecliningCoefficient(duration)
     return {
       ...empty,
       byMonth: buildDecliningMonthlyMap(baseCents, duration, coef, start),
@@ -169,8 +181,7 @@ function buildDecliningMonthlyMap(
   coefficient: number,
   depreciationStart: Date
 ): Map<string, number> {
-  const coef = coefficient > 0 ? coefficient : 1.75
-  const decliningRate = (1 / duration) * coef
+  const decliningRate = (1 / duration) * coefficient
   const firstMonth = depreciationStart.getUTCMonth()
   const startYear = depreciationStart.getUTCFullYear()
   const firstYearMonths = 12 - firstMonth

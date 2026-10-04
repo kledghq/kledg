@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { buildDepreciationPlan, sumPlanCentsForPeriod } from '../depreciation-plan'
+import { buildDepreciationPlan, legalDecliningCoefficient, sumPlanCentsForPeriod } from '../depreciation-plan'
 
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
 
@@ -57,6 +57,17 @@ describe('declining depreciation plan (CGI art. 39 A)', () => {
     ] as const) {
       expect(totalCents(declining(base, years, start, coefficient))).toBe(Math.round(Number(base) * 100))
     }
+  })
+
+  it('uses the legal coefficient of the duration when the asset gives none (CGI art. 39 A, 1)', () => {
+    // Regression: 1,75 was used for every duration
+    expect([3, 4, 5, 6, 7, 10].map(legalDecliningCoefficient)).toEqual([1.25, 1.25, 1.75, 1.75, 2.25, 2.25])
+    // 4 years: 25 % x 1,25 = 31,25 % of 8 000 = 2 500,00 the first year
+    expect(yearCents(declining(8000, 4, '2025-01-01', null), 2025)).toBe(250000)
+    // 10 years: 10 % x 2,25 = 22,5 % of 8 000 = 1 800,00
+    expect(yearCents(declining(8000, 10, '2025-01-01', null), 2025)).toBe(180000)
+    // A coefficient given by the user wins
+    expect(yearCents(declining(8000, 4, '2025-01-01', 1.75), 2025)).toBe(350000)
   })
 
   it('takes a first year prorata in whole months from the month of acquisition', () => {
