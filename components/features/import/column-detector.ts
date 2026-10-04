@@ -101,24 +101,47 @@ export function textSimilarity(text1: string, text2: string): number {
 }
 
 /**
- * Automatically detects FEC column mapping from file headers
- * 
+ * Automatically detects FEC column mapping from file headers. Each header
+ * goes to one field at most: exact names first, then the headers that
+ * contain a known name, the longest (most specific) names first, so the
+ * generic "journal" of Code Journal never takes the "Libellé journal"
+ * column of Libellé Journal.
+ *
  * @param headers - Array of column headers from the file
  * @returns Partial FEC column mapping with detected fields
  */
 export function detectColumnMapping(headers: string[]): Partial<FECColumnMapping> {
   const autoMapping: Partial<FECColumnMapping> = {}
   const headerLower = headers.map((h) => h.toLowerCase().trim())
+  const used = new Set<number>()
+  const fields = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].map((field) => field.key as keyof FECColumnMapping)
 
-  for (const field of [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS]) {
-    const commonNames = COMMON_COLUMN_NAMES[field.key] || []
-    for (const commonName of commonNames) {
-      const index = headerLower.findIndex((h) => h === commonName || h.includes(commonName))
+  // Exact names
+  for (const key of fields) {
+    for (const commonName of COMMON_COLUMN_NAMES[key] || []) {
+      const index = headerLower.findIndex((h, i) => !used.has(i) && h === commonName)
       if (index !== -1) {
-        autoMapping[field.key as keyof FECColumnMapping] = headers[index]
+        autoMapping[key] = headers[index]
+        used.add(index)
         break
       }
     }
+  }
+
+  // Headers containing a known name, most specific name first
+  const candidates: Array<{ key: keyof FECColumnMapping; index: number; length: number; order: number }> = []
+  fields.forEach((key, order) => {
+    for (const commonName of COMMON_COLUMN_NAMES[key] || []) {
+      headerLower.forEach((h, index) => {
+        if (h.includes(commonName)) candidates.push({ key, index, length: commonName.length, order })
+      })
+    }
+  })
+  candidates.sort((a, b) => b.length - a.length || a.order - b.order || a.index - b.index)
+  for (const { key, index } of candidates) {
+    if (autoMapping[key] !== undefined || used.has(index)) continue
+    autoMapping[key] = headers[index]
+    used.add(index)
   }
 
   return autoMapping

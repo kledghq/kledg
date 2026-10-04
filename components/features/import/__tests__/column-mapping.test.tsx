@@ -141,10 +141,8 @@ describe('ColumnMapping', () => {
     )
   })
 
-  // BUG: components/features/import/column-detector.ts:116: names are matched with
-  // `h.includes(commonName)`, so the generic name "journal" of Code Journal matches the
-  // "Libellé journal" column: Code Journal and Libellé Journal both get the label column.
-  it.skip('does not give the journal label column to Code Journal', () => {
+  // Each column goes to one field: the generic "journal" of Code Journal never takes "Libellé journal"
+  it('does not give the journal label column to Code Journal', () => {
     renderMapping(['Jnl;Libellé journal;N° pièce', 'VT;Ventes;1'].join('\n'))
     expect(fieldSelect('Libellé Journal')).toHaveTextContent('Libellé journal')
     expect(fieldSelect('Code Journal')).not.toHaveTextContent('Libellé journal')
