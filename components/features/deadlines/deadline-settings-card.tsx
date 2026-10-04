@@ -169,6 +169,7 @@ export function DeadlineSettingsCard({ companyId, legalType, canEdit }: { compan
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Jour de déclaration de TVA"
+                htmlFor="deadline-vat-day"
                 hint="Entre le 15 et le 24 du mois suivant selon la forme juridique, le département et le SIREN. Votre jour figure dans votre espace professionnel sur impots.gouv.fr."
               >
                 <Select
@@ -191,6 +192,7 @@ export function DeadlineSettingsCard({ companyId, legalType, canEdit }: { compan
               </Field>
               <Field
                 label="Fréquence des déclarations CA3"
+                htmlFor="deadline-vat-frequency"
                 hint={"Au réel normal, mensuelle par défaut. Le régime simplifié est supprimé en 2027\u00a0: la TVA passe alors à la CA3 trimestrielle."}
               >
                 <Select value={draft.vatCa3Frequency} onValueChange={(value) => update('vatCa3Frequency', value as VatCa3Frequency)} disabled={!canEdit}>

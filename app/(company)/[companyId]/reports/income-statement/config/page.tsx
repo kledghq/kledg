@@ -218,9 +218,9 @@ export default function IncomeStatementConfigPage() {
           </>
         }
       >
-        <Field label="Variante" className="max-w-56">
+        <Field label="Variante" htmlFor="is-config-variant" className="max-w-56">
           <Select value={variant} onValueChange={(v) => setVariant(v as 'complete' | 'simplified')}>
-            <SelectTrigger>
+            <SelectTrigger id="is-config-variant">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
