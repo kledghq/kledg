@@ -775,105 +775,18 @@ export function BalanceSheetNestedConfigEditor({
     }
   }
 
-  // Sortable item component
-  const SortableItem = ({ 
-    config, 
-    section 
-  }: { 
-    config: BalanceSheetLineConfig
-    section: 'actif' | 'passif'
-  }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id: config.id })
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-    }
-
-    const isExpanded = expandedIds.has(config.id)
-    const hasChildren = config.children && config.children.length > 0
-    const isGroup = config.lineType === 'group'
-    const isSum = config.lineType === 'sum'
-
-    // Get children IDs for SortableContext
-    const childrenIds = config.children?.map(c => c.id) || []
-
-    return (
-      <div ref={setNodeRef} style={style} className="space-y-2" data-sortable-id={config.id}>
-        <div className="flex items-start gap-1">
-          <div className="mt-1 flex items-center gap-1 max-sm:flex-col">
-            <button
-              {...attributes}
-              {...listeners}
-              className="pointer-coarse:size-11 inline-flex touch-none items-center justify-center p-1 hover:bg-muted rounded cursor-grab active:cursor-grabbing"
-              title="Glisser pour réorganiser"
-              aria-label="Glisser pour réorganiser"
-            >
-              <GripVertical className="h-4 w-4 text-muted-foreground" />
-            </button>
-            {hasChildren ? (
-              <button
-                onClick={() => toggleExpand(config.id)}
-                aria-label={isExpanded ? 'Replier' : 'Déplier'}
-                aria-expanded={isExpanded}
-                className="pointer-coarse:size-11 inline-flex items-center justify-center p-1 hover:bg-muted rounded"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </button>
-            ) : (
-              <div className="pointer-coarse:w-11 w-6" />
-            )}
-            {isGroup ? (
-              <Folder aria-label="Groupe" className="text-muted-foreground size-4" />
-            ) : isSum ? (
-              <Calculator aria-label="Somme" className="text-muted-foreground size-4" />
-            ) : (
-              <FileText aria-label="Ligne" className="text-muted-foreground size-4" />
-            )}
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <BalanceSheetLineConfigEditor
-              config={config}
-              onUpdate={(updates) => handleUpdate(config.id, updates)}
-              onDelete={() => onDelete(config.id)}
-              onAddGroup={() => handleAddGroup(config.id, section)}
-              onAddSum={() => handleAddSum(config.id, section)}
-              onAddLine={() => handleAddLine(config.id, section)}
-              isGroup={isGroup}
-              isSum={isSum}
-              section={section}
-            />
-          </div>
-        </div>
-
-        {hasChildren && isExpanded && (
-          <div className="ml-2 space-y-2 border-l pl-2 sm:ml-6 sm:pl-4">
-            <SortableContext items={childrenIds} strategy={verticalListSortingStrategy}>
-              {config.children!.map((child) => (
-                <SortableItem key={child.id} config={child} section={section} />
-              ))}
-            </SortableContext>
-          </div>
-        )}
-      </div>
-    )
+  const tree: TreeActions<BalanceSheetLineConfig, 'actif' | 'passif'> = {
+    expandedIds,
+    toggleExpand,
+    onUpdate: handleUpdate,
+    onDelete,
+    onAddGroup: handleAddGroup,
+    onAddSum: handleAddSum,
+    onAddLine: handleAddLine,
   }
 
   const renderConfig = (config: BalanceSheetLineConfig, section: 'actif' | 'passif') => {
-    return <SortableItem key={config.id} config={config} section={section} />
+    return <SortableItem key={config.id} config={config} section={section} tree={tree} />
   }
 
   return (
@@ -980,6 +893,121 @@ export function BalanceSheetNestedConfigEditor({
           </div>
         </div>
       </DndContext>
+    </div>
+  )
+}
+
+/** What a line of the tree needs from the editor. */
+interface TreeActions<Config, Section> {
+  expandedIds: Set<string>
+  toggleExpand: (id: string) => void
+  onUpdate: (configId: string, updates: Partial<Config>) => void
+  onDelete: (configId: string) => Promise<void>
+  onAddGroup: (parentId: string, section: Section) => void
+  onAddSum: (parentId: string, section: Section) => void
+  onAddLine: (parentId: string, section: Section) => void
+}
+
+/**
+ * One line of the tree with its children. Declared at module level: a
+ * component declared inside the editor is a new type on every render, so
+ * React remounted every line on each keystroke (the input lost its focus
+ * and the settings panel closed).
+ */
+function SortableItem({
+  config,
+  section,
+  tree,
+}: {
+  config: BalanceSheetLineConfig
+  section: 'actif' | 'passif'
+  tree: TreeActions<BalanceSheetLineConfig, 'actif' | 'passif'>
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: config.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const isExpanded = tree.expandedIds.has(config.id)
+  const hasChildren = config.children && config.children.length > 0
+  const isGroup = config.lineType === 'group'
+  const isSum = config.lineType === 'sum'
+
+  // Get children IDs for SortableContext
+  const childrenIds = config.children?.map(c => c.id) || []
+
+  return (
+    <div ref={setNodeRef} style={style} className="space-y-2" data-sortable-id={config.id}>
+      <div className="flex items-start gap-1">
+        <div className="mt-1 flex items-center gap-1 max-sm:flex-col">
+          <button
+            {...attributes}
+            {...listeners}
+            className="pointer-coarse:size-11 inline-flex touch-none items-center justify-center p-1 hover:bg-muted rounded cursor-grab active:cursor-grabbing"
+            title="Glisser pour réorganiser"
+            aria-label="Glisser pour réorganiser"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </button>
+          {hasChildren ? (
+            <button
+              onClick={() => tree.toggleExpand(config.id)}
+              aria-label={isExpanded ? 'Replier' : 'Déplier'}
+              aria-expanded={isExpanded}
+              className="pointer-coarse:size-11 inline-flex items-center justify-center p-1 hover:bg-muted rounded"
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </button>
+          ) : (
+            <div className="pointer-coarse:w-11 w-6" />
+          )}
+          {isGroup ? (
+            <Folder aria-label="Groupe" className="text-muted-foreground size-4" />
+          ) : isSum ? (
+            <Calculator aria-label="Somme" className="text-muted-foreground size-4" />
+          ) : (
+            <FileText aria-label="Ligne" className="text-muted-foreground size-4" />
+          )}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <BalanceSheetLineConfigEditor
+            config={config}
+            onUpdate={(updates) => tree.onUpdate(config.id, updates)}
+            onDelete={() => tree.onDelete(config.id)}
+            onAddGroup={() => tree.onAddGroup(config.id, section)}
+            onAddSum={() => tree.onAddSum(config.id, section)}
+            onAddLine={() => tree.onAddLine(config.id, section)}
+            isGroup={isGroup}
+            isSum={isSum}
+            section={section}
+          />
+        </div>
+      </div>
+
+      {hasChildren && isExpanded && (
+        <div className="ml-2 space-y-2 border-l pl-2 sm:ml-6 sm:pl-4">
+          <SortableContext items={childrenIds} strategy={verticalListSortingStrategy}>
+            {config.children!.map((child) => (
+              <SortableItem key={child.id} config={child} section={section} tree={tree} />
+            ))}
+          </SortableContext>
+        </div>
+      )}
     </div>
   )
 }
