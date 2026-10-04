@@ -230,6 +230,13 @@ describe('FixedAssetFormDialog', () => {
     ])
   })
 
+  it('shows the declining coefficient as a plain number, not an amount', async () => {
+    const { user } = renderForm()
+    await chooseMethod(user, 'Dégressif')
+    const coefficient = screen.getByLabelText('Coefficient dégressif')
+    expect(coefficient.parentElement?.textContent).not.toContain('€')
+  })
+
   it('submits a non depreciable asset with only its asset account', async () => {
     const { onSubmit, user } = renderForm()
     await chooseMethod(user, 'Non amortissable')

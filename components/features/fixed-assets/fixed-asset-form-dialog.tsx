@@ -657,18 +657,14 @@ export function FixedAssetFormDialog({
             {watch('depreciationMethod') === 'declining' && (
               <div className="space-y-2">
                 <Label htmlFor="decliningCoefficient">Coefficient dégressif</Label>
-                <div className="relative">
-                  <Input
-                    id="decliningCoefficient"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    {...register('decliningCoefficient', { valueAsNumber: true })}
-                    placeholder="1.25"
-                    className="pr-8"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                </div>
+                <Input
+                  id="decliningCoefficient"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  {...register('decliningCoefficient', { valueAsNumber: true })}
+                  placeholder="1.25"
+                />
               </div>
             )}
             {watch('depreciationMethod') === 'linear' ? (
