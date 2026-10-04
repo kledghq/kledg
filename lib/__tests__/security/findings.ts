@@ -203,7 +203,7 @@ export const NEW_FINDINGS = {
     title: 'Account pre-registration takeover when an unconfirmed address is added to a company',
     status: 'fixed',
     fixedIn: '13431d1',
-    severity: 'high',
+    severity: 'medium',
     cvss: 'CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N', // 6.8
     area: 'auth/account',
     note:
