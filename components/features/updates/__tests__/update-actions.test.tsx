@@ -21,6 +21,7 @@ const pull: UpdatePull = {
 
 type GitHubState = {
   channel: 'releases' | 'main' | 'off' | null
+  repository: string
   workflow: { present: boolean; state: string | null; current: boolean }
   run: WorkflowRun | null
   pull: UpdatePull | null
@@ -53,7 +54,7 @@ function routes(overrides: Partial<Record<string, () => Response>> = {}) {
 }
 
 beforeEach(() => {
-  github = { channel: 'releases', workflow: { present: true, state: 'active', current: true }, run: null, pull: null }
+  github = { channel: 'releases', repository: 'acme/kledg', workflow: { present: true, state: 'active', current: true }, run: null, pull: null }
   version = { version: '1.3.0', commit: 'old0000' }
   routes()
   vi.stubGlobal('fetch', fetchMock)
@@ -72,6 +73,19 @@ function bodyOf(key: string) {
 }
 
 describe('UpdateActions', () => {
+  it('without the Variables permission, shows the default channel and how to change it', async () => {
+    github.channel = null
+    render(<UpdateActions platform="vercel" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
+    expect(await screen.findByText('Versions publiées (recommandé)')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'jeton GitHub' })).toHaveAttribute('href', 'https://github.com/settings/personal-access-tokens')
+    expect(screen.getByRole('link', { name: 'variables du dépôt' })).toHaveAttribute(
+      'href',
+      'https://github.com/acme/kledg/settings/variables/actions',
+    )
+    expect(screen.getByRole('button', { name: 'Préparer la mise à jour' })).toBeEnabled()
+  })
+
   it('cannot install before a pull request is prepared', async () => {
     render(<UpdateActions platform="vercel" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
     expect(await screen.findByRole('button', { name: 'Préparer la mise à jour' })).toBeEnabled()
@@ -193,16 +207,12 @@ describe('UpdateActions', () => {
     expect(bodyOf('PUT /api/updates/channel')).toEqual({ channel: 'main' })
   })
 
-  it('disables preparation when the channel is off, and explains an unknown channel', async () => {
+  it('disables preparation when the channel is off', async () => {
     github.channel = 'off'
     const { unmount } = render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
     await waitFor(() => expect(screen.getByRole('combobox')).toHaveTextContent('Désactivé'))
     expect(screen.getByRole('button', { name: 'Préparer la mise à jour' })).toBeDisabled()
     unmount()
-
-    github.channel = null
-    render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
-    expect(await screen.findByText(/le jeton n'a pas la permission Variables/)).toBeInTheDocument()
   })
 
   it('labels the last workflow run and links its log', async () => {

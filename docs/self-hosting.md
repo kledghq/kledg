@@ -35,7 +35,7 @@ Quel que soit l'hébergeur, il vous faut les variables de [configuration.md](con
 2. Renseignez les deux variables demandées :
    - `BETTER_AUTH_SECRET` : générez-la avec `openssl rand -base64 32`. Gardez-la : la clé qui chiffre les identifiants bancaires en est dérivée.
    - `ADMIN_EMAIL` : votre email, seul autorisé à créer le compte administrateur.
-3. Le build exécute `prisma migrate deploy` puis `next build` (script `vercel-build`) : la base est créée automatiquement. Vercel renvoie ensuite vers https://www.kledg.com/fr/welcome, qui récapitule la suite.
+3. Le build exécute `prisma migrate deploy` puis `next build` (script `vercel-build`, `scripts/vercel-build.mjs`) : la base est créée automatiquement. Un aperçu sans base de données, comme celui de la pull request d'une mise à jour, saute les migrations et construit seulement : il vérifie que la mise à jour compile, sans toucher à la base de production. Vercel renvoie ensuite vers https://www.kledg.com/fr/welcome, qui récapitule la suite.
 4. Ouvrez `https://<votre-instance>/setup?token=<jeton>` et créez le compte administrateur. Sans `SETUP_TOKEN` ni emails, le jeton est dérivé de `BETTER_AUTH_SECRET` (HMAC-SHA256 de `kledg:setup-token:v1`, en base64url, voir `lib/setup.ts`) : le guide de déploiement de kledg.com le calcule dans le navigateur et donne le lien complet. Avec `RESEND_API_KEY`, `/setup` propose aussi d'envoyer le lien à `ADMIN_EMAIL`. `SETUP_TOKEN` et `CRON_SECRET` restent possibles (voir [configuration.md](configuration.md)) mais ne sont plus nécessaires sur Vercel.
 5. Créez votre première société, puis importez un FEC ou connectez votre banque.
 
