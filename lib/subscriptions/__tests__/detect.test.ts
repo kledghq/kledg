@@ -256,7 +256,11 @@ describe('recurring charges that are not subscriptions', () => {
     expect(['164000', '421000', '425000', '431000', '437000', '444000', '445510', '447000', '455100'].map(ledgerChargeReason)).toEqual([
       'loans', 'personnel', 'personnel', 'social', 'social', 'state', 'state', 'state', 'associates',
     ])
-    expect(['613200', '616000', '401000', '626000', '451000', '6411'].map(ledgerChargeReason)).toEqual(['other', 'other', 'other', 'other', 'other', 'other'])
+    expect(['613200', '616000', '401000', '626000', '451000', '6061', '627'].map(ledgerChargeReason)).toEqual(['other', 'other', 'other', 'other', 'other', 'other', 'other'])
+    // Charges booked directly, without a third-party account: taxes, personnel, the manager's own contributions, interest.
+    expect(['63511', '6411', '6441', '6451', '6461', '6475', '6611'].map(ledgerChargeReason)).toEqual([
+      'state', 'personnel', 'personnel', 'social', 'social', 'social', 'loans',
+    ])
   })
 
   it('reports a series booked to a salary account as a recurring charge, whatever its name', () => {

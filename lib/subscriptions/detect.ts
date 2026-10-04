@@ -93,17 +93,26 @@ export type SubscriptionKind = 'subscription' | 'recurring_charge'
 
 /**
  * Accounts whose payments recur without being subscriptions (PCG art.
- * 932-1, classes 1 and 4): 16 emprunts et dettes assimilées, 42 personnel,
- * 43 sécurité sociale et autres organismes sociaux, 44 État et autres
- * collectivités publiques, 455 associés, comptes courants. Longest prefix
- * first is not needed: they do not overlap.
+ * 932-1): 16 emprunts et dettes assimilées, 42 personnel, 43 sécurité
+ * sociale et autres organismes sociaux, 44 État et autres collectivités
+ * publiques, 455 associés, comptes courants; and the charge accounts a
+ * payment is sometimes booked to directly, without a third-party account:
+ * 63 impôts et taxes (CFE 63511...), 64 charges de personnel, of which 645,
+ * 646 (cotisations personnelles de l'exploitant) and 647 social, 661
+ * charges d'intérêts. Longest prefix first: 645 before 64.
  */
 const LEDGER_CHARGE_PREFIXES: ReadonlyArray<readonly [string, ChargeReason]> = [
+  ['455', 'associates'],
+  ['645', 'social'],
+  ['646', 'social'],
+  ['647', 'social'],
+  ['661', 'loans'],
   ['16', 'loans'],
   ['42', 'personnel'],
   ['43', 'social'],
   ['44', 'state'],
-  ['455', 'associates'],
+  ['63', 'state'],
+  ['64', 'personnel'],
 ]
 
 /** The reason an account is not a subscription's, or 'other' (rent 613, insurance 616, a supplier 401...). */
