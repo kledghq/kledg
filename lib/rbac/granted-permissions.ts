@@ -14,7 +14,7 @@ import { roles, statement, ROLE_LABELS } from '@/lib/permissions'
 type Resource = Exclude<keyof typeof statement, 'organization' | 'member' | 'invitation' | 'team' | 'ac'>
 
 /** Kledg's own resources, in the order of lib/permissions.ts. */
-const RESOURCES = ['entries', 'ledger', 'closing', 'banking', 'reports', 'settings', 'members'] as const satisfies readonly Resource[]
+const RESOURCES = ['entries', 'ledger', 'closing', 'banking', 'reports', 'settings', 'members', 'expenses'] as const satisfies readonly Resource[]
 
 /** A set of actions per resource, e.g. `{ banking: ['manage'] }`. */
 export type PermissionRequest = Partial<Record<(typeof RESOURCES)[number], readonly string[]>>

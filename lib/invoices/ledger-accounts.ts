@@ -47,6 +47,8 @@ export async function accountByRoot(
   fiscalYear: { id: string; year: number },
   root: string,
   label: string,
+  /** What is being posted, for the message: "cette facture" by default. */
+  purpose = 'cette facture',
 ): Promise<LedgerAccount> {
   const rows = await db.account.findMany({
     where: { companyId, fiscalYearId: fiscalYear.id, code: { startsWith: root } },
@@ -61,7 +63,7 @@ export async function accountByRoot(
     [...rows].sort((a, b) => a.code.length - b.code.length || a.code.localeCompare(b.code))[0]
   if (!pick) {
     throw new ValidationError(
-      `Aucun compte ${root} (${label}) dans le plan de comptes de l’exercice ${fiscalYear.year} : créez le compte ${root} pour comptabiliser cette facture.`,
+      `Aucun compte ${root} (${label}) dans le plan de comptes de l’exercice ${fiscalYear.year} : créez le compte ${root} pour comptabiliser ${purpose}.`,
     )
   }
   return pick

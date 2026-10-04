@@ -103,6 +103,8 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `list_tiers` | Clients et fournisseurs avec leur compte auxiliaire, leurs identifiants, comptes par défaut et délai de paiement ([factures et tiers](factures-et-tiers.md)) ; droit `entries:read` |
 | `list_invoices` | Factures d'achat ou de vente, avec totaux, statut (brouillon, comptabilisée, payée partiellement, payée) et reste dû ; droit `entries:read` |
 | `get_invoice` | Une facture avec ses lignes, son détail de TVA par taux, son écriture et ses règlements ; droit `entries:read` |
+| `list_expense_reports` | Notes de frais avec bénéficiaire, période, total à rembourser, TVA récupérable et statut (brouillon, soumise, validée, comptabilisée, remboursée) ([notes de frais](notes-de-frais.md)) ; droit `entries:read`, puis seulement ses propres notes sans le droit de valider |
+| `get_expense_report` | Une note de frais avec ses lignes, la TVA récupérable de chacune et sa raison, les trajets et le barème appliqué ; mêmes droits |
 
 ### Lecture et brouillons d'écritures (`kledg:write`)
 
@@ -143,6 +145,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `letter_entry_lines` | Lettrer des lignes d'un compte de tiers : code suivant du compte et date du jour, débits égaux aux crédits, écritures validées, exercice ouvert | `entries:update` | Oui |
 | `unletter_entry_lines` | Délettrer un code d'un compte de tiers, dans un exercice ouvert | `entries:update` | Oui |
 | `create_draft_invoice` | Enregistrer une facture d'achat ou de vente en brouillon (lignes, plusieurs taux, totaux calculés par Kledg) et, sur demande, son écriture en brouillon dans l'exercice de sa date | `entries:create` | Oui |
+| `create_draft_expense_report` | Préparer une note de frais en brouillon à partir de justificatifs (dépenses, TVA récupérable calculée par Kledg) et de trajets (barème kilométrique de l'année) ; la personne la soumet et un valideur la comptabilise dans Kledg | `expenses:submit` | Oui |
 
 Les opérations répétées n'agissent pas deux fois : un import du même relevé, une nouvelle exécution des règles, une seconde génération des dotations ou un second rapprochement ne créent rien de plus.
 
