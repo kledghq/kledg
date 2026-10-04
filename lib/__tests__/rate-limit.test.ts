@@ -109,6 +109,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/account/change-password.service.ts': /enforceRateLimit\('account-change-password'/,
   'lib/account/delete-account.service.ts': /enforceRateLimit\('account-delete'/,
   'lib/appearance/appearance.service.ts': /enforceRateLimit\('account-appearance'/,
+  'lib/appearance/display-mode.service.ts': /enforceRateLimit\('account-appearance'/,
   'lib/users/instance-users.service.ts': /enforceRateLimit\('instance-users'/,
   'lib/updates/guard.ts': /enforceRateLimit\('updates-write'/,
   'lib/mcp/full-control/define.ts': /enforceRateLimit\('mcp-full-control'/,

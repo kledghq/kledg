@@ -28,7 +28,10 @@ export interface AppearanceView {
 
 async function readAppearance(userId: string): Promise<{ appearance: AppearancePreferences; isDefault: boolean }> {
   const row = await prisma.userPreference.findUnique({ where: { userId }, select: { appearance: true } })
-  return row ? { appearance: parseStoredAppearance(row.appearance), isDefault: false } : { appearance: DEFAULT_APPEARANCE, isDefault: true }
+  // No row, or a row holding only the display mode (lib/appearance/display-mode.service.ts): the defaults.
+  return row?.appearance != null
+    ? { appearance: parseStoredAppearance(row.appearance), isDefault: false }
+    : { appearance: DEFAULT_APPEARANCE, isDefault: true }
 }
 
 export async function getAppearance(actor: InstanceActor): Promise<AppearanceView> {

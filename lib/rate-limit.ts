@@ -28,7 +28,7 @@ export const RATE_LIMITS = {
   'account-change-password': { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Deletion of one's account, per user. */
   'account-delete': { window: 900, max: 5, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
-  /** Saving one's chart colours (Apparence settings), per user. */
+  /** Saving one's Apparence settings (chart colours, display mode), per user. */
   'account-appearance': { window: 60, max: 30, message: "Trop d'enregistrements de l'apparence en une minute. Patientez une minute." },
   /** Instance user management (role, ban, email, deletion), per administrator. */
   'instance-users': { window: 60, max: 30, message: "Trop de modifications d'utilisateurs en une minute. Patientez une minute." },
