@@ -1,5 +1,6 @@
 'use client'
 
+import { pluralWord } from '@/lib/utils/plural'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -62,8 +63,8 @@ export function LastImportSummary({ result, onDismiss }: LastImportSummaryProps)
               </div>
               <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
                 <span>
-                  <span className="font-medium text-foreground">{createdCount}</span> écriture
-                  {createdCount !== 1 ? 's' : ''} importée{createdCount !== 1 ? 's' : ''}
+                  <span className="font-medium text-foreground">{createdCount}</span>{' '}
+                  {pluralWord(createdCount, 'écriture importée', 'écritures importées')}
                 </span>
                 <span>
                   <span
@@ -71,13 +72,12 @@ export function LastImportSummary({ result, onDismiss }: LastImportSummaryProps)
                   >
                     {errorsCount}
                   </span>{' '}
-                  ignorée{errorsCount !== 1 ? 's' : ''}
+                  {pluralWord(errorsCount, 'ignorée')}
                 </span>
                 {(result.accountsCreated || 0) > 0 && (
                   <span>
                     <span className="font-medium text-foreground">{result.accountsCreated}</span>{' '}
-                    compte{result.accountsCreated !== 1 ? 's' : ''} créé
-                    {result.accountsCreated !== 1 ? 's' : ''}
+                    {pluralWord(result.accountsCreated ?? 0, 'compte créé', 'comptes créés')}
                   </span>
                 )}
                 {(result.journalsCreated || 0) > 0 && (

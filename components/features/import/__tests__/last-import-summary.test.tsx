@@ -81,10 +81,8 @@ describe('LastImportSummary', () => {
     expect(counts).toHaveTextContent('2 journaux créés')
   })
 
-  // BUG: components/features/import/last-import-summary.tsx:65-74: a count of 0 is written in
-  // the plural ("0 écritures importées", "0 ignorées"); the French rule of lib/utils/plural.ts
-  // (and docs/conventions.md copy rules) gives "0 écriture importée", "0 ignorée".
-  it.skip('writes zero counts in the singular, as French does', () => {
+  // French rule of lib/utils/plural.ts: 0 and 1 take the singular ("0 écriture importée", "0 ignorée").
+  it('writes zero counts in the singular, as French does', () => {
     render(<LastImportSummary result={{ success: false, entriesCreated: 0, errors: [] }} onDismiss={vi.fn()} />)
     const counts = screen.getByText('Dernier import échoué').closest('div[class*="space-y-2"]') as HTMLElement
     expect(counts).toHaveTextContent('0 écriture importée')
