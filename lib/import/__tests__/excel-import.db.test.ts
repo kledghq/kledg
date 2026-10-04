@@ -125,7 +125,8 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
 
     const result = await importExcel({ companyId: ids.company, file })
 
-    expect(result).toMatchObject({ success: true, entriesCreated: 1, accountsCreated: 1, errors: [] })
+    // Regression: the existing journal AC was counted as created
+    expect(result).toMatchObject({ success: true, entriesCreated: 1, accountsCreated: 1, journalsCreated: 0, errors: [] })
     const [entry] = await entriesWithLines()
     expect(entry.date.toISOString()).toBe('2025-12-31T00:00:00.000Z')
     expect(entry.journalId).toBe(journal.id)
@@ -226,7 +227,7 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
 
       const second = await importExcel({ companyId: ids.company, file })
 
-      expect(second).toMatchObject({ success: true, entriesCreated: 0, accountsCreated: 0, errors: [] })
+      expect(second).toMatchObject({ success: true, entriesCreated: 0, accountsCreated: 0, journalsCreated: 0, errors: [] })
       expect(await prisma.accountingEntry.count()).toBe(2)
     })
 

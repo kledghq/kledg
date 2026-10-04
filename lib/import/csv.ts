@@ -119,22 +119,16 @@ export async function importCSV(
 
       // Créer le journal
       if (!journalsMap.has(journalCode)) {
-        const journal = await prisma.journal.upsert({
-          where: {
-            companyId_code: {
-              companyId,
-              code: journalCode,
-            },
-          },
-          update: {},
-          create: {
-            companyId,
-            code: journalCode,
-            label: journalCode,
-          },
+        // An existing journal of the company is reused and not counted as created
+        const existingJournal = await prisma.journal.findUnique({
+          where: { companyId_code: { companyId, code: journalCode } },
+          select: { id: true },
         })
+        const journal =
+          existingJournal ??
+          (await prisma.journal.create({ data: { companyId, code: journalCode, label: journalCode }, select: { id: true } }))
+        if (!existingJournal) result.journalsCreated++
         journalsMap.set(journalCode, journal.id)
-        result.journalsCreated++
       }
 
       // Créer le compte
