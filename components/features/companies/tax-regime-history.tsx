@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { useConfirm } from '@/components/shared'
+import { formatDisplayDate, useConfirm } from '@/components/shared'
+import { calendarDayOf, isoDateToLocal, localDateToIso } from '@/lib/utils/date'
 import {
   Card,
   CardContent,
@@ -98,14 +99,10 @@ const vatExemptReasons = [
   { value: 'Autre', label: 'Autre (à préciser)' },
 ]
 
+/** A stored calendar day (midnight UTC), or "En cours" for an open period. */
 function formatDate(dateString: string | null): string {
   if (!dateString) return 'En cours'
-  const date = new Date(dateString)
-  return date.toLocaleDateString('fr-FR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return formatDisplayDate(dateString, 'long')
 }
 
 function getRegimeLabel(regimeType: string, regime: string): string {
@@ -204,7 +201,8 @@ export function TaxRegimeHistory({ companyId }: TaxRegimeHistoryProps) {
     setFormData({
       regimeType: regime.regimeType,
       regime: regime.regime,
-      startDate: new Date(regime.startDate),
+      // The picker works in local time: local midnight of the stored day.
+      startDate: isoDateToLocal(calendarDayOf(regime.startDate) ?? ''),
       notes: regime.notes || '',
       isVatExempt: regime.isVatExempt || false,
       vatExemptReason: isStandardReason ? reason : 'Autre',
@@ -241,7 +239,7 @@ export function TaxRegimeHistory({ companyId }: TaxRegimeHistoryProps) {
           body: JSON.stringify({
             id: editingRegime.id,
             regime: formData.regime,
-            startDate: formData.startDate.toISOString(),
+            startDate: localDateToIso(formData.startDate),
             notes: formData.notes || null,
             isVatExempt: formData.regimeType === 'vat' ? formData.isVatExempt : false,
             vatExemptReason: formData.regimeType === 'vat' && formData.isVatExempt 
@@ -269,7 +267,7 @@ export function TaxRegimeHistory({ companyId }: TaxRegimeHistoryProps) {
             body: JSON.stringify({
               regimeType: formData.regimeType,
               regime: formData.regime,
-              startDate: formData.startDate.toISOString(),
+              startDate: localDateToIso(formData.startDate),
               notes: formData.notes || null,
               isVatExempt: formData.regimeType === 'vat' ? formData.isVatExempt : false,
               vatExemptReason: formData.regimeType === 'vat' && formData.isVatExempt 
