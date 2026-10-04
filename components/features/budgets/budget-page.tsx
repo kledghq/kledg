@@ -251,7 +251,7 @@ export function BudgetPage({ companyId }: { companyId: string }) {
       />
 
       <Card>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid max-w-2xl gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="budget-fiscal-year">Exercice</Label>
             <FiscalYearSelector
