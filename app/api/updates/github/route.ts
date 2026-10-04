@@ -19,6 +19,7 @@ export const GET = adminRoute({}, async ({ user }) => {
   return NextResponse.json(
     {
       channel,
+      repository: `${conn.repository.owner}/${conn.repository.repo}`,
       workflow: { present: workflow.present, state: workflow.state, current: workflow.current },
       run,
       pull,

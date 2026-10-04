@@ -23,7 +23,10 @@ import type { Channel, UpdatePull, WorkflowRun } from '@/lib/updates/service'
 import { formatDateTime, NEON_BRANCHING_URL, SELF_HOSTING_DOCS_URL, updatesApi } from './api'
 
 interface GitHubState {
+  /** null: the token lacks the Variables permission, the workflow then follows releases. */
   channel: Channel | null
+  /** owner/repo of the instance's repository. */
+  repository: string
   workflow: { present: boolean; state: string | null; current: boolean }
   run: WorkflowRun | null
   pull: UpdatePull | null
@@ -255,7 +258,32 @@ export function UpdateActions({
         <div className="grid gap-2 sm:max-w-sm">
           <Label htmlFor="update-channel">Suivre</Label>
           {state?.channel === null ? (
-            <p className="text-muted-foreground text-sm">Canal inconnu&nbsp;: le jeton n&apos;a pas la permission Variables.</p>
+            <div className="space-y-2 text-sm">
+              <p>{CHANNEL_LABELS.releases}</p>
+              <p className="text-muted-foreground">
+                C&apos;est le réglage par défaut. Pour en changer depuis cette page, ajoutez la permission{' '}
+                <span className="font-medium">Variables</span> (Read and write) à votre{' '}
+                <a
+                  href="https://github.com/settings/personal-access-tokens"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-4"
+                >
+                  jeton GitHub
+                </a>
+                , puis rafraîchissez. Ou définissez directement la variable{' '}
+                <code className="bg-muted rounded px-1">KLEDG_UPDATES</code> (releases, main ou off) dans les{' '}
+                <a
+                  href={`https://github.com/${state.repository}/settings/variables/actions`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-4"
+                >
+                  variables du dépôt
+                </a>
+                .
+              </p>
+            </div>
           ) : (
             <Select
               value={state?.channel ?? undefined}
