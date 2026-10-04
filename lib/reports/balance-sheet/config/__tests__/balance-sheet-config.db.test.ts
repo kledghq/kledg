@@ -308,6 +308,28 @@ describe.skipIf(!available)('balance sheet layout services', () => {
       expect((await prisma.balanceSheetConfigTemplate.findUniqueOrThrow({ where: { id: template.id } })).usageCount).toBe(1)
     })
 
+    it('applies the nested lines of a template with their sections (regression: only the roots were created)', async () => {
+      // Notice 2033-A: 142 Capitaux propres > 120 Capital on the passif, 096 Actif circulant > 084 Disponibilités.
+      const assets = await line({ lineLabel: 'Actif circulant', section: 'actif', formCode: '096', lineType: 'sum', balanceType: 'auto', order: 1 })
+      await line({ lineLabel: 'Disponibilités', parentId: assets.id, formCode: '084', accountCodes: ['51'], filterType: 'starts_with' })
+      const equity = await line({ lineLabel: 'Capitaux propres', section: 'passif', formCode: '142', lineType: 'sum', balanceType: 'auto', order: 2, hideLabel: true })
+      await line({ lineLabel: 'Capital', parentId: equity.id, formCode: '120', accountCodes: ['101'], filterType: 'starts_with', balanceType: 'credit' })
+      const template = await createBalanceSheetTemplate(ids.company, 'Modèle imbriqué', null, 'simplified', true)
+
+      const applied = await applyBalanceSheetTemplate(template.id, ids.other)
+      expect(applied.lines.map((l) => [l.lineLabel, l.children?.map((c) => c.lineLabel)])).toEqual([
+        ['Actif circulant', ['Disponibilités']],
+        ['Capitaux propres', ['Capital']],
+      ])
+      const rows = await prisma.balanceSheetLineConfig.findMany({ where: { companyId: ids.other }, orderBy: { order: 'asc' } })
+      expect(rows).toHaveLength(4)
+      const byCode = (formCode: string) => rows.find((r) => r.formCode === formCode)!
+      expect(byCode('096')).toMatchObject({ section: 'actif', parentId: null, lineType: 'sum' })
+      expect(byCode('084')).toMatchObject({ parentId: byCode('096').id, accountCodes: ['51'] })
+      expect(byCode('142')).toMatchObject({ section: 'passif', parentId: null, hideLabel: true })
+      expect(byCode('120')).toMatchObject({ parentId: byCode('142').id, balanceType: 'credit' })
+    })
+
     it('answers 404 for a private template of another company or a missing one', async () => {
       const foreign = await prisma.balanceSheetConfigTemplate.create({
         data: { name: 'Privé', reportVariant: 'simplified', companyId: ids.other, configData: { companyId: ids.other, reportVariant: 'simplified', lines: [] } },

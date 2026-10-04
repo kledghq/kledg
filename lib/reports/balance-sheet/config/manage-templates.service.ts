@@ -4,6 +4,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
+import { buildConfigTree } from '../../config/shared/config-tree'
 import { getBalanceSheetConfig } from './get-balance-sheet-config.service'
 import type { BalanceSheetConfigTemplate, BalanceSheetConfig, BalanceSheetLineConfig } from '../types'
 
@@ -150,7 +151,9 @@ export async function applyBalanceSheetTemplate(
     return parent ? getDepth(parent) + 1 : 0
   }
 
-  const sortedLines = [...configData.lines].sort((a, b) => {
+  // Every line of the tree, parents before their children (configData.lines
+  // holds the roots only, with their children nested).
+  const sortedLines = [...configsById.values()].sort((a, b) => {
     const depthA = getDepth(a)
     const depthB = getDepth(b)
     return depthA - depthB
@@ -173,8 +176,11 @@ export async function applyBalanceSheetTemplate(
         companyId,
         reportVariant: lineConfig.reportVariant,
         parentId,
+        // The section decides actif or passif for a whole subtree (lib/reports/statements/allocation.ts).
+        section: lineConfig.section ?? null,
         lineLabel: lineConfig.lineLabel,
         lineType: lineConfig.lineType,
+        hideLabel: lineConfig.hideLabel ?? false,
         formCode: lineConfig.formCode || null,
         amortissementFormCode: lineConfig.amortissementFormCode || null,
         accountCodes: lineConfig.accountCodes,
@@ -211,6 +217,6 @@ export async function applyBalanceSheetTemplate(
   return {
     companyId,
     reportVariant: configData.reportVariant,
-    lines: createdConfigs as BalanceSheetLineConfig[],
+    lines: buildConfigTree(createdConfigs) as BalanceSheetLineConfig[],
   }
 }
