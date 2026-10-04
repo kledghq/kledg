@@ -88,11 +88,11 @@ export default function JournalPage() {
     if (companyId) {
       loadFiscalYears()
       loadJournals()
-      const now = new Date()
-      const yearStart = new Date(now.getFullYear(), 0, 1)
-      const yearEnd = new Date(now.getFullYear(), 11, 31)
-      setStartDate(yearStart.toISOString().split('T')[0])
-      setEndDate(yearEnd.toISOString().split('T')[0])
+      // Calendar days written directly: toISOString() of a local midnight is the
+      // previous day east of UTC (31/12 instead of 01/01 in Paris)
+      const year = new Date().getFullYear()
+      setStartDate(`${year}-01-01`)
+      setEndDate(`${year}-12-31`)
     }
   }, [companyId])
 
