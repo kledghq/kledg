@@ -590,7 +590,7 @@ describe('StatementImportDialog', () => {
     const trigger = screen.getByRole('button', { name: 'Importer un relevé' })
     expect(trigger).toBeDisabled()
     expect(norm(trigger.getAttribute('title'))).toBe(
-      'Votre rôle (Lecteur) ne permet pas de importer un relevé : demandez-le à un administrateur de la société.',
+      "Votre rôle (Lecteur) ne permet pas d'importer un relevé : demandez-le à un administrateur de la société.",
     )
   })
 
