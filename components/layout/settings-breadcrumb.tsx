@@ -8,15 +8,18 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { findSettingsEntry, type InstanceSettingsLinks } from '@/components/layout/settings-nav-config'
+import { findSettingsEntry, type InstanceSettingsLinks, type InstanceSettingsPage } from '@/components/layout/settings-nav-config'
 
 /**
  * Header trail of the settings area: Groupe / Page ("Compte / Mot de passe").
  * On phones only the page is shown, like the company breadcrumb.
  */
-export function SettingsBreadcrumb({ instanceLinks }: { instanceLinks?: InstanceSettingsLinks | null } = {}) {
+export function SettingsBreadcrumb({
+  instanceLinks,
+  instancePages,
+}: { instanceLinks?: InstanceSettingsLinks | null; instancePages?: readonly InstanceSettingsPage[] | null } = {}) {
   const pathname = usePathname() ?? ''
-  const entry = findSettingsEntry(pathname, instanceLinks)
+  const entry = findSettingsEntry(pathname, instanceLinks, instancePages)
 
   return (
     <Breadcrumb className="min-w-0">

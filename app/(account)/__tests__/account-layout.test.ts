@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   user: null as null | { id: string; email: string; name: string | null; role: string | null },
   cookie: undefined as string | undefined,
   instanceLinks: null as null | Record<string, string>,
+  instancePages: [] as Array<Record<string, string>>,
 }))
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: vi.fn(async () => state.user) }))
@@ -24,7 +25,10 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 vi.mock('@/lib/updates/version', () => ({ getDeployedVersion: () => ({ version: '1.3.0', commit: 'abc1234' }) }))
-vi.mock('@/components/instance/slots', () => ({ instanceSettingsLinks: vi.fn(async () => state.instanceLinks) }))
+vi.mock('@/components/instance/slots', () => ({
+  instanceSettingsLinks: vi.fn(async () => state.instanceLinks),
+  instanceSettingsPages: vi.fn(async () => state.instancePages),
+}))
 vi.mock('@/components/layout/app-shell', () => ({ AppShell: () => null }))
 vi.mock('@/components/layout/settings-sidebar', () => ({ SettingsSidebar: () => null }))
 vi.mock('@/components/layout/settings-breadcrumb', () => ({ SettingsBreadcrumb: () => null }))
@@ -36,8 +40,13 @@ import AccountLayout from '../layout'
 
 const db = asPrismaMock(prisma)
 
-type SidebarProps = { lastCompany: { slug: string; name: string } | null; isAdmin: boolean; version: unknown; instanceLinks: unknown }
-type ShellProps = { sidebar: ReactElement<SidebarProps>; breadcrumb: ReactElement<{ instanceLinks: unknown }>; isAdmin: boolean; children: unknown }
+type SidebarProps = { lastCompany: { slug: string; name: string } | null; isAdmin: boolean; version: unknown; instanceLinks: unknown; instancePages: unknown }
+type ShellProps = {
+  sidebar: ReactElement<SidebarProps>
+  breadcrumb: ReactElement<{ instanceLinks: unknown; instancePages: unknown }>
+  isAdmin: boolean
+  children: unknown
+}
 
 async function shell(): Promise<ShellProps> {
   const element = (await AccountLayout({ children: 'page' })) as ReactElement<ShellProps>
@@ -50,6 +59,7 @@ beforeEach(() => {
   state.user = { id: 'u1', email: 'u1@test.local', name: null, role: 'user' }
   state.cookie = undefined
   state.instanceLinks = null
+  state.instancePages = []
   db.company.findFirst.mockResolvedValue({ slug: 'alpha', name: 'Alpha SAS' })
 })
 
@@ -100,5 +110,15 @@ describe('account layout', () => {
     const props = await shell()
     expect(props.sidebar.props.instanceLinks).toEqual({ updates: 'https://instance.example/updates' })
     expect(props.breadcrumb.props.instanceLinks).toEqual({ updates: 'https://instance.example/updates' })
+  })
+
+  it("hands the instance's own settings pages to the sidebar and breadcrumb, administrators included", async () => {
+    state.instancePages = [{ group: 'account', title: 'Facturation', url: '/settings/billing', icon: 'credit-card' }]
+    for (const role of ['user', 'admin']) {
+      state.user = { id: 'u1', email: 'u1@test.local', name: null, role }
+      const props = await shell()
+      expect(props.sidebar.props.instancePages).toEqual(state.instancePages)
+      expect(props.breadcrumb.props.instancePages).toEqual(state.instancePages)
+    }
   })
 })

@@ -8,7 +8,7 @@ import { AppShell } from '@/components/layout/app-shell'
 import { SettingsSidebar, type LastCompany } from '@/components/layout/settings-sidebar'
 import { SettingsBreadcrumb } from '@/components/layout/settings-breadcrumb'
 import { getDeployedVersion } from '@/lib/updates/version'
-import { instanceSettingsLinks } from '@/components/instance/slots'
+import { instanceSettingsLinks, instanceSettingsPages } from '@/components/instance/slots'
 
 /**
  * The last company the user opened, if they can still open it. The cookie
@@ -37,11 +37,13 @@ export default async function AccountLayout({ children }: { children: React.Reac
   const { version, commit } = getDeployedVersion()
   // An instance may serve its own versions of the administrators' pages to other users (extension point).
   const instanceLinks = isAdmin ? null : await instanceSettingsLinks(user)
+  // And may add its own settings pages (extension point).
+  const instancePages = await instanceSettingsPages(user)
 
   return (
     <AppShell
-      sidebar={<SettingsSidebar lastCompany={await lastCompanyOf(user)} isAdmin={isAdmin} version={{ version, commit }} instanceLinks={instanceLinks} />}
-      breadcrumb={<SettingsBreadcrumb instanceLinks={instanceLinks} />}
+      sidebar={<SettingsSidebar lastCompany={await lastCompanyOf(user)} isAdmin={isAdmin} version={{ version, commit }} instanceLinks={instanceLinks} instancePages={instancePages} />}
+      breadcrumb={<SettingsBreadcrumb instanceLinks={instanceLinks} instancePages={instancePages} />}
       user={user}
       isAdmin={isAdmin}
     >

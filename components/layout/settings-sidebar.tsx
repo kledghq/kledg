@@ -5,7 +5,12 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
-import { findSettingsEntry, visibleSettingsGroups, type InstanceSettingsLinks } from "@/components/layout/settings-nav-config"
+import {
+  findSettingsEntry,
+  visibleSettingsGroups,
+  type InstanceSettingsLinks,
+  type InstanceSettingsPage,
+} from "@/components/layout/settings-nav-config"
 import { NavUser } from "@/components/layout/nav-user"
 import { useVisibleUserMenu } from "@/components/layout/user-menu-context"
 import {
@@ -43,6 +48,7 @@ export function SettingsSidebar({
   isAdmin,
   version,
   instanceLinks,
+  instancePages,
   ...props
 }: {
   lastCompany: LastCompany | null
@@ -50,10 +56,12 @@ export function SettingsSidebar({
   version?: SidebarVersion
   /** The instance's own versions of the administrators' pages (instanceSettingsLinks slot), for a non administrator. */
   instanceLinks?: InstanceSettingsLinks | null
+  /** The instance's own settings pages (instanceSettingsPages slot). */
+  instancePages?: readonly InstanceSettingsPage[] | null
 } & React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname() ?? ""
   const { isMobile, setOpenMobile } = useSidebar()
-  const activeUrl = findSettingsEntry(pathname, instanceLinks)?.url
+  const activeUrl = findSettingsEntry(pathname, instanceLinks, instancePages)?.url
   const visibleMenu = useVisibleUserMenu()
   const closeOnPhone = () => {
     if (isMobile) setOpenMobile(false)
@@ -87,7 +95,7 @@ export function SettingsSidebar({
       </SidebarHeader>
       <SidebarContent>
         <nav aria-label="Paramètres" className="contents">
-          {visibleSettingsGroups(isAdmin, visibleMenu, instanceLinks).map((group, index) => (
+          {visibleSettingsGroups(isAdmin, visibleMenu, instanceLinks, instancePages).map((group, index) => (
             <SidebarGroup key={group.label ?? index} className="py-1">
               {group.label ? <SidebarGroupLabel>{group.label}</SidebarGroupLabel> : null}
               <SidebarMenu>

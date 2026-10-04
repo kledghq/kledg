@@ -1,4 +1,4 @@
-import { Bot, Building2, CircleArrowUp, Gauge, KeyRound, Palette, ShieldCheck, UserPlus, UserRound, Users, type LucideIcon } from "lucide-react"
+import { Bot, Building2, CircleArrowUp, CreditCard, Download, FileText, Gauge, KeyRound, Palette, ShieldCheck, UserPlus, UserRound, Users, type LucideIcon } from "lucide-react"
 import type { UserMenuItemId } from "@/components/layout/user-menu"
 
 export interface SettingsNavItem {
@@ -45,6 +45,42 @@ export const settingsNavGroups: SettingsNavGroup[] = [
   },
 ]
 
+/** Icons an instance's own settings pages may use (instanceSettingsPages), by name. */
+export const INSTANCE_PAGE_ICONS = {
+  "credit-card": CreditCard,
+  download: Download,
+  "file-text": FileText,
+  gauge: Gauge,
+  shield: ShieldCheck,
+  building: Building2,
+} as const satisfies Record<string, LucideIcon>
+
+/**
+ * A settings page of the instance itself (instanceSettingsPages,
+ * components/instance/slots.tsx): added at the end of the "Compte" group, or
+ * of the "Instance" group for instance administrators. Plain data, so the
+ * server hands it to the client sidebar.
+ */
+export interface InstanceSettingsPage {
+  group: "account" | "instance"
+  title: string
+  /** Absolute path. */
+  url: string
+  icon: keyof typeof INSTANCE_PAGE_ICONS
+}
+
+const GROUP_LABELS: Record<InstanceSettingsPage["group"], string> = { account: "Compte", instance: "Instance" }
+
+/** The groups with the instance's own pages appended to the group they name (a group the user cannot see drops them). */
+function withInstancePages<G extends SettingsNavGroup>(groups: G[], pages?: readonly InstanceSettingsPage[] | null): G[] {
+  if (!pages?.length) return groups
+  return groups.map((group) => {
+    const own = pages.filter((page) => group.label === GROUP_LABELS[page.group])
+    if (own.length === 0) return group
+    return { ...group, items: [...group.items, ...own.map((page) => ({ title: page.title, url: page.url, icon: INSTANCE_PAGE_ICONS[page.icon] }))] }
+  })
+}
+
 /**
  * Instance pages an instance serves itself to a user who is not an instance
  * administrator (instanceSettingsLinks, components/instance/slots.tsx), by
@@ -84,19 +120,24 @@ export function visibleSettingsGroups(
   isAdmin: boolean,
   visibleMenu?: readonly UserMenuItemId[],
   instanceLinks?: InstanceSettingsLinks | null,
+  instancePages?: readonly InstanceSettingsPage[] | null,
 ): SettingsNavGroup[] {
-  return groupsFor(isAdmin, instanceLinks)
-    .map(({ linked, ...group }) => ({
-      ...group,
-      items: linked ? group.items : group.items.filter((item) => !item.menuItem || !visibleMenu || visibleMenu.includes(item.menuItem)),
-    }))
-    .filter((group) => group.items.length > 0)
+  const groups = groupsFor(isAdmin, instanceLinks).map(({ linked, ...group }) => ({
+    ...group,
+    items: linked ? group.items : group.items.filter((item) => !item.menuItem || !visibleMenu || visibleMenu.includes(item.menuItem)),
+  }))
+  return withInstancePages(groups, instancePages).filter((group) => group.items.length > 0)
 }
 
 /** The settings entry matching an absolute path (longest prefix wins). */
-export function findSettingsEntry(pathname: string, instanceLinks?: InstanceSettingsLinks | null) {
+export function findSettingsEntry(
+  pathname: string,
+  instanceLinks?: InstanceSettingsLinks | null,
+  instancePages?: readonly InstanceSettingsPage[] | null,
+) {
   let best: { group: string; title: string; url: string } | null = null
-  for (const group of [...settingsNavGroups, ...(instanceLinks ? groupsFor(false, instanceLinks).filter((g) => g.linked) : [])]) {
+  const linked = instanceLinks ? groupsFor(false, instanceLinks).filter((g) => g.linked) : []
+  for (const group of [...withInstancePages(settingsNavGroups, instancePages), ...linked]) {
     for (const item of group.items) {
       const match = pathname === item.url || pathname.startsWith(item.url + "/")
       if (match && (!best || item.url.length > best.url.length)) {

@@ -1,10 +1,46 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
-import { CompanyOverlay, filterUserMenu, InstanceBanner, LoginExtra } from '../slots'
+import { CompanyOverlay, filterUserMenu, InstanceBanner, instanceSettingsPages, LoginExtra } from '../slots'
 import { USER_MENU_ITEMS } from '@/components/layout/user-menu'
-import { visibleSettingsGroups, settingsNavGroups } from '@/components/layout/settings-nav-config'
+import {
+  findSettingsEntry,
+  INSTANCE_PAGE_ICONS,
+  settingsNavGroups,
+  visibleSettingsGroups,
+  type InstanceSettingsPage,
+} from '@/components/layout/settings-nav-config'
 
 const user = { id: 'u1', email: 'admin@example.com', role: 'admin' }
+
+describe('settings pages of the instance', () => {
+  const pages: InstanceSettingsPage[] = [
+    { group: 'account', title: 'Facturation', url: '/settings/billing', icon: 'credit-card' },
+    { group: 'instance', title: 'Console', url: '/settings/console', icon: 'gauge' },
+  ]
+
+  it('are none in Kledg', async () => {
+    expect(await instanceSettingsPages(user)).toEqual([])
+  })
+
+  it('go at the end of the group they name, with their icon', () => {
+    const groups = visibleSettingsGroups(true, undefined, null, pages)
+    const account = groups.find((g) => g.label === 'Compte')
+    const instance = groups.find((g) => g.label === 'Instance')
+    expect(account?.items.at(-1)).toEqual({ title: 'Facturation', url: '/settings/billing', icon: INSTANCE_PAGE_ICONS['credit-card'] })
+    expect(instance?.items.at(-1)?.url).toBe('/settings/console')
+  })
+
+  it('are dropped with a group the user cannot see', () => {
+    const urls = visibleSettingsGroups(false, undefined, null, pages).flatMap((g) => g.items.map((i) => i.url))
+    expect(urls).toContain('/settings/billing')
+    expect(urls).not.toContain('/settings/console')
+  })
+
+  it('name the breadcrumb and the active entry', () => {
+    expect(findSettingsEntry('/settings/billing', null, pages)).toEqual({ group: 'Compte', title: 'Facturation', url: '/settings/billing' })
+    expect(findSettingsEntry('/settings/billing', null)).toBeNull()
+  })
+})
 
 describe('default instance slots', () => {
   it('render nothing', () => {

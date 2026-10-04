@@ -13,7 +13,7 @@
 
 import type { InstanceActor } from '@/lib/instance/types'
 import type { UserMenuItem } from '@/components/layout/user-menu'
-import type { InstanceSettingsLinks } from '@/components/layout/settings-nav-config'
+import type { InstanceSettingsLinks, InstanceSettingsPage } from '@/components/layout/settings-nav-config'
 
 /** Above the header of every page of the application frame (company and settings pages). */
 export function InstanceBanner(props: { user: InstanceActor }) {
@@ -56,4 +56,15 @@ export async function filterUserMenu(items: UserMenuItem[], user: InstanceActor)
 export async function instanceSettingsLinks(user: InstanceActor): Promise<InstanceSettingsLinks | null> {
   void user
   return null
+}
+
+/**
+ * The instance's own settings pages for `user` (a billing page, an operator
+ * console), added to the settings sidebar and breadcrumb: at the end of the
+ * "Compte" group, or of the "Instance" group (instance administrators).
+ * Kledg: none.
+ */
+export async function instanceSettingsPages(user: InstanceActor): Promise<InstanceSettingsPage[]> {
+  void user
+  return []
 }

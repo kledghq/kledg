@@ -134,6 +134,7 @@ them server actions (to create an account and sign it in, for instance).
 | `CompanyOverlay` | after the content of company pages (`app/(company)/layout.tsx`); floating UI goes bottom right | `user` |
 | `filterUserMenu(items, user)` | filters the account and instance pages (`components/layout/user-menu.ts`): the user menu entry (`inMenu`) and the settings sidebar links | returns the entries to show |
 | `instanceSettingsLinks(user)` | for a user who is not an instance administrator: the instance's own versions of the administrators' pages, by user menu entry (`{ instance, users, updates }`, absolute URLs). The settings sidebar then shows the "Instance" group with these links only, the breadcrumb names them and the version line links to `updates`. Kledg returns null | returns the links or null |
+| `instanceSettingsPages(user)` | the instance's own settings pages (a billing page, an operator console): `{ group: 'account' \| 'instance', title, url, icon }`, appended to the "Compte" group or to the "Instance" group (shown to instance administrators only) of the settings sidebar, and named by its breadcrumb. `icon` is a name of `INSTANCE_PAGE_ICONS` (`components/layout/settings-nav-config.ts`). Kledg returns none | returns the pages |
 
 Each entry names the restrictable action it leads to (`action`), so a fork
 can hide what its policy refuses (the Profil page has no action: it stays
