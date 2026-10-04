@@ -11,16 +11,18 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { findNavEntry, findSubPageTitle } from '@/components/layout/nav-config'
+import { findNavEntry, findSubPageTitle, navGroupsFor } from '@/components/layout/nav-config'
+import { SIMPLE_HOME_PATH, type DisplayMode } from '@/lib/appearance/display-mode'
 import { logger } from '@/lib/logger'
 import { displayCompanyName } from '@/lib/companies/legal-forms'
 import { LegalFormTag } from '@/components/features/companies/legal-form-tag'
 
 /**
  * Header trail: Société / Section / Page. On phones only the current page is
- * shown (the company is in the menu), so the trail never wraps.
+ * shown (the company is in the menu), so the trail never wraps. Sections
+ * and titles come from the navigation of the user's display mode.
  */
-export function DashboardBreadcrumb() {
+export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } = {}) {
   const pathname = usePathname()
   const params = useParams()
   const companyId = params?.companyId as string | undefined
@@ -45,12 +47,14 @@ export function DashboardBreadcrumb() {
   }, [companyId])
 
   const relativePath = companyId ? pathname.replace(`/${companyId}`, '') || '/' : '/'
-  const entry = findNavEntry(relativePath)
+  const entry = findNavEntry(relativePath, navGroupsFor(mode))
   const isEntryPage = entry && relativePath === entry.url
-  const isHome = relativePath === '/'
+  // The company's home: the dashboard, or the simple home in simple mode
+  const homePath = mode === 'simple' ? SIMPLE_HOME_PATH : '/'
+  const isHome = relativePath === homePath
   // Pages reached from another page (Connecter une banque, Configuration du bilan) have their own title.
   const subPage = isEntryPage || isHome ? null : findSubPageTitle(relativePath)
-  const pageTitle = isHome ? 'Tableau de bord' : (subPage?.title ?? entry?.title)
+  const pageTitle = isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
 
   // Tab titles name the page and the company: "Journaux · Atelier Lumen · Kledg".
   useEffect(() => {
@@ -95,7 +99,7 @@ export function DashboardBreadcrumb() {
             </BreadcrumbLink>
           )}
         </BreadcrumbItem>
-        {entry && entry.url !== '/' && (
+        {entry && entry.url !== homePath && (
           <>
             {entry.group ? (
               <>

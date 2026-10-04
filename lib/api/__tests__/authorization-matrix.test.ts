@@ -351,6 +351,8 @@ const ROUTE_MODULES = {
   dashboardWidgets: () => import('@/app/api/dashboard/widgets/route'),
   dashboardLayout: () => import('@/app/api/dashboard/layout/route'),
   appearance: () => import('@/app/api/account/appearance/route'),
+  displayMode: () => import('@/app/api/account/display-mode/route'),
+  simpleCounts: () => import('@/app/api/companies/[id]/simple/counts/route'),
   importFile: () => import('@/app/api/import/route'),
   importPreview: () => import('@/app/api/import/preview-fiscal-years/route'),
   establishment: () => import('@/app/api/companies/[id]/establishments/[establishmentId]/route'),
@@ -711,6 +713,7 @@ const READS: Call[] = [
   { label: 'search addresses', route: 'addresses', method: 'GET', path: () => `/api/addresses?companyId=${A()}&search=Paris` },
   { label: 'get address', route: 'address', method: 'GET', path: () => `/api/addresses/${ids.aAddress}?companyId=${A()}`, params: p({ id: () => ids.aAddress }) },
   { label: 'tasks count', route: 'tasksCount', method: 'GET', path: () => `/api/tasks/count?companyId=${A()}` },
+  { label: 'simple navigation counts', route: 'simpleCounts', method: 'GET', path: () => `/api/companies/${A()}/simple/counts`, params: p({ id: A }) },
   { label: 'dashboard widget data', route: 'dashboardWidgets', method: 'GET', path: () => `/api/dashboard/widgets?companyId=${A()}&source=ledger&fiscalYearId=${ids.aFy}` },
   { label: 'dashboard bank accounts widget', route: 'dashboardWidgets', method: 'GET', path: () => `/api/dashboard/widgets?companyId=${A()}&source=bank-accounts` },
   { label: 'own dashboard layout', route: 'dashboardLayout', method: 'GET', path: () => `/api/dashboard/layout?companyId=${A()}` },
@@ -1057,6 +1060,37 @@ describe.skipIf(!available)('authorization matrix', () => {
       expect((await call('accountant', appearance('PUT', { palette: 'neon' }))).status).toBe(400)
       expect((await read('viewer')).appearance.palette).toBe('custom')
       expect(await prisma.userPreference.count({ where: { userId: 'u-accountant' } })).toBe(0)
+    })
+  })
+
+  describe('own display mode (any signed-in user, no company)', () => {
+    beforeAll(reseed)
+    const displayMode = (method: 'GET' | 'PUT', body?: unknown): Call => ({
+      label: `display mode ${method}`,
+      route: 'displayMode',
+      method,
+      path: () => '/api/account/display-mode',
+      ...(body === undefined ? {} : { body: () => body }),
+    })
+    const read = async (who: Who) => (await (await call(who, displayMode('GET'))).json()) as { mode: string; chosen: boolean }
+
+    it('anonymous: 401 on read and write', async () => {
+      expect((await call('anonymous', displayMode('GET'))).status).toBe(401)
+      expect((await call('anonymous', displayMode('PUT', { mode: 'simple' }))).status).toBe(401)
+    })
+
+    it('every role chooses its own mode, a viewer included (a display preference, it grants nothing)', async () => {
+      for (const who of ['viewer', 'accountant', 'companyAdmin', 'memberB', 'admin'] as const) {
+        expect((await call(who, displayMode('PUT', { mode: 'simple' }))).status, who).toBe(200)
+        expect(await read(who), who).toEqual({ mode: 'simple', chosen: true })
+      }
+      // The simple mode changes no permission: a viewer in simple mode is refused every write
+      for (const c of WRITES) expect((await call('viewer', c)).status, c.label).toBe(403)
+    })
+
+    it('cannot write for another user', async () => {
+      expect((await call('accountant', displayMode('PUT', { mode: 'expert', userId: 'u-viewer' }))).status).toBe(400)
+      expect((await read('viewer')).mode).toBe('simple')
     })
   })
 

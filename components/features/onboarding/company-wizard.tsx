@@ -33,8 +33,11 @@ import {
   type CreateCompanyData,
   type CreateCompanyInput,
 } from '@/lib/companies/company-wizard'
+import { DisplayModeStep } from './display-mode-step'
 
 const STEPS = ['Identité', 'Exercice et impôts', 'Capital et associés', 'Vérifier'] as const
+/** Shown after the creation to a user who never chose a display mode (docs/mode-simple.md). */
+const DISPLAY_MODE_STEP = 'Utilisation'
 
 /** Forms taxed at the income tax of their partners by default (no corporate tax). */
 const INCOME_TAX_FORMS: ReadonlySet<string> = new Set(['SCI', 'SNC', 'EI'])
@@ -123,15 +126,20 @@ function SummaryRow({ label, children }: { label: string; children: React.ReactN
  * company directory by SIREN), first fiscal year and tax regimes, capital
  * and shareholders, then a summary. One schema validates every step here
  * and again on the server (lib/companies/company-wizard.ts); nothing is
- * written before the last step.
+ * written before the last step. With `askDisplayMode` (a user who never
+ * chose a display mode), a fifth step follows the creation: "Comment
+ * voulez-vous utiliser Kledg ?" (DisplayModeStep).
  */
-export function CompanyWizard() {
+export function CompanyWizard({ askDisplayMode = false }: { askDisplayMode?: boolean } = {}) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [lookup, setLookup] = useState<LookupState>({ status: 'idle' })
   const [fiscalTouched, setFiscalTouched] = useState(false)
   const [taxTouched, setTaxTouched] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  /** Slug of the company once created, while the display mode step is shown. */
+  const [created, setCreated] = useState<string | null>(null)
+  const stepLabels: readonly string[] = askDisplayMode ? [...STEPS, DISPLAY_MODE_STEP] : STEPS
   const today = useMemo(todayIso, [])
 
   const form = useForm<CreateCompanyInput, unknown, CreateCompanyData>({
@@ -158,11 +166,11 @@ export function CompanyWizard() {
 
   // Never lose what was typed: warn before leaving with unsaved input.
   useEffect(() => {
-    if (!isDirty || submitting) return
+    if (!isDirty || submitting || created) return
     const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault()
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [isDirty, submitting])
+  }, [isDirty, submitting, created])
 
   const values = watch()
   const legalType = values.legalType ?? null
@@ -272,6 +280,14 @@ export function CompanyWizard() {
         }
         toast.success(`Société « ${body.name} » créée`)
         window.dispatchEvent(new Event('companies:refresh'))
+        if (askDisplayMode) {
+          // The company exists: the last step chooses how to use Kledg, then opens it
+          setCreated(body.slug)
+          setStep(STEPS.length)
+          setSubmitting(false)
+          window.scrollTo({ top: 0 })
+          return
+        }
         router.push(`/${body.slug}`)
         router.refresh()
       } catch {
@@ -289,6 +305,46 @@ export function CompanyWizard() {
 
   const sirenValue = (values.siren ?? '').replace(/\s+/g, '')
 
+  const stepsNav = (
+    <nav aria-label="Étapes de la création">
+      <p className="text-muted-foreground mb-2 text-sm sm:hidden">
+        Étape {step + 1} sur {stepLabels.length} : {stepLabels[step]}
+      </p>
+      <ol className="hidden gap-2 sm:flex">
+        {stepLabels.map((label, index) => (
+          <li
+            key={label}
+            aria-current={index === step ? 'step' : undefined}
+            className={cn(
+              'flex flex-1 items-center gap-2 border-t-2 pt-2 text-sm',
+              index < step ? 'border-foreground text-foreground' : index === step ? 'border-foreground font-medium' : 'text-muted-foreground border-border',
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'flex size-5 shrink-0 items-center justify-center rounded-full border text-xs num',
+                index <= step ? 'border-foreground' : 'border-border',
+              )}
+            >
+              {index < step ? <Check className="size-3" /> : index + 1}
+            </span>
+            {label}
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+
+  if (created) {
+    return (
+      <div className="max-w-3xl space-y-6">
+        {stepsNav}
+        <DisplayModeStep companySlug={created} />
+      </div>
+    )
+  }
+
   return (
     <form
       noValidate
@@ -299,34 +355,7 @@ export function CompanyWizard() {
       }}
       className="max-w-3xl space-y-6"
     >
-      <nav aria-label="Étapes de la création">
-        <p className="text-muted-foreground mb-2 text-sm sm:hidden">
-          Étape {step + 1} sur {STEPS.length} : {STEPS[step]}
-        </p>
-        <ol className="hidden gap-2 sm:flex">
-          {STEPS.map((label, index) => (
-            <li
-              key={label}
-              aria-current={index === step ? 'step' : undefined}
-              className={cn(
-                'flex flex-1 items-center gap-2 border-t-2 pt-2 text-sm',
-                index < step ? 'border-foreground text-foreground' : index === step ? 'border-foreground font-medium' : 'text-muted-foreground border-border',
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  'flex size-5 shrink-0 items-center justify-center rounded-full border text-xs num',
-                  index <= step ? 'border-foreground' : 'border-border',
-                )}
-              >
-                {index < step ? <Check className="size-3" /> : index + 1}
-              </span>
-              {label}
-            </li>
-          ))}
-        </ol>
-      </nav>
+      {stepsNav}
 
       {step === 0 ? (
         <Card>
