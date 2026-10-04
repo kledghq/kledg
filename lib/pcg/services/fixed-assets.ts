@@ -45,7 +45,8 @@ export interface CreateFixedAssetData {
  * Créer une immobilisation avec validation PCG
  */
 export async function createFixedAssetWithPCGValidation(
-  data: CreateFixedAssetData
+  data: CreateFixedAssetData,
+  client: Pick<typeof prisma, 'account'> = prisma,
 ): Promise<ServiceResult<{ id: string; warnings: PCGWarning[] }>> {
   const warnings: PCGWarning[] = []
 
@@ -134,7 +135,7 @@ export async function createFixedAssetWithPCGValidation(
   }
 
   // Vérifier que les comptes sont corrects
-  const assetAccount = await prisma.account.findUnique({
+  const assetAccount = await client.account.findUnique({
     where: { id: data.assetAccountId },
     select: { code: true, label: true },
   })
@@ -148,7 +149,7 @@ export async function createFixedAssetWithPCGValidation(
     })
   }
 
-  const depreciationAccount = await prisma.account.findUnique({
+  const depreciationAccount = await client.account.findUnique({
     where: { id: data.depreciationAccountId },
     select: { code: true, label: true },
   })
@@ -162,7 +163,7 @@ export async function createFixedAssetWithPCGValidation(
     })
   }
 
-  const expenseAccount = await prisma.account.findUnique({
+  const expenseAccount = await client.account.findUnique({
     where: { id: data.expenseAccountId },
     select: { code: true, label: true },
   })
@@ -198,13 +199,14 @@ export async function createFixedAssetWithPCGValidation(
  * Valider une immobilisation avant création (pour utilisation dans route API)
  */
 export async function validateFixedAssetBeforeCreation(
-  data: CreateFixedAssetData
+  data: CreateFixedAssetData,
+  client: Pick<typeof prisma, 'account'> = prisma,
 ): Promise<{ valid: boolean; warnings: PCGWarning[]; errors: string[] }> {
   const errors: string[] = []
   const warnings: PCGWarning[] = []
 
   try {
-    const result = await createFixedAssetWithPCGValidation(data)
+    const result = await createFixedAssetWithPCGValidation(data, client)
     return {
       valid: true,
       warnings: result.warnings,

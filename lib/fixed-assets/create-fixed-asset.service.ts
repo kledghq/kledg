@@ -8,8 +8,14 @@
  * (depreciationMethod "none": land, goodwill) has no plan: its depreciation
  * and expense accounts fall back to the asset account, never debited since no
  * allowance is generated for it.
+ *
+ * createFixedAssetInTx runs in the caller's transaction: simple mode creates
+ * the asset of a durable purchase with the entry that books it
+ * (lib/simple/confirm-expense.service.ts), and records that entry as the
+ * asset's acquisition entry (fixed_assets.acquisitionEntryId).
  */
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { ValidationError } from '@/lib/accounting/errors'
@@ -40,7 +46,19 @@ export interface CreateFixedAssetInput {
 
 const MISSING_FIELDS = "Champs obligatoires manquants : libellé, date et valeur d'acquisition, compte d'immobilisation."
 
+type Db = Prisma.TransactionClient | typeof prisma
+
+export interface CreateFixedAssetOptions {
+  /** Entry that books the acquisition, created in the same transaction. */
+  acquisitionEntryId?: string | null
+}
+
 export async function createFixedAsset(companyId: string, input: CreateFixedAssetInput) {
+  return createFixedAssetInTx(prisma, companyId, input)
+}
+
+/** createFixedAsset with the caller's client (a transaction), see the module header. */
+export async function createFixedAssetInTx(db: Db, companyId: string, input: CreateFixedAssetInput, options: CreateFixedAssetOptions = {}) {
   const label = input.label?.trim()
   const acquisitionDate = dateOf(input.acquisitionDate, "Date d'acquisition")
   const acquisitionCents = amountCents(input.acquisitionValue, "Valeur d'acquisition")
@@ -74,7 +92,7 @@ export async function createFixedAsset(companyId: string, input: CreateFixedAsse
 
   await assertAllOwned(
     [assetAccountId, depreciationAccountId, expenseAccountId],
-    (ids) => prisma.account.count({ where: { id: { in: ids }, companyId } }),
+    (ids) => db.account.count({ where: { id: { in: ids }, companyId } }),
     'Compte introuvable',
   )
 
@@ -97,7 +115,7 @@ export async function createFixedAsset(companyId: string, input: CreateFixedAsse
       depreciationAccountId,
       expenseAccountId,
       isFullyPaid: input.isFullyPaid || false,
-    })
+    }, db)
     if (!validation.valid) throw new ValidationError(`Validation PCG échouée : ${validation.errors.join(', ')}`)
     warnings = validation.warnings
     if (warnings.length > 0) {
@@ -105,7 +123,7 @@ export async function createFixedAsset(companyId: string, input: CreateFixedAsse
     }
   }
 
-  const fixedAsset = await prisma.fixedAsset.create({
+  const fixedAsset = await db.fixedAsset.create({
     data: {
       companyId,
       label,
@@ -123,6 +141,7 @@ export async function createFixedAsset(companyId: string, input: CreateFixedAsse
       depreciationAccountId,
       expenseAccountId,
       isFullyPaid: input.isFullyPaid || false,
+      acquisitionEntryId: options.acquisitionEntryId ?? null,
     },
     include: { assetAccount: true, depreciationAccount: true, expenseAccount: true },
   })

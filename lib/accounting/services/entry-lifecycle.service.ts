@@ -18,6 +18,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { ConflictError, NotFoundError, ValidationError, handleError } from '../errors'
 import { validateAccountingEntry, validateEntryBalance } from '../validator'
 import { amountTooLargeMessage, centsToDecimal, exceedsAmountColumn, parseCents, type AmountInput } from '@/lib/utils/money'
@@ -480,6 +481,8 @@ export async function deleteDraftEntryInTx(
   if (!entry) throw new NotFoundError('Écriture introuvable')
   if (entry.status === 'validated') throw new ConflictError(immutableEntryMessage(entry.entryNumber))
   await guardFiscalYear(db, companyId, entry.fiscalYearId, entry.date, 'delete')
+  // A fixed asset created with the entry (simple mode) goes with it, or the deletion is refused
+  await deleteFixedAssetsAcquiredByEntryInTx(db, companyId, entry.id)
   // Lines are deleted by the cascade
   await db.accountingEntry.delete({ where: { id: entry.id } })
   return { id: entry.id, description: entry.description, reference: entry.reference }

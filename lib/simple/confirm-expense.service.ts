@@ -20,6 +20,17 @@
  * simple_mode_entries row records the category, the answers, the note and
  * the counterparty key, in the same transaction.
  *
+ * Durable equipment: when the user answers that a purchase above 500 € HT
+ * will be used more than a year, the entry books it to the fixed asset
+ * account and the fixed asset is created in the same transaction, through
+ * the fixed assets service (createFixedAssetInTx): the amount excluding the
+ * recovered VAT (the debited asset line), the transaction date as
+ * acquisition and depreciation start, linear depreciation over the usual
+ * life of the category (asset-lifetimes.ts), the entry as its acquisition
+ * entry. The simple_mode_entries row records the asset. Undoing the
+ * reconciliation deletes the asset with the draft, or is refused when the
+ * asset cannot be deleted (deleteFixedAssetsAcquiredByEntryInTx).
+ *
  * Repeated identical choices teach a rule: when the last three
  * confirmations for a counterparty chose the same category, and that
  * category books the same way every time (no question that depends on the
@@ -49,11 +60,13 @@ import { bankLineOf, checkEntryDate } from '@/lib/reconciliation/validation'
 import { prepareRuleEntry } from '@/lib/transactions/rule-executor'
 import { createRule, updateRule, type RuleInput } from '@/lib/transactions/manage-rules.service'
 import { counterpartyKey } from '@/lib/subscriptions/detect'
-import { toCents } from '@/lib/utils/money'
-import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
+import { createFixedAssetInTx } from '@/lib/fixed-assets/create-fixed-asset.service'
+import { centsToDecimal, toCents } from '@/lib/utils/money'
+import { formatIsoDateFr, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { findCategory, type Posting, type SimpleCategory } from './categories'
 import { buildPostingLines, resolvePosting, VAT_COLLECTED, VAT_DEDUCTIBLE, VAT_ON_ASSETS, type Answers, type CounterpartLine } from './posting'
 import { resolveLedgerAccounts } from './ledger-accounts'
+import { assetLifetimeFor, DEPRECIATION_EXPENSE_ACCOUNT } from './asset-lifetimes'
 import { accountantReviewRequired } from './simple-mode-settings.service'
 import { bankVatCentsOf, loadSuggestionSignals, suggestionFor } from './expenses-to-review.service'
 import { displayNameOf } from './payees'
@@ -101,6 +114,8 @@ export interface ConfirmResult {
   /** VAT explanation for the accountant. */
   vatNote: string | null
   learnedRule: { id: string; name: string; created: boolean } | null
+  /** Fixed asset created with the entry (durable equipment). */
+  fixedAsset: { id: string; label: string; years: number; amountCents: number } | null
 }
 
 export const MESSAGES = {
@@ -121,6 +136,18 @@ interface Prepared {
   vatNote: string | null
   /** Category posting with its resolved account codes, for learning a rule. */
   learnable: { category: SimpleCategory; posting: Posting; codes: Map<string, string> } | null
+  /** The fixed asset to create with the entry (durable equipment). */
+  asset: PreparedAsset | null
+}
+
+interface PreparedAsset {
+  label: string
+  comment: string
+  acquisitionCents: number
+  years: number
+  assetAccountId: string
+  depreciationAccountId: string
+  expenseAccountId: string
 }
 
 /** The VAT recovery share of a company exempt from VAT for the month of the day, null when it is subject to VAT. */
@@ -162,8 +189,13 @@ async function prepareCategory(
   const recoveryRatio = await recoveryRatioFor(companyId, day)
   const plan = buildPostingLines({ category, posting: resolution.posting, side, amountCents, bankVatCents, recoveryRatio })
 
-  const accounts = await resolveLedgerAccounts(companyId, fiscalYear.id, plan.lines.map((l) => l.accountCode))
-  const missing = plan.lines.find((l) => !accounts.get(l.accountCode))
+  // Durable equipment: the asset line of the posting, with the category's depreciation accounts
+  const lifetime = resolution.posting.account.startsWith('2') ? assetLifetimeFor(category.id) : null
+  const assetLine = lifetime ? plan.lines.find((l) => l.role === 'base' && l.accountCode === resolution.posting.account && l.debitCents > 0) : undefined
+  const depreciationCodes = lifetime && assetLine ? [lifetime.depreciationAccount, DEPRECIATION_EXPENSE_ACCOUNT] : []
+
+  const accounts = await resolveLedgerAccounts(companyId, fiscalYear.id, [...plan.lines.map((l) => l.accountCode), ...depreciationCodes])
+  const missing = [...plan.lines.map((l) => l.accountCode), ...depreciationCodes].find((code) => !accounts.get(code))
   if (missing) {
     throw new ValidationError(
       `La catégorie « ${category.label} » n'a pas de compte dans le plan comptable de l'exercice ${fiscalYear.year} : demandez à votre comptable de compléter le plan de comptes.`,
@@ -188,6 +220,18 @@ async function prepareCategory(
     })),
   ]
   const codes = new Map(plan.lines.map((l) => [l.accountCode, accounts.get(l.accountCode)!.code]))
+  const asset: PreparedAsset | null =
+    lifetime && assetLine
+      ? {
+          label: `${category.label} (${name})`,
+          comment: `Créée par le mode simple à la confirmation du paiement du ${formatIsoDateFr(day)} (${description}).`,
+          acquisitionCents: assetLine.debitCents,
+          years: lifetime.years,
+          assetAccountId: accounts.get(assetLine.accountCode)!.id,
+          depreciationAccountId: accounts.get(lifetime.depreciationAccount)!.id,
+          expenseAccountId: accounts.get(DEPRECIATION_EXPENSE_ACCOUNT)!.id,
+        }
+      : null
   return {
     fiscalYearId: fiscalYear.id,
     journalId: journal.id,
@@ -199,6 +243,7 @@ async function prepareCategory(
     answers: Object.keys(resolution.answers).length ? resolution.answers : null,
     vatNote: plan.vatNote,
     learnable: canLearn(category, resolution.posting, recoveryRatio) ? { category, posting: resolution.posting, codes } : null,
+    asset,
   }
 }
 
@@ -219,6 +264,7 @@ async function prepareRule(companyId: string, transactionId: string, ruleId: str
     answers: null,
     vatNote: null,
     learnable: null,
+    asset: null,
   }
 }
 
@@ -344,6 +390,7 @@ export async function confirmExpense(companyId: string, transactionId: string, i
   const status = actor.source === 'web' && !needsReview && actor.canValidate ? 'validated' : 'draft'
   const key = counterpartyKey(counterpartyOf(transaction), transaction.label) || transaction.label?.trim().toUpperCase() || transaction.id
   let originId = ''
+  let fixedAsset = null as ConfirmResult['fixedAsset']
   const entry = await createEntryAndReconcile({
     companyId,
     transactionId,
@@ -355,6 +402,29 @@ export async function confirmExpense(companyId: string, transactionId: string, i
     lines: prepared.lines,
     status,
     afterCreate: async (db, entryId) => {
+      const asset = prepared.asset
+      if (asset) {
+        const created = await createFixedAssetInTx(
+          db,
+          companyId,
+          {
+            label: asset.label,
+            comment: asset.comment,
+            acquisitionDate: prepared.date,
+            acquisitionValue: centsToDecimal(asset.acquisitionCents),
+            depreciationMethod: 'linear',
+            depreciationDuration: asset.years,
+            // Put into service the day it is paid (PCG art. 214-13)
+            depreciationStartDate: prepared.date,
+            assetAccountId: asset.assetAccountId,
+            depreciationAccountId: asset.depreciationAccountId,
+            expenseAccountId: asset.expenseAccountId,
+            isFullyPaid: true,
+          },
+          { acquisitionEntryId: entryId },
+        )
+        fixedAsset = { id: created.fixedAsset.id, label: created.fixedAsset.label, years: asset.years, amountCents: asset.acquisitionCents }
+      }
       const origin = await db.simpleModeEntry.create({
         data: {
           companyId,
@@ -368,6 +438,7 @@ export async function confirmExpense(companyId: string, transactionId: string, i
           needsReview,
           source: actor.source,
           createdById: actor.userId,
+          fixedAssetId: fixedAsset?.id ?? null,
         },
         select: { id: true },
       })
@@ -393,7 +464,7 @@ export async function confirmExpense(companyId: string, transactionId: string, i
   await writeAuditLog('info', `Simple mode expense confirmed: ${prepared.description}`, {
     action: 'SIMPLE_MODE_CONFIRM',
     companyId,
-    metadata: { transactionId, entryId: entry.id, entryNumber: entry.entryNumber, status: entry.status, categoryId: prepared.categoryId, ruleId: prepared.ruleId, needsReview, source: actor.source },
+    metadata: { transactionId, entryId: entry.id, entryNumber: entry.entryNumber, status: entry.status, categoryId: prepared.categoryId, ruleId: prepared.ruleId, needsReview, source: actor.source, fixedAssetId: fixedAsset?.id ?? null },
   })
   return {
     transactionId,
@@ -406,6 +477,7 @@ export async function confirmExpense(companyId: string, transactionId: string, i
     lines: prepared.lines.map((l) => ({ accountCode: codeOf.get(l.accountId) ?? '', debitCents: l.debitCents, creditCents: l.creditCents })),
     vatNote: prepared.vatNote,
     learnedRule,
+    fixedAsset,
   }
 }
 

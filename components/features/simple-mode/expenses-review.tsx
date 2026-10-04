@@ -102,7 +102,8 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
 
   const toastFor = (result: ConfirmResult) => {
     const rule = result.learnedRule ? ` Kledg classera désormais « ${result.learnedRule.name.replace(/ \(mode simple\)$/, '')} » de la même façon.` : ''
-    toast.success(`${result.needsReview ? 'Dépense envoyée à votre comptable' : 'Dépense classée'}.${rule}`)
+    const asset = result.fixedAsset ? ` Son coût sera étalé sur ${result.fixedAsset.years} an${result.fixedAsset.years > 1 ? 's' : ''}.` : ''
+    toast.success(`${result.needsReview ? 'Dépense envoyée à votre comptable' : 'Dépense classée'}.${asset}${rule}`)
   }
 
   const confirm = async (expense: ExpenseToReview, body: { categoryId?: string; ruleId?: string; answers?: Answers; note?: string }) => {

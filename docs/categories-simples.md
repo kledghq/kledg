@@ -38,12 +38,38 @@ Quelques catégories ne peuvent pas être comptabilisées sans une précision. E
 
 | Question | Catégories | Réponses |
 | --- | --- | --- |
-| « Allez-vous l'utiliser plus d'un an ? » | Matériel informatique, Mobilier de bureau, Outils et machines | Oui : immobilisation (2183, 2184, 2155) avec la TVA au 44562. Non : charge (6063). Posée seulement au-delà de 500 € HT (tolérance BOI-BIC-CHG-20-30-10 ; PCG art. 212-1 et 213-1). |
+| « Allez-vous l'utiliser plus d'un an ? » | Matériel informatique, Mobilier de bureau, Outils et machines | Oui : immobilisation (2183, 2184, 2155) avec la TVA au 44562, créée avec son plan d'amortissement ([Immobilisations](#immobilisations)). Non : charge (6063). Posée seulement au-delà de 500 € HT (tolérance BOI-BIC-CHG-20-30-10 ; PCG art. 212-1 et 213-1). |
 | « Avec qui était ce repas ? » | Repas d'affaires | Avec des clients ou partenaires (6257, par défaut) ou seul en déplacement (6256). La note nomme les invités pour le comptable. |
 | « C'est pour quel véhicule ? » | Carburant, Location ou leasing de véhicule, Entretien et réparation du véhicule | Voiture de tourisme ou utilitaire. |
 | « Votre bail ou votre quittance mentionne-t-il de la TVA ? » | Loyer des locaux | Avec ou sans TVA (CGI art. 261 D, 2° et 260, 2°). |
 
 La réponse sur le véhicule et sur le loyer est reprise pour la même contrepartie la fois suivante ; celle sur un achat durable est redemandée à chaque achat.
+
+### Immobilisations
+
+Quand l'utilisateur répond « Oui » à « Allez-vous l'utiliser plus d'un an ? », Kledg crée l'immobilisation avec l'écriture, dans la même transaction de la base, par le service des immobilisations (`createFixedAssetInTx`, `lib/fixed-assets/create-fixed-asset.service.ts`) :
+
+- **libellé** : la catégorie et la contrepartie (« Matériel informatique (Apple Store Opera) ») ;
+- **valeur d'acquisition** : la ligne au débit du compte d'immobilisation, hors TVA récupérée (PCG art. 213-1 ; la TVA non récupérable reste dans le coût) ;
+- **date d'acquisition et début d'amortissement** : la date de la transaction, le bien étant mis en service le jour de son paiement (PCG art. 214-13) ;
+- **amortissement linéaire** sur la durée par défaut de la catégorie (`lib/simple/asset-lifetimes.ts`), au crédit du 2815 ou du 2818, en dotation au 6811 (PCG art. 932-1) ;
+- **payée** (le paiement est la transaction bancaire), avec un commentaire qui rappelle d'où elle vient.
+
+| Catégorie | Compte | Amortissement | Durée | Source |
+| --- | --- | --- | --- | --- |
+| Matériel informatique | 2183 | 2818 | 3 ans | usage admis pour le matériel informatique (obsolescence rapide), plus court que le matériel de bureau (10 à 20 %) |
+| Mobilier de bureau | 2184 | 2818 | 10 ans | mobilier : 10 % par an |
+| Outils et machines | 2155 | 2815 | 5 ans | outillage : 10 à 20 % par an (matériel : 10 à 15 %), durée la plus courte retenue |
+
+Taux usuels : BOI-BIC-AMT-10-40-30, I-B et I-C ; durée d'utilisation : PCG art. 214-1 et 214-4, CGI art. 39, 1-2° (« d'après les usages de chaque nature d'industrie »). Le comptable peut changer la durée dans Immobilisations avant de comptabiliser la première dotation, par exemple pour une machine amortie sur 7 à 10 ans.
+
+L'immobilisation est **liée à son écriture d'acquisition** (`fixed_assets.acquisitionEntryId`), et la ligne du mode simple la nomme (`simple_mode_entries.fixedAssetId`). Elle suit l'écriture :
+
+- **annuler le rapprochement** ou **supprimer le brouillon** supprime d'abord l'immobilisation, selon les règles de suppression des immobilisations (`deleteFixedAssetsAcquiredByEntryInTx`, `lib/fixed-assets/delete-fixed-asset.service.ts`) : ses dotations en brouillon partent avec elle ; une dotation comptabilisée, ou une subvention d'investissement qui la finance, fait refuser l'annulation (409), avec la raison (« Le rapprochement ne peut pas être annulé : l'écriture n° ... a créé l'immobilisation « ... », qui ne peut pas être supprimée. Cette immobilisation a 1 dotation aux amortissements comptabilisée... ») ;
+- la clé étrangère (`ON DELETE NO ACTION`) refuse tout autre chemin qui supprimerait l'écriture en laissant l'immobilisation ;
+- une immobilisation supprimée à la main dans Immobilisations laisse l'écriture telle quelle ; la ligne du mode simple ne la nomme plus.
+
+Avec la validation par l'expert-comptable, l'immobilisation est créée avec le brouillon. La liste des saisies du mode simple l'indique sous la catégorie : « Immobilisation créée : Matériel informatique (Apple Store Opera), amortie sur 3 ans ». Si le comptable requalifie l'achat en charge, il supprime l'immobilisation dans Immobilisations avant de corriger l'écriture.
 
 Une société exonérée de TVA récupère la part donnée par son prorata du mois (`lib/accounting/vat-recovery-ratio.ts`) : rien pour une franchise sans ventes taxées. Elle ne collecte pas de TVA sur ses ventes.
 
@@ -71,7 +97,7 @@ La page `/<société>/simple/depenses` (mode simple) liste les paiements non rap
 - **Tout confirmer** ne confirme que les lignes de confiance haute sans question ; le serveur recalcule chaque proposition avant de confirmer ;
 - une ligne dont la date n'est couverte par aucun exercice ouvert le dit et ne peut pas être confirmée.
 
-Confirmer crée l'écriture par le service du rapprochement (`createEntryAndReconcile`) : la transaction est réservée sous verrou, l'écriture créée par le seul chemin de création (`createEntryInTx`) avec la ligne de banque au 512, la charge ou le produit et la TVA, au journal BQ, dans l'exercice de la date, puis liée à la transaction, le tout dans une seule transaction de la base. Une seconde confirmation répond 409. Annuler le rapprochement supprime le brouillon, comme pour tout rapprochement.
+Confirmer crée l'écriture par le service du rapprochement (`createEntryAndReconcile`) : la transaction est réservée sous verrou, l'écriture créée par le seul chemin de création (`createEntryInTx`) avec la ligne de banque au 512, la charge ou le produit et la TVA, au journal BQ, dans l'exercice de la date, puis liée à la transaction, le tout dans une seule transaction de la base. Une seconde confirmation répond 409. Annuler le rapprochement supprime le brouillon, comme pour tout rapprochement, et l'immobilisation créée avec lui (voir [Immobilisations](#immobilisations)).
 
 Le **justificatif** d'une transaction Qonto part chez Qonto (API des pièces jointes, clés de la société), puis Kledg en reprend la référence ; Kledg ne stocke aucun fichier. Les autres banques n'ont pas d'API équivalente : l'utilisateur garde la facture pour son comptable (Code de commerce art. L123-22). L'envoi compte dans la limite d'appels bancaires de la société.
 
@@ -87,9 +113,9 @@ Réglage de la société « **Faire valider les saisies du mode simple par l'exp
 - activé, les écritures confirmées en mode simple restent en **brouillon « à valider »** : rien n'est définitif avant la validation (PCG art. 1031-3) ;
 - désactivé, elles sont validées aussitôt quand l'utilisateur a le droit de valider les écritures, sinon elles restent en brouillon.
 
-Chaque écriture du mode simple est marquée par une ligne de `simple_mode_entries` : catégorie, réponses, note, contrepartie normalisée, validation demandée, origine (page ou assistant), règle apprise. La table est protégée par la sécurité au niveau des lignes ([rls.md](rls.md)) ; une ligne disparaît avec son écriture.
+Chaque écriture du mode simple est marquée par une ligne de `simple_mode_entries` : catégorie, réponses, note, contrepartie normalisée, validation demandée, origine (page ou assistant), règle apprise, immobilisation créée. La table est protégée par la sécurité au niveau des lignes ([rls.md](rls.md)) ; une ligne disparaît avec son écriture.
 
-En mode expert, **Saisie, Saisies du mode simple** (`/<société>/entries/simple-mode`, droit `entries:read`) liste ces écritures, les brouillons à valider d'abord, avec la catégorie, la réponse à la question, la note, l'absence de justificatif et les lignes de l'écriture. Le comptable les valide une par une ou ensemble par la validation habituelle (`POST /api/entries/bulk-validate`, numéro définitif dans l'ordre des dates), ou les corrige dans le formulaire d'écriture. Le récapitulatif du mois donne les écritures classées, validées et à valider.
+En mode expert, **Saisie, Saisies du mode simple** (`/<société>/entries/simple-mode`, droit `entries:read`) liste ces écritures, les brouillons à valider d'abord, avec la catégorie, la réponse à la question, la note, l'immobilisation créée, l'absence de justificatif et les lignes de l'écriture. Le comptable les valide une par une ou ensemble par la validation habituelle (`POST /api/entries/bulk-validate`, numéro définitif dans l'ordre des dates), ou les corrige dans le formulaire d'écriture. Le récapitulatif du mois donne les écritures classées, validées et à valider.
 
 ## API
 

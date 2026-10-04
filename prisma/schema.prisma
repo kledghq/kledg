@@ -55,52 +55,52 @@ model Address {
 }
 
 model Company {
-  id                     String            @id @default(cuid())
-  name                   String
-  slug                   String            @unique // Identifiant lisible dans les URL (/atelier-lumen/...), modifiable
-  siren                  String            @unique // SIREN (9 chiffres) - identifie l'entreprise
-  addressId              String? // Référence vers l'adresse réutilisable
-  phone                  String?
-  email                  String?
-  logo                   String?
-  foundationDate         DateTime? // Date de création de l'entreprise
-  closingDay             Int? // Jour de clôture des exercices (1-31)
-  closingMonth           Int? // Mois de clôture des exercices (1-12)
-  vatRegime              String? // Régime de TVA (normal, simplified, mini_real, franchise, real)
-  isVatExempt            Boolean           @default(false) // Indique si l'entreprise est exonérée de TVA
-  vatExemptReason        String? // Raison de l'exonération de TVA
-  vatNumber              String? // Numéro de TVA intracommunautaire
-  corporateTaxRegime     String? // Régime d'IS (normal, simplified, micro)
-  legalType              CompanyLegalType? // Type juridique de la société (SARL, SAS, SA, etc.)
-  legalForm              String? // Forme juridique détaillée (pour les déclarations fiscales)
-  color                  String? // Couleur pour les graphiques (format hex: #RRGGBB)
-  sector                 String? // Secteur d'activité (ex: "tech", "retail", "services", "manufacturing", "real-estate", "finance", "healthcare", "other")
-  isHolding              Boolean           @default(false) // Indique si l'entreprise est une holding pure (sans activité opérationnelle)
+  id                         String            @id @default(cuid())
+  name                       String
+  slug                       String            @unique // Identifiant lisible dans les URL (/atelier-lumen/...), modifiable
+  siren                      String            @unique // SIREN (9 chiffres) - identifie l'entreprise
+  addressId                  String? // Référence vers l'adresse réutilisable
+  phone                      String?
+  email                      String?
+  logo                       String?
+  foundationDate             DateTime? // Date de création de l'entreprise
+  closingDay                 Int? // Jour de clôture des exercices (1-31)
+  closingMonth               Int? // Mois de clôture des exercices (1-12)
+  vatRegime                  String? // Régime de TVA (normal, simplified, mini_real, franchise, real)
+  isVatExempt                Boolean           @default(false) // Indique si l'entreprise est exonérée de TVA
+  vatExemptReason            String? // Raison de l'exonération de TVA
+  vatNumber                  String? // Numéro de TVA intracommunautaire
+  corporateTaxRegime         String? // Régime d'IS (normal, simplified, micro)
+  legalType                  CompanyLegalType? // Type juridique de la société (SARL, SAS, SA, etc.)
+  legalForm                  String? // Forme juridique détaillée (pour les déclarations fiscales)
+  color                      String? // Couleur pour les graphiques (format hex: #RRGGBB)
+  sector                     String? // Secteur d'activité (ex: "tech", "retail", "services", "manufacturing", "real-estate", "finance", "healthcare", "other")
+  isHolding                  Boolean           @default(false) // Indique si l'entreprise est une holding pure (sans activité opérationnelle)
   // Informations sur le capital social
-  totalShares            Int? // Nombre total de parts/actions
-  shareNominalValue      Decimal?          @db.Decimal(15, 2) // Valeur nominale d'une part (en euros)
-  shareCapital           Decimal?          @db.Decimal(15, 2) // Capital social total (en euros) - peut être calculé ou saisi manuellement
+  totalShares                Int? // Nombre total de parts/actions
+  shareNominalValue          Decimal?          @db.Decimal(15, 2) // Valeur nominale d'une part (en euros)
+  shareCapital               Decimal?          @db.Decimal(15, 2) // Capital social total (en euros) - peut être calculé ou saisi manuellement
   // Informations légales pour les déclarations fiscales
-  headquartersAddressId  String? // Référence vers l'adresse du siège social
-  activityCode           String? // Code APE/NAF
-  taxOffice              String? // Centre des impôts compétent
+  headquartersAddressId      String? // Référence vers l'adresse du siège social
+  activityCode               String? // Code APE/NAF
+  taxOffice                  String? // Centre des impôts compétent
   // Configuration pour le rapprochement bancaire
-  defaultBankAccountCode String? // Code du compte bancaire par défaut à utiliser pour le rapprochement (classe 5, ex: 512000). Résolu dynamiquement selon l'exercice fiscal actif.
+  defaultBankAccountCode     String? // Code du compte bancaire par défaut à utiliser pour le rapprochement (classe 5, ex: 512000). Résolu dynamiquement selon l'exercice fiscal actif.
   /// Payment terms of the aged balance (lib/reports/third-parties/aged-balance.ts):
   /// days after the invoice date, or days then end of month. Code de commerce
   /// art. L441-10: 30 days by default, at most 60 days, or 45 days end of month
   /// (checked by the database, migration 20261018090000).
-  paymentTermsDays       Int               @default(30)
-  paymentTermsEndOfMonth Boolean           @default(false)
+  paymentTermsDays           Int               @default(30)
+  paymentTermsEndOfMonth     Boolean           @default(false)
   /// What the tax and legal deadline calendar needs and Kledg cannot infer
   /// (VAT filing day, quarterly CA3, IS and CFE acomptes...): JSON validated by
   /// DeadlineSettingsSchema (lib/deadlines/settings.ts); null: the defaults.
-  deadlineSettings       Json?
+  deadlineSettings           Json?
   /// VAT on services is due when the price is received (CGI art. 269, 2, c);
   /// a company may opt to pay it on debits (invoice). False: sales invoices of
   /// services post their VAT to 44574 "TVA collectée en attente d'encaissement"
   /// until paid (lib/invoices/posting-plan.ts).
-  servicesVatOnDebits    Boolean           @default(false)
+  servicesVatOnDebits        Boolean           @default(false)
   /// Simple mode (docs/categories-simples.md): whether the entries a user
   /// confirms in simple mode stay drafts until the accountant validates them.
   /// Null: the default, on when the company has a member with the accountant
@@ -109,10 +109,10 @@ model Company {
   /// Set when an instance administrator archives the company: read-only and
   /// hidden from the lists (lib/companies/archive-company.service.ts). A company
   /// holding validated entries or a closed fiscal year is archived, never deleted.
-  archivedAt             DateTime?
-  archivedById           String?
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
+  archivedAt                 DateTime?
+  archivedById               String?
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
 
   // Relations
   address                    Address?                    @relation("CompanyAddress", fields: [addressId], references: [id], onDelete: SetNull)
@@ -338,6 +338,7 @@ model AccountingEntry {
   sourceBankTransaction   BankTransaction?         @relation("ReconciliationEntry", fields: [sourceBankTransactionId], references: [id], onDelete: SetNull)
   lines                   EntryLine[]              @relation("AccountingEntryLines")
   fixedAssetDepreciations FixedAssetDepreciation[] @relation("FixedAssetDepreciationEntry")
+  acquiredFixedAssets     FixedAsset[]             @relation("FixedAssetAcquisitionEntry")
   provisionAssessment     ProvisionAssessment?     @relation("ProvisionAssessmentEntry")
   investmentGrantTransfer InvestmentGrantTransfer? @relation("InvestmentGrantTransferEntry")
   reversalOf              AccountingEntry?         @relation("EntryReversal", fields: [reversalOfId], references: [id], onDelete: NoAction)
@@ -815,11 +816,18 @@ model FixedAsset {
   expenseAccountId      String // Compte de charge d'amortissement (ex: 681)
   isActive              Boolean   @default(true) // Indique si l'immobilisation est active
   isFullyPaid           Boolean   @default(false) // Indique si l'immobilisation est entièrement payée
+  /// Entry that booked the acquisition, when Kledg created the asset with it
+  /// (simple mode, durable equipment). The asset goes with that entry: deleting
+  /// the draft deletes the asset first (deleteFixedAssetsAcquiredByEntryInTx),
+  /// and NO ACTION refuses any other path that would leave the asset behind.
+  acquisitionEntryId    String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
   // Relations
   company             Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  acquisitionEntry    AccountingEntry?         @relation("FixedAssetAcquisitionEntry", fields: [acquisitionEntryId], references: [id], onDelete: NoAction)
+  simpleModeEntry     SimpleModeEntry?
   assetAccount        Account                  @relation("FixedAssetAccount", fields: [assetAccountId], references: [id], onDelete: NoAction)
   depreciationAccount Account                  @relation("DepreciationAccount", fields: [depreciationAccountId], references: [id], onDelete: NoAction)
   expenseAccount      Account                  @relation("DepreciationExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: NoAction)
@@ -828,6 +836,7 @@ model FixedAsset {
   investmentGrants    InvestmentGrant[]
 
   @@index([companyId])
+  @@index([acquisitionEntryId])
   @@map("fixed_assets")
 }
 
@@ -2460,6 +2469,8 @@ model SimpleModeEntry {
   learnedRuleId     String?
   /// web or mcp.
   source            String   @default("web")
+  /// Fixed asset created with the entry (durable equipment); null once the asset is deleted.
+  fixedAssetId      String?  @unique
   createdById       String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -2467,6 +2478,7 @@ model SimpleModeEntry {
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   entry           AccountingEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
   bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  fixedAsset      FixedAsset?      @relation(fields: [fixedAssetId], references: [id], onDelete: SetNull)
 
   @@index([companyId, counterpartyKey])
   @@index([bankTransactionId])

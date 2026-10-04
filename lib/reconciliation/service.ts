@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { assertAllOwned, findOwned, transactionOfCompany } from '@/lib/api/resources'
 import { createEntryInTx, validateEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
+import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
@@ -380,6 +381,13 @@ export async function unreconcileTransaction(companyId: string, transactionId: s
               `L'écriture n° ${entry.entryNumber} appartient à l'exercice ${entry.fiscalYear.year}, clôturé : le rapprochement ne peut pas être annulé.`,
             )
           }
+          // A fixed asset created with the entry (simple mode) goes with it, or the undo is refused
+          await deleteFixedAssetsAcquiredByEntryInTx(
+            db,
+            companyId,
+            entry.id,
+            (label) => `Le rapprochement ne peut pas être annulé\u00a0: l'écriture n° ${entry.entryNumber} a créé l'immobilisation « ${label} », qui ne peut pas être supprimée.`,
+          )
           await db.accountingEntry.delete({ where: { id: entry.id } })
           deletedEntryId = entry.id
         } else if (entry) {

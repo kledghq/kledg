@@ -31,6 +31,7 @@ const asset = {
   expenseAccountId: 'a-6811',
   isActive: true,
   isFullyPaid: true,
+  acquisitionEntryId: null,
   createdAt: day('2025-03-15'),
   updatedAt: day('2025-03-15'),
 } satisfies DepreciationStatusInput['fixedAsset']

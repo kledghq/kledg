@@ -7,7 +7,8 @@
  *   counted on the entry dates of a period.
  * - listSimpleModeEntries: the expert view "Saisies du mode simple à
  *   valider": each entry with its category, the answers, the note, its
- *   lines and its transaction. Validation itself goes through the usual
+ *   lines, its transaction and the fixed asset created with it ("Immobilisation
+ *   créée : <label>, amortie sur N ans", durable equipment). Validation itself goes through the usual
  *   service (POST /api/entries/bulk-validate, validateEntries: definitive
  *   number in date order, PCG art. 1031-3); a correction through the entry
  *   form, as for any draft.
@@ -24,6 +25,7 @@ import { toCents } from '@/lib/utils/money'
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { findCategory } from './categories'
 import { displayNameOf } from './payees'
+import { fixedAssetMention } from './asset-lifetimes'
 import { getSimpleModeSettings, type Accountant } from './simple-mode-settings.service'
 
 export interface ValidationPeriod {
@@ -99,6 +101,8 @@ export interface SimpleModeEntryView {
   lines: Array<{ accountCode: string; accountLabel: string; debitCents: number; creditCents: number; description: string | null }>
   transactionId: string | null
   hasReceipt: boolean
+  /** Fixed asset created with the entry (durable equipment), and the mention shown to the accountant. */
+  fixedAsset: { id: string; label: string; years: number | null; mention: string } | null
   createdAt: string
 }
 
@@ -134,6 +138,7 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
       source: true,
       createdAt: true,
       bankTransactionId: true,
+      fixedAsset: { select: { id: true, label: true, depreciationDuration: true } },
       bankTransaction: { select: { label: true, counterpartyName: true, providerData: true, _count: { select: { attachments: true } } } },
       entry: {
         select: {
@@ -183,6 +188,9 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
         lines,
         transactionId: row.bankTransactionId,
         hasReceipt: (transaction?._count.attachments ?? 0) > 0,
+        fixedAsset: row.fixedAsset
+          ? { id: row.fixedAsset.id, label: row.fixedAsset.label, years: row.fixedAsset.depreciationDuration, mention: fixedAssetMention(row.fixedAsset.label, row.fixedAsset.depreciationDuration) }
+          : null,
         createdAt: row.createdAt.toISOString(),
       }
     }),

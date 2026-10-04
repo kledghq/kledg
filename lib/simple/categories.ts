@@ -123,7 +123,7 @@ const REDUCED = 550
 const durable = (assetAccount: string, yes: string, no: string): Question => ({
   id: 'durable',
   text: "Allez-vous l'utiliser plus d'un an ?",
-  help: "Au-delà de 500 € HT, un bien durable s'étale sur plusieurs années. Kledg s'en occupe pour vous.",
+  help: "Au-delà de 500 € HT, le coût d'un bien durable s'étale sur plusieurs années. Kledg l'ajoute à vos équipements et s'en occupe pour vous.",
   answers: [
     { id: 'durable', label: yes, posting: { account: assetAccount } },
     { id: 'consumable', label: no, posting: {} },
