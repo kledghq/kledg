@@ -36,7 +36,8 @@ describe('SetupForm', () => {
     setup.createFirstAdmin.mockResolvedValue({ ok: true })
     auth.signIn.mockResolvedValue({ error: null })
     render(<SetupForm adminEmail={null} initialToken="token-from-url" />)
-    expect(screen.getByLabelText("Jeton d'installation")).toHaveValue('token-from-url')
+    // The installation link carries the token: the field is not shown, the token is still sent.
+    expect(screen.queryByLabelText("Jeton d'installation")).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Nom'), 'Marie Dupont')
     await user.type(screen.getByLabelText('Email'), 'marie@acme.fr')
     await user.type(screen.getByLabelText('Mot de passe'), 'long-password')
