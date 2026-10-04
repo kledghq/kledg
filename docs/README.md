@@ -20,6 +20,7 @@
 - [Approbation des comptes](approbation-des-comptes.md) : selon la forme juridique, convocation, rapport de gestion, procès-verbal ou décision de l'associé unique avec l'affectation du résultat, feuille de présence, déclaration de confidentialité et dépôt au greffe, en PDF et en Markdown
 - [Frais de gestion](frais-de-gestion.md) : conventions d'une holding avec ses filiales, coûts majorés d'une marge, clés de répartition, factures de vente et factures d'achat proposées
 - [Vue groupe](vue-groupe.md) : vue combinée d'une holding et de ses filiales, flux intragroupe et éliminations indicatives, trésorerie du groupe, tableau des filiales et participations
+- [Déclarations de TVA](declarations-tva.md) : préparation de la CA3 et de la CA12 depuis les écritures validées, lignes et cases du formulaire, contrôles, écriture de liquidation en brouillon, dépôt enregistré ; la déclaration se dépose sur impots.gouv.fr
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
 - [Mode simple](mode-simple.md) : affichage simple ou expert par utilisateur, navigation et accueil du mode simple, vocabulaire sans jargon
 

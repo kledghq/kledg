@@ -133,6 +133,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_auxiliary_balance` | Balance auxiliaire d'une période : par client et fournisseur, solde d'ouverture, débits, crédits, solde de clôture et part non lettrée ; droit `reports:read` |
 | `list_doubtful_receivables` | Clients en retard à la clôture au-delà de 30, 60 ou 90 jours, candidats à une dépréciation, avec la dépréciation déjà suivie ; droit `reports:read` |
 | `list_tax_deadlines` | Échéances fiscales et juridiques d'un exercice (TVA, IS, liasse, CFE, approbation et dépôt), jours restants, règle et sources officielles ; dates seulement ; droit `reports:read` |
+| `get_vat_return` | Déclaration de TVA préparée d'une période (CA3 ou CA12, la prochaine due par défaut) : chaque ligne avec son numéro et sa case, montants des comptes et euros à saisir, lignes calculées ou à remplir à la main, montant dû ou crédit, échéance, contrôles et fiabilité des chiffres, écriture de liquidation, dépôt enregistré, sources ([déclarations de TVA](declarations-tva.md)) ; ne dépose rien ; droit `reports:read` |
 | `get_bank_sync_status` | État des flux bancaires : connexions, dernière synchronisation, erreur, consentement, et par compte les opérations non rapprochées et la plus ancienne, sans IBAN ni identifiant ; droit `banking:read` |
 | `list_expenses_to_review` | Dépenses à vérifier du mode simple : transactions non rapprochées avec la catégorie proposée (règles, historique de la contrepartie, dictionnaire des payeurs français, mots du libellé, catégorie de la banque), la confiance, la raison et la question à trancher ([catégories simples](categories-simples.md)) ; droit `banking:read` |
 | `list_expense_claimants` | Bénéficiaires de notes de frais (identifiant, compte auxiliaire) que le rôle de l'utilisateur lui montre ; droit `entries:read` |
@@ -155,6 +156,7 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `prepare_year_end_entries` | Préparer dotations, reprises et quotes-parts de subventions en **brouillons** au journal OD ; une seconde fois ne crée rien | `entries:create` | Oui (brouillons périmés) | Oui |
 | `create_draft_expense_report` | Note de frais en **brouillon** pour l'utilisateur ou, s'il valide les notes, un autre bénéficiaire ; `dryRun` pour un aperçu | `expenses:submit` | Non | Non |
 | `update_year_end_formalities` | Renseigner l'approbation des comptes (dates, taille, mode de décision, votes, affectation proposée, dépôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
+| `prepare_vat_settlement` | Préparer l'écriture de liquidation de la TVA d'une période en **brouillon** au journal OD (comptes de TVA soldés, 44551 ou 44567, arrondi au 658 ou 758) ; inchangée si le brouillon correspond, remplacée s'il est périmé, jamais si elle est validée ; ne dépose pas la déclaration | `entries:create` | Oui (brouillon périmé) | Oui |
 | `accept_expense_suggestion` | Confirmer une dépense à vérifier : la proposition, une catégorie du catalogue (avec la réponse à sa question) ou une règle ; écriture en **brouillon** rapprochée avec la transaction, quel que soit le réglage de validation, sans créer de règle | `banking:reconcile` et `entries:create` | Non | Non |
 
 À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
@@ -252,7 +254,7 @@ Le serveur publie des prompts MCP (capacité `prompts`, `lib/mcp/prompts.ts`) : 
 
 | Prompt | Titre | Arguments | Outils enchaînés |
 | --- | --- | --- | --- |
-| `cloture_du_mois` | Clôture du mois | `companyId`, `month` (AAAA-MM, le mois écoulé par défaut) | `get_bank_sync_status`, `list_bank_transactions`, `create_draft_entry` (brouillons), `list_missing_receipts`, `get_trial_balance` (TVA 44566, 44571, 4455), `list_tax_deadlines` |
+| `cloture_du_mois` | Clôture du mois | `companyId`, `month` (AAAA-MM, le mois écoulé par défaut) | `get_bank_sync_status`, `list_bank_transactions`, `create_draft_entry` (brouillons), `list_missing_receipts`, `get_vat_return` (déclaration de TVA due), `list_tax_deadlines` |
 | `preparer_cloture_exercice` | Préparer la clôture de l'exercice | `companyId`, `fiscalYearId` | `get_year_end_inventory`, `list_doubtful_receivables`, `create_provision`, `record_provision_assessment`, `create_investment_grant`, `prepare_year_end_entries` (brouillons), `list_entries`, `get_aged_balance`, `get_auxiliary_balance`, `get_trial_balance` |
 | `revue_budgetaire` | Revue budgétaire | `companyId`, `fiscalYearId`, `throughMonth` | `list_budgets`, `get_budget_report`, `list_detected_subscriptions`, `classify_subscription`, `add_subscription_to_budget`, `get_budget`, `update_budget_line`, `create_budget_line` |
 | `sante_financiere` | Santé financière | `companyId`, `fiscalYearId` | `get_sig`, `get_financial_ratios`, `get_aged_balance` |
@@ -276,6 +278,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Mode simple, dépenses à vérifier ([catégories simples](categories-simples.md)) | `list_expenses_to_review` | `accept_expense_suggestion` (brouillon) | | Valider les saisies du mode simple (voir `validate_entries` en CT), envoyer un justificatif, réglage de validation |
 | Justificatifs manquants | `list_missing_receipts` | | | Joindre une pièce (à la banque) |
 | Échéances fiscales et juridiques | `list_tax_deadlines` | | | Réglages du calendrier |
+| Déclarations de TVA ([déclarations de TVA](declarations-tva.md)) | `get_vat_return` | `prepare_vat_settlement` (brouillon) | `validate_entries` | Déposer et payer (sur impots.gouv.fr), enregistrer le dépôt, exports PDF et CSV |
 | Indicateurs financiers, SIG et ratios ([indicateurs](indicateurs-financiers.md)) | `get_sig`, `get_financial_ratios` | | | Exports CSV et Excel, widgets |
 | Provisions et dépréciations ([provisions](provisions-et-subventions.md)) | `get_year_end_inventory`, `list_doubtful_receivables` | `create_provision`, `record_provision_assessment` | | Modifier ou supprimer une provision, reclassement en 416 |
 | Subventions d'investissement | `get_year_end_inventory` | `create_investment_grant` | | Modifier ou supprimer une subvention |

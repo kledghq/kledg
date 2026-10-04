@@ -21,6 +21,7 @@ import { docsUrl } from '@/lib/docs-links'
 import { relativeDeadlineLabel, urgencyOf, type DeadlineUrgency } from '@/lib/deadlines/relative'
 import { DEADLINE_CATEGORIES, DEADLINE_CATEGORY_LABELS, type Deadline, type DeadlineCategory, type DeadlineRule } from '@/lib/deadlines/types'
 import type { DeadlinesView } from '@/lib/deadlines/load-deadlines.service'
+import { periodKeyOfDeadline } from '@/lib/vat-returns/period-keys'
 
 const TONES: Record<DeadlineUrgency, StatusTone> = { past: 'neutral', overdue: 'danger', today: 'warning', soon: 'warning', later: 'neutral' }
 
@@ -79,7 +80,8 @@ function RuleSource({ rule, deadline }: { rule: DeadlineRule | undefined; deadli
   )
 }
 
-function DeadlineItem({ deadline, rule, today }: { deadline: Deadline; rule: DeadlineRule | undefined; today: string }) {
+function DeadlineItem({ deadline, rule, today, companyId }: { deadline: Deadline; rule: DeadlineRule | undefined; today: string; companyId: string }) {
+  const vatPeriod = periodKeyOfDeadline(deadline)
   const urgency = urgencyOf(deadline.date, today)
   const status = (
     <StatusBadge tone={TONES[urgency]} className="shrink-0">
@@ -107,6 +109,15 @@ function DeadlineItem({ deadline, rule, today }: { deadline: Deadline; rule: Dea
         {deadline.note ? <p className="text-muted-foreground text-xs">{deadline.note}</p> : null}
         {deadline.extendedDate ? (
           <p className="text-muted-foreground text-xs">Télédéclaration possible jusqu&apos;au {formatDisplayDate(deadline.extendedDate)}.</p>
+        ) : null}
+        {vatPeriod ? (
+          <Link
+            href={`/${companyId}/declarations-tva?periode=${vatPeriod}`}
+            className="text-link inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline pointer-coarse:-my-3 pointer-coarse:py-3"
+          >
+            {deadline.ruleId === 'tva-acompte' ? 'Voir le calcul de l’acompte' : 'Préparer la déclaration'}
+            <ArrowUpRight aria-hidden className="size-3.5" />
+          </Link>
         ) : null}
       </div>
       <div className="flex items-center gap-2 sm:shrink-0 sm:flex-col sm:items-end">
@@ -342,7 +353,7 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
                   <h2 className="text-base font-semibold">{monthTitle(month)}</h2>
                   <ul className="divide-y" aria-label={`Échéances de ${monthTitle(month).toLowerCase()}`}>
                     {items.map((d) => (
-                      <DeadlineItem key={d.id} deadline={d} rule={rules.get(d.ruleId)} today={data.today} />
+                      <DeadlineItem key={d.id} deadline={d} rule={rules.get(d.ruleId)} today={data.today} companyId={companyId} />
                     ))}
                   </ul>
                 </CardContent>

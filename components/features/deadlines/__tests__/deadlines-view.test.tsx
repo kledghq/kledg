@@ -31,7 +31,7 @@ const VIEW = {
   fiscalYear: { id: 'fy-2026', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31', isClosed: false },
   deadlines: [
     deadline({ id: 'cfe-2025', date: '2026-04-15', legalDate: '2026-04-15', label: 'Solde de CFE 2025', form: 'CFE', category: 'cfe', ruleId: 'cfe' }),
-    deadline({ id: 'ca3-04', date: '2026-05-07', legalDate: '2026-05-07', label: "Déclaration de TVA d'avril 2026", form: 'CA3', category: 'tva', ruleId: 'ca3', estimated: true }),
+    deadline({ id: 'tva-ca3:2026-04', date: '2026-05-07', legalDate: '2026-05-07', label: "Déclaration de TVA d'avril 2026", form: 'CA3', category: 'tva', ruleId: 'tva-ca3', estimated: true }),
     deadline({
       id: 'is-ac2',
       date: '2026-05-15',
@@ -132,5 +132,13 @@ describe('deadlines page', () => {
     expect(await screen.findByText('Aucun exercice pour cette société')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Créer un exercice' })).toHaveAttribute('href', '/c1/fiscal-years')
     expect(screen.getByRole('link', { name: 'Renseigner les régimes' })).toHaveAttribute('href', '/c1/informations#regimes-fiscaux')
+  })
+
+  it('links a VAT deadline to the preparation of its return', async () => {
+    render(<DeadlinesPage companyId="c1" />)
+    const item = (await screen.findByText("Déclaration de TVA d'avril 2026")).closest('li') as HTMLElement
+    expect(within(item).getByRole('link', { name: /Préparer la déclaration/ })).toHaveAttribute('href', '/c1/declarations-tva?periode=2026-04')
+    const cfe = screen.getByText('Solde de CFE 2025').closest('li') as HTMLElement
+    expect(within(cfe).queryByRole('link', { name: /Préparer la déclaration/ })).not.toBeInTheDocument()
   })
 })

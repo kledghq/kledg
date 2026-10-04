@@ -134,7 +134,7 @@ export function secondBusinessDayAfterMayFirst(year: number): string {
 
 // ------------------------------------------------------------ regimes
 
-type VatRegime = 'normal' | 'simplified' | 'none'
+export type VatRegime = 'normal' | 'simplified' | 'none'
 
 function normalizeVat(regime: string | null, exempt: boolean): VatRegime | null {
   if (exempt) return 'none'
@@ -150,10 +150,35 @@ function historyAt(company: DeadlineCompany, regimeType: 'vat' | 'corporateTax',
     .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
 }
 
-function vatRegimeAt(company: DeadlineCompany, day: string): VatRegime | null {
+/** The VAT regime on a day: the history row covering it, else the company fields; null when unknown. */
+export function vatRegimeAt(company: DeadlineCompany, day: string): VatRegime | null {
   const period = historyAt(company, 'vat', day)
   if (period) return normalizeVat(period.regime, Boolean(period.isVatExempt))
   return normalizeVat(company.vatRegime, company.isVatExempt)
+}
+
+/**
+ * The VAT return a month belongs to, the one rule shared by the calendar and
+ * the VAT return worksheet (lib/vat-returns):
+ * - réel normal: CA3, monthly, quarterly when the company says so (annual
+ *   VAT under 4 000 €, CGI art. 287, 2);
+ * - réel simplifié until 2026: the annual CA12 of the calendar year;
+ * - réel simplifié from 2027: the regime is abolished, CA3 quarterly by
+ *   default, monthly on request;
+ * - franchise or exemption: no return ('none'); unknown regime: null.
+ */
+export type VatFiling = { form: 'CA3'; quarterly: boolean; afterSimplified: boolean } | { form: 'CA12' } | { form: 'none' }
+
+export function vatFilingAt(company: DeadlineCompany, settings: Pick<DeadlineSettings, 'vatCa3Frequency'>, monthStart: string): VatFiling | null {
+  const regime = vatRegimeAt(company, monthStart)
+  if (regime === null) return null
+  if (regime === 'none') return { form: 'none' }
+  const afterSimplified = regime === 'simplified' && yearOf(monthStart) > SIMPLIFIED_VAT_LAST_YEAR
+  if (regime === 'normal' || afterSimplified) {
+    const quarterly = afterSimplified ? settings.vatCa3Frequency !== 'monthly' : settings.vatCa3Frequency === 'quarterly'
+    return { form: 'CA3', quarterly, afterSimplified }
+  }
+  return { form: 'CA12' }
 }
 
 type CorporateTaxRegime = 'normal' | 'simplified'
@@ -255,13 +280,12 @@ function vatDeadlines(input: DeadlineInput): Candidate[] {
   for (let y = startYear; y <= endYear; y++) {
     for (let m = 1; m <= 12; m++) {
       const periodStart = isoOf(y, m, 1)
-      const regime = vatRegimeAt(company, periodStart)
-      if (regime === null || regime === 'none') continue
+      const filing = vatFilingAt(company, settings, periodStart)
+      if (filing === null || filing.form === 'none') continue
       const [ny, nm] = shiftMonth(y, m, 1)
       const due = isoOf(ny, nm, day)
-      const afterSimplified = regime === 'simplified' && y > SIMPLIFIED_VAT_LAST_YEAR
-      if (regime === 'normal' || afterSimplified) {
-        const quarterly = afterSimplified ? settings.vatCa3Frequency !== 'monthly' : settings.vatCa3Frequency === 'quarterly'
+      if (filing.form === 'CA3') {
+        const { quarterly, afterSimplified } = filing
         const transition = afterSimplified
           ? 'Le régime simplifié de TVA est supprimé au 1er janvier 2027 : déclaration CA3 trimestrielle par défaut, mensuelle sur demande.'
           : undefined

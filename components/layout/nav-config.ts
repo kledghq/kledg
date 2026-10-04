@@ -30,6 +30,7 @@ import {
   ListTree,
   Network,
   Package,
+  Percent,
   PieChart,
   Receipt,
   ReceiptText,
@@ -131,6 +132,7 @@ export const navGroups: NavGroup[] = [
       { title: "Composition du capital", url: "/reports/capital-composition", icon: PieChart },
       { title: "FEC", url: "/reports/fec", icon: FileCode },
       { title: "Échéances", url: "/echeances", icon: CalendarClock },
+      { title: "Déclarations de TVA", url: "/declarations-tva", icon: Percent },
     ],
   },
   {
