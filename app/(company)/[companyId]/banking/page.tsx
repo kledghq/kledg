@@ -116,6 +116,8 @@ export default function BankingPage() {
         return
       }
       const result = (await response.json()) as { success: boolean; totalItemsSynced: number; errors: string[] }
+      // Reload first: load() clears the error, which would erase the sync failure shown below
+      await load()
       if (result.success) {
         toast.success(`Synchronisation terminée\u00a0: ${plural(result.totalItemsSynced, 'élément reçu', 'éléments reçus')}`)
       } else {
@@ -123,7 +125,6 @@ export default function BankingPage() {
         toast.error(message)
         setError(message)
       }
-      await load()
     } catch (err) {
       logger.error('[BankingPage] sync failed', err)
       toast.error('La synchronisation a échoué. Réessayez.')
