@@ -58,6 +58,15 @@ describe('EntryPreviewDialog', () => {
     ])
   })
 
+  it('shows the calendar day of the entry in a browser west of UTC', async () => {
+    // Accounting dates are calendar days stored at midnight UTC
+    // (docs/conventions.md, Dates): 1 March must not become 28 February.
+    process.env.TZ = 'America/Los_Angeles'
+    stubFetch({ ok: true, status: 200, json: async () => entry })
+    render(<EntryPreviewDialog open onOpenChange={vi.fn()} entryId="e-1" />)
+    expect(await screen.findByText('01/03/2025')).toBeInTheDocument()
+  })
+
   it('labels a draft entry', async () => {
     stubFetch({ ok: true, status: 200, json: async () => ({ ...entry, status: 'draft', reference: null, description: null }) })
     render(<EntryPreviewDialog open onOpenChange={vi.fn()} entryId="e-1" />)

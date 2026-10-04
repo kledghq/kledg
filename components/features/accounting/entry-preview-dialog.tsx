@@ -19,10 +19,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Amount } from '@/components/shared'
+import { Amount, formatDisplayDate } from '@/components/shared'
 import { toCents } from '@/lib/utils/money'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
 import { logger } from '@/lib/logger'
 
 interface EntryLine {
@@ -157,7 +155,7 @@ export function EntryPreviewDialog({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-muted-foreground">Date</p>
-                    <p>{format(new Date(entry.date), 'dd/MM/yyyy', { locale: fr })}</p>
+                    <p>{formatDisplayDate(entry.date)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Journal</p>
