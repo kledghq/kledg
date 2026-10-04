@@ -44,13 +44,49 @@ export interface CompanyCreator {
   role: string | null
 }
 
-export async function createCompany(input: CreateCompanyData, creator?: CompanyCreator): Promise<CreatedCompany> {
+export interface CreateCompanyOptions {
+  /**
+   * The instance's hook once the company is ready (afterCompanyCreated,
+   * lib/instance/policy.ts: ownership, billing). Runs in the caller's
+   * context; when it throws, the company is removed and the error rethrown,
+   * so no company stays that the instance did not take in charge
+   * (KLEDG-SEC-012).
+   */
+  afterCreated?: (companyId: string) => Promise<void>
+}
+
+export async function createCompany(input: CreateCompanyData, creator?: CompanyCreator, options: CreateCompanyOptions = {}): Promise<CreatedCompany> {
   // A creator who is not an instance administrator cannot reach the company
   // before being its member, nor write its organization and membership
   // (docs/rls.md, "Membership"): the creation runs as the system, for this
   // one request the instance policy authorized (companyCreationRefusal).
-  if (creator && creator.role !== 'admin') return withSystemContext('company-creation', () => createCompanyRows(input, creator))
-  return createCompanyRows(input, creator)
+  const asCreation = <T>(fn: () => Promise<T>): Promise<T> =>
+    creator && creator.role !== 'admin' ? withSystemContext('company-creation', fn) : fn()
+  const created = await asCreation(() => createCompanyRows(input, creator))
+  if (options.afterCreated) {
+    try {
+      await options.afterCreated(created.id)
+    } catch (error) {
+      logger.error('The instance hook failed after a company was created: the company is removed', { error, companyId: created.id })
+      await asCreation(() => discardCreatedCompany(created.id))
+      throw error
+    }
+  }
+  return created
+}
+
+/**
+ * Removes a company created by this request and nothing else yet (no
+ * entry, no closed year: the books guard of the deletion trigger lets it
+ * through), with its organization and memberships (cascades). Foreign keys
+ * to accounts, journals and fiscal years are checked at the end of the
+ * transaction, as in deleteCompany.
+ */
+async function discardCreatedCompany(companyId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SET CONSTRAINTS ALL DEFERRED`
+    await tx.company.delete({ where: { id: companyId } })
+  })
 }
 
 async function createCompanyRows(input: CreateCompanyData, creator?: CompanyCreator): Promise<CreatedCompany> {

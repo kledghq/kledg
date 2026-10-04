@@ -115,6 +115,30 @@ describe.skipIf(!available)('company creation through the instance policy', () =
     }
   })
 
+  // KLEDG-SEC-012 (kledg-cloud KLEDG-CLOUD-006): the hook used to run after the
+  // company was kept, so a failure (billing, ownership) left a company the
+  // instance never assigned, unbilled and unrestricted.
+  it('[KLEDG-SEC-012] removes the company when the after-creation hook fails, and keeps nothing of it', async () => {
+    vi.mocked(policy.companyCreationRefusal).mockResolvedValue(null)
+    vi.mocked(policy.afterCompanyCreated).mockRejectedValueOnce(new Error('billing service down'))
+    const start = new Date()
+    try {
+      const response = await call('user', 'companies', 'POST', '/api/companies', company('912345642', 'Sans Abonnement'))
+      expect(response.status).toBe(500)
+      expect(policy.afterCompanyCreated).toHaveBeenCalledTimes(1)
+      expect(await prisma.company.count({ where: { siren: '912345642' } })).toBe(0)
+      expect(await prisma.member.count({ where: { userId: 'u-user', organization: { name: 'Sans Abonnement' } } })).toBe(0)
+      expect(await prisma.organization.count({ where: { name: 'Sans Abonnement' } })).toBe(0)
+      expect(await prisma.auditLog.count({ where: { action: 'CREATE_COMPANY', createdAt: { gte: start } } })).toBe(0)
+
+      // Nothing blocks a new attempt once the hook works again.
+      const retried = await call('user', 'companies', 'POST', '/api/companies', company('912345642', 'Sans Abonnement'))
+      expect(retried.status).toBe(201)
+    } finally {
+      vi.mocked(policy.companyCreationRefusal).mockReset()
+    }
+  })
+
   it('answers a refusal with its link in the details, and creates nothing', async () => {
     vi.mocked(policy.companyCreationRefusal).mockResolvedValueOnce({
       message: 'Votre offre est limitée à une société.',
