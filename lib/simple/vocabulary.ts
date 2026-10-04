@@ -121,6 +121,21 @@ export function vatTitle(
 
 /** Under the VAT figure: it reads the books, not the return. */
 export const VAT_ESTIMATE_HINT = "Estimation, à confirmer";
+
+/**
+ * Under the VAT figure when it is the amount of the prepared return:
+ * "D'après votre déclaration de septembre 2026", "... du 3e trimestre
+ * 2026", "... de l'année 2025".
+ */
+export function vatReturnHint(periodLabel: string): string {
+  const of = /^\d/.test(periodLabel)
+    ? "du "
+    : periodLabel.startsWith("année")
+      ? "de l'"
+      : "de ";
+  return `D'après votre déclaration ${of}${periodLabel}`;
+}
+
 export const NO_VAT_HINT = "Aucune TVA enregistrée pour le moment";
 
 /** "Bénéfice depuis janvier" (or the month the year started), "Perte depuis janvier" when negative. */

@@ -91,7 +91,7 @@ export const KLEDG_PROMPTS: KledgPrompt[] = [
         readOnlyText: "3. Pour chaque opération à rapprocher, indiquez l'écriture que vous proposeriez ; l'utilisateur la saisit dans Kledg.",
       },
       { text: '4. Justificatifs : avec `list_missing_receipts` sur la période, listez les opérations sans pièce justificative, par montant décroissant.' },
-      { text: "5. TVA : avec `get_trial_balance` sur la période, donnez les soldes des comptes 44566 (TVA déductible), 44571 (TVA collectée) et 4455 (TVA à décaisser), puis avec `list_tax_deadlines` (catégorie tva) la prochaine déclaration et sa date." },
+      { text: "5. TVA : avec `get_vat_return`, préparez la déclaration due (CA3 ou CA12) : montant à payer ou crédit, contrôles qui bloquent, lignes à remplir à la main, puis avec `list_tax_deadlines` (catégorie tva) sa date. Kledg prépare, l'utilisateur dépose sur impots.gouv.fr." },
       { text: '6. Concluez par une liste courte des points ouverts, classés par urgence, avec les liens vers Kledg.' },
     ],
   },

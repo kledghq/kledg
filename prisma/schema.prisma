@@ -160,6 +160,7 @@ model Company {
   investmentGrantTransfers   InvestmentGrantTransfer[]
   accountsApprovals          AccountsApproval[]
   simpleModeEntries          SimpleModeEntry[]
+  vatReturnFilings           VatReturnFiling[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -2483,4 +2484,36 @@ model SimpleModeEntry {
   @@index([companyId, counterpartyKey])
   @@index([bankTransactionId])
   @@map("simple_mode_entries")
+}
+
+/// A VAT return the user says was filed on impots.gouv.fr (docs/declarations-tva.md):
+/// Kledg prepares the return, the user files it and records here the day
+/// and the amounts declared. The next period's checks read it: the payment
+/// booked on 4455 against the amount due, the credit carried forward
+/// (CA3 line 22, CA12 line 24) against the credit declared. Kledg never
+/// files a return itself.
+model VatReturnFiling {
+  id           String   @id @default(cuid())
+  companyId    String
+  /// CA3 or CA12.
+  form         String
+  /// yyyy-mm (monthly CA3), yyyy-Tn (quarterly CA3) or yyyy (CA12), as the deadline calendar keys them.
+  periodKey    String
+  periodStart  DateTime
+  periodEnd    DateTime
+  filedOn      DateTime
+  /// Amount paid with the return (CA3 line 28, CA12 line 33), 0 for a credit.
+  amountDue    Decimal  @db.Decimal(15, 2)
+  /// Credit carried forward (CA3 line 27, CA12 line 51), 0 when VAT is due.
+  creditAmount Decimal  @db.Decimal(15, 2)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// One record per period of a company.
+  @@unique([companyId, periodKey])
+  @@index([companyId])
+  @@map("vat_return_filings")
 }

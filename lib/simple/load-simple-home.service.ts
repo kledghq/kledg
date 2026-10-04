@@ -9,8 +9,11 @@
  *   bank accounts source), plus the bank lines of the current month.
  * - Vos clients vous doivent: the customers of the aged balance
  *   (getAgedBalance), overdue part included.
- * - TVA à payer: the next VAT deadline of lib/deadlines, and the balance of
- *   the comptes 445 (summarizeLedger), an estimate read from the books.
+ * - TVA à payer: the next VAT deadline of lib/deadlines and the amount of
+ *   its return, computed like the VAT return worksheet
+ *   (lib/vat-returns/vat-return-for-deadline.service.ts) when its checks
+ *   pass; otherwise the balance of the comptes 445 (summarizeLedger), shown
+ *   as an estimate.
  * - Bénéfice: the result of the fiscal year from its validated entries, as
  *   the income statement computes it (loadStatementAccounts, computeSig),
  *   before the impôt sur les bénéfices (comptes 69 except 691).
@@ -42,6 +45,7 @@ import { daysBetween } from "@/lib/reports/third-parties/payment-terms";
 import { overdueCents } from "@/lib/reports/third-parties/third-party-balances";
 import { loadDeadlinesWidget } from "@/lib/deadlines/load-deadlines.service";
 import { DEADLINES_PERMISSION } from "@/lib/deadlines/permissions";
+import { vatReturnForDeadline } from "@/lib/vat-returns/vat-return-for-deadline.service";
 import {
   listMissingReceipts,
   MissingReceiptsQuerySchema,
@@ -77,8 +81,16 @@ export interface SimpleHome {
   receivables: { totalCents: number; overdueCents: number } | null;
   /** Null without reports:read. */
   vat: {
-    /** Comptes 445, credit minus debit: positive to pay, negative a credit; null when the books hold no VAT. */
+    /**
+     * Positive to pay, negative a credit; null when the books hold no VAT.
+     * The return of the next deadline's period when its checks pass
+     * (source 'return', lib/vat-returns), else the balance of the comptes
+     * 445, credit minus debit (source 'estimate').
+     */
     estimateCents: number | null;
+    source: "return" | "estimate";
+    /** The period of that return ("septembre 2026"), null for an estimate. */
+    periodLabel: string | null;
     /** The next VAT deadline (today included), from lib/deadlines. */
     deadline: { date: string; label: string; estimated: boolean } | null;
   } | null;
@@ -235,16 +247,28 @@ async function loadResult(companyId: string, fy: FiscalYear) {
   };
 }
 
+interface NextVatDeadline {
+  date: string;
+  label: string;
+  estimated: boolean;
+  /** The amount of its return when the books allow it (lib/vat-returns). */
+  amount: Awaited<ReturnType<typeof vatReturnForDeadline>>;
+}
+
 async function nextVatDeadline(
   companyId: string,
   today: string,
   now?: Date,
-): Promise<NonNullable<SimpleHome["vat"]>["deadline"]> {
+): Promise<NextVatDeadline | null> {
   const { deadlines } = await loadDeadlinesWidget(companyId, now);
   const next = deadlines.find((d) => d.category === "tva" && d.date >= today);
-  return next
-    ? { date: next.date, label: next.label, estimated: next.estimated }
-    : null;
+  if (!next) return null;
+  return {
+    date: next.date,
+    label: next.label,
+    estimated: next.estimated,
+    amount: await vatReturnForDeadline(companyId, next, now),
+  };
 }
 
 async function countMissingReceipts(
@@ -299,7 +323,7 @@ export async function loadSimpleHome(
       : skip<Awaited<ReturnType<typeof loadResult>>>(),
     ctx.can(DEADLINES_PERMISSION)
       ? nextVatDeadline(companyId, today, ctx.now)
-      : skip<NonNullable<SimpleHome["vat"]>["deadline"]>(),
+      : skip<NextVatDeadline>(),
     canBank ? countExpensesToCheck(companyId) : skip<number>(),
     canBank && fy ? countMissingReceipts(companyId, fy) : skip<number>(),
     ctx.can({ settings: ["read"] })
@@ -326,7 +350,20 @@ export async function loadSimpleHome(
     bank,
     receivables: aged?.receivables ?? null,
     vat: canReports
-      ? { estimateCents: result?.vatCents ?? null, deadline }
+      ? {
+          estimateCents: deadline?.amount
+            ? deadline.amount.amountCents
+            : (result?.vatCents ?? null),
+          source: deadline?.amount ? "return" : "estimate",
+          periodLabel: deadline?.amount?.periodLabel ?? null,
+          deadline: deadline
+            ? {
+                date: deadline.date,
+                label: deadline.label,
+                estimated: deadline.estimated,
+              }
+            : null,
+        }
       : null,
     profit: result?.profit ?? null,
     todo: {

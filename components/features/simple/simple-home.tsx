@@ -24,6 +24,7 @@ import {
   profitTitle,
   situationSentence,
   vatTitle,
+  vatReturnHint,
 } from "@/lib/simple/vocabulary";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -176,7 +177,13 @@ export function SimpleHome({
           <StatCard
             label={vatTitle(vat.estimateCents, vat.deadline?.date ?? null)}
             value={<Amount value={euros(Math.abs(vat.estimateCents ?? 0))} />}
-            hint={vat.estimateCents === null ? NO_VAT_HINT : VAT_ESTIMATE_HINT}
+            hint={
+              vat.source === "return" && vat.periodLabel
+                ? vatReturnHint(vat.periodLabel)
+                : vat.estimateCents === null
+                  ? NO_VAT_HINT
+                  : VAT_ESTIMATE_HINT
+            }
           />
         ) : null}
         {profit && fiscalYear ? (

@@ -35,7 +35,7 @@ function filedOnlineOf(details: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
 }
 
-interface CompanyContext {
+export interface CompanyContext {
   company: DeadlineCompany
   fiscalYears: Array<DeadlineFiscalYear & { year: number; isClosed: boolean }>
   settings: DeadlineSettings
@@ -43,7 +43,8 @@ interface CompanyContext {
   approvals: Record<string, DeadlineApproval>
 }
 
-async function loadContext(companyId: string): Promise<CompanyContext> {
+/** What the engine needs for one company; also read by the VAT return worksheet (lib/vat-returns). */
+export async function loadDeadlineContext(companyId: string): Promise<CompanyContext> {
   const [company, fiscalYears, history, approvals] = await Promise.all([
     prisma.company.findUnique({
       where: { id: companyId },
@@ -108,7 +109,7 @@ export interface DeadlinesWidgetData {
 }
 
 export async function loadDeadlinesWidget(companyId: string, now?: Date): Promise<DeadlinesWidgetData> {
-  const context = await loadContext(companyId)
+  const context = await loadDeadlineContext(companyId)
   const today = day(todayUtc(now))
   const deadlines = computeDeadlines({
     ...context,
@@ -144,7 +145,7 @@ export interface DeadlinesView {
 }
 
 export async function loadDeadlinesView(companyId: string, query: DeadlinesQuery, now?: Date): Promise<DeadlinesView> {
-  const context = await loadContext(companyId)
+  const context = await loadDeadlineContext(companyId)
   const today = day(todayUtc(now))
   const years = context.fiscalYears
   const fiscalYear =
