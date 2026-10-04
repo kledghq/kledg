@@ -46,8 +46,8 @@ export function VatReturnPDF({ view, companyName, generatedOn }: { view: VatRetu
             Période du {period?.start.split('-').reverse().join('/')} au {period?.end.split('-').reverse().join('/')}
             {view.deadline ? `, à déposer et payer au plus tard le ${view.deadline.date.split('-').reverse().join('/')}${view.deadline.estimated ? ' (jour indicatif)' : ''}` : ''}
           </Text>
-          <Text style={styles.meta}>Document de travail établi par Kledg le {generatedOn.split('-').reverse().join('/')} : la déclaration se dépose sur impots.gouv.fr.</Text>
-          {!view.reliable ? <Text style={styles.warning}>Des contrôles signalent que les chiffres sont incomplets : voir la liste des contrôles avant de déclarer.</Text> : null}
+          <Text style={styles.meta}>Document de travail établi par Kledg le {generatedOn.split('-').reverse().join('/')}&nbsp;: la déclaration se dépose sur impots.gouv.fr.</Text>
+          {!view.reliable ? <Text style={styles.warning}>Des contrôles signalent que les chiffres sont incomplets&nbsp;: voir la liste des contrôles avant de déclarer.</Text> : null}
         </View>
 
         <View style={styles.headRow} fixed>
@@ -110,7 +110,7 @@ export function VatReturnPDF({ view, companyName, generatedOn }: { view: VatRetu
         <Text style={styles.section}>Sources</Text>
         {view.sources.map((source) => (
           <Text key={source.url} style={styles.item}>
-            {source.label} : {source.url}
+            {source.label}&nbsp;: {source.url}
           </Text>
         ))}
       </Page>

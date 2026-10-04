@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { classifyEntries, inferRate, isSettlementEntry, splitInvoiceVat, type VatEntry, type VatInvoiceSource } from '../classify'
 import { computeVatReturn, roundEuros, type VatReturnComputation } from '../compute'
-import { planSettlement, sameLines, settlementReference } from '../settlement'
+import { planSettlement, resolveRootCode, sameLines, settlementReference } from '../settlement'
 
 let counter = 0
 /** An entry from [code, debit, credit] lines, in cents. */
@@ -134,7 +134,7 @@ describe('CA3 of a month with several rates (notice 3310-CA3-SD, lines A1, 08, 9
       ['445620', 40_000],
     ])
     const lines = planSettlement({
-      period: { key: '2026-09', form: 'CA3', label: 'septembre 2026' },
+      period: { id: '2026-09', form: 'CA3', label: 'septembre 2026' },
       periodNetByCode: nets,
       creditCarried: { cents: 0, code: '44567' },
       acomptes: null,
@@ -149,8 +149,15 @@ describe('CA3 of a month with several rates (notice 3310-CA3-SD, lines A1, 08, 9
       { code: '758', label: 'Indemnités et autres produits', debitCents: 0, creditCents: 10 },
     ])
     expect(lines.reduce((s, l) => s + l.debitCents - l.creditCents, 0)).toBe(0)
-    expect(settlementReference({ key: '2026-09', form: 'CA3' })).toBe('TVA-CA3-2026-09')
+    expect(settlementReference({ id: '2026-09', form: 'CA3' })).toBe('TVA-CA3-2026-09')
     expect(sameLines(lines, [...lines].reverse())).toBe(true)
+  })
+
+  it('takes the chart’s own code for an account named by its root (445510 for 44551)', () => {
+    expect(resolveRootCode('44551', ['445510', '44551000'])).toBe('445510')
+    expect(resolveRootCode('44567', ['44567'])).toBe('44567')
+    expect(resolveRootCode('658', ['6588', '65800'])).toBe('6588')
+    expect(resolveRootCode('758', [])).toBe('758')
   })
 })
 
@@ -209,7 +216,7 @@ describe('credit carried forward (line 22 repeats line 27 of the previous return
 
   it('settles into 44567: the old credit used, the new credit carried', () => {
     const lines = planSettlement({
-      period: { key: '2026-09', form: 'CA3', label: 'septembre 2026' },
+      period: { id: '2026-09', form: 'CA3', label: 'septembre 2026' },
       periodNetByCode: new Map([
         ['445710', -20_000],
         ['445660', 80_000],
@@ -222,8 +229,8 @@ describe('credit carried forward (line 22 repeats line 27 of the previous return
     expect(lines).toEqual([
       { code: '445660', label: 'TVA sur autres biens et services', debitCents: 0, creditCents: 80_000 },
       { code: '445710', label: 'TVA collectée', debitCents: 20_000, creditCents: 0 },
-      { code: '445670', label: 'Crédit de TVA à reporter', debitCents: 0, creditCents: 150_000 },
-      { code: '445670', label: 'Crédit de TVA à reporter', debitCents: 210_000, creditCents: 0 },
+      // The credit used (1 500 €) and the credit carried (2 100 €) net on 44567
+      { code: '445670', label: 'Crédit de TVA à reporter', debitCents: 60_000, creditCents: 0 },
     ])
   })
 })
@@ -359,7 +366,7 @@ describe('CA12 with acomptes and the annual regularisation (notice 3517-S-SD, li
     expect(line(withCredit, '24')).toMatchObject({ box: '0058', amount: 1_000 })
     expect(withCredit.result.dueEuros).toBe(6_000)
     const lines = planSettlement({
-      period: { key: '2026', form: 'CA12', label: 'année 2026' },
+      period: { id: '2026', form: 'CA12', label: 'année 2026' },
       periodNetByCode: new Map([
         ['445710', -2_000_000],
         ['445660', 800_000],

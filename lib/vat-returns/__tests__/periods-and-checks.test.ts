@@ -30,18 +30,18 @@ describe('VAT return periods', () => {
     expect(periodOfKey('2026-02')).toMatchObject({ form: 'CA3', start: '2026-02-01', end: '2026-02-28', label: 'février 2026' })
     expect(periodOfKey('2026-T4')).toMatchObject({ form: 'CA3', frequency: 'quarterly', start: '2026-10-01', end: '2026-12-31', label: '4e trimestre 2026' })
     expect(periodOfKey('2025')).toMatchObject({ form: 'CA12', start: '2025-01-01', end: '2025-12-31', label: 'année 2025' })
-    expect([previousPeriodKey({ key: '2026-01' }), previousPeriodKey({ key: '2026-T1' }), previousPeriodKey({ key: '2026' })]).toEqual(['2025-12', '2025-T4', '2025'])
+    expect([previousPeriodKey({ id: '2026-01' }), previousPeriodKey({ id: '2026-T1' }), previousPeriodKey({ id: '2026' })]).toEqual(['2025-12', '2025-T4', '2025'])
   })
 
   it('lists monthly CA3 at the réel normal, quarterly on the option', () => {
-    expect(listPeriods(company(), { vatCa3Frequency: 'auto' }, '2026-07-01', '2026-09-30').map((p) => p.key)).toEqual(['2026-09', '2026-08', '2026-07'])
-    expect(listPeriods(company(), { vatCa3Frequency: 'quarterly' }, '2026-01-01', '2026-09-30').map((p) => p.key)).toEqual(['2026-T3', '2026-T2', '2026-T1'])
+    expect(listPeriods(company(), { vatCa3Frequency: 'auto' }, '2026-07-01', '2026-09-30').map((p) => p.id)).toEqual(['2026-09', '2026-08', '2026-07'])
+    expect(listPeriods(company(), { vatCa3Frequency: 'quarterly' }, '2026-01-01', '2026-09-30').map((p) => p.id)).toEqual(['2026-T3', '2026-T2', '2026-T1'])
   })
 
   it('lists the CA12 of each year at the réel simplifié, then quarterly CA3 from 2027', () => {
     const simplified = company({ vatRegime: 'simplified' })
-    expect(listPeriods(simplified, { vatCa3Frequency: 'auto' }, '2025-01-01', '2027-04-30').map((p) => p.key)).toEqual(['2027-T2', '2027-T1', '2026', '2025'])
-    expect(periodOfMonth(simplified, { vatCa3Frequency: 'monthly' }, '2027-03-01')).toMatchObject({ key: '2027-03' })
+    expect(listPeriods(simplified, { vatCa3Frequency: 'auto' }, '2025-01-01', '2027-04-30').map((p) => p.id)).toEqual(['2027-T2', '2027-T1', '2026', '2025'])
+    expect(periodOfMonth(simplified, { vatCa3Frequency: 'monthly' }, '2027-03-01')).toMatchObject({ id: '2027-03' })
   })
 
   it('has no return under the franchise en base, and none when the regime is unknown', () => {
@@ -58,12 +58,12 @@ describe('VAT return periods', () => {
         { regimeType: 'vat', regime: 'normal', startDate: '2026-06-01', endDate: null },
       ],
     })
-    expect(listPeriods(changed, { vatCa3Frequency: 'auto' }, '2026-04-01', '2026-07-31').map((p) => p.key)).toEqual(['2026-07', '2026-06', '2026'])
+    expect(listPeriods(changed, { vatCa3Frequency: 'auto' }, '2026-04-01', '2026-07-31').map((p) => p.id)).toEqual(['2026-07', '2026-06', '2026'])
   })
 
   it('links calendar deadlines and returns both ways (an acompte reads the previous CA12)', () => {
-    expect(deadlineIdOfPeriod({ key: '2026-09', form: 'CA3' })).toBe('tva-ca3:2026-09')
-    expect(deadlineIdOfPeriod({ key: '2025', form: 'CA12' })).toBe('tva-ca12:2025')
+    expect(deadlineIdOfPeriod({ id: '2026-09', form: 'CA3' })).toBe('tva-ca3:2026-09')
+    expect(deadlineIdOfPeriod({ id: '2025', form: 'CA12' })).toBe('tva-ca12:2025')
     expect(periodKeyOfDeadline({ id: 'tva-ca3:2026-T3', ruleId: 'tva-ca3' })).toBe('2026-T3')
     expect(periodKeyOfDeadline({ id: 'tva-ca12:2025', ruleId: 'tva-ca12' })).toBe('2025')
     expect(periodKeyOfDeadline({ id: 'tva-acompte:2026-07', ruleId: 'tva-acompte' })).toBe('2025')

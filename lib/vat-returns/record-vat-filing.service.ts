@@ -63,15 +63,15 @@ export async function recordVatFiling(companyId: string, body: VatFilingBody, op
     createdById: options.userId ?? null,
   }
   const saved = await prisma.vatReturnFiling.upsert({
-    where: { companyId_periodKey: { companyId, periodKey: period.key } },
-    create: { companyId, periodKey: period.key, ...data },
+    where: { companyId_periodKey: { companyId, periodKey: period.id } },
+    create: { companyId, periodKey: period.id, ...data },
     update: data,
     select: { periodKey: true, filedOn: true, amountDue: true, creditAmount: true },
   })
-  await writeAuditLog('info', `VAT return ${period.form} ${period.key} recorded as filed`, {
+  await writeAuditLog('info', `VAT return ${period.form} ${period.id} recorded as filed`, {
     action: 'RECORD_VAT_FILING',
     companyId,
-    metadata: { period: period.key, form: period.form, filedOn: body.filedOn, amountDueCents: body.amountDueCents, creditCents: body.creditCents },
+    metadata: { period: period.id, form: period.form, filedOn: body.filedOn, amountDueCents: body.amountDueCents, creditCents: body.creditCents },
   })
   return {
     period: saved.periodKey,

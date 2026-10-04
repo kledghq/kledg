@@ -12,6 +12,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { CompanyGuard } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
+import { parseInput } from '@/lib/api/zod-fields'
 import { READ_ONLY, describeTool, kledgPageUrl } from '@/lib/mcp/tool-meta'
 import { loadVatReturn } from '@/lib/vat-returns/load-vat-return.service'
 import { PERIOD_KEY_PATTERN } from '@/lib/vat-returns/periods'
@@ -19,6 +20,11 @@ import { VAT_RETURN_READ } from '@/lib/vat-returns/permissions'
 import { fromCents } from '@/lib/utils/money'
 
 const euros = (cents: number | null) => (cents === null ? null : fromCents(cents))
+
+const InputSchema = z.object({
+  companyId: z.string().min(1, 'La société est requise').describe('Company id, from list_companies.'),
+  period: z.string().regex(PERIOD_KEY_PATTERN, 'Période invalide : aaaa-mm, aaaa-Tn ou aaaa.').optional().describe('yyyy-mm, yyyy-Tn or yyyy; the return due next by default.'),
+})
 
 export function registerVatReturnReadTools(server: McpServer, guard: CompanyGuard) {
   server.registerTool(
@@ -34,14 +40,12 @@ export function registerVatReturnReadTools(server: McpServer, guard: CompanyGuar
         units: 'Form amounts (base, amount, due, credit) are whole euros as the form wants them; books amounts are euros with cents. Dates as yyyy-mm-dd.',
         never: 'files or submits a return, pays a tax, posts an entry or changes the books.',
       }),
-      inputSchema: z.object({
-        companyId: z.string().describe('Company id, from list_companies.'),
-        period: z.string().regex(PERIOD_KEY_PATTERN, 'Période invalide : aaaa-mm, aaaa-Tn ou aaaa.').optional().describe('yyyy-mm, yyyy-Tn or yyyy; the return due next by default.'),
-      }),
+      inputSchema: InputSchema,
       annotations: READ_ONLY,
     },
-    (args) =>
+    (raw: unknown) =>
       run(async () => {
+        const args = parseInput(InputSchema, raw)
         await guard.require(args.companyId, VAT_RETURN_READ)
         const view = await loadVatReturn(args.companyId, { period: args.period })
         const c = view.computation
@@ -71,9 +75,9 @@ export function registerVatReturnReadTools(server: McpServer, guard: CompanyGuar
           settlement: view.settlement,
           filing: view.filing ? { filedOn: view.filing.filedOn, amountDue: euros(view.filing.amountDueCents), credit: euros(view.filing.creditCents) } : null,
           toFillByHand: view.notFromTheBooks,
-          periods: view.periods.map((p) => ({ key: p.key, label: p.label, form: p.form, filed: p.filed })),
+          periods: view.periods.map((p) => ({ period: p.id, label: p.label, form: p.form, filed: p.filed })),
           sources: view.sources,
-          reviewUrl: kledgPageUrl(args.companyId, view.period ? `declarations-tva?periode=${view.period.key}` : 'declarations-tva'),
+          reviewUrl: kledgPageUrl(args.companyId, view.period ? `declarations-tva?periode=${view.period.id}` : 'declarations-tva'),
         })
       }),
   )

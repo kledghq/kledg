@@ -28,7 +28,7 @@ export type VatFrequency = 'monthly' | 'quarterly' | 'annual'
 
 export interface VatPeriod {
   /** "2026-09", "2026-T3" or "2026". */
-  key: string
+  id: string
   form: VatForm
   frequency: VatFrequency
   /** First and last day, both included (yyyy-mm-dd). */
@@ -50,13 +50,13 @@ export function periodOfKey(key: string): VatPeriod | null {
   if (!parsed) return null
   const { year, month, quarter } = parsed
   if (month) {
-    return { key, form: 'CA3', frequency: 'monthly', start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay(year, month))}`, label: `${MONTHS[month - 1]} ${year}` }
+    return { id: key, form: 'CA3', frequency: 'monthly', start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay(year, month))}`, label: `${MONTHS[month - 1]} ${year}` }
   }
   if (quarter) {
     const first = (quarter - 1) * 3 + 1
     const last = first + 2
     return {
-      key,
+      id: key,
       form: 'CA3',
       frequency: 'quarterly',
       start: `${year}-${pad(first)}-01`,
@@ -64,7 +64,7 @@ export function periodOfKey(key: string): VatPeriod | null {
       label: `${QUARTERS[quarter - 1]} trimestre ${year}`,
     }
   }
-  return { key, form: 'CA12', frequency: 'annual', start: `${year}-01-01`, end: `${year}-12-31`, label: `année ${year}` }
+  return { id: key, form: 'CA12', frequency: 'annual', start: `${year}-01-01`, end: `${year}-12-31`, label: `année ${year}` }
 }
 
 export type FilingAtMonth = 'none' | 'unknown' | VatPeriod
@@ -108,7 +108,7 @@ export function listPeriods(company: DeadlineCompany, settings: Pick<DeadlineSet
   for (const month of monthsBetween(from, to)) {
     const period = periodOfMonth(company, settings, month)
     if (typeof period === 'string') continue
-    if (!byKey.has(period.key)) byKey.set(period.key, period)
+    if (!byKey.has(period.id)) byKey.set(period.id, period)
   }
   return [...byKey.values()].sort((a, b) => b.start.localeCompare(a.start))
 }
@@ -117,13 +117,13 @@ export function listPeriods(company: DeadlineCompany, settings: Pick<DeadlineSet
  * The deadline id of a period's return in the calendar ("tva-ca3:2026-09",
  * "tva-ca12:2025"); periodKeyOfDeadline (period-keys.ts) goes the other way.
  */
-export function deadlineIdOfPeriod(period: Pick<VatPeriod, 'key' | 'form'>): string {
-  return `${period.form === 'CA12' ? 'tva-ca12' : 'tva-ca3'}:${period.key}`
+export function deadlineIdOfPeriod(period: Pick<VatPeriod, 'id' | 'form'>): string {
+  return `${period.form === 'CA12' ? 'tva-ca12' : 'tva-ca3'}:${period.id}`
 }
 
 /** The period before `period` of the same frequency (the previous return). */
-export function previousPeriodKey(period: Pick<VatPeriod, 'key'>): string {
-  const parsed = parsePeriodKey(period.key) as { year: number; month?: number; quarter?: number }
+export function previousPeriodKey(period: Pick<VatPeriod, 'id'>): string {
+  const parsed = parsePeriodKey(period.id) as { year: number; month?: number; quarter?: number }
   if (parsed.month) return parsed.month === 1 ? `${parsed.year - 1}-12` : `${parsed.year}-${pad(parsed.month - 1)}`
   if (parsed.quarter) return parsed.quarter === 1 ? `${parsed.year - 1}-T4` : `${parsed.year}-T${parsed.quarter - 1}`
   return String(parsed.year - 1)

@@ -31,7 +31,7 @@ export interface SettlementLine {
 }
 
 export interface SettlementInput {
-  period: Pick<VatPeriod, 'key' | 'form' | 'label'>
+  period: Pick<VatPeriod, 'id' | 'form' | 'label'>
   /** Net movements of the period by account code (debit minus credit), settlement entries left out. */
   periodNetByCode: Map<string, number>
   /** Credit carried forward the return uses, and the 44567 account it sits on. */
@@ -72,8 +72,8 @@ export const isSettledCode = (code: string) =>
   code === '4456'
 
 /** "TVA-CA3-2026-09", "TVA-CA12-2026": the reference that makes the preparation idempotent. */
-export function settlementReference(period: Pick<VatPeriod, 'key' | 'form'>): string {
-  return `TVA-${period.form}-${period.key}`
+export function settlementReference(period: Pick<VatPeriod, 'id' | 'form'>): string {
+  return `TVA-${period.form}-${period.id}`
 }
 
 export function settlementDescription(period: Pick<VatPeriod, 'form' | 'label'>): string {
@@ -105,7 +105,41 @@ export function planSettlement(input: SettlementInput): SettlementLine[] {
   const difference = lines.reduce((s, l) => s + l.debitCents - l.creditCents, 0)
   if (difference > 0) lines.push({ ...SETTLEMENT_ACCOUNTS.roundingIncome, debitCents: 0, creditCents: difference })
   else if (difference < 0) lines.push({ ...SETTLEMENT_ACCOUNTS.roundingCharge, debitCents: -difference, creditCents: 0 })
-  return lines
+  return netByAccount(lines)
+}
+
+/** One line per account: the credit used and the credit carried on 44567 net into one movement; zero lines dropped. */
+export function netByAccount(lines: SettlementLine[]): SettlementLine[] {
+  const out: SettlementLine[] = []
+  for (const line of lines) {
+    const same = out.find((l) => l.code === line.code)
+    if (!same) {
+      out.push({ ...line })
+      continue
+    }
+    const net = same.debitCents - same.creditCents + line.debitCents - line.creditCents
+    same.debitCents = Math.max(net, 0)
+    same.creditCents = Math.max(-net, 0)
+  }
+  return out.filter((l) => l.debitCents !== 0 || l.creditCents !== 0)
+}
+
+/** Accounts the plan names by their PCG root; the chart of a fiscal year may hold them as 445510, 445670... */
+export const SETTLEMENT_ROOTS: readonly string[] = ['44551', '44567', '44581', '658', '758']
+
+/**
+ * The account of the chart to use for a root: the root itself, else the
+ * root padded with zeros to six digits, else the first account below it
+ * (shortest code first), as invoices resolve theirs
+ * (lib/invoices/ledger-accounts.ts); the root when the chart has none (the
+ * service creates it).
+ */
+export function resolveRootCode(root: string, chart: readonly string[]): string {
+  if (chart.includes(root)) return root
+  const padded = root.padEnd(6, '0')
+  if (chart.includes(padded)) return padded
+  const below = chart.filter((code) => code.startsWith(root)).sort((a, b) => a.length - b.length || a.localeCompare(b))
+  return below[0] ?? root
 }
 
 /** Same lines, whatever their order: a draft that already says this is kept. */

@@ -14,6 +14,7 @@ import {
   profitTitle,
   situationSentence,
   vatTitle,
+  vatReturnHint,
 } from '../vocabulary'
 
 describe('plain-language labels of the simple mode', () => {
@@ -38,6 +39,11 @@ describe('plain-language labels of the simple mode', () => {
     expect(vatTitle(218_600, '2026-10-24')).toBe('TVA à payer le 24 octobre')
     expect(vatTitle(218_600, null)).toBe('TVA à payer')
     expect(vatTitle(-5_000, '2026-10-24')).toBe('TVA en votre faveur')
+    // The amount of the prepared return (lib/vat-returns), when its checks pass
+    expect(vatReturnHint('septembre 2026')).toBe("D'après votre déclaration de septembre 2026")
+    expect(vatReturnHint('3e trimestre 2026')).toBe("D'après votre déclaration du 3e trimestre 2026")
+    expect(vatReturnHint('année 2025')).toBe("D'après votre déclaration de l'année 2025")
+    expect(vocabulary.jargonIn(vatReturnHint('année 2025'))).toEqual([])
     expect(profitTitle(1_534_710, '2026-01-01')).toBe('Bénéfice depuis janvier')
     expect(profitTitle(-100, '2026-07-01')).toBe('Perte depuis juillet')
   })

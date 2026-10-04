@@ -70,7 +70,7 @@ export async function exportVatReturn(companyId: string, query: VatReturnExportQ
   ])
   if (view.status !== 'ready' || !view.period) throw new ConflictError('Aucune déclaration de TVA à exporter pour cette société.')
   const companyName = company?.name ?? ''
-  const base = `TVA_${view.period.form}_${view.period.key}_${fileNamePart(companyName)}`
+  const base = `TVA_${view.period.form}_${view.period.id}_${fileNamePart(companyName)}`
   if (query.format === 'csv') {
     return { content: `﻿${vatReturnCsv(view, companyName)}`, fileName: `${base}.csv`, contentType: 'text/csv; charset=utf-8' }
   }

@@ -56,7 +56,7 @@ export const VatReturnQuerySchema = z.object({
 export type VatReturnQuery = z.infer<typeof VatReturnQuerySchema>
 
 export interface VatReturnPeriodOption {
-  key: string
+  id: string
   label: string
   form: VatPeriod['form']
   start: string
@@ -264,7 +264,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   const periods = firstStart ? listPeriods(context.company, context.settings, from, today).slice(0, MAX_PERIODS) : []
 
   const requested = periodKey ? periodOfKey(periodKey) : null
-  if (periodKey && !periods.some((p) => p.key === periodKey)) {
+  if (periodKey && !periods.some((p) => p.id === periodKey)) {
     if (current === 'none' && periods.length === 0) return { view: emptyView(today, 'exempt'), basis: null }
     throw new ValidationError(`Aucune déclaration de TVA pour la période ${requested?.label ?? periodKey} : choisissez une période de la liste.`)
   }
@@ -275,9 +275,9 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
 
   const deadlines = deadlinesAround(context, periods[periods.length - 1].end, addIsoDays(today, 400))
   const dueDates = new Map(deadlines.map((d) => [d.id, d.date]))
-  const period = (periodKey ? periods.find((p) => p.key === periodKey) : defaultPeriod(periods, dueDates, today)) as VatPeriod
+  const period = (periodKey ? periods.find((p) => p.id === periodKey) : defaultPeriod(periods, dueDates, today)) as VatPeriod
   const index = periods.indexOf(period)
-  const previousKey = periods[index + 1]?.key ?? previousPeriodKey(period)
+  const previousKey = periods[index + 1]?.id ?? previousPeriodKey(period)
 
   const fiscalYear = context.fiscalYears.find((fy) => fy.startDate <= period.start && fy.endDate >= period.start) ?? null
   const endYear = context.fiscalYears.find((fy) => fy.startDate <= period.end && fy.endDate >= period.end) ?? null
@@ -302,7 +302,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
       _sum: { amount: true },
     }),
     prisma.accountingEntry.findFirst({ where: { companyId, reference }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, entryNumber: true } }),
-    filingsOf(companyId, [...periods.map((p) => p.key), previousKey]),
+    filingsOf(companyId, [...periods.map((p) => p.id), previousKey]),
   ])
 
   const movements = classifyEntries(entries)
@@ -351,7 +351,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   const view: VatReturnView = {
     today,
     status: 'ready',
-    periods: periods.map((p) => ({ key: p.key, label: p.label, form: p.form, start: p.start, end: p.end, filed: filings.has(p.key) })),
+    periods: periods.map((p) => ({ id: p.id, label: p.label, form: p.form, start: p.start, end: p.end, filed: filings.has(p.id) })),
     period,
     formTitle: FORM_TITLES[period.form],
     deadline: deadline ? { date: deadline.date, legalDate: deadline.legalDate, estimated: deadline.estimated, label: deadline.label } : null,
@@ -365,7 +365,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
       entryId: settlementEntry?.id ?? null,
       entryNumber: settlementEntry?.entryNumber ?? null,
     },
-    filing: filings.get(period.key) ?? null,
+    filing: filings.get(period.id) ?? null,
     notFromTheBooks: NOT_FROM_THE_BOOKS[period.form],
     sources:
       period.form === 'CA3'

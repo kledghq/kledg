@@ -154,7 +154,7 @@ function FilingCard({ companyId, view, canWrite, onSaved }: { companyId: string;
     event.preventDefault()
     setSaving(true)
     try {
-      await sendJson(url, 'PUT', { period: period.key, filedOn, amountDueCents: due ?? 0, creditCents: credit ?? 0 }, 'Le dépôt n’a pas été enregistré. Réessayez dans un instant.')
+      await sendJson(url, 'PUT', { period: period.id, filedOn, amountDueCents: due ?? 0, creditCents: credit ?? 0 }, 'Le dépôt n’a pas été enregistré. Réessayez dans un instant.')
       toast.success('Dépôt enregistré')
       onSaved()
     } catch (e) {
@@ -167,7 +167,7 @@ function FilingCard({ companyId, view, canWrite, onSaved }: { companyId: string;
   const remove = async () => {
     setSaving(true)
     try {
-      await sendJson(`${url}?period=${encodeURIComponent(period.key)}`, 'DELETE', undefined, 'Le dépôt n’a pas été retiré. Réessayez dans un instant.')
+      await sendJson(`${url}?period=${encodeURIComponent(period.id)}`, 'DELETE', undefined, 'Le dépôt n’a pas été retiré. Réessayez dans un instant.')
       toast.success('Dépôt retiré')
       setConfirmOpen(false)
       onSaved()
@@ -256,7 +256,7 @@ function SettlementCard({ companyId, view, canWrite, onDone }: { companyId: stri
       const result = await sendJson<VatSettlementResult>(
         `/api/companies/${encodeURIComponent(companyId)}/vat-returns/settlement`,
         'POST',
-        { period: period.key },
+        { period: period.id },
         'L’écriture de liquidation n’a pas été préparée. Réessayez dans un instant.',
       )
       if (result) toast.success(result.message)
@@ -338,10 +338,10 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
     router.replace(`${pathname}?${params.toString()}`)
   }
 
-  const view = data && (!period || data.period?.key === period || data.status !== 'ready') ? data : null
+  const view = data && (!period || data.period?.id === period || data.status !== 'ready') ? data : null
   const computation = view?.computation
   const result = computation?.result
-  const exportUrl = (format: 'pdf' | 'csv') => `${base}/export?${new URLSearchParams({ ...(view?.period ? { period: view.period.key } : {}), format })}`
+  const exportUrl = (format: 'pdf' | 'csv') => `${base}/export?${new URLSearchParams({ ...(view?.period ? { period: view.period.id } : {}), format })}`
 
   return (
     <div className="space-y-6">
@@ -414,13 +414,13 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-full space-y-2 sm:w-72">
               <Label htmlFor="vat-period">Période</Label>
-              <Select value={view.period.key} onValueChange={choosePeriod}>
+              <Select value={view.period.id} onValueChange={choosePeriod}>
                 <SelectTrigger id="vat-period" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {view.periods.map((p) => (
-                    <SelectItem key={p.key} value={p.key}>
+                    <SelectItem key={p.id} value={p.id}>
                       {p.form} {p.label}
                       {p.filed ? ', déposée' : ''}
                     </SelectItem>
@@ -532,7 +532,7 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <SettlementCard companyId={companyId} view={view} canWrite={canWrite} onDone={reload} />
-            <FilingCard key={view.period.key} companyId={companyId} view={view} canWrite={canWrite} onSaved={reload} />
+            <FilingCard key={view.period.id} companyId={companyId} view={view} canWrite={canWrite} onSaved={reload} />
           </div>
 
           <Card>

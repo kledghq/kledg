@@ -396,6 +396,11 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('accounts_approvals'), companyId, fiscalYearId: id('fiscal_years'), details: {}, approvedOn: day('2026-06-15') },
       })
       record('accounts_approvals', p, id('accounts_approvals'))
+      // A VAT return recorded as filed (lib/vat-returns)
+      await prisma.vatReturnFiling.create({
+        data: { id: id('vat_return_filings'), companyId, form: 'CA3', periodKey: '2026-09', periodStart: day('2026-09-01'), periodEnd: day('2026-09-30'), filedOn: day('2026-10-15'), amountDue: 120, creditAmount: 0 },
+      })
+      record('vat_return_filings', p, id('vat_return_filings'))
     }
     return keys
   })

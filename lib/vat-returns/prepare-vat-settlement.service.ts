@@ -24,7 +24,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { buildVatReturn } from './load-vat-return.service'
 import { PERIOD_KEY_PATTERN } from './periods'
-import { planSettlement, sameLines, settlementDescription, settlementReference, type SettlementLine } from './settlement'
+import { netByAccount, planSettlement, resolveRootCode, sameLines, SETTLEMENT_ROOTS, settlementDescription, settlementReference, type SettlementLine } from './settlement'
 
 export const VatSettlementBodySchema = z.object({
   period: z.string({ error: 'La période est requise' }).regex(PERIOD_KEY_PATTERN, 'Période invalide : aaaa-mm, aaaa-Tn ou aaaa.'),
@@ -55,7 +55,7 @@ export async function prepareVatSettlement(companyId: string, periodKey: string,
   }
   const fiscalYear = basis.fiscalYear
   const reference = settlementReference(period)
-  const lines = planSettlement({
+  const planned = planSettlement({
     period,
     periodNetByCode: basis.periodNetByCode,
     creditCarried: basis.creditCarried,
@@ -63,10 +63,22 @@ export async function prepareVatSettlement(companyId: string, periodKey: string,
     dueEuros: view.computation.result.dueEuros,
     creditEuros: view.computation.result.creditEuros,
   })
-  if (lines.length === 0) {
-    return { status: 'nothing', reference, entryId: null, entryNumber: null, lines, message: 'Aucun montant de TVA sur la période : il n’y a rien à liquider.' }
+  if (planned.length === 0) {
+    return { status: 'nothing', reference, entryId: null, entryNumber: null, lines: planned, message: 'Aucun montant de TVA sur la période : il n’y a rien à liquider.' }
   }
   const description = settlementDescription(period)
+  // Accounts named by their root (44551, 44567...) take the chart's own code (445510, 445670...).
+  const chart = (
+    await prisma.account.findMany({
+      where: { companyId, fiscalYearId: fiscalYear.id, OR: SETTLEMENT_ROOTS.map((root) => ({ code: { startsWith: root } })) },
+      select: { code: true },
+      take: 500,
+    })
+  ).map((a) => a.code)
+  for (const line of planned) {
+    if (SETTLEMENT_ROOTS.includes(line.code)) line.code = resolveRootCode(line.code, chart)
+  }
+  const lines = netByAccount(planned)
 
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:vat-settlement:${companyId}:${reference}`}))`
@@ -112,10 +124,10 @@ export async function prepareVatSettlement(companyId: string, periodKey: string,
   }, TX_OPTIONS)
 
   if (result.status === 'created' || result.status === 'replaced') {
-    await writeAuditLog('info', `VAT settlement prepared for ${period.form} ${period.key}`, {
+    await writeAuditLog('info', `VAT settlement prepared for ${period.form} ${period.id}`, {
       action: 'PREPARE_VAT_SETTLEMENT',
       companyId,
-      metadata: { period: period.key, form: period.form, entryId: result.entryId, status: result.status, source: options.source ?? 'web' },
+      metadata: { period: period.id, form: period.form, entryId: result.entryId, status: result.status, source: options.source ?? 'web' },
     })
   }
   const messages: Record<typeof result.status, string> = {
