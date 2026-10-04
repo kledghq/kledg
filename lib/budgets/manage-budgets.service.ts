@@ -22,7 +22,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { PCG_ACCOUNTS } from '@/lib/accounting/pcg-data'
 import { writeAuditLog } from '@/lib/audit'
-import { optionalText, parseInput } from '@/lib/api/zod-fields'
+import { centsField, optionalText, parseInput } from '@/lib/api/zod-fields'
 import { calendarDayOf } from '@/lib/utils/date'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { fiscalYearMonths, isMonthKey, type MonthKey } from './months'
@@ -45,11 +45,7 @@ const TEMPLATE_POSTS = ['60', '61', '62', '63', '64', '65', '70'] as const
 // ---------------------------------------------------------------------------
 // Input schemas (route `body` options and MCP)
 
-const cents = z
-  .number({ error: 'Montant invalide' })
-  .int('Montant en centimes entiers')
-  .min(-MAX_AMOUNT_CENTS, 'Montant trop élevé')
-  .max(MAX_AMOUNT_CENTS, 'Montant trop élevé')
+const cents = centsField({ max: MAX_AMOUNT_CENTS })
 
 const month = z.string({ error: 'Mois invalide' }).refine(isMonthKey, 'Mois invalide : AAAA-MM')
 

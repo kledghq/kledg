@@ -129,6 +129,25 @@ describe.skipIf(!available)('invoice routes (PostgreSQL)', () => {
     expect(await response.json()).toMatchObject({ created: 1, alreadyAttached: 0, skipped: [] })
   })
 
+  it('answers a French 400, never a 500, when an amount would not fit the Decimal(15, 2) columns', async () => {
+    const base = saleBody(books.companyId, books.customerId, 'V-HUGE')
+    const line = { label: 'Conseil', vatRateBp: 2000, nature: 'GOODS' }
+    // One line beyond the column (quantity x unit price), then 200 lines that fit one by one but not in total.
+    const oneLine = await call('invoices', 'POST', '/api/invoices', { ...base, lines: [{ ...line, quantity: '999999999', unitPriceCents: 1e13 }] })
+    expect(oneLine.status).toBe(400)
+    expect((await oneLine.json()).error).toMatch(/Montant trop élevé/)
+    const manyLines = await call('invoices', 'POST', '/api/invoices', { ...base, lines: Array.from({ length: 200 }, () => ({ ...line, quantity: '1', unitPriceCents: 1e13 })) })
+    expect(manyLines.status).toBe(400)
+    expect((await manyLines.json()).error).toMatch(/Montant trop élevé/)
+    expect(await prisma.invoice.count({ where: { companyId: books.companyId, number: 'V-HUGE' } })).toBe(0)
+
+    const created = await call('invoices', 'POST', '/api/invoices', saleBody(books.companyId, books.customerId, 'V-EDIT'))
+    const invoice = await created.json()
+    const patched = await call('invoice', 'PATCH', `/api/invoices/${invoice.id}`, { ...base, number: 'V-EDIT', lines: [{ ...line, quantity: '999999999', unitPriceCents: 1e13 }] }, { id: invoice.id })
+    expect(patched.status).toBe(400)
+    expect((await patched.json()).error).toMatch(/Montant trop élevé/)
+  })
+
   it('records an invoice with totals computed on the server, posts it, and records its payment', async () => {
     const created = await call('invoices', 'POST', '/api/invoices', saleBody(books.companyId, books.customerId))
     expect(created.status).toBe(201)

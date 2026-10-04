@@ -206,6 +206,7 @@ hooks/                   client hooks
   | Amount typed by a user (French "1 234,56") | `parseAmount`, back to the input with `formatAmountInput` |
   | External decimal to round to the cent (bank feeds, computed rates, report balances) | `toCents` |
   | Exact sum | `sumCents` (BigInt) |
+  | Bound an amount to its `Decimal(15, 2)` column (input fields, computed totals before a write), French 400 "Montant trop élevé" | `centsField` (`lib/api/zod-fields.ts`), `fitsAmountColumn`, `MAX_AMOUNT_CENTS`, `amountTooLargeMessage` |
   | Cents to Prisma Decimal or JSON, FEC, message, euros as a number | `centsToDecimal`, `centsToFecAmount`, `formatCentsFr`, `fromCents` |
   | Amount in a bank statement file (parentheses, trailing sign, forced separator) | `parseAmountCents` (`lib/banking/import/amount.ts`) |
   | Report euros added, subtracted or rounded again (subtotals, variations, spreadsheet cells) | `addEuros`, `subtractEuros`, `roundEuros` (`lib/reports/amounts.ts`) |

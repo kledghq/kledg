@@ -69,6 +69,20 @@ describe.skipIf(!available)('business logic integrity', () => {
     await prisma?.$disconnect()
   })
 
+  it('answers a French 400, never a 500, for an entry amount beyond the Decimal(15, 2) column', async () => {
+    for (const amount of [1e15, '99999999999999', 1e300]) {
+      const body = balanced(ids.aCompany, ids.aJournal, ids.aAccount, ids.aSales, `huge-${amount}`)
+      body.lines = [
+        { accountId: ids.aAccount, debit: amount as number, credit: 0 },
+        { accountId: ids.aSales, debit: 0, credit: amount as number },
+      ]
+      const response = await call('accountant', { route: routes.entries, method: 'POST', path: '/api/entries', body })
+      expect(response.status, String(amount)).toBe(400)
+      expect((await response.json()).error, String(amount)).toMatch(/Montant trop élevé/)
+    }
+    expect(await prisma.accountingEntry.count({ where: { companyId: ids.aCompany, description: { startsWith: 'huge-' } } })).toBe(0)
+  })
+
   it('refuses a new entry in a closed fiscal year, through the route and the DB trigger', async () => {
     await prisma.fiscalYear.update({ where: { id: ids.aFy }, data: { isClosed: true } })
     const response = await call('accountant', {

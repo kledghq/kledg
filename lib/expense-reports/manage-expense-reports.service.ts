@@ -28,7 +28,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { dayToDate } from '@/lib/accounting/entry-date'
-import { calendarDay, optionalText } from '@/lib/api/zod-fields'
+import { calendarDay, centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { formatVatRate, isFrenchVatRate } from '@/lib/invoices/amounts'
 import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
@@ -50,6 +50,9 @@ const cents = (value: { toString(): string }) => parseCents(value) ?? 0
 
 // ------------------------------------------------------------------ inputs
 
+/** 1 milliard d'euros per line: 200 lines stay far within the Decimal(15, 2) totals. */
+const MAX_LINE_CENTS = 1e11
+
 const lineSchema = z.object({
   kind: z.enum(['EXPENSE', 'MILEAGE']).default('EXPENSE'),
   date: calendarDay('Date de la dépense invalide'),
@@ -58,9 +61,9 @@ const lineSchema = z.object({
   /** Absent: the company's keyword rules decide, else "Autre dépense". */
   category: z.enum(EXPENSE_CATEGORY_KEYS as [ExpenseCategory, ...ExpenseCategory[]], { error: 'Catégorie inconnue' }).optional(),
   accountCode: optionalText(20),
-  amountInclTaxCents: z.number({ error: 'Montant invalide' }).int('Montant en centimes').min(0, 'Le montant ne peut pas être négatif').max(1e11).default(0),
+  amountInclTaxCents: centsField({ min: 0, max: MAX_LINE_CENTS, integer: 'Montant en centimes' }).default(0),
   vatRateBp: z.number({ error: 'Taux de TVA invalide' }).int().min(0).max(10000).default(0),
-  vatCents: z.number({ error: 'TVA invalide' }).int('TVA en centimes').min(0).max(1e11).nullish(),
+  vatCents: centsField({ min: 0, max: MAX_LINE_CENTS, invalid: 'TVA invalide', negative: 'La TVA ne peut pas être négative', integer: 'TVA en centimes' }).nullish(),
   receiptKind: z.enum(['NONE', 'RECEIPT', 'INVOICE']).default('NONE'),
   receiptAttachmentId: z.string().max(64).nullish(),
   receiptReference: optionalText(200),

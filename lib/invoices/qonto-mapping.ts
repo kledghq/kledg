@@ -21,7 +21,7 @@
 
 import { computeInvoiceTotals, formatVatRate, lineTotalCents, parseQuantity, rateToBasisPoints, totalsOfBreakdown, vatOnBaseCents, withinCents, type InvoiceTotals, type VatBreakdownRow } from './amounts'
 import type { QontoClientInvoice, QontoMoney, QontoSupplierInvoice } from '@/lib/integrations/providers/qonto/invoicing'
-import { toCents } from '@/lib/utils/money'
+import { fitsAmountColumn, toCents } from '@/lib/utils/money'
 
 export interface MappedLine {
   label: string
@@ -63,6 +63,19 @@ function euroCents(money: QontoMoney | null | undefined): number | null {
 
 const refuse = (reason: string): MapResult => ({ kind: 'refused', reason })
 
+/** A mapped invoice, refused when an amount would not fit its Decimal(15, 2) column. */
+function accept(invoice: MappedInvoice): MapResult {
+  const { totals } = invoice
+  const amounts = [
+    ...invoice.lines.flatMap((line) => [line.unitPriceCents, line.totalExclTaxCents]),
+    ...totals.breakdown.flatMap((row) => [row.baseCents, row.vatCents]),
+    totals.totalExclTaxCents,
+    totals.totalVatCents,
+    totals.totalInclTaxCents,
+  ]
+  return amounts.every(fitsAmountColumn) ? { kind: 'ok', invoice } : refuse('montant trop élevé')
+}
+
 export function mapClientInvoice(invoice: QontoClientInvoice): MapResult {
   if (invoice.status && IGNORED_CLIENT_STATUSES.has(invoice.status)) return { kind: 'ignored' }
   const number = invoice.number?.trim()
@@ -98,20 +111,17 @@ export function mapClientInvoice(invoice: QontoClientInvoice): MapResult {
       )
     : computed
   if (totals.totalInclTaxCents !== total) return refuse('le total des lignes ne correspond pas au total de la facture')
-  return {
-    kind: 'ok',
-    invoice: {
-      externalId: invoice.id,
-      number,
-      issueDate,
-      dueDate: day(invoice.due_date),
-      status: invoice.status ?? null,
-      attachmentId: invoice.attachment_id ?? null,
-      attachmentFileName: null,
-      lines,
-      totals,
-    },
-  }
+  return accept({
+    externalId: invoice.id,
+    number,
+    issueDate,
+    dueDate: day(invoice.due_date),
+    status: invoice.status ?? null,
+    attachmentId: invoice.attachment_id ?? null,
+    attachmentFileName: null,
+    lines,
+    totals,
+  })
 }
 
 /** Bases per rate of a supplier invoice from its taxes (see the module header); null when they do not add up. */
@@ -166,18 +176,15 @@ export function mapSupplierInvoice(invoice: QontoSupplierInvoice, supplierName: 
     vatRateBp: row.vatRateBp,
     totalExclTaxCents: row.baseCents,
   }))
-  return {
-    kind: 'ok',
-    invoice: {
-      externalId: invoice.id,
-      number,
-      issueDate,
-      dueDate: day(invoice.due_date),
-      status: invoice.status ?? null,
-      attachmentId: invoice.attachment_id ?? null,
-      attachmentFileName: invoice.file_name ?? null,
-      lines,
-      totals: totalsOfBreakdown(lines.map((l) => l.totalExclTaxCents), breakdown),
-    },
-  }
+  return accept({
+    externalId: invoice.id,
+    number,
+    issueDate,
+    dueDate: day(invoice.due_date),
+    status: invoice.status ?? null,
+    attachmentId: invoice.attachment_id ?? null,
+    attachmentFileName: invoice.file_name ?? null,
+    lines,
+    totals: totalsOfBreakdown(lines.map((l) => l.totalExclTaxCents), breakdown),
+  })
 }

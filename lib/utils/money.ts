@@ -31,6 +31,39 @@ export type AmountInput = number | string | { toString(): string } | null | unde
 const MAX_CENTS = 10 ** (MAX_INTEGER_DIGITS + 2) - 1
 
 /**
+ * Largest amount in cents the amount columns hold (Decimal(15, 2):
+ * 9 999 999 999 999,99 €). Input bounds and computed totals are checked
+ * against it before a write, so an overflow is a French 400, never a
+ * database error.
+ */
+export const MAX_AMOUNT_CENTS = MAX_CENTS
+
+/** The French 400 of an amount beyond `maxCents` (no-break space before the colon). */
+export function amountTooLargeMessage(maxCents: number = MAX_CENTS): string {
+  return `Montant trop élevé\u00a0: ${formatCentsFr(maxCents)} au maximum`
+}
+
+/** Whether cents (a safe integer or a BigInt sum) fit the amount columns. */
+export function fitsAmountColumn(cents: number | bigint): boolean {
+  if (typeof cents === 'number' && !Number.isSafeInteger(cents)) return false
+  const value = BigInt(cents)
+  return value <= BigInt(MAX_CENTS) && value >= -BigInt(MAX_CENTS)
+}
+
+/**
+ * Whether an amount that parseCents refuses was refused for its size (a
+ * number or a decimal string beyond the amount columns), to answer "Montant
+ * trop élevé" instead of "montant invalide".
+ */
+export function exceedsAmountColumn(value: AmountInput): boolean {
+  if (value === null || value === undefined) return false
+  // NaN compares false: invalid, not too large; Infinity is too large.
+  if (typeof value === 'number') return Math.abs(value) * 100 > MAX_CENTS
+  const match = /^[+-]?0*(\d+)(?:[.,]\d*)?$/.exec(value.toString().trim())
+  return match !== null && match[1].length > MAX_INTEGER_DIGITS
+}
+
+/**
  * Cents of a JS number. A number that is a whole number of cents up to
  * floating point noise (0.1 + 0.2 = 0.30000000000000004, sums computed by
  * other code) is that number of cents; a real third decimal (10.005) is not
