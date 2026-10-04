@@ -221,6 +221,42 @@ describe.skipIf(!available)('MCP authorization boundary', () => {
     expect(JSON.parse(granted.text).subsidiaries).toEqual([expect.objectContaining({ id: ids.bCompany, name: 'Societe b', amountExclTax: 1000 })])
   })
 
+  it('the group view never reads nor names a subsidiary outside the grant (get_group_view, get_participations)', async () => {
+    // A is the holding of B (the owner is a member of both) and of C (the owner is not a member).
+    if ((await prisma.shareholder.count({ where: { companyId: ids.bCompany, companyShareholderId: ids.aCompany } })) === 0) {
+      await prisma.shareholder.create({ data: { companyId: ids.bCompany, type: 'LEGAL', sharePercentage: 100, companyShareholderId: ids.aCompany } })
+    }
+    await prisma.shareholder.create({ data: { companyId: ids.cCompany, type: 'LEGAL', sharePercentage: 30, companyShareholderId: ids.aCompany } })
+    const args = { companyId: ids.aCompany, fiscalYearId: ids.aFy }
+    const secretsOf = (...prefixes: Array<'b' | 'c'>) =>
+      prefixes.flatMap((p) => [ids[`${p}Company`], `Societe ${p}`, p === 'b' ? '222222229' : '333333336'])
+
+    const onlyA = await apiKey('read', ONLY_A())
+    const view = await call(onlyA, 'get_group_view', args)
+    expect(view.ok, view.text).toBe(true)
+    const data = JSON.parse(view.text)
+    expect(data.companies.map((c: { id: string }) => c.id)).toEqual([ids.aCompany])
+    expect(data.notAccessibleSubsidiaries).toBe(2)
+    expect(data.notAccessibleNames).toEqual([])
+    for (const secret of secretsOf('b', 'c')) expect(view.text).not.toContain(secret)
+    const participations = await call(onlyA, 'get_participations', args)
+    expect(participations.ok, participations.text).toBe(true)
+    expect(JSON.parse(participations.text)).toMatchObject({ participations: [], notAccessibleSubsidiaries: 2 })
+    for (const secret of secretsOf('b', 'c')) expect(participations.text).not.toContain(secret)
+    // The holding itself must be in the grant.
+    expect((await call(onlyA, 'get_group_view', { companyId: ids.bCompany })).ok).toBe(false)
+
+    // Granted every company: B is read; C stays out of reach (the owner is not a member), unnamed.
+    const all = await apiKey('read', ALL())
+    const granted = await call(all, 'get_group_view', args)
+    expect(granted.ok, granted.text).toBe(true)
+    const grantedData = JSON.parse(granted.text)
+    expect(grantedData.companies.map((c: { name: string }) => c.name)).toEqual(['Societe a', 'Societe b'])
+    expect(grantedData.companies[1]).toMatchObject({ role: 'subsidiary', ownershipPercent: 100 })
+    expect(grantedData.notAccessibleSubsidiaries).toBe(1)
+    for (const secret of secretsOf('c')) expect(granted.text).not.toContain(secret)
+  })
+
   it('an api key with no explicit kledg level is read-only (KLEDG-SEC-008, fixed)', () => {
     expect(apiKeyLevelOf({})).toBe('read')
     expect(apiKeyLevelOf(null)).toBe('read')

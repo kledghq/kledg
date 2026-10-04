@@ -4,6 +4,7 @@ import {
   BookOpen,
   BookText,
   BookUser,
+  Building2,
   FileInput,
   FileOutput,
   Calendar,
@@ -46,7 +47,7 @@ export interface NavItem {
   title: string
   url: string
   icon: LucideIcon
-  /** Shown only in a holding: a company recorded as shareholder of another company (lib/management-fees/holding.ts). */
+  /** Shown only in a holding: a company recorded as shareholder of another company (lib/management-fees/holding.ts): Frais de gestion, Vue groupe. */
   holdingOnly?: boolean
 }
 
@@ -105,6 +106,7 @@ export const navGroups: NavGroup[] = [
       { title: "Bilan", url: "/reports/balance-sheet", icon: Scale },
       { title: "Compte de résultat", url: "/reports/income-statement", icon: LineChart },
       { title: "SIG et ratios", url: "/reports/sig", icon: Gauge },
+      { title: "Vue groupe", url: "/group", icon: Building2, holdingOnly: true },
       { title: "Budget", url: "/budget", icon: Target },
       { title: "Balance", url: "/reports/trial-balance", icon: Table },
       { title: "Grand livre", url: "/reports/grand-livre", icon: BookOpen },

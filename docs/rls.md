@@ -44,6 +44,14 @@ What it does not protect against:
   value is not readable, only its existence. The SIREN and slug checks go
   through `kledg_company_identifier_taken`, which answers that boolean and
   nothing else (`lib/companies/identifiers.ts`).
+- **Subsidiaries of a holding.** The shareholder rows that make a company a
+  subsidiary belong to the subsidiary. `kledg_group_subsidiary_ids` answers
+  their company ids, and nothing else, for a holding the context reaches,
+  so the group view can say that a subsidiary exists without reading it
+  (`lib/management-fees/holding.ts`, [vue-groupe.md](vue-groupe.md)). A
+  member of the holding learns the ids of its subsidiaries; the
+  application checks access to each one and never returns an id it cannot
+  reach.
 
 ## Tenancy model
 

@@ -96,3 +96,25 @@ export async function assertSubsidiaryOf(holdingId: string, subsidiaryId: string
   }
   return { id: company.id, name: company.name, siren: company.siren, vatNumber: company.vatNumber }
 }
+
+/** Upper bound of the subsidiaries a group view reads (a group with more is reported, not silently cut). */
+export const MAX_GROUP_SUBSIDIARIES = 50
+
+/**
+ * Ids of every active subsidiary of the holding, by the definition above,
+ * including those the user cannot reach: the shareholder rows live in the
+ * subsidiaries, so they are read through kledg_group_subsidiary_ids
+ * (migration 20261027090000_group_subsidiaries), which answers only for a
+ * holding the current context reaches and returns ids only. Callers check
+ * the user's access to each id (inCompany) before reading anything of it,
+ * and never return an id they cannot reach.
+ *
+ * The call reads FROM unnest(...) on purpose: a statement naming no table
+ * would run without the row level security context (lib/rls/tables.ts,
+ * touchesOnlyExemptTables), and the function would then reach no holding.
+ */
+export async function listSubsidiaryIds(holdingId: string): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM unnest(kledg_group_subsidiary_ids(${holdingId})) AS id ORDER BY id`
+  return rows.map((r) => r.id)
+}

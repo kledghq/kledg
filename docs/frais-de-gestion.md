@@ -4,7 +4,7 @@ Les services qu'une holding animatrice rend à ses filiales (direction, comptabi
 
 ## Holding et filiales
 
-Une seule définition, dans tout Kledg (`lib/management-fees/holding.ts`) : **une société est la holding d'une autre quand elle figure parmi ses actionnaires** (page Informations de la filiale, actionnaire « Société »). Les filiales d'une holding sont ces sociétés, quel que soit le pourcentage détenu. L'entrée **Frais de gestion** (groupe Factures) n'apparaît que dans une holding qui a au moins une filiale accessible.
+Une seule définition, dans tout Kledg (`lib/management-fees/holding.ts`) : **une société est la holding d'une autre quand elle figure parmi ses actionnaires** (page Informations de la filiale, actionnaire « Société »). Les filiales d'une holding sont ces sociétés, quel que soit le pourcentage détenu. L'entrée **Frais de gestion** (groupe Factures) n'apparaît que dans une holding qui a au moins une filiale accessible, comme la [vue groupe](vue-groupe.md).
 
 - La case « holding » des informations de la société (`isHolding`) dit qu'il s'agit d'une holding pure, sans activité : elle ne sert pas ici, puisqu'une holding qui facture des services à ses filiales est par définition animatrice.
 - Aucun seuil de détention n'est imposé : il relève de la convention et du conseil de la société.

@@ -35,6 +35,7 @@ import { getInvoice, listInvoices } from '@/lib/invoices/manage-invoices.service
 import { registerExpenseReportReadTools } from '@/lib/mcp/expense-report-tools'
 import { registerBudgetReadTools } from '@/lib/mcp/budget-tools'
 import { registerManagementFeeTools } from '@/lib/mcp/management-fee-tools'
+import { registerGroupTools } from '@/lib/mcp/group-tools'
 import { registerSubscriptionReadTools } from '@/lib/mcp/subscription-tools'
 import { registerFinancialIndicatorTools } from '@/lib/mcp/financial-indicator-tools'
 import { registerYearEndReadTools } from '@/lib/mcp/year-end-tools'
@@ -604,6 +605,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerExpenseReportReadTools(server, access, guard)
   registerBudgetReadTools(server, guard)
   registerManagementFeeTools(server, access, guard)
+  registerGroupTools(server, access, guard)
   registerSubscriptionReadTools(server, guard)
   registerFinancialIndicatorTools(server, guard)
   registerYearEndReadTools(server, guard)
