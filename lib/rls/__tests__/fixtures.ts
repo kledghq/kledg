@@ -370,6 +370,23 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         },
       })
       record('management_fee_billings', p, id('management_fee_billings'))
+      // Provisions, impairments and investment grants (lib/provisions, lib/investment-grants)
+      await prisma.provision.create({
+        data: { id: id('provisions'), companyId, category: 'RISK_CHARGE', label: 'Litige', justification: 'Assignation reçue', accountCode: '1511', openedOn: day('2026-02-01') },
+      })
+      record('provisions', p, id('provisions'))
+      await prisma.provisionAssessment.create({
+        data: { id: id('provision_assessments'), companyId, provisionId: id('provisions'), fiscalYearId: id('fiscal_years'), amount: 1500 },
+      })
+      record('provision_assessments', p, id('provision_assessments'))
+      await prisma.investmentGrant.create({
+        data: { id: id('investment_grants'), companyId, label: 'Subvention', amount: 3000, grantedOn: day('2026-03-01'), spreading: 'TENTHS' },
+      })
+      record('investment_grants', p, id('investment_grants'))
+      await prisma.investmentGrantTransfer.create({
+        data: { id: id('investment_grant_transfers'), companyId, grantId: id('investment_grants'), fiscalYearId: id('fiscal_years') },
+      })
+      record('investment_grant_transfers', p, id('investment_grant_transfers'))
     }
     return keys
   })

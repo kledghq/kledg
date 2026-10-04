@@ -15,6 +15,7 @@
 - [Abonnements](abonnements.md) : paiements récurrents détectés dans les opérations bancaires, rythme, coût annuel, prix modifié ou arrêt, ajout au budget
 - [Indicateurs financiers](indicateurs-financiers.md) : soldes intermédiaires de gestion, capacité d'autofinancement, besoin en fonds de roulement, trésorerie nette, délais de paiement et ratios, avec leurs comptes et les lignes des formulaires
 - [Budget](budget.md) : budget de l'exercice par compte et par mois, éléments récurrents, comparaison avec les écritures validées
+- [Provisions et subventions](provisions-et-subventions.md) : provisions pour risques et charges, dépréciations, créances douteuses, subventions d'investissement, travaux de clôture en brouillon, composition du capital
 - [Frais de gestion](frais-de-gestion.md) : conventions d'une holding avec ses filiales, coûts majorés d'une marge, clés de répartition, factures de vente et factures d'achat proposées
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
 

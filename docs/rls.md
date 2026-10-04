@@ -124,7 +124,7 @@ neither read, created nor moved into a company outside the context.
 | Class | Tables | Rule |
 |---|---|---|
 | Company | `companies` (by `id`) | the company is reachable |
-| Company scoped | `addresses`, `establishments`, `shareholders`, `fiscal_years`, `accounts`, `journals`, `accounting_entries`, `bank_connections`, `transaction_rules`, `integrations`, `import_jobs`, `fixed_assets`, `fixed_asset_depreciations`, `tax_regime_history`, `attachments`, `balance_sheet_line_configs`, `income_statement_line_configs`, `company_onboarding`, `tiers`, `invoices`, `expense_claimants`, `expense_reports`, `expense_category_rules`, `budgets`, `management_fee_conventions`, `management_fee_billings`, `subscription_decisions` | `companyId` is reachable |
+| Company scoped | `addresses`, `establishments`, `shareholders`, `fiscal_years`, `accounts`, `journals`, `accounting_entries`, `bank_connections`, `transaction_rules`, `integrations`, `import_jobs`, `fixed_assets`, `fixed_asset_depreciations`, `tax_regime_history`, `attachments`, `balance_sheet_line_configs`, `income_statement_line_configs`, `company_onboarding`, `tiers`, `invoices`, `expense_claimants`, `expense_reports`, `expense_category_rules`, `budgets`, `management_fee_conventions`, `management_fee_billings`, `subscription_decisions`, `provisions`, `provision_assessments`, `investment_grants`, `investment_grant_transfers` | `companyId` is reachable |
 | Company scoped, denormalized | `entry_lines`, `bank_transactions` | `companyId` is reachable; the column is set by a trigger from the parent row (below) |
 | Through the parent | `bank_accounts` (connection), `bank_transaction_matches` (bank account), `transaction_rule_conditions`, `transaction_rule_entry_lines` (rule), `transaction_mappings` (connection), `integration_features`, `integration_resources`, `integration_sync_logs` (integration), `import_mappings` (import job), `balance_sheet_config_history`, `income_statement_config_history` (line config), `invoice_lines`, `invoice_vat_breakdowns`, `invoice_payments` (invoice), `expense_lines` (report), `budget_lines` (budget), `budget_line_amounts`, `budget_recurring_items` (line), `management_fee_subsidiaries` (convention) | `EXISTS` on the parent, which applies the parent's own policy |
 | Company and user | `dashboard_layouts`, `mcp_confirmations`, `mcp_pending_actions` | the company is reachable and the row is the user's (or the context is unrestricted) |
@@ -188,7 +188,10 @@ guard and the company deletion guard would read nothing for a row they
 cannot see, and let the change through. The migration makes them
 `SECURITY DEFINER` with a fixed `search_path`, so integrity checks see every
 row whatever the context. Foreign key checks and cascades already run as the
-table owner.
+table owner. Later integrity triggers are created `SECURITY DEFINER` in their
+own migration (`kledg_lock_closed_year_adjustments`, which keeps the
+provision assessments and grant transfers of a closed year unchanged), and
+listed in `DEFINER_TRIGGER_FUNCTIONS` (`lib/rls/tables.ts`).
 
 ### `ENABLE` without `FORCE`
 

@@ -222,6 +222,16 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
     data: { companyId: company.id, label: 'Convention', costAccountPrefixes: ['6'], excludedAccountPrefixes: ['695'], startDate: new Date('2026-01-01T00:00:00Z') },
   })
   ids[`${prefix}FeeConvention`] = feeConvention.id
+  // Year-end work: a provision assessed for the year and an investment grant
+  const provision = await prisma.provision.create({
+    data: { companyId: company.id, category: 'RISK_CHARGE', label: 'Litige', justification: 'Assignation reçue', accountCode: '1511', openedOn: new Date('2026-02-01T00:00:00Z') },
+  })
+  await prisma.provisionAssessment.create({ data: { companyId: company.id, provisionId: provision.id, fiscalYearId: fy.id, amount: 500 } })
+  const grant = await prisma.investmentGrant.create({
+    data: { companyId: company.id, label: 'Subvention', amount: 1000, grantedOn: new Date('2026-02-01T00:00:00Z'), spreading: 'TENTHS' },
+  })
+  ids[`${prefix}Provision`] = provision.id
+  ids[`${prefix}Grant`] = grant.id
   const fixedAsset = await prisma.fixedAsset.create({
     data: {
       companyId: company.id,
@@ -451,6 +461,16 @@ const ROUTE_MODULES = {
   feePreview: () => import('@/app/api/management-fees/conventions/[id]/preview/route'),
   feeInvoices: () => import('@/app/api/management-fees/conventions/[id]/invoices/route'),
   feeSubsidiaries: () => import('@/app/api/management-fees/subsidiaries/route'),
+  provisions: () => import('@/app/api/provisions/route'),
+  provision: () => import('@/app/api/provisions/[id]/route'),
+  provisionAssessment: () => import('@/app/api/provisions/[id]/assessment/route'),
+  doubtfulReceivables: () => import('@/app/api/provisions/doubtful-receivables/route'),
+  doubtfulReclassify: () => import('@/app/api/provisions/doubtful-receivables/reclassify/route'),
+  investmentGrants: () => import('@/app/api/investment-grants/route'),
+  investmentGrant: () => import('@/app/api/investment-grants/[id]/route'),
+  yearEnd: () => import('@/app/api/year-end/route'),
+  yearEndEntries: () => import('@/app/api/year-end/entries/route'),
+  capitalComposition: () => import('@/app/api/reports/capital-composition/route'),
 }
 
 interface Call {
@@ -626,6 +646,16 @@ const WRITES: Call[] = [
   { label: 'create management fee convention', route: 'feeConventions', method: 'POST', path: () => '/api/management-fees/conventions', body: () => ({ companyId: A(), label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'update management fee convention', route: 'feeConvention', method: 'PATCH', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'delete management fee convention', route: 'feeConvention', method: 'DELETE', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
+  { label: 'create provision', route: 'provisions', method: 'POST', path: () => '/api/provisions', body: () => ({ companyId: A(), category: 'RISK_CHARGE', label: 'Garantie', justification: 'Retours clients', accountCode: '1512', openedOn: '2026-01-10' }) },
+  { label: 'update provision', route: 'provision', method: 'PATCH', path: () => `/api/provisions/${ids.aProvision}`, params: p({ id: () => ids.aProvision }), body: () => ({ category: 'RISK_CHARGE', label: 'Litige', justification: 'Assignation', accountCode: '1511', openedOn: '2026-02-01' }) },
+  { label: 'delete provision', route: 'provision', method: 'DELETE', path: () => `/api/provisions/${ids.aProvision}`, params: p({ id: () => ids.aProvision }) },
+  { label: 'assess provision', route: 'provisionAssessment', method: 'PUT', path: () => `/api/provisions/${ids.aProvision}/assessment`, params: p({ id: () => ids.aProvision }), body: () => ({ fiscalYearId: ids.aFy, amountCents: 80_000 }) },
+  { label: 'delete provision assessment', route: 'provisionAssessment', method: 'DELETE', path: () => `/api/provisions/${ids.aProvision}/assessment?fiscalYearId=${ids.aFy}`, params: p({ id: () => ids.aProvision }) },
+  { label: 'prepare year-end entries', route: 'yearEndEntries', method: 'POST', path: () => '/api/year-end/entries', body: () => ({ companyId: A(), fiscalYearId: ids.aFy }) },
+  { label: 'reclassify doubtful receivable', route: 'doubtfulReclassify', method: 'POST', path: () => '/api/provisions/doubtful-receivables/reclassify', body: () => ({ companyId: A(), fiscalYearId: ids.aFy, tiersCode: 'C00001' }) },
+  { label: 'create investment grant', route: 'investmentGrants', method: 'POST', path: () => '/api/investment-grants', body: () => ({ companyId: A(), label: 'Aide', amountCents: 100_000, grantedOn: '2026-03-01', spreading: 'TENTHS' }) },
+  { label: 'update investment grant', route: 'investmentGrant', method: 'PATCH', path: () => `/api/investment-grants/${ids.aGrant}`, params: p({ id: () => ids.aGrant }), body: () => ({ label: 'Aide', amountCents: 100_000, grantedOn: '2026-02-01', spreading: 'TENTHS' }) },
+  { label: 'delete investment grant', route: 'investmentGrant', method: 'DELETE', path: () => `/api/investment-grants/${ids.aGrant}`, params: p({ id: () => ids.aGrant }) },
   { label: 'invoice management fees', route: 'feeInvoices', method: 'POST', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}/invoices`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ periodStart: '2026-01-01', periodEnd: '2026-03-31' }) },
 ]
 
@@ -710,6 +740,11 @@ const READS: Call[] = [
   { label: 'read management fee convention', route: 'feeConvention', method: 'GET', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
   { label: 'list management fee invoices', route: 'feeInvoices', method: 'GET', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}/invoices`, params: p({ id: () => ids.aFeeConvention }) },
   { label: 'list subsidiaries of a holding', route: 'feeSubsidiaries', method: 'GET', path: () => `/api/management-fees/subsidiaries?companyId=${A()}` },
+  { label: 'list provisions', route: 'provisions', method: 'GET', path: () => `/api/provisions?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'list investment grants', route: 'investmentGrants', method: 'GET', path: () => `/api/investment-grants?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'year-end inventory', route: 'yearEnd', method: 'GET', path: () => `/api/year-end?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'list doubtful receivables', route: 'doubtfulReceivables', method: 'GET', path: () => `/api/provisions/doubtful-receivables?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'capital composition', route: 'capitalComposition', method: 'GET', path: () => `/api/reports/capital-composition?companyId=${A()}` },
 ]
 
 /** What the accountant must not do. */
