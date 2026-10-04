@@ -83,23 +83,15 @@ describe('CompanyWizard, identity step', () => {
     expect(screen.getByRole('listitem', { current: 'step' })).toHaveTextContent('Identité')
   })
 
-  // BUG: components/features/onboarding/company-wizard.tsx:341: the SIREN Field
-  // wraps a div (input plus button), so Field gives the div the label id and
-  // aria-describedby; the input has no accessible name and its hint and error
-  // are not announced. Fix: <Field htmlFor="siren" ...> and pass the
-  // describedby ids to the input.
-  it.skip('labels the SIREN input and wires its hint', () => {
+  // The SIREN label names the input, and its hint describes it (Field wraps the input and its button)
+  it('labels the SIREN input and wires its hint', () => {
     render(<CompanyWizard />)
     const input = screen.getByRole('textbox', { name: 'SIREN' })
     expect(input).toHaveAccessibleDescription(/Les 9 chiffres du numéro/)
   })
 
-  // BUG: components/features/onboarding/company-wizard.tsx:422 and :796: the
-  // "Forme juridique" and shareholder "Type" Fields wrap a Radix Select root,
-  // which ignores the id Field gives it, so the label points at no element and
-  // the comboboxes have no accessible name. Fix: <Field htmlFor="legalType">
-  // and <Field htmlFor={`shareholders-${index}-type`}>.
-  it.skip('labels the legal form select', () => {
+  // A Radix Select root renders nothing: the label targets its trigger by id
+  it('labels the legal form select', () => {
     render(<CompanyWizard />)
     expect(screen.getByRole('combobox', { name: /Forme juridique/ })).toBeInTheDocument()
   })

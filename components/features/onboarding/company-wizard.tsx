@@ -340,6 +340,7 @@ export function CompanyWizard() {
           <CardContent className="space-y-5">
             <Field
               label="SIREN"
+              htmlFor="siren"
               required
               error={errors.siren?.message}
               hint={
@@ -348,7 +349,8 @@ export function CompanyWizard() {
                   : 'Les 9 chiffres du numéro d’immatriculation, sur le Kbis ou l’avis de situation Insee.'
               }
             >
-              <div className="flex gap-2">
+              {/* Own id: Field would otherwise give the wrapper the id of the input it labels */}
+              <div id="siren-row" className="flex gap-2">
                 <Input
                   id="siren"
                   inputMode="numeric"
@@ -357,6 +359,9 @@ export function CompanyWizard() {
                   spellCheck={false}
                   placeholder="ex. 912 345 675"
                   className="max-w-56"
+                  // Field describes its child, here the wrapper: wire the hint and the error to the input itself
+                  aria-describedby={errors.siren ? 'siren-hint siren-error' : 'siren-hint'}
+                  aria-invalid={errors.siren ? true : undefined}
                   {...register('siren')}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
@@ -421,6 +426,7 @@ export function CompanyWizard() {
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
                 label="Forme juridique"
+                htmlFor="legalType"
                 optional
                 help={
                   <HelpTip term="Forme juridique">
@@ -793,7 +799,7 @@ export function CompanyWizard() {
                               control={control}
                               name={`shareholders.${index}.type`}
                               render={({ field }) => (
-                                <Field label="Type">
+                                <Field label="Type" htmlFor={`shareholders-${index}-type`}>
                                   <Select value={field.value} onValueChange={field.onChange}>
                                     <SelectTrigger id={`shareholders-${index}-type`} className="w-full">
                                       <SelectValue />
