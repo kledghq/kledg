@@ -139,6 +139,13 @@ describe.skipIf(!available)('income statement layout services', () => {
       expect(flipped).toMatchObject({ version: 3, balanceType: 'credit', accountCodes: ['60', '61', '62'] })
     })
 
+    it('clears the fields sent as null in a new version (regression: the old values were kept)', async () => {
+      const parent = await line({ lineLabel: 'Produits', section: 'produits', balanceType: 'auto' })
+      const created = await line({ lineLabel: 'Ventes', parentId: parent.id, section: 'produits', accountCodes: ['70'], formCode: '209', filterValue: 'x', notes: 'Ancienne note' })
+      const updated = await updateIncomeStatementLineConfig(created.id, { accountCodes: ['70', '709'], parentId: null, section: null, formCode: null, filterValue: null, notes: null })
+      expect(updated).toMatchObject({ version: 2, accountCodes: ['70', '709'], parentId: null, section: null, formCode: null, filterValue: null, notes: null })
+    })
+
     it('answers 404 for a missing line', async () => {
       await expect(updateIncomeStatementLineConfig('missing', { lineLabel: 'x' })).rejects.toThrow('Configuration introuvable')
     })
