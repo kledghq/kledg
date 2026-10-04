@@ -533,6 +533,12 @@ export function ImportDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
+            {/* Creating the fiscal year or adding the PCG accounts can fail here: say why in this step */}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             {loadingPreview ? (
               <div className="text-center py-8">
                 <p className="text-muted-foreground">Analyse du fichier en cours...</p>

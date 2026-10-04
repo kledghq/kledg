@@ -526,10 +526,8 @@ describe('ImportDialog: FEC files', () => {
     expect(await screen.findByRole('heading', { name: 'Correspondance des colonnes' })).toBeInTheDocument()
   })
 
-  // BUG: components/features/import/import-dialog.tsx:637 and 282: an error while creating the
-  // fiscal year or adding the PCG accounts is stored in `error`, but only the main dialog renders
-  // it (line 815); the fiscal year dialog stays open and shows nothing, so the click seems ignored.
-  it.skip('shows the API error in the fiscal year step when the fiscal year cannot be created', async () => {
+  // The error of creating the fiscal year shows in the fiscal year step, where the click was made
+  it('shows the API error in the fiscal year step when the fiscal year cannot be created', async () => {
     const user = userEvent.setup()
     routes({
       'POST /api/import/preview-fiscal-years': () => json(200, [FY_2026]),
