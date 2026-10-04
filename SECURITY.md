@@ -46,6 +46,16 @@ Ce que l'application garantit, pour vous aider à cibler vos tests (détails dan
 
   Une connexion sans choix de sociétés n'accède à aucune société ; une clé API sans niveau n'a que la lecture. Seuls Claude et ChatGPT identifiés par leur document de métadonnées (CIMD) sur claude.ai et chatgpt.com portent leur marque sur la page d'autorisation.
 
+## Alertes de dépendances connues
+
+Alertes ouvertes que nous avons analysées et qui n'affectent pas la sécurité de Kledg ni de ses utilisateurs. Nous les corrigerons dès qu'une version corrigée sera publiée.
+
+| Avis | Paquet | Où | Analyse |
+| --- | --- | --- | --- |
+| [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) (déni de service) | `braces` 3.0.3 | site www.kledg.com, dépendance de développement (`shadcn` → `fast-glob` → `micromatch` → `braces`) | Utilisé seulement par l'outil `shadcn` sur le poste du développeur et pendant la construction, sur des motifs écrits par nous. Jamais exécuté sur le site publié ni dans l'application, et aucune donnée d'un visiteur ne l'atteint. Aucune version corrigée n'existe à ce jour : nous mettrons à jour dès sa publication. |
+
+L'application Kledg elle-même n'a aucune alerte ouverte.
+
 ## Versions prises en charge
 
 Seule la dernière version publiée reçoit des correctifs de sécurité. Gardez votre instance à jour (voir [docs/self-hosting.md](docs/self-hosting.md#mettre-à-jour)).
