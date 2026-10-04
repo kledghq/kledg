@@ -1,18 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 
+const rows = vi.hoisted(() => [
+  { id: 'cmabc0000000000000000000a', slug: 'atelier-lumen' },
+  { id: 'cmabc0000000000000000000b', slug: 'atelier-lumen-2' },
+])
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     company: {
       findUnique: vi.fn(async ({ where }: { where: { id?: string; slug?: string } }) => {
-        const rows = [
-          { id: 'cmabc0000000000000000000a', slug: 'atelier-lumen' },
-          { id: 'cmabc0000000000000000000b', slug: 'atelier-lumen-2' },
-        ]
         const row = rows.find((r) => (where.id ? r.id === where.id : r.slug === where.slug))
         return row ? { id: row.id } : null
       }),
     },
   },
+}))
+
+// Slug uniqueness is instance wide, checked by a database function (row level security, docs/rls.md).
+vi.mock('../identifiers', () => ({
+  companyIdentifierTaken: vi.fn(async (field: string, value: string, exceptCompanyId?: string | null) =>
+    rows.some((r) => field === 'slug' && r.slug === value && r.id !== exceptCompanyId),
+  ),
 }))
 
 import { generateCompanySlug, resolveCompanyRef, slugError, slugify, uniqueSlug } from '../slug'

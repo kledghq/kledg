@@ -49,6 +49,8 @@ describe('databaseUrl', () => {
     // Clever Cloud PostgreSQL add-on, linked to the application.
     expect(databaseUrl({ POSTGRESQL_ADDON_URI: 'postgresql://clever' })).toBe('postgresql://clever')
     expect(databaseUrl({ DATABASE_URL: '' })).toBeUndefined()
+    // The application role of KLEDG_RLS=enforce, next to the owner's DATABASE_URL of a host integration.
+    expect(databaseUrl({ KLEDG_DATABASE_URL: 'postgresql://app', DATABASE_URL: 'postgresql://owner' })).toBe('postgresql://app')
   })
 })
 

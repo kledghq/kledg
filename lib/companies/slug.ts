@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { companyIdentifierTaken } from './identifiers'
 import { ValidationError, ConflictError } from '@/lib/accounting/errors'
 
 export const SLUG_MAX_LENGTH = 60
@@ -76,18 +77,14 @@ export async function uniqueSlug(base: string, isTaken: (slug: string) => Promis
 
 /** A free slug derived from the company name (excluding `excludeCompanyId` when renaming). */
 export async function generateCompanySlug(name: string, excludeCompanyId?: string): Promise<string> {
-  return uniqueSlug(slugify(name), async (slug) => {
-    const existing = await prisma.company.findUnique({ where: { slug }, select: { id: true } })
-    return Boolean(existing && existing.id !== excludeCompanyId)
-  })
+  return uniqueSlug(slugify(name), (slug) => companyIdentifierTaken('slug', slug, excludeCompanyId))
 }
 
 /** Validates a slug chosen by the user and checks it is free. */
 export async function assertCompanySlugAvailable(slug: string, companyId: string): Promise<void> {
   const error = slugError(slug)
   if (error) throw new ValidationError(error)
-  const existing = await prisma.company.findUnique({ where: { slug }, select: { id: true } })
-  if (existing && existing.id !== companyId) {
+  if (await companyIdentifierTaken('slug', slug, companyId)) {
     throw new ConflictError('Cet identifiant est déjà utilisé par une autre société.')
   }
 }

@@ -95,7 +95,7 @@ describe('Audit Logging', () => {
         role: null,
       })
       vi.mocked(headers).mockResolvedValue(mockHeaders as never)
-      db.auditLog.create.mockResolvedValue({
+      db.auditLog.createMany.mockResolvedValue({
         id: 'log-123',
         userId: 'test@example.com',
         action: 'CREATE_ACCOUNT',
@@ -114,7 +114,7 @@ describe('Audit Logging', () => {
         metadata: { accountId: 'acc-123' },
       })
 
-      expect(db.auditLog.create).toHaveBeenCalledWith({
+      expect(db.auditLog.createMany).toHaveBeenCalledWith({
         data: {
           userId: 'test@example.com',
           action: 'CREATE_ACCOUNT',
@@ -129,7 +129,7 @@ describe('Audit Logging', () => {
     })
 
     it('should use provided context instead of fetching', async () => {
-      db.auditLog.create.mockResolvedValue({
+      db.auditLog.createMany.mockResolvedValue({
         id: 'log-123',
         userId: 'custom-user',
         action: 'UPDATE_ACCOUNT',
@@ -152,7 +152,7 @@ describe('Audit Logging', () => {
         },
       })
 
-      expect(db.auditLog.create).toHaveBeenCalledWith({
+      expect(db.auditLog.createMany).toHaveBeenCalledWith({
         data: {
           userId: 'custom-user',
           action: 'UPDATE_ACCOUNT',
@@ -170,7 +170,7 @@ describe('Audit Logging', () => {
     })
 
     it('should map log levels correctly', async () => {
-      db.auditLog.create.mockResolvedValue({})
+      db.auditLog.createMany.mockResolvedValue({})
 
       const levels = ['debug', 'info', 'warn', 'error'] as const
       const expectedLevels = ['DEBUG', 'INFO', 'WARN', 'ERROR']
@@ -181,7 +181,7 @@ describe('Audit Logging', () => {
           context: { userId: 'test' },
         })
 
-        expect(db.auditLog.create).toHaveBeenCalledWith(
+        expect(db.auditLog.createMany).toHaveBeenCalledWith(
           expect.objectContaining({
             data: expect.objectContaining({
               level: expectedLevels[i],
@@ -192,7 +192,7 @@ describe('Audit Logging', () => {
     })
 
     it('should handle database errors gracefully', async () => {
-      db.auditLog.create.mockRejectedValue(
+      db.auditLog.createMany.mockRejectedValue(
         new Error('Database error')
       )
 
@@ -204,7 +204,7 @@ describe('Audit Logging', () => {
     })
 
     it('should handle null values correctly', async () => {
-      db.auditLog.create.mockResolvedValue({})
+      db.auditLog.createMany.mockResolvedValue({})
 
       await writeAuditLog('info', 'Test message', {
         context: {
@@ -214,7 +214,7 @@ describe('Audit Logging', () => {
         },
       })
 
-      expect(db.auditLog.create).toHaveBeenCalledWith({
+      expect(db.auditLog.createMany).toHaveBeenCalledWith({
         data: {
           userId: null,
           action: null,

@@ -69,8 +69,10 @@ export async function writeAuditLog(
     // Map log level to enum
     const auditLevel = level.toUpperCase() as AuditLogLevel
 
-    // Write to database
-    await prisma.auditLog.create({
+    // Write to database. createMany: no RETURNING, so a row without company
+    // (an instance event) is written even though the writer cannot read it
+    // back under row level security (docs/rls.md).
+    await prisma.auditLog.createMany({
       data: {
         userId: context.userId || null,
         action: options?.action || null,

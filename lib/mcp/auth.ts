@@ -4,7 +4,8 @@ import { getMcpResourceUrl } from '@/lib/config'
 import { prisma } from '@/lib/prisma'
 import type { CurrentUser } from '@/lib/session'
 import { ADMIN_SCOPE, READ_SCOPE, WRITE_SCOPE, apiKeyLevelOf, capabilitiesOf, levelScopes } from '@/lib/ai-access/access'
-import { clientIdOf, findConsentScopes, type McpAccess } from '@/lib/mcp/company-access'
+import { clientIdOf, findConsentScopes, loadCompanyScope, type McpAccess, type McpCaller } from '@/lib/mcp/company-access'
+import { withUserContext } from '@/lib/rls/context'
 import { RateLimitError } from '@/lib/accounting/errors'
 import { getExecutionMode } from '@/lib/ai-access/manage-grants.service'
 import { verifyMcpApiKey } from './api-key'
@@ -42,6 +43,18 @@ function revokedResponse(): Response {
   )
 }
 
+/**
+ * Runs `fn` as the connection's user (row level security, docs/rls.md), its
+ * statements narrowed to the companies the connection was granted: the
+ * database refuses the other companies even if a tool forgot its check.
+ */
+async function asConnection<T>(user: CurrentUser, caller: McpCaller, fn: () => Promise<T>): Promise<T> {
+  return withUserContext(user.id, async () => {
+    const scope = await loadCompanyScope(user.id, caller)
+    return withUserContext(user.id, fn, scope.all ? {} : { companyIds: [...scope.companyIds] })
+  })
+}
+
 function bearer(request: Request): string | null {
   const header = request.headers.get('authorization')
   return header?.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null
@@ -61,20 +74,23 @@ export function withMcpUser(handler: (request: Request, access: McpAccess) => Pr
       const user = claims.sub ? await loadUser(claims.sub) : null
       const clientId = clientIdOf(claims as Record<string, unknown>)
       if (!user || !clientId) return Response.json({ error: 'Unknown user' }, { status: 401 })
-      // JWT access tokens are stateless: the consent is checked on every call,
-      // so a revoked assistant is refused at once and a lowered access level
-      // applies to tokens issued before it (see the
-      // 20261006090000_ai_assistant_token_revocation migration for refresh tokens).
-      const consented = await findConsentScopes(user.id, clientId)
-      if (!consented || !capabilitiesOf(consented).canRead) return revokedResponse()
-      // Only what both the token and the current consent grant.
-      const granted = String(claims.scope ?? '')
-        .split(' ')
-        .filter((scope) => consented.includes(scope))
-      const { canWrite, canAdmin } = capabilitiesOf(granted)
-      // Read on every request: a mode changed in Kledg applies to the next call.
-      const executionMode = await getExecutionMode(user.id, { kind: 'oauth', clientId })
-      return handler(request, { user, canWrite, canAdmin, caller: { kind: 'oauth', clientId }, executionMode })
+      return withUserContext(user.id, async () => {
+        // JWT access tokens are stateless: the consent is checked on every call,
+        // so a revoked assistant is refused at once and a lowered access level
+        // applies to tokens issued before it (see the
+        // 20261006090000_ai_assistant_token_revocation migration for refresh tokens).
+        const consented = await findConsentScopes(user.id, clientId)
+        if (!consented || !capabilitiesOf(consented).canRead) return revokedResponse()
+        // Only what both the token and the current consent grant.
+        const granted = String(claims.scope ?? '')
+          .split(' ')
+          .filter((scope) => consented.includes(scope))
+        const { canWrite, canAdmin } = capabilitiesOf(granted)
+        // Read on every request: a mode changed in Kledg applies to the next call.
+        const caller: McpCaller = { kind: 'oauth', clientId }
+        const executionMode = await getExecutionMode(user.id, caller)
+        return asConnection(user, caller, () => handler(request, { user, canWrite, canAdmin, caller, executionMode }))
+      })
     },
     {
       resource: getMcpResourceUrl(),
@@ -100,8 +116,11 @@ export function withMcpUser(handler: (request: Request, access: McpAccess) => Pr
       // API keys act with the rights of their owner, within the key's company
       // grant and the level chosen at creation (read and drafts for older keys).
       const { canWrite, canAdmin } = capabilitiesOf(levelScopes(apiKeyLevelOf(key.permissions)))
-      const executionMode = await getExecutionMode(user.id, { kind: 'apiKey', apiKeyId: key.id })
-      return handler(request, { user, canWrite, canAdmin, caller: { kind: 'apiKey', apiKeyId: key.id }, executionMode })
+      const caller: McpCaller = { kind: 'apiKey', apiKeyId: key.id }
+      return withUserContext(user.id, async () => {
+        const executionMode = await getExecutionMode(user.id, caller)
+        return asConnection(user, caller, () => handler(request, { user, canWrite, canAdmin, caller, executionMode }))
+      })
     }
     return oauthProtected(request)
   }

@@ -39,6 +39,7 @@ import { toErrorResponse } from '@/lib/api/errors'
 import { FRENCH_ERRORS, parseInput } from '@/lib/api/zod-fields'
 import { assertCompanyWritable } from '@/lib/companies/archive-company.service'
 import { guardRequest, type BodyOptions } from '@/lib/api/request-guards'
+import { withUserContext } from '@/lib/rls/context'
 
 export { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/request-guards'
 
@@ -242,17 +243,26 @@ async function requireUser(): Promise<CurrentUser> {
   return user
 }
 
+/**
+ * Authenticates, then runs the rest of the request as the signed-in user:
+ * every statement carries the user's row level security context
+ * (docs/rls.md), from the company resolver to the handler.
+ */
+async function asSignedInUser(run: (user: CurrentUser) => Promise<Response>): Promise<Response> {
+  const user = await requireUser()
+  return withUserContext(user.id, () => run(user))
+}
+
 /** Any signed-in user; the handler scopes its own data (e.g. the companies list). */
 export function authedRoute<TBody = undefined, TQuery = undefined>(
   options: { body?: z.ZodType<TBody>; query?: z.ZodType<TQuery> } & BodyOptions,
   handler: (ctx: RequestContext<TBody, TQuery>) => Promise<Response>,
 ): Handler {
-  return wrap('authed', async (request, params) => {
-    const user = await requireUser()
+  return wrap('authed', (request, params) => asSignedInUser(async (user) => {
     const query = parseQuery(request, options.query) as TQuery
     const body = (await parseBody(bodyReaders(request), options.body)) as TBody
     return handler({ request, params, user, body, query })
-  }, options)
+  }), options)
 }
 
 /**
@@ -263,8 +273,7 @@ export function adminRoute<TBody = undefined, TQuery = undefined>(
   options: { body?: z.ZodType<TBody>; query?: z.ZodType<TQuery>; company?: CompanyResolver } & BodyOptions,
   handler: (ctx: RequestContext<TBody, TQuery> & { companyId: string }) => Promise<Response>,
 ): Handler {
-  return wrap('admin', async (request, params) => {
-    const user = await requireUser()
+  return wrap('admin', (request, params) => asSignedInUser(async (user) => {
     if (!isGlobalAdmin(user)) {
       throw new ForbiddenError("Action réservée aux administrateurs de l'instance.")
     }
@@ -273,7 +282,7 @@ export function adminRoute<TBody = undefined, TQuery = undefined>(
     const query = parseQuery(request, options.query) as TQuery
     const body = (await parseBody(readers, options.body)) as TBody
     return handler({ request, params, user, body, query, companyId })
-  }, options)
+  }), options)
 }
 
 function forbidden(userRoles: string[]): ForbiddenError {
@@ -286,8 +295,7 @@ export function companyRoute<TBody = undefined, TQuery = undefined>(
   options: { company: CompanyResolver; permission: Permission; body?: z.ZodType<TBody>; query?: z.ZodType<TQuery> } & BodyOptions,
   handler: (ctx: CompanyRequestContext<TBody, TQuery>) => Promise<Response>,
 ): Handler {
-  return wrap('company', async (request, params) => {
-    const user = await requireUser()
+  return wrap('company', (request, params) => asSignedInUser(async (user) => {
     const readers = bodyReaders(request)
     const companyId = await options.company({ request, params, ...readers })
 
@@ -305,8 +313,13 @@ export function companyRoute<TBody = undefined, TQuery = undefined>(
     // Input is validated after authorization: a viewer gets 403, not the details of a 400.
     const query = parseQuery(request, options.query) as TQuery
     const body = (await parseBody(readers, options.body)) as TBody
-    return handler({ request, params, user, body, query, companyId, roles: userRoles, can, authorize })
-  }, options)
+    // The handler acts on this company only: its statements are narrowed to
+    // it (row level security, docs/rls.md), so a query that forgets its
+    // companyId cannot reach the user's other companies either.
+    return withUserContext(user.id, () => handler({ request, params, user, body, query, companyId, roles: userRoles, can, authorize }), {
+      companyIds: [companyId],
+    })
+  }), options)
 }
 
 export { NextResponse }

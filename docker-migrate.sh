@@ -18,8 +18,8 @@ prisma() {
 }
 
 database_url() {
-  # Same order as prisma.config.ts: direct connection first.
-  for url in "$DATABASE_URL_UNPOOLED" "$POSTGRES_URL_NON_POOLING" "$DATABASE_URL" "$POSTGRES_URL" "$POSTGRESQL_ADDON_URI"; do
+  # Same order as prisma.config.ts: the owner's direct connection first.
+  for url in "$DATABASE_MIGRATION_URL" "$DATABASE_URL_UNPOOLED" "$POSTGRES_URL_NON_POOLING" "$DATABASE_URL" "$POSTGRES_URL" "$POSTGRESQL_ADDON_URI"; do
     if [ -n "$url" ]; then
       printf '%s' "$url"
       return

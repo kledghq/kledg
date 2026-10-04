@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { auth } from './auth'
 import { prisma } from './prisma'
 import { isTransientConnectError } from './transient-db-error'
+import { withAnonymousContext } from './rls/context'
 
 export type CurrentUser = {
   id: string
@@ -32,8 +33,14 @@ export type CurrentUser = {
  * whose initialization failed is made again, lib/resilient-singleton.ts),
  * instead of rendering "Erreur inattendue" (seen on /companies right after
  * signing in).
+ *
+ * The lookup reads Better Auth's tables only and runs without a tenant
+ * context (`anonymous`, docs/rls.md): the context of the request's other
+ * statements is derived from its result (lib/rls/request-context.ts).
  */
-export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+export const getCurrentUser = cache((): Promise<CurrentUser | null> => withAnonymousContext(readSessionUser))
+
+async function readSessionUser(): Promise<CurrentUser | null> {
   const requestHeaders = await headers()
   let session: Awaited<ReturnType<typeof auth.api.getSession>>
   try {
@@ -54,7 +61,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const banned = Boolean(current?.user.banned) && (!current?.user.banExpires || current.user.banExpires > now)
   if (!current || current.userId !== u.id || current.expiresAt <= now || banned) return null
   return { id: u.id, email: u.email, name: u.name ?? null, role: current.user.role ?? null }
-})
+}
 
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser()

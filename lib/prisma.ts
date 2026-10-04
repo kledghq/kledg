@@ -4,6 +4,12 @@ import { Pool, type PoolConfig } from 'pg'
 import { attachDatabasePool } from '@vercel/functions/db-connections'
 import { logger } from './logger'
 import { isTransientConnectError } from './transient-db-error'
+import { currentRlsContext } from './rls/context'
+import { rlsMode } from './rls/mode'
+import { enforceRlsOnPool } from './rls/pool'
+import { createRequestContextResolver } from './rls/request-context'
+import { verifyAppRole } from './rls/app-role'
+import { isolatePrismaBatches } from './rls/batching'
 
 /**
  * Prisma client over node-postgres, so Kledg runs on any PostgreSQL:
@@ -14,9 +20,13 @@ import { isTransientConnectError } from './transient-db-error'
  * and `fly postgres attach` set it; POSTGRES_URL and POSTGRES_PRISMA_URL are
  * accepted as fallbacks, and POSTGRESQL_ADDON_URI, the variable the Clever
  * Cloud PostgreSQL add-on injects into the applications linked to it.
+ *
+ * KLEDG_DATABASE_URL, when set, comes first: the application role of
+ * KLEDG_RLS=enforce (docs/rls.md), set next to the DATABASE_URL a host
+ * integration manages (Neon on Vercel), which keeps the owner's URL.
  */
 export function databaseUrl(env: Record<string, string | undefined> = process.env): string | undefined {
-  return env.DATABASE_URL || env.POSTGRES_URL || env.POSTGRES_PRISMA_URL || env.POSTGRESQL_ADDON_URI || undefined
+  return env.KLEDG_DATABASE_URL || env.DATABASE_URL || env.POSTGRES_URL || env.POSTGRES_PRISMA_URL || env.POSTGRESQL_ADDON_URI || undefined
 }
 
 function getConnectionString(): string {
@@ -175,6 +185,21 @@ function createPrismaClient(): PrismaClient {
   pool.on('error', (error) => logger.warn('Postgres pool client error:', error.message))
   retryConnectOnce(pool)
   attachPoolToPlatform(pool)
+  // Row level security (docs/rls.md): every statement carries the context of
+  // its request. Off by default; KLEDG_RLS=enforce needs the application role.
+  const enforce = rlsMode() === 'enforce'
+  if (enforce) {
+    // A statement without a context in a Next request (server components,
+    // server actions) runs as the user of the request's session cookie.
+    const derive = createRequestContextResolver(async (token) => {
+      const { rows } = await pool.query<{ userId: string }>(
+        `SELECT "userId" FROM "session" WHERE "token" = $1 AND "expiresAt" > (now() AT TIME ZONE 'UTC')`,
+        [token],
+      )
+      return rows[0]?.userId
+    })
+    enforceRlsOnPool(pool, { capture: currentRlsContext, derive, verify: verifyAppRole })
+  }
 
   const client = new PrismaClient({
     adapter: new PrismaPg(pool),
@@ -192,6 +217,7 @@ function createPrismaClient(): PrismaClient {
     if (e?.message) logger.warn('Prisma warning:', e.message, e.target)
   })
 
+  if (enforce) isolatePrismaBatches(client)
   return client
 }
 

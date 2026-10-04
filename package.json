@@ -30,6 +30,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
+    "db:rls-role": "tsx scripts/rls-role.ts",
     "check:pcg-compliance": "tsx scripts/check-pcg-compliance.ts",
     "check:pcg-accounts": "tsx scripts/check-pcg-account-compliance.ts",
     "generate:secret": "node scripts/generate-encryption-key.js"
