@@ -8,6 +8,7 @@ import type { PCGWarning } from '@/lib/accounting/services'
 import { handleError, ValidationError } from '@/lib/accounting/errors'
 import { fromCents } from '@/lib/utils/money'
 import { importAmountCents } from './amount'
+import { loadExistingEntries } from './duplicate-entries'
 
 interface CSVImportOptions {
   companyId: string
@@ -167,6 +168,12 @@ export async function importCSV(
     }
 
     // Créer les écritures
+    // Entries already imported (same journal, day, texts and lines): skipped
+    const existingEntries = await loadExistingEntries(
+      companyId,
+      [...new Set(journalsMap.values())],
+      [...entriesMap.values()].map((lines) => new Date(lines[0][defaultMapping.dateColumn])),
+    )
     for (const [key, lines] of entriesMap.entries()) {
       try {
         const firstLine = lines[0]
@@ -181,18 +188,6 @@ export async function importCSV(
         const entryNumber = String(firstLine[defaultMapping.entryNumberColumn] || '')
         const entryDate = new Date(firstLine[defaultMapping.dateColumn])
 
-        // Vérifier si l'écriture existe déjà
-        // La contrainte d'unicité est maintenant globale (companyId, entryNumber)
-        const existing = await prisma.accountingEntry.findFirst({
-          where: {
-            companyId,
-            entryNumber,
-          },
-        })
-
-        if (existing) {
-          continue
-        }
 
         // CSV lines to EntryLine, amounts read exactly (French notation accepted)
         const amounts = lines.map((l) => ({
@@ -219,6 +214,18 @@ export async function importCSV(
           continue
         }
 
+        const description = String(firstLine[defaultMapping.descriptionColumn] || '')
+        const reference = String(firstLine[defaultMapping.referenceColumn] || '')
+        // The file's number is not compared: numbers are assigned at validation (PCG art. 1031-3)
+        const duplicate = existingEntries.take({
+          journalId,
+          date: entryDate,
+          description,
+          reference,
+          lines: entryLines.map((l, i) => ({ accountId: l.accountId, debitCents: amounts[i].debit ?? 0, creditCents: amounts[i].credit ?? 0 })),
+        })
+        if (duplicate) continue
+
         // Créer l'écriture avec le service métier et capturer les avertissements PCG
         try {
           const entryResult = await createAccountingEntryWithWarnings({
@@ -226,8 +233,8 @@ export async function importCSV(
             journalId,
             entryNumber,
             date: entryDate,
-            description: String(firstLine[defaultMapping.descriptionColumn] || ''),
-            reference: String(firstLine[defaultMapping.referenceColumn] || ''),
+            description,
+            reference,
             status: 'validated',
             lines: entryLines,
           })

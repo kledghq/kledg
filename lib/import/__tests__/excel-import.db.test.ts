@@ -23,6 +23,7 @@ const available = await testDatabaseAvailable()
 let prisma: typeof import('@/lib/prisma').prisma
 let importAccountingFile: typeof import('@/lib/import/import-file.service').importAccountingFile
 let importExcel: typeof import('@/lib/import/excel').importExcel
+let importCSV: typeof import('@/lib/import/csv').importCSV
 let createAccountingEntryWithWarnings: typeof import('@/lib/accounting/services/create-accounting-entry-with-warnings.service').createAccountingEntryWithWarnings
 
 const ids = {} as Record<string, string>
@@ -68,6 +69,7 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
     ;({ prisma } = await import('@/lib/prisma'))
     ;({ importAccountingFile } = await import('@/lib/import/import-file.service'))
     ;({ importExcel } = await import('@/lib/import/excel'))
+    ;({ importCSV } = await import('@/lib/import/csv'))
     ;({ createAccountingEntryWithWarnings } = await import('@/lib/accounting/services/create-accounting-entry-with-warnings.service'))
   })
   beforeEach(seed)
@@ -195,6 +197,80 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
     // lib/accounting/entry-guards.ts: an entry belongs to the fiscal year holding its date
     expect(result.errors).toEqual(["Écriture O1: La date du 01/06/2024 est hors de l'exercice 2025 (du 01/01/2025 au 31/12/2025)."])
     expect(await prisma.accountingEntry.count()).toBe(0)
+  })
+
+  describe('importing the same file again', () => {
+    // Regression: the file's entry number was compared with Kledg's numbers,
+    // which are assigned at validation (PCG art. 1031-3). The file entry "1"
+    // was silently dropped once another imported entry had received number 1,
+    // and a second import duplicated every entry whose file number was not a
+    // Kledg number.
+    const rows: Row[] = [
+      ['2025-06-01', 'OD', 'R1', '512000', 10, null, 'Loyer', 'L-6'],
+      ['2025-06-01', 'OD', 'R1', '706000', null, 10, 'Loyer', 'L-6'],
+      ['2025-06-02', 'OD', '1', '512000', 11, null, 'Frais', null],
+      ['2025-06-02', 'OD', '1', '706000', null, 11, 'Frais', null],
+    ]
+
+    it('imports an entry whose file number equals a number Kledg already gave', async () => {
+      const result = await importExcel({ companyId: ids.company, file: await workbook(rows) })
+
+      expect(result).toMatchObject({ success: true, entriesCreated: 2, errors: [] })
+      const entries = await entriesWithLines()
+      expect(entries.map((e) => [e.entryNumber, e.description])).toEqual([['1', 'Loyer'], ['2', 'Frais']])
+    })
+
+    it('creates nothing the second time', async () => {
+      const file = await workbook(rows)
+      await importExcel({ companyId: ids.company, file })
+
+      const second = await importExcel({ companyId: ids.company, file })
+
+      expect(second).toMatchObject({ success: true, entriesCreated: 0, accountsCreated: 0, errors: [] })
+      expect(await prisma.accountingEntry.count()).toBe(2)
+    })
+
+    it('keeps two identical entries of one file, once each', async () => {
+      const fee: Row[] = [
+        ['2025-06-03', 'BQ', 'F1', '627000', '1,50', null, 'Frais bancaires', null],
+        ['2025-06-03', 'BQ', 'F1', '512000', null, '1,50', 'Frais bancaires', null],
+        ['2025-06-03', 'BQ', 'F2', '627000', '1,50', null, 'Frais bancaires', null],
+        ['2025-06-03', 'BQ', 'F2', '512000', null, '1,50', 'Frais bancaires', null],
+      ]
+      const file = await workbook(fee)
+      expect((await importExcel({ companyId: ids.company, file })).entriesCreated).toBe(2)
+      expect((await importExcel({ companyId: ids.company, file })).entriesCreated).toBe(0)
+      // A third identical fee added to the file later is imported alone
+      const more = await workbook([...fee, ['2025-06-03', 'BQ', 'F3', '627000', '1,50', null, 'Frais bancaires', null], ['2025-06-03', 'BQ', 'F3', '512000', null, '1,50', 'Frais bancaires', null]])
+      expect((await importExcel({ companyId: ids.company, file: more })).entriesCreated).toBe(1)
+      expect(await prisma.accountingEntry.count()).toBe(3)
+    })
+
+    it('imports an entry that differs only by an amount', async () => {
+      await importExcel({ companyId: ids.company, file: await workbook(rows) })
+      const changed = rows.map((r) => (r[2] === 'R1' ? r.map((v) => (v === 10 ? 10.01 : v)) : r))
+
+      const result = await importExcel({ companyId: ids.company, file: await workbook(changed) })
+
+      expect(result.entriesCreated).toBe(1)
+      const loyers = (await entriesWithLines()).filter((e) => e.description === 'Loyer')
+      expect(loyers.map((e) => e.lines[0].debit.toFixed(2))).toEqual(['10.00', '10.01'])
+    })
+
+    it('applies the same rule to the CSV import', async () => {
+      const csv = [
+        'date,journal,entryNumber,account,debit,credit,description,reference',
+        '2025-06-01,OD,R1,512000,10,,Loyer,L-6',
+        '2025-06-01,OD,R1,706000,,10,Loyer,L-6',
+        '2025-06-02,OD,1,512000,11,,Frais,',
+        '2025-06-02,OD,1,706000,,11,Frais,',
+      ].join('\n')
+
+      expect(await importCSV({ companyId: ids.company, content: csv })).toMatchObject({ success: true, entriesCreated: 2, errors: [] })
+      expect(await importCSV({ companyId: ids.company, content: csv })).toMatchObject({ success: true, entriesCreated: 0, errors: [] })
+      const entries = await entriesWithLines()
+      expect(entries.map((e) => [e.entryNumber, e.description])).toEqual([['1', 'Loyer'], ['2', 'Frais']])
+    })
   })
 
   it('returns the PCG art. 511-1 warning for an entry without description', async () => {

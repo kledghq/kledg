@@ -10,6 +10,7 @@ import type { PCGWarning } from '@/lib/accounting/services'
 import { handleError, ValidationError } from '@/lib/accounting/errors'
 import { fromCents } from '@/lib/utils/money'
 import { importAmountCents } from './amount'
+import { loadExistingEntries } from './duplicate-entries'
 
 interface ExcelImportOptions {
   companyId: string
@@ -219,6 +220,12 @@ export async function importExcel(
     }
 
     // Create entries
+    // Entries already imported (same journal, day, texts and lines): skipped
+    const existingEntries = await loadExistingEntries(
+      companyId,
+      [...new Set(journalsMap.values())],
+      [...entriesMap.values()].map((lines) => new Date(lines[0][defaultMapping.dateColumn] as string | number | Date)),
+    )
     for (const [key, lines] of entriesMap.entries()) {
       try {
         const firstLine = lines[0]
@@ -242,19 +249,6 @@ export async function importExcel(
           linesCount: lines.length,
         })
 
-        // Check if entry already exists
-        // La contrainte d'unicité est maintenant globale (companyId, entryNumber)
-        const existing = await prisma.accountingEntry.findFirst({
-          where: {
-            companyId,
-            entryNumber,
-          },
-        })
-
-        if (existing) {
-          logger.debug('[import/excel] Entry already exists, skip', { entryNumber, companyId })
-          continue
-        }
 
         // Excel lines to EntryLine, amounts read exactly (French notation accepted)
         const amounts = lines.map((l) => ({
@@ -293,6 +287,18 @@ export async function importExcel(
           continue
         }
 
+        const description = String(firstLine[defaultMapping.descriptionColumn] || '')
+        const reference = String(firstLine[defaultMapping.referenceColumn] || '')
+        // The file's number is not compared: numbers are assigned at validation (PCG art. 1031-3)
+        const duplicate = existingEntries.take({
+          journalId,
+          date: entryDate,
+          description,
+          reference,
+          lines: entryLines.map((l, i) => ({ accountId: l.accountId, debitCents: amounts[i].debit ?? 0, creditCents: amounts[i].credit ?? 0 })),
+        })
+        if (duplicate) continue
+
         // Create entry with business service and capture PCG warnings
         try {
           logger.debug('[import/excel] Calling createAccountingEntryWithWarnings', {
@@ -306,8 +312,8 @@ export async function importExcel(
             journalId,
             entryNumber,
             date: entryDate,
-            description: String(firstLine[defaultMapping.descriptionColumn] || ''),
-            reference: String(firstLine[defaultMapping.referenceColumn] || ''),
+            description,
+            reference,
             status: 'validated',
             lines: entryLines,
           })
