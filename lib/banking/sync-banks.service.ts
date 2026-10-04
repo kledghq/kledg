@@ -20,6 +20,7 @@ import { errorReason } from '@/lib/banking/errors'
 import { BANK_PROVIDERS } from '@/lib/banking/providers'
 import { withSystemContext } from '@/lib/rls/context'
 import { writeAuditLog } from '@/lib/audit'
+import { withinRateLimit } from '@/lib/rate-limit'
 
 export interface BankSyncRunResult {
   companyId: string
@@ -43,10 +44,16 @@ function cronFeatures(provider: string): IntegrationFeature[] {
  * its own company, so a sync can only read and write that company's rows,
  * and is recorded in that company's audit log.
  */
-export async function syncAllBankIntegrations(encryptionKey: string): Promise<BankSyncRunResult[]> {
+export async function syncAllBankIntegrations(
+  encryptionKey: string,
+  options: { notSyncedSince?: Date } = {},
+): Promise<BankSyncRunResult[]> {
+  const stale = options.notSyncedSince
+    ? { OR: [{ lastSyncAt: null }, { lastSyncAt: { lt: options.notSyncedSince } }] }
+    : {}
   const integrations = await withSystemContext('cron:bank-sync', () =>
     prisma.integration.findMany({
-      where: { provider: { in: [...BANK_PROVIDERS] }, status: 'active', type: 'BANKING' },
+      where: { provider: { in: [...BANK_PROVIDERS] }, status: 'active', type: 'BANKING', ...stale },
       select: { id: true, companyId: true, provider: true },
     }),
   )
@@ -87,15 +94,41 @@ function isCronRequest(request: Request): boolean {
   return received.length === expected.length && timingSafeEqual(received, expected)
 }
 
-/** GET handler of the cron routes: requires the CRON_SECRET bearer token (sent by Vercel Cron). */
+/** Without CRON_SECRET, an integration synced less than this long ago is skipped. */
+const KEYLESS_MIN_INTERVAL_MS = 20 * 3_600_000
+
+/**
+ * GET handler of the cron routes.
+ *
+ * With CRON_SECRET (Vercel Cron sends it as a bearer token), the caller is
+ * trusted: every active bank integration is synced and the summary lists
+ * each run.
+ *
+ * Without CRON_SECRET, the route still works so a fresh deployment needs no
+ * secret to paste, but anyone may call it, so it can only do what the
+ * schedule would do anyway: sync the integrations not synced for 20 hours,
+ * at most four times a day for the whole instance, and answer with a count
+ * only (no company, integration or error detail). Calling it early at worst
+ * moves the daily sync forward.
+ */
 export async function handleBankSyncCron(request: Request): Promise<Response> {
-  if (!isCronRequest(request)) {
+  const keyless = !process.env.CRON_SECRET
+  if (!keyless && !isCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {
     const encryptionKey = getEncryptionKey()
     if (!encryptionKey) {
       return NextResponse.json({ error: 'Encryption key not configured' }, { status: 500 })
+    }
+    if (keyless) {
+      if (!(await withinRateLimit('cron-keyless', 'instance'))) {
+        return NextResponse.json({ success: true, synced: 0, skipped: 'rate-limited' })
+      }
+      const results = await syncAllBankIntegrations(encryptionKey, {
+        notSyncedSince: new Date(Date.now() - KEYLESS_MIN_INTERVAL_MS),
+      })
+      return NextResponse.json({ success: true, synced: results.length })
     }
     const results = await syncAllBankIntegrations(encryptionKey)
     return NextResponse.json({ success: true, synced: results.length, results })

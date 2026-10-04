@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import {
   getSetupAdminEmail,
+  maskEmail,
   MIN_SETUP_TOKEN_LENGTH,
   needsSetup,
   setupTokenStatus,
@@ -16,14 +17,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SetupForm } from "./setup-form";
+import { RequestSetupLink } from "./request-link";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Configuration" };
 
 /**
- * Shown while SETUP_TOKEN is missing or too short: nobody can claim the
- * instance, and the page says how to unlock it (lib/setup.ts).
+ * Shown while nobody can prove they own the instance: no SETUP_TOKEN (or one
+ * too short), and no way to email a setup link to ADMIN_EMAIL. The page says
+ * how to unlock it (lib/setup.ts).
  */
 function SetupBlocked({ weak }: { weak: boolean }) {
   return (
@@ -35,38 +38,37 @@ function SetupBlocked({ weak }: { weak: boolean }) {
         <CardDescription>
           {weak
             ? `La variable SETUP_TOKEN est trop courte (au moins ${MIN_SETUP_TOKEN_LENGTH} caractères).`
-            : "La variable d'environnement SETUP_TOKEN n'est pas définie."}{" "}
-          Sans ce jeton, la première personne à ouvrir cette page deviendrait
-          administrateur de l&apos;instance.
+            : "Kledg ne peut pas encore vérifier que vous êtes le propriétaire de cette instance."}{" "}
+          Sans cette vérification, la première personne à ouvrir cette page
+          deviendrait administrateur de l&apos;instance.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <ol className="list-inside list-decimal space-y-2">
+        <p>Choisissez l&apos;une des deux méthodes, puis redéployez ou redémarrez l&apos;instance&nbsp;:</p>
+        <ul className="list-inside list-disc space-y-2">
           <li>
-            Générez un jeton aléatoire, par exemple avec{" "}
+            <strong>Par email</strong>&nbsp;: définissez{" "}
+            <code className="bg-muted rounded px-1">ADMIN_EMAIL</code> et{" "}
+            <code className="bg-muted rounded px-1">RESEND_API_KEY</code>.
+            Cette page vous enverra un lien d&apos;installation.
+          </li>
+          <li>
+            <strong>Par jeton</strong>&nbsp;: définissez{" "}
+            <code className="bg-muted rounded px-1">SETUP_TOKEN</code> (par
+            exemple{" "}
             <code className="bg-muted rounded px-1">
               openssl rand -base64 24
             </code>
-            .
-          </li>
-          <li>
-            Définissez-le dans la variable{" "}
-            <code className="bg-muted rounded px-1">SETUP_TOKEN</code> : sur
-            Vercel, dans Settings, Environment Variables ; avec Docker, dans le
-            fichier d&apos;environnement du conteneur.
-          </li>
-          <li>Redéployez ou redémarrez l&apos;instance.</li>
-          <li>
-            Ouvrez{" "}
+            ), puis ouvrez{" "}
             <code className="bg-muted rounded px-1">
               /setup?token=&lt;votre jeton&gt;
-            </code>{" "}
-            et créez le compte administrateur.
+            </code>
+            .
           </li>
-        </ol>
+        </ul>
         <p className="text-muted-foreground text-xs">
-          Vous pourrez supprimer SETUP_TOKEN une fois le compte administrateur
-          créé.
+          Sur Vercel&nbsp;: Settings, Environment Variables. Avec Docker&nbsp;: le
+          fichier d&apos;environnement du conteneur.
         </p>
       </CardContent>
     </Card>
@@ -112,11 +114,18 @@ export default async function SetupPage({
 
   const { token } = await searchParams;
   const urlToken = typeof token === "string" ? token : null;
-  const view = setupView(urlToken);
+  const view = await setupView(urlToken);
   if (view === "blocked") {
     return (
       <AuthShell>
         <SetupBlocked weak={setupTokenStatus() === "weak"} />
+      </AuthShell>
+    );
+  }
+  if (view === "request-link") {
+    return (
+      <AuthShell>
+        <RequestSetupLink maskedEmail={maskEmail(getSetupAdminEmail() ?? "")} />
       </AuthShell>
     );
   }

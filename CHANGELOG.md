@@ -35,6 +35,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Modifié
 
+- **Installation sans secret à coller** : sans `SETUP_TOKEN`, mais avec `ADMIN_EMAIL` et `RESEND_API_KEY`, `/setup` envoie à `ADMIN_EMAIL` un lien d'installation à usage unique, valable 30 minutes (seule son empreinte SHA-256 est stockée, table `verification`, un envoi par minute au plus) ; `SETUP_TOKEN`, s'il est défini, l'emporte toujours. `CRON_SECRET` devient facultatif : sans lui, `/api/cron/sync-banks` reste appelable par tous, donc bridé (intégrations non synchronisées depuis 20 heures, quatre passages par jour au plus pour toute l'instance, réponse réduite à un nombre). Le bouton Déployer sur Vercel provisionne Neon et Resend et ne demande plus que `BETTER_AUTH_SECRET` et `ADMIN_EMAIL`. Voir [docs/configuration.md](docs/configuration.md).
 - `create_draft_expense_report` est disponible avec l'accès Lecture et brouillons (`kledg:write`, droit `expenses:submit`) au lieu du contrôle total : la note reste un brouillon que la personne soumet et qu'un valideur comptabilise dans Kledg ; `dryRun: true` montre les totaux sans rien enregistrer. La description du niveau Lecture et brouillons (page d'autorisation, paramètres) cite ce que l'assistant peut préparer.
 
 ### Sécurité
