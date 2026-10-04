@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { RateLimitError } from '@/lib/accounting/errors'
+import { INSTANCE_RATE_LIMITS } from '@/lib/instance/policy'
+import type { RateLimitRule } from '@/lib/instance/types'
 
 /**
  * Rate limit policy of Kledg's own routes, actions and MCP tools: one place
@@ -13,7 +15,9 @@ import { RateLimitError } from '@/lib/accounting/errors'
  * the limits hold across serverless instances. RATE_LIMIT_DISABLED=true
  * turns them all off (local tests only).
  *
- * Windows are in seconds. Keys are `<name>|<subject>`.
+ * Windows are in seconds. Keys are `<name>|<subject>`. A customised
+ * instance adds the rules of its own routes in INSTANCE_RATE_LIMITS
+ * (lib/instance/policy.ts); Kledg's rules keep their name.
  */
 export const RATE_LIMITS = {
   /** First-run setup, per client IP. */
@@ -62,7 +66,10 @@ export const RATE_LIMITS = {
   },
 } as const satisfies Record<string, { window: number; max: number; message: string }>
 
-export type RateLimitName = keyof typeof RATE_LIMITS
+export type RateLimitName = keyof typeof RATE_LIMITS | keyof typeof INSTANCE_RATE_LIMITS
+
+/** Every rule: Kledg's, and the instance's own (a name Kledg uses keeps Kledg's rule). */
+export const RATE_LIMIT_RULES: Readonly<Record<RateLimitName, RateLimitRule>> = { ...INSTANCE_RATE_LIMITS, ...RATE_LIMITS }
 
 export function rateLimitsDisabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.RATE_LIMIT_DISABLED === 'true'
@@ -90,11 +97,11 @@ export async function consumeRateLimit(key: string, rule: { window: number; max:
 /** Whether `subject` may make one more `name` call (counts it). Always true when limits are disabled. */
 export async function withinRateLimit(name: RateLimitName, subject: string): Promise<boolean> {
   if (rateLimitsDisabled()) return true
-  return consumeRateLimit(`${name}|${subject}`, RATE_LIMITS[name])
+  return consumeRateLimit(`${name}|${subject}`, RATE_LIMIT_RULES[name])
 }
 
 /** Counts one `name` call of `subject`; throws RateLimitError (429, French message) past the limit. */
 export async function enforceRateLimit(name: RateLimitName, subject: string): Promise<void> {
-  if (!(await withinRateLimit(name, subject))) throw new RateLimitError(RATE_LIMITS[name].message)
+  if (!(await withinRateLimit(name, subject))) throw new RateLimitError(RATE_LIMIT_RULES[name].message)
 }
 

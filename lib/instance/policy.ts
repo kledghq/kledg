@@ -9,7 +9,7 @@
  * SELF_AUTHENTICATED_API_ROUTES. See docs/extension-points.md.
  */
 
-import type { ActionRefusal, InstanceAction, InstanceActor } from './types'
+import type { ActionRefusal, InstanceAction, InstanceActor, RateLimitRule } from './types'
 
 /**
  * Whether `actor` may perform `action` on this instance. `actor` is null for
@@ -72,6 +72,13 @@ export const SELF_AUTHENTICATED_API_ROUTES: Readonly<Record<string, string>> = {
  * at their first sign-in. Kledg: no (accounts are created by the administrator).
  */
 export const REQUIRE_EMAIL_VERIFICATION: boolean = false
+
+/**
+ * Rate limit rules of the instance's own routes, by name, used like Kledg's
+ * (`enforceRateLimit(name, subject)`, lib/rate-limit.ts). A name Kledg
+ * already uses keeps Kledg's rule. Kledg: none.
+ */
+export const INSTANCE_RATE_LIMITS = {} as const satisfies Record<string, RateLimitRule>
 
 /**
  * Pages of the instance that open without a session (a sign-up page, legal

@@ -20,7 +20,8 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 import { RateLimitError } from '@/lib/accounting/errors'
-import { enforceRateLimit, RATE_LIMITS, withinRateLimit } from '@/lib/rate-limit'
+import { enforceRateLimit, RATE_LIMIT_RULES, RATE_LIMITS, withinRateLimit } from '@/lib/rate-limit'
+import { INSTANCE_RATE_LIMITS } from '@/lib/instance/policy'
 
 const ROOT = path.resolve(__dirname, '../..')
 
@@ -52,8 +53,12 @@ describe('rate limit policy', () => {
     expect(db.keys).toEqual([])
   })
 
+  it('includes the rules of the instance policy (none in Kledg), never in place of a Kledg rule', () => {
+    expect(RATE_LIMIT_RULES).toEqual({ ...INSTANCE_RATE_LIMITS, ...RATE_LIMITS })
+  })
+
   it('has a positive window, a maximum and a French message without dashes for every rule', () => {
-    for (const [name, rule] of Object.entries(RATE_LIMITS)) {
+    for (const [name, rule] of Object.entries(RATE_LIMIT_RULES)) {
       expect(rule.window, name).toBeGreaterThan(0)
       expect(rule.max, name).toBeGreaterThan(0)
       expect(rule.message, name).toMatch(/^[A-Z]/)

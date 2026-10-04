@@ -26,6 +26,7 @@ companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
 PUBLIC_PAGES: readonly string[]
 REQUIRE_EMAIL_VERIFICATION: boolean
+INSTANCE_RATE_LIMITS: Record<string, RateLimitRule>
 ```
 
 Kledg checks every restrictable action through `lib/instance`
@@ -103,6 +104,13 @@ accounts created from a company's Membres page are marked confirmed; other
 accounts (first-run setup, Utilisateurs page) confirm at their first sign-in.
 Better Auth's own sign-up endpoint stays closed (`disableSignUp`): an
 instance with public sign-up serves its own sign-up route.
+
+`INSTANCE_RATE_LIMITS` declares the rate limit rules of the instance's own
+routes (`{ name: { window, max, message } }`). `enforceRateLimit(name,
+subject)` (`lib/rate-limit.ts`) applies them like Kledg's rules, in the same
+shared table; a name Kledg already uses keeps Kledg's rule, and every rule
+is checked by `lib/__tests__/rate-limit.test.ts` (positive window and
+maximum, French message without dashes). Kledg declares none.
 
 `PUBLIC_PAGES` lists pages that open without a session (a sign-up page,
 legal notices): the proxy lets each path and the paths under it through,

@@ -59,3 +59,13 @@ export interface ActionRefusal {
   message: string
   link?: { label: string; href: string }
 }
+
+/**
+ * A rate limit rule (lib/rate-limit.ts): at most `max` calls per subject in
+ * `window` seconds, refused past it with the French `message`.
+ */
+export interface RateLimitRule {
+  window: number
+  max: number
+  message: string
+}
