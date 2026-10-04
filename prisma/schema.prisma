@@ -1651,12 +1651,15 @@ model DashboardLayout {
 /// on read and write (lib/appearance/schema.ts); a row that no longer parses
 /// reads as the defaults. Without a row the user sees the default colours.
 model UserPreference {
-  id         String   @id @default(cuid())
-  userId     String   @unique
+  id          String   @id @default(cuid())
+  userId      String   @unique
   /// { "version": 1, "palette": "custom", "base": "sobre", "custom": { "light": { "revenue": "#0072b2" }, "dark": {} } }
-  appearance Json
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  /// Null when the user never saved colours (they only chose a display mode): the default colours.
+  appearance  Json?
+  /// 'simple' or 'expert' (lib/appearance/display-mode.ts, check constraint); null until chosen, read as 'expert'.
+  displayMode String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

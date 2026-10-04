@@ -501,3 +501,44 @@ describe('CompanyWizard, capital and creation', () => {
     expect(within(screen.getByRole('navigation', { name: 'Étapes de la création' })).getByRole('listitem', { current: 'step' })).toHaveTextContent('Vérifier')
   })
 })
+
+describe('CompanyWizard, display mode step (first run, docs/mode-simple.md)', () => {
+  async function createCompany(user: UserEvent) {
+    await fillIdentity(user)
+    await continueTo(user, 'Premier exercice dans Kledg')
+    await chooseRegimes(user)
+    await continueTo(user, 'Capital et associés')
+    await continueTo(user, 'Vérifier avant de créer')
+    await user.click(screen.getByRole('button', { name: 'Créer la société' }))
+  }
+
+  it('has four steps without the question', () => {
+    render(<CompanyWizard />)
+    expect(within(screen.getByRole('navigation', { name: 'Étapes de la création' })).queryByText('Utilisation')).toBeNull()
+  })
+
+  it('asks how to use Kledg once the company exists, then opens it in the chosen mode', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ slug: 'atelier-lumen', name: 'Atelier Lumen' }))
+    const user = userEvent.setup()
+    render(<CompanyWizard askDisplayMode />)
+    const steps = screen.getByRole('navigation', { name: 'Étapes de la création' })
+    expect(within(steps).getByText('Utilisation')).toBeInTheDocument()
+    expect(within(steps).getByText(/Étape 1 sur 5/)).toBeInTheDocument()
+    await createCompany(user)
+
+    expect(await screen.findByRole('heading', { name: 'Comment voulez-vous utiliser Kledg ?' })).toBeInTheDocument()
+    expect(within(screen.getByRole('navigation', { name: 'Étapes de la création' })).getByText(/Étape 5 sur 5 : Utilisation/)).toBeInTheDocument()
+    // The company is created: no way back to its steps, and the page is not left yet
+    expect(screen.queryByRole('button', { name: /Retour/ })).toBeNull()
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('link', { name: 'Inviter votre comptable' })).toHaveAttribute('href', '/atelier-lumen/members')
+
+    fetchMock.mockResolvedValueOnce(Response.json({ mode: 'simple', chosen: true }))
+    await user.click(screen.getByRole('button', { name: /Continuer/ }))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/atelier-lumen/simple'))
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+    expect(url).toBe('/api/account/display-mode')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body as string)).toEqual({ mode: 'simple' })
+  })
+})

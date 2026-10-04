@@ -160,6 +160,11 @@ small company uses each area: Tableau de bord, Banque, Factures (achats,
 ventes, tiers), Saisie, États, Société. One entry is active at a time (longest URL prefix), with
 `aria-current="page"`. Each entry has its own icon. The sidebar collapses to
 icons (tooltips) and becomes a drawer on phones that closes after navigation.
+In simple mode (a display preference of the user, [mode-simple.md](mode-simple.md))
+the sidebar shows `simpleNavGroups` instead (Accueil, Dépenses, Recettes,
+Factures, Banque, Justificatifs, Mon comptable) and its footer has the
+Simple / Expert switch; simple-mode pages take their wording from
+`lib/simple/vocabulary.ts` (no account numbers, no accounting jargon).
 
 Pages outside a company (Mes sociétés, account and instance settings) use
 the same frame (`components/layout/app-shell.tsx`) with a settings sidebar
