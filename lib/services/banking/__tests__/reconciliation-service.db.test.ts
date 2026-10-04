@@ -177,6 +177,17 @@ describe.skipIf(!available)('automatic bank reconciliation (PostgreSQL)', () => 
     })
   })
 
+  it('says in French that there is no BQ journal', async () => {
+    // Regression: the API answered the English "No BQ journal found"
+    await prisma.journal.delete({ where: { id: ids.bq } })
+
+    expect(await svc.autoReconcile({ companyId: ids.company })).toMatchObject({
+      matched: 0,
+      unreconciledOrphanedCount: 0,
+      message: 'Aucun journal BQ : aucune écriture bancaire à rapprocher.',
+    })
+  })
+
   describe('attemptBankReconciliation', () => {
     it('ignores lines on accounts of another company or outside class 51', async () => {
       const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
