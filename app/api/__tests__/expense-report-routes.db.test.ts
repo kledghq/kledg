@@ -98,7 +98,7 @@ describe.skipIf(!available)('expense report routes (PostgreSQL)', () => {
     await prisma?.$disconnect()
   })
 
-  it('answers a French 400, never a 500, for an amount beyond the bounds', async () => {
+  it('[KLEDG-SEC-015] answers a French 400, never a 500, for an amount beyond the bounds', async () => {
     for (const over of [{ amountInclTaxCents: 1e17 }, { vatCents: 1e17 }]) {
       const response = await call('boss', 'reports', 'POST', '/api/expense-reports', { companyId: books.companyId, periodStart: '2026-03-01', periodEnd: '2026-03-31', lines: [line(over)] })
       expect(response.status).toBe(400)

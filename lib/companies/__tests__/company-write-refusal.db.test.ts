@@ -74,11 +74,11 @@ describe.skipIf(!available)('read-only companies decided by the instance policy'
     expect((await call('PATCH', { name: 'Atelier Lumen' })).status).toBe(200)
   })
 
-  it('fails closed on a missing company: not found, never writable', async () => {
+  it('[KLEDG-SEC-014] fails closed on a missing company: not found, never writable', async () => {
     await expect(assertCompanyWritable('missing-company')).rejects.toEqual(new NotFoundError(COMPANY_NOT_FOUND_MESSAGE))
   })
 
-  it.runIf(rlsMode() === 'enforce')('fails closed on a company the context cannot see, even an archived one', async () => {
+  it.runIf(rlsMode() === 'enforce')('[KLEDG-SEC-014] fails closed on a company the context cannot see, even an archived one', async () => {
     // The scope narrows the administrator to the open company: the archived one is invisible.
     await expect(
       withUserContext(state.user.id, () => assertCompanyWritable(ids.archived), { companyIds: [ids.company] }),

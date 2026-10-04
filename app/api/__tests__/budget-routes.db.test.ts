@@ -76,7 +76,7 @@ describe.skipIf(!available)('budget routes (PostgreSQL)', () => {
     await prisma?.$disconnect()
   })
 
-  it('answers a French 400, never a 500, for an amount beyond the bounds', async () => {
+  it('[KLEDG-SEC-015] answers a French 400, never a 500, for an amount beyond the bounds', async () => {
     const budget = await (await call('accountant', 'budgets', 'POST', '/api/budgets', { companyId: books.companyId, fiscalYearId: books.fiscalYearId })).json()
     for (const body of [
       { accountPrefix: '706', amounts: [{ month: '2026-01', amountCents: 1e17 }] },

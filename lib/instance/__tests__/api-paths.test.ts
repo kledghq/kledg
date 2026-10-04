@@ -19,7 +19,7 @@ describe('self-authenticated API paths', () => {
     expect(isSelfAuthenticatedApiPath('/api/demo')).toBe(false)
   })
 
-  it('match the declared path and the paths under it, with or without a trailing slash', () => {
+  it('[KLEDG-SEC-016] match the declared path and the paths under it, with or without a trailing slash', () => {
     for (const routes of [DEMO, DEMO_SLASH]) {
       expect(isSelfAuthenticatedApiPath('/api/demo', routes)).toBe(true)
       expect(isSelfAuthenticatedApiPath('/api/demo/', routes)).toBe(true)
@@ -27,7 +27,7 @@ describe('self-authenticated API paths', () => {
     }
   })
 
-  it('never match a longer segment or another path', () => {
+  it('[KLEDG-SEC-016] never match a longer segment or another path', () => {
     for (const routes of [DEMO, DEMO_SLASH]) {
       expect(isSelfAuthenticatedApiPath('/api/demo-admin', routes)).toBe(false)
       expect(isSelfAuthenticatedApiPath('/api/demo-admin/users', routes)).toBe(false)

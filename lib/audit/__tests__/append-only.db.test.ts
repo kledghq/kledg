@@ -86,7 +86,7 @@ describe.skipIf(!available)('append-only audit log', () => {
     expect((await prisma.auditLog.findMany()).map((r) => r.action)).toEqual(['NEW'])
   })
 
-  it.runIf(rlsMode() === 'enforce')('refuses the purge to the application role', async () => {
+  it.runIf(rlsMode() === 'enforce')('[KLEDG-SEC-013] refuses the purge to the application role', async () => {
     await expect(prisma.$queryRaw`SELECT kledg_purge_audit_logs(now())`).rejects.toThrow(/permission denied/)
   })
 

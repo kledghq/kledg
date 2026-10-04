@@ -69,7 +69,7 @@ describe.skipIf(!available)('business logic integrity', () => {
     await prisma?.$disconnect()
   })
 
-  it('answers a French 400, never a 500, for an entry amount beyond the Decimal(15, 2) column', async () => {
+  it('[KLEDG-SEC-015] answers a French 400, never a 500, for an entry amount beyond the Decimal(15, 2) column', async () => {
     for (const amount of [1e15, '99999999999999', 1e300]) {
       const body = balanced(ids.aCompany, ids.aJournal, ids.aAccount, ids.aSales, `huge-${amount}`)
       body.lines = [

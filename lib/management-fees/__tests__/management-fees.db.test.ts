@@ -144,7 +144,7 @@ describe.skipIf(!available)('management fees (PostgreSQL)', () => {
       expect(candidates[0]).toMatchObject({ sharePercentage: '80' })
     })
 
-    it('lists candidates within the bound of the access only (an assistant grant), never the user\'s other companies', async () => {
+    it('[KLEDG-SEC-017] lists candidates within the bound of the access only (an assistant grant), never the user\'s other companies', async () => {
       const bounded = (user: User) => ({ ...accessMod.userGroupAccess(user), companyIds: async () => [holding.companyId, s1.companyId] })
       const candidates = await withUserContext(ACCOUNTANT.id, () => holdingMod.listSubsidiaryCandidates(holding.companyId, ACCOUNTANT, bounded(ACCOUNTANT)), {
         companyIds: [holding.companyId],
@@ -152,7 +152,7 @@ describe.skipIf(!available)('management fees (PostgreSQL)', () => {
       expect(candidates.map((c) => c.id)).toEqual([s1.companyId])
     })
 
-    it('looks holdings up among the given companies only', async () => {
+    it('[KLEDG-SEC-017] looks holdings up among the given companies only', async () => {
       const all = [holding, s1, s2, other].map((books) => books.companyId)
       expect(await holdingMod.listHoldingRefs(ACCOUNTANT, all)).toEqual(expect.arrayContaining([holding.companyId, 'mf-holding']))
       // The holding is not among the companies given, or none of its subsidiaries is.

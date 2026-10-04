@@ -52,7 +52,7 @@ describe('client invoices', () => {
     expect(mapClientInvoice(clientInvoice())).toEqual({ kind: 'refused', reason: 'le total des lignes ne correspond pas au total de la facture' })
   })
 
-  it('refuses an invoice whose amounts would not fit the Decimal(15, 2) columns', () => {
+  it('[KLEDG-SEC-015] refuses an invoice whose amounts would not fit the Decimal(15, 2) columns', () => {
     const huge = clientInvoice({
       total_amount: eur('12000000000000.00'),
       items: [{ title: 'Énorme', quantity: '1', unit_price: eur('10000000000000.00'), vat_rate: '0.2', total_vat: eur('2000000000000.00') }],

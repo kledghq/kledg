@@ -94,7 +94,7 @@ describe.skipIf(!available)('row level security: policy coverage', () => {
     }
   })
 
-  it('pins the search_path of every SECURITY DEFINER function to public, then pg_temp', async () => {
+  it('[KLEDG-SEC-013] pins the search_path of every SECURITY DEFINER function to public, then pg_temp', async () => {
     // A definer function runs with the owner's rights: without pg_temp last,
     // a temporary object of the caller could shadow what it resolves.
     const { rows } = await db.query<{ name: string; config: string[] | null }>(
@@ -107,7 +107,7 @@ describe.skipIf(!available)('row level security: policy coverage', () => {
     expect(unsafe).toEqual([])
   })
 
-  it('lets the application role and PUBLIC execute only the SECURITY DEFINER functions the application calls', async () => {
+  it('[KLEDG-SEC-013] lets the application role and PUBLIC execute only the SECURITY DEFINER functions the application calls', async () => {
     await grantTestAppRole(db)
     // Trigger functions cannot be called directly; the others run as the owner when called.
     const { rows } = await db.query<{ name: string; app: boolean; public: boolean }>(

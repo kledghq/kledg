@@ -129,7 +129,7 @@ describe.skipIf(!available)('invoice routes (PostgreSQL)', () => {
     expect(await response.json()).toMatchObject({ created: 1, alreadyAttached: 0, skipped: [] })
   })
 
-  it('answers a French 400, never a 500, when an amount would not fit the Decimal(15, 2) columns', async () => {
+  it('[KLEDG-SEC-015] answers a French 400, never a 500, when an amount would not fit the Decimal(15, 2) columns', async () => {
     const base = saleBody(books.companyId, books.customerId, 'V-HUGE')
     const line = { label: 'Conseil', vatRateBp: 2000, nature: 'GOODS' }
     // One line beyond the column (quantity x unit price), then 200 lines that fit one by one but not in total.
