@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ForbiddenError, handleError } from '@/lib/accounting/errors'
 import * as policy from '../policy'
-import { assertActionAllowed, authActionOf, INSTANCE_ACTIONS, isActionAllowed, isSelfAuthenticatedApiPath } from '..'
+import { assertActionAllowed, assertCompanyCreationAllowed, authActionOf, INSTANCE_ACTIONS, isActionAllowed, isSelfAuthenticatedApiPath } from '..'
 
 // The real default policy, wrapped so one test can make it refuse.
 vi.mock('../policy', async (importOriginal) => {
   const real = await importOriginal<typeof import('../policy')>()
-  return { ...real, isActionAllowed: vi.fn(real.isActionAllowed), actionRefusalMessage: vi.fn(real.actionRefusalMessage) }
+  return {
+    ...real,
+    isActionAllowed: vi.fn(real.isActionAllowed),
+    actionRefusalMessage: vi.fn(real.actionRefusalMessage),
+    companyCreationRefusal: vi.fn(real.companyCreationRefusal),
+  }
 })
 
 const admin = { id: 'u1', email: 'admin@example.com', role: 'admin' }
@@ -36,6 +41,38 @@ describe('default instance policy', () => {
       expect(message.length).toBeGreaterThan(20)
       expect(message).not.toMatch(/[\u2013\u2014]/)
     }
+  })
+})
+
+describe('company creation', () => {
+  const user = { id: 'u2', email: 'user@example.com', role: 'user' }
+
+  it('is reserved to instance administrators by default, and the creation hook does nothing', async () => {
+    expect(await policy.companyCreationRefusal(admin)).toBeNull()
+    expect(await policy.companyCreationRefusal(user)).toEqual({
+      message: "La création de sociétés est réservée aux administrateurs de l'instance.",
+    })
+    await expect(policy.afterCompanyCreated('c1', user)).resolves.toBeUndefined()
+  })
+
+  it('answers a refusal with a 403, its link in the details', async () => {
+    await expect(assertCompanyCreationAllowed(admin)).resolves.toBeUndefined()
+    expect(handleError(await assertCompanyCreationAllowed(user).catch((e: unknown) => e))).toEqual({
+      message: "La création de sociétés est réservée aux administrateurs de l'instance.",
+      statusCode: 403,
+      details: {},
+    })
+    vi.mocked(policy.companyCreationRefusal).mockResolvedValueOnce({
+      message: 'Limite atteinte.',
+      link: { label: "Changer d'offre", href: '/settings/billing' },
+    })
+    const error = await assertCompanyCreationAllowed(user).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ForbiddenError)
+    expect(handleError(error)).toEqual({
+      message: 'Limite atteinte.',
+      statusCode: 403,
+      details: { link: { label: "Changer d'offre", href: '/settings/billing' } },
+    })
   })
 })
 

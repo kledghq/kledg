@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { isGlobalAdmin } from '@/lib/rbac/authorize'
 import { needsSetup } from '@/lib/setup'
-import { isActionAllowed } from '@/lib/instance'
+import { companyCreationRefusal, isActionAllowed } from '@/lib/instance'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,5 +25,7 @@ export default async function Home() {
   if (company) redirect(`/${company.slug}`)
   // A fresh instance: the administrator starts with the welcome page.
   if (isGlobalAdmin(user) && (await isActionAllowed('onboarding', user))) redirect('/welcome')
+  // A user the instance lets create companies starts with the creation wizard.
+  if (!isGlobalAdmin(user) && !(await companyCreationRefusal(user))) redirect('/companies/new')
   redirect('/companies')
 }

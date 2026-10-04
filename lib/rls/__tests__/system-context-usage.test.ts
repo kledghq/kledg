@@ -18,6 +18,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/rls/context.ts': [],
   // The daily bank sync (CRON_SECRET): lists the integrations, then syncs each company narrowed to it.
   'lib/banking/sync-banks.service.ts': ['cron:bank-sync'],
+  // A company created by a user the instance policy allows: it has no member yet, and its organization and membership are system writes.
+  'lib/companies/create-company.service.ts': ['company-creation'],
 }
 
 function files(entry: string): string[] {

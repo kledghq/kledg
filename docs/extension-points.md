@@ -20,6 +20,8 @@ these two files change, which is rare.
 ```ts
 isActionAllowed(action: InstanceAction, actor: InstanceActor | null): Promise<boolean>
 actionRefusalMessage(action: InstanceAction): string
+companyCreationRefusal(actor: InstanceActor): Promise<ActionRefusal | null>
+afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
 ```
 
@@ -43,12 +45,39 @@ account, for instance). A refused action answers 403 with
 | `setup` | `/` and `/setup`: when refused, the first-run setup never opens (`/setup` redirects to `/login`); accounts are provisioned otherwise |
 | `onboarding` | the guided start: the welcome page after setup (`/welcome`, its user menu entry "État de l'instance"), the "Démarrer" checklist of company dashboards and its help menu entry (`GET/POST /api/companies/[id]/onboarding` answers `enabled: false`, hiding it is refused). Empty states of company pages then show their plain action. A demo instance with seeded companies would refuse it |
 
+### Company creation
+
+```ts
+companyCreationRefusal(actor: InstanceActor): Promise<ActionRefusal | null>
+afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
+```
+
+`companyCreationRefusal` decides who may create a company: the creation
+wizard (`/companies/new`), its SIREN prefill (`GET /api/companies/lookup`)
+and `POST /api/companies`. It answers null when `actor` may, else an
+`ActionRefusal` (`lib/instance/types.ts`): a French message and an optional
+link (`{ label, href }`, an upgrade page for instance). Kledg answers null
+for instance administrators only, so nothing changes on a standard instance.
+A fork that replaces the policy file must define it, which keeps company
+creation closed until the fork decides otherwise.
+
+When the policy lets a user who is not an instance administrator create a
+company, that user becomes its administrator (`companyAdmin` member,
+`lib/companies/create-company.service.ts`), the root page sends a user
+without a company to the wizard, and the companies page shows the "Créer"
+button. A refusal answers 403 with the message, its link in the response
+(`{ error, link }`); the wizard page shows the message and the link instead
+of the form. `afterCompanyCreated` runs once the company is ready (a fork
+records who owns it, for instance); Kledg does nothing there.
+
 `SELF_AUTHENTICATED_API_ROUTES` maps API path prefixes to the reason they are
 safe without a session (an API key, a `CRON_SECRET` bearer token). The
 request proxy (`proxy.ts`) lets them through and the route architecture test
 (`lib/api/__tests__/routes.test.ts`) accepts their handlers without a route
 wrapper. Keep the policy file free of database and Node imports: the proxy
-imports it.
+imports it. A hook that needs the database (a quota, a subscription) loads
+its module inside the function (`const { check } = await import('@/lib/x')`),
+so the proxy never runs it.
 
 To point Kledg's Qonto client at another API (a simulated one for tests or a
 public sandbox instance), set `QONTO_API_URL`; no code change is needed.

@@ -26,6 +26,12 @@ import { logger } from '@/lib/logger'
 export type SystemReason =
   /** The daily bank sync (CRON_SECRET), lib/banking/sync-banks.service.ts. */
   | 'cron:bank-sync'
+  /**
+   * A company created by a user the instance policy allows
+   * (companyCreationRefusal): the company and its organization do not exist
+   * yet, lib/companies/create-company.service.ts.
+   */
+  | 'company-creation'
   /** Command line scripts run by an operator (scripts/). */
   | 'script'
   /** Instance extensions of a fork (docs/extension-points.md), e.g. the demo's throwaway companies. */

@@ -25,10 +25,11 @@ vi.mock('@/lib/rbac/authorize', async () => ({
   isGlobalAdmin: vi.fn(() => false),
 }))
 vi.mock('@/lib/companies/slug', () => ({ resolveCompanyRef: vi.fn(async (ref: string) => ref) }))
-vi.mock('@/lib/instance/policy', () => ({
+// The real policy (every hook and constant of the extension point), with the two refusals replaced.
+vi.mock('@/lib/instance/policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instance/policy')>()),
   isActionAllowed: async (action: string) => !state.refused.has(action),
   actionRefusalMessage: () => 'Refusé par la politique de cette instance.',
-  SELF_AUTHENTICATED_API_ROUTES: {},
 }))
 vi.mock('@/lib/rate-limit', async () => ({
   ...(await vi.importActual<typeof import('@/lib/rate-limit')>('@/lib/rate-limit')),

@@ -49,3 +49,13 @@ export interface InstanceActor {
   /** Better Auth role: "admin" for instance administrators. */
   role: string | null
 }
+
+/**
+ * Why an action is refused, for the actions whose refusal depends on more
+ * than the action (company creation): a French message, and optionally a
+ * link to the page that lifts the refusal (an upgrade page, for instance).
+ */
+export interface ActionRefusal {
+  message: string
+  link?: { label: string; href: string }
+}

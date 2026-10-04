@@ -52,10 +52,11 @@ const db = vi.hoisted(() => {
 const mail = vi.hoisted(() => ({ sendEmail: vi.fn(async () => {}) }))
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: vi.fn(async () => state.user) }))
-vi.mock('@/lib/instance/policy', () => ({
+// The real policy (every hook and constant of the extension point), with the two refusals replaced.
+vi.mock('@/lib/instance/policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instance/policy')>()),
   isActionAllowed: vi.fn(async (action: string) => !state.refused.has(action)),
   actionRefusalMessage: vi.fn(() => 'Refusé par la politique de cette instance.'),
-  SELF_AUTHENTICATED_API_ROUTES: {},
 }))
 vi.mock('@/lib/auth', () => ({ auth: { api: authApi } }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))

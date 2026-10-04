@@ -15,10 +15,11 @@ type User = { id: string; email: string; name: string | null; role: string | nul
 const state = vi.hoisted(() => ({ user: null as null | User, refused: new Set<string>() }))
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: vi.fn(async () => state.user) }))
-vi.mock('@/lib/instance/policy', () => ({
+// The real policy (every hook and constant of the extension point), with the two refusals replaced.
+vi.mock('@/lib/instance/policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instance/policy')>()),
   isActionAllowed: vi.fn(async (action: string) => !state.refused.has(action)),
   actionRefusalMessage: vi.fn(() => 'Refusé par la politique de cette instance.'),
-  SELF_AUTHENTICATED_API_ROUTES: {},
 }))
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
 vi.mock('@/lib/rate-limit', () => ({ enforceRateLimit: vi.fn(async () => {}) }))

@@ -229,6 +229,7 @@ transactions, and Better Auth (which goes through the same Prisma client).
 | Server components and server actions | derived from the session cookie of the request on the first statement without a context, once per request (`lib/rls/request-context.ts`) |
 | MCP (`lib/mcp/auth.ts`) | the user of the API key or OAuth token, then narrowed to the connection's company grant for the tools |
 | Crons (`lib/banking/sync-banks.service.ts`) | `system`, reason `cron:bank-sync`, after the `CRON_SECRET` check: the integrations are listed unscoped, then each company's sync runs narrowed to that company and writes an audit row in it |
+| Company creation by a user (`lib/companies/create-company.service.ts`) | `system`, reason `company-creation`, only when the instance policy lets a user who is not an instance administrator create a company (`companyCreationRefusal`, [extension-points.md](extension-points.md#company-creation)): the company has no member yet, and its organization and the creator's membership are writes that only an unrestricted context may do. Kledg's default policy never takes this path |
 | Better Auth (`/api/auth/*`) | derived from the session cookie when there is one, else `anonymous`; its own tables are exempt |
 | Setup (`/setup`) | `anonymous` (only Better Auth tables are written) |
 | Scripts and seeds | `system` with reason `script` (`withSystemContext`) |

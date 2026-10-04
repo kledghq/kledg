@@ -22,10 +22,11 @@ vi.mock('resend', () => ({
     }
   },
 }))
-vi.mock('@/lib/instance/policy', () => ({
+// The real policy (every hook and constant of the extension point), with the two refusals replaced.
+vi.mock('@/lib/instance/policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instance/policy')>()),
   isActionAllowed: vi.fn(async (action: string) => !state.refused.has(action)),
   actionRefusalMessage: vi.fn(() => 'Refusé.'),
-  SELF_AUTHENTICATED_API_ROUTES: {},
 }))
 vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 

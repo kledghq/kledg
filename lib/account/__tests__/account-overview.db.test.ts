@@ -15,10 +15,11 @@ const state = await vi.hoisted(async () => {
   return { refused: new Set<string>(), emailEnabled: false }
 })
 
-vi.mock('@/lib/instance/policy', () => ({
+// The real policy (every hook and constant of the extension point), with the two refusals replaced.
+vi.mock('@/lib/instance/policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instance/policy')>()),
   isActionAllowed: async (action: string) => !state.refused.has(action),
   actionRefusalMessage: (action: string) => `Action ${action} refusée sur cette instance.`,
-  SELF_AUTHENTICATED_API_ROUTES: {},
 }))
 vi.mock('@/lib/email', () => ({ sendEmail: vi.fn(), isEmailEnabled: async () => state.emailEnabled }))
 

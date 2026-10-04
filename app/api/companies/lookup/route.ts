@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { adminRoute } from '@/lib/api/route'
+import { authedRoute } from '@/lib/api/route'
+import { assertCompanyCreationAllowed } from '@/lib/instance'
 import { lookupSiren } from '@/lib/companies/lookup-siren.service'
 import { normalizeSiren } from '@/lib/companies/siren-lookup'
 import { enforceRateLimit } from '@/lib/rate-limit'
@@ -20,11 +21,12 @@ const Query = z.object({
 
 /**
  * Prefill of the company wizard from the public company directory
- * (lib/companies/lookup-siren.service.ts). Instance administrators only, like
- * company creation. Always 200 with a status: "found", "not_found" or
+ * (lib/companies/lookup-siren.service.ts). Whoever may create a company
+ * (instance administrators, or the users the instance policy allows). Always 200 with a status: "found", "not_found" or
  * "unavailable" (the wizard then lets the user type the information).
  */
-export const GET = adminRoute({ query: Query }, async ({ query, user }) => {
+export const GET = authedRoute({ query: Query }, async ({ query, user }) => {
+  await assertCompanyCreationAllowed({ id: user.id, email: user.email, role: user.role })
   await enforceRateLimit('siren-lookup', user.id)
   return NextResponse.json(await lookupSiren(query.siren))
 })

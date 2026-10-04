@@ -9,8 +9,13 @@
  * fiscal year and chart of accounts follow with the existing idempotent
  * services; the chart of accounts can be seeded again from the plan de
  * comptes page if it fails, so that failure is logged, not fatal (as before).
+ *
+ * A creator who is not an instance administrator (an instance whose policy
+ * lets users create companies, lib/instance/policy.ts) becomes the company's
+ * administrator: otherwise nobody but the instance administrators could open it.
  */
 
+import { randomBytes } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { seedPCG } from '@/prisma/seeds/pcg'
@@ -18,6 +23,7 @@ import { ConflictError } from '@/lib/accounting/errors'
 import { createCompanyAddress } from '@/lib/addresses/manage-addresses.service'
 import { ensureDefaultJournals } from '@/lib/accounting/default-journals'
 import { ensureCompanyOrganization } from '@/lib/rbac/ensure-company-organization.service'
+import { withSystemContext } from '@/lib/rls/context'
 import { isoDateToUtc } from '@/lib/utils/date'
 import { logger } from '@/lib/logger'
 import { centsToDecimal } from '@/lib/utils/money'
@@ -32,7 +38,22 @@ export interface CreatedCompany {
   fiscalYearId: string
 }
 
-export async function createCompany(input: CreateCompanyData): Promise<CreatedCompany> {
+/** Who creates the company: a creator who is not an instance administrator becomes its administrator. */
+export interface CompanyCreator {
+  id: string
+  role: string | null
+}
+
+export async function createCompany(input: CreateCompanyData, creator?: CompanyCreator): Promise<CreatedCompany> {
+  // A creator who is not an instance administrator cannot reach the company
+  // before being its member, nor write its organization and membership
+  // (docs/rls.md, "Membership"): the creation runs as the system, for this
+  // one request the instance policy authorized (companyCreationRefusal).
+  if (creator && creator.role !== 'admin') return withSystemContext('company-creation', () => createCompanyRows(input, creator))
+  return createCompanyRows(input, creator)
+}
+
+async function createCompanyRows(input: CreateCompanyData, creator?: CompanyCreator): Promise<CreatedCompany> {
   if (await companyIdentifierTaken('siren', input.siren)) {
     throw new ConflictError(`Une société avec le SIREN ${input.siren} existe déjà sur cette instance.`)
   }
@@ -138,7 +159,18 @@ export async function createCompany(input: CreateCompanyData): Promise<CreatedCo
     throw error
   }
 
-  await ensureCompanyOrganization(company.id)
+  const organization = await ensureCompanyOrganization(company.id)
+  if (creator && creator.role !== 'admin') {
+    await prisma.member.create({
+      data: {
+        id: randomBytes(12).toString('hex'),
+        userId: creator.id,
+        organizationId: organization.id,
+        role: 'companyAdmin',
+        createdAt: new Date(),
+      },
+    })
+  }
   await ensureDefaultJournals(company.id)
 
   const fiscalYear = await prisma.fiscalYear.create({

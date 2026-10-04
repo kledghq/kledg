@@ -9,7 +9,7 @@
  * SELF_AUTHENTICATED_API_ROUTES. See docs/extension-points.md.
  */
 
-import type { InstanceAction, InstanceActor } from './types'
+import type { ActionRefusal, InstanceAction, InstanceActor } from './types'
 
 /**
  * Whether `actor` may perform `action` on this instance. `actor` is null for
@@ -25,6 +25,22 @@ export async function isActionAllowed(action: InstanceAction, actor: InstanceAct
 export function actionRefusalMessage(action: InstanceAction): string {
   void action
   return "Cette action est désactivée sur cette instance. Contactez l'administrateur de l'instance."
+}
+
+/**
+ * Whether `actor` may create a company (creation wizard, SIREN prefill,
+ * POST /api/companies): null when they may, else why not. A user who is not
+ * an instance administrator becomes the administrator of the company they
+ * create. Kledg: instance administrators only.
+ */
+export async function companyCreationRefusal(actor: InstanceActor): Promise<ActionRefusal | null> {
+  return actor.role === 'admin' ? null : { message: "La création de sociétés est réservée aux administrateurs de l'instance." }
+}
+
+/** Called once `actor` created the company `companyId` (after it is ready). Kledg: nothing. */
+export async function afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void> {
+  void companyId
+  void actor
 }
 
 /**

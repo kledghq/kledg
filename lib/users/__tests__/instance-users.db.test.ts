@@ -29,10 +29,11 @@ const state = await vi.hoisted(async () => {
 })
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => state.session.getStore() ?? null }))
-vi.mock('@/lib/instance/policy', () => ({
+// The real policy (every hook and constant of the extension point), with the two refusals replaced.
+vi.mock('@/lib/instance/policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instance/policy')>()),
   isActionAllowed: async (action: string) => !state.refused.has(action),
   actionRefusalMessage: () => 'Refusé par la politique de cette instance.',
-  SELF_AUTHENTICATED_API_ROUTES: {},
 }))
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
