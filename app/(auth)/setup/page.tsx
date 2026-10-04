@@ -91,12 +91,27 @@ function SetupPending() {
           quelques instants.
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-muted-foreground text-xs">
-        Administrateur : ouvrez le lien d&apos;installation{" "}
-        <code className="bg-muted rounded px-1">
-          /setup?token=&lt;SETUP_TOKEN&gt;
-        </code>
-        , avec la valeur définie lors du déploiement.
+      <CardContent className="text-muted-foreground space-y-2 text-xs">
+        <p>
+          Administrateur&nbsp;: ouvrez le lien d&apos;installation donné à la
+          fin du guide de déploiement de kledg.com.
+        </p>
+        <p>
+          Sinon, calculez-le depuis votre secret{" "}
+          <code className="bg-muted rounded px-1">BETTER_AUTH_SECRET</code>{" "}
+          sur{" "}
+          <a
+            href="https://www.kledg.com/fr/docs/installer-kledg#créer-le-compte-administrateur"
+            className="underline underline-offset-4"
+          >
+            kledg.com
+          </a>{" "}
+          (le calcul se fait dans votre navigateur), ou ouvrez{" "}
+          <code className="bg-muted rounded px-1">
+            /setup?token=&lt;SETUP_TOKEN&gt;
+          </code>{" "}
+          si vous l&apos;avez défini.
+        </p>
       </CardContent>
     </Card>
   );

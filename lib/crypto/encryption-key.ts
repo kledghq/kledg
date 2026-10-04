@@ -22,6 +22,11 @@ export function getEncryptionKey(env: Env = process.env): string | undefined {
   return secret ? deriveKey(secret) : undefined
 }
 
+/** The auth secret Better Auth signs with: the first BETTER_AUTH_SECRETS entry, else BETTER_AUTH_SECRET. */
+export function currentAuthSecret(env: Env = process.env): string | undefined {
+  return authSecrets(env)[0]
+}
+
 /** Keys derived from the auth secrets that are no longer current, for re-encryption only. */
 export function previousEncryptionKeys(env: Env = process.env): string[] {
   if (env.ENCRYPTION_KEY) return []

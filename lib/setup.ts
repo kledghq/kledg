@@ -1,8 +1,9 @@
-import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getAppUrl } from "@/lib/config";
 import { isEmailEnabled, sendEmail } from "@/lib/email";
 import { setupLinkEmail } from "@/lib/email/templates";
+import { currentAuthSecret } from "@/lib/crypto/encryption-key";
 
 /** An instance needs setup until its first user exists. */
 export async function needsSetup(): Promise<boolean> {
@@ -51,20 +52,48 @@ export function isValidSetupToken(given: string | null | undefined): boolean {
 
 /**
  * How the first administrator proves they own the instance:
- * - "token": SETUP_TOKEN is set, /setup?token=<SETUP_TOKEN> opens the form;
- * - "email": no SETUP_TOKEN, but ADMIN_EMAIL is set and the instance can send
- *   emails (RESEND_API_KEY, which the Vercel deploy button provisions with
- *   Resend): /setup sends a one-time link to ADMIN_EMAIL. Receiving it proves
- *   control of that mailbox, like a password reset, so nobody else can claim
- *   the instance and there is no secret to generate and paste;
- * - "blocked": neither, or a SETUP_TOKEN that is too short.
- * An explicit SETUP_TOKEN always wins, even when emails are available.
+ * - "token": SETUP_TOKEN is set, /setup?token=<SETUP_TOKEN> opens the form.
+ *   It always wins, and then nothing else is accepted;
+ * - "email": no SETUP_TOKEN, ADMIN_EMAIL is set and the instance can send
+ *   emails (RESEND_API_KEY): /setup sends a one-time link to ADMIN_EMAIL.
+ *   The derived token below works too;
+ * - "derived": no SETUP_TOKEN and no email: the token derived from the auth
+ *   secret (derivedSetupToken). The deploy guide of kledg.com generated that
+ *   secret in the browser, so it computes the same token and hands over the
+ *   /setup link: nothing more to paste into Vercel, and no email provider
+ *   needed (Resend blocks a Vercel deployment until its domain is verified).
+ *   Whoever knows the auth secret can already sign sessions, so the token
+ *   grants nothing more, and only until the first account exists;
+ * - "blocked": a SETUP_TOKEN too short, or no auth secret at all.
  */
-export async function setupMode(): Promise<"token" | "email" | "blocked"> {
+export async function setupMode(): Promise<"token" | "email" | "derived" | "blocked"> {
   const token = setupTokenStatus();
   if (token === "ok") return "token";
   if (token === "weak") return "blocked";
-  return getSetupAdminEmail() && (await isEmailEnabled()) ? "email" : "blocked";
+  if (getSetupAdminEmail() && (await isEmailEnabled())) return "email";
+  return derivedSetupToken() ? "derived" : "blocked";
+}
+
+/** Label mixed into the derived token; the deploy guide of kledg.com uses the same. */
+export const DERIVED_SETUP_TOKEN_LABEL = "kledg:setup-token:v1";
+
+/**
+ * Setup token derived from the current auth secret: base64url of
+ * HMAC-SHA256(secret, DERIVED_SETUP_TOKEN_LABEL), the secret read as UTF-8.
+ * The deploy guide computes the same value with WebCrypto.
+ */
+export function derivedSetupToken(env: Record<string, string | undefined> = process.env): string | null {
+  const secret = currentAuthSecret(env);
+  return secret ? createHmac("sha256", secret).update(DERIVED_SETUP_TOKEN_LABEL).digest("base64url") : null;
+}
+
+function isValidDerivedToken(given: string | null | undefined): boolean {
+  const expected = derivedSetupToken();
+  const value = given?.trim();
+  if (!expected || !value) return false;
+  const a = Buffer.from(value);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** Verification rows holding the hash of the emailed setup links (Better Auth's table, exempt from RLS). */
@@ -97,7 +126,8 @@ export async function isValidSetupLink(given: string | null | undefined): Promis
 export async function isValidSetupCredential(given: string | null | undefined): Promise<boolean> {
   const mode = await setupMode();
   if (mode === "token") return isValidSetupToken(given);
-  if (mode === "email") return isValidSetupLink(given);
+  if (mode === "email") return isValidDerivedToken(given) || isValidSetupLink(given);
+  if (mode === "derived") return isValidDerivedToken(given);
   return false;
 }
 

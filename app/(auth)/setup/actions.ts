@@ -32,7 +32,7 @@ export type SetupResult = { ok: true } | { ok: false; error: string }
 const ALREADY_DONE = 'Cette instance est déjà configurée.'
 
 const SETUP_BLOCKED =
-  "Installation bloquée : définissez ADMIN_EMAIL et RESEND_API_KEY pour recevoir le lien d'installation par email, ou SETUP_TOKEN (au moins 16 caractères), puis redéployez."
+  "Installation bloquée : définissez BETTER_AUTH_SECRET, ou SETUP_TOKEN (au moins 16 caractères), puis redéployez."
 
 export async function createFirstAdmin(input: z.input<typeof schema>): Promise<SetupResult> {
   const parsed = schema.safeParse(input)
@@ -57,9 +57,9 @@ export async function createFirstAdmin(input: z.input<typeof schema>): Promise<S
     return {
       ok: false,
       error:
-        mode === 'email'
-          ? "Ce lien d'installation a expiré ou a déjà servi. Demandez-en un nouveau depuis /setup."
-          : "Jeton d'installation invalide. Utilisez le lien contenant SETUP_TOKEN, défini lors du déploiement.",
+        mode === 'token'
+          ? "Jeton d'installation invalide. Utilisez le lien contenant SETUP_TOKEN, défini lors du déploiement."
+          : "Ce lien d'installation n'est plus valable. Reprenez le lien donné par le guide de déploiement, ou demandez-en un nouveau.",
     }
   }
 

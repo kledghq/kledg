@@ -31,12 +31,12 @@ Quel que soit l'hébergeur, il vous faut les variables de [configuration.md](con
 
 ## Déploiement sur Vercel
 
-1. Cliquez sur **Déployer sur Vercel** dans le [README](../README.md). Vercel crée une copie du dépôt sur votre compte GitHub, le projet, une base Neon (variables `DATABASE_URL` et `DATABASE_URL_UNPOOLED`) et un compte Resend (variable `RESEND_API_KEY`), reliés au projet. Pour la base, choisissez la région **Frankfurt (eu-central-1)** (les fonctions de Kledg tournent à Francfort, `fra1`, voir `vercel.json`), désactivez l'option **Auth** (Neon Auth, inutile : Kledg a sa propre authentification) et gardez l'offre **Free**.
+1. Cliquez sur **Déployer sur Vercel** dans le [README](../README.md). Vercel crée une copie du dépôt sur votre compte GitHub, le projet, une base Neon (variables `DATABASE_URL` et `DATABASE_URL_UNPOOLED`) reliée au projet. Resend n'est pas dans le bouton : tant que son domaine n'est pas vérifié, l'intégration reste en attente et bloque le déploiement ; ajoutez-le ensuite (voir [Emails](#emails)). Pour la base, choisissez la région **Frankfurt (eu-central-1)** (les fonctions de Kledg tournent à Francfort, `fra1`, voir `vercel.json`), désactivez l'option **Auth** (Neon Auth, inutile : Kledg a sa propre authentification) et gardez l'offre **Free**.
 2. Renseignez les deux variables demandées :
    - `BETTER_AUTH_SECRET` : générez-la avec `openssl rand -base64 32`. Gardez-la : la clé qui chiffre les identifiants bancaires en est dérivée.
-   - `ADMIN_EMAIL` : votre email. Le lien d'installation part vers cette seule adresse. Tant qu'aucun domaine n'est vérifié dans Resend, Resend n'écrit qu'à l'adresse du compte Resend : utilisez celle-là.
+   - `ADMIN_EMAIL` : votre email, seul autorisé à créer le compte administrateur.
 3. Le build exécute `prisma migrate deploy` puis `next build` (script `vercel-build`) : la base est créée automatiquement. Vercel renvoie ensuite vers https://www.kledg.com/fr/welcome, qui récapitule la suite.
-4. Ouvrez `https://<votre-instance>/setup`, cliquez sur **Recevoir le lien d'installation**, puis suivez le lien reçu pour créer le compte administrateur. `SETUP_TOKEN` et `CRON_SECRET` restent possibles (voir [configuration.md](configuration.md)) mais ne sont plus nécessaires sur Vercel.
+4. Ouvrez `https://<votre-instance>/setup?token=<jeton>` et créez le compte administrateur. Sans `SETUP_TOKEN` ni emails, le jeton est dérivé de `BETTER_AUTH_SECRET` (HMAC-SHA256 de `kledg:setup-token:v1`, en base64url, voir `lib/setup.ts`) : le guide de déploiement de kledg.com le calcule dans le navigateur et donne le lien complet. Avec `RESEND_API_KEY`, `/setup` propose aussi d'envoyer le lien à `ADMIN_EMAIL`. `SETUP_TOKEN` et `CRON_SECRET` restent possibles (voir [configuration.md](configuration.md)) mais ne sont plus nécessaires sur Vercel.
 5. Créez votre première société, puis importez un FEC ou connectez votre banque.
 
 ### Domaine personnalisé
