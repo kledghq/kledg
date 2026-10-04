@@ -27,7 +27,8 @@ describe('default instance policy', () => {
 
   it('lets through exactly the self-authenticated paths the policy declares', () => {
     for (const prefix of Object.keys(policy.SELF_AUTHENTICATED_API_ROUTES)) {
-      expect(isSelfAuthenticatedApiPath(`${prefix}x`)).toBe(true)
+      expect(isSelfAuthenticatedApiPath(prefix)).toBe(true)
+      expect(isSelfAuthenticatedApiPath(`${prefix.replace(/\/$/, '')}/x`)).toBe(true)
     }
     // Kledg's own routes are never declared there (they use route wrappers or the routes test allowlist).
     expect(isSelfAuthenticatedApiPath('/api/companies')).toBe(false)

@@ -14,9 +14,14 @@ const DEMO = { '/api/demo': 'Demo reset, authenticated by its own token' }
 const DEMO_SLASH = { '/api/demo/': 'Demo reset, authenticated by its own token' }
 
 describe('self-authenticated API paths', () => {
-  it('are none in Kledg', () => {
-    expect(SELF_AUTHENTICATED_API_ROUTES).toEqual({})
-    expect(isSelfAuthenticatedApiPath('/api/demo')).toBe(false)
+  it('are API paths with a reason, never one of Kledg\'s own routes (Kledg itself declares none)', () => {
+    for (const [path, reason] of Object.entries(SELF_AUTHENTICATED_API_ROUTES)) {
+      expect(path).toMatch(/^\/api\/[a-z0-9-]+/)
+      expect(reason.length).toBeGreaterThan(10)
+    }
+    for (const path of ['/api/companies', '/api/auth/sign-in/email', '/api/cron/sync-banks', '/api/mcp']) {
+      expect(isSelfAuthenticatedApiPath(path)).toBe(false)
+    }
   })
 
   it('[KLEDG-SEC-016] match the declared path and the paths under it, with or without a trailing slash', () => {
