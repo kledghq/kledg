@@ -10,6 +10,7 @@ import { ThemeColorSync } from "@/components/pwa/theme-color-sync";
 import { THEME_COLORS } from "@/lib/pwa/paths";
 import { getCurrentUser } from "@/lib/session";
 import { chartStyleForUser } from "@/lib/appearance/appearance.service";
+import { InstanceDocumentEnd } from "@/components/instance/slots";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -82,6 +83,7 @@ export default async function RootLayout({
           <PwaProvider />
           <ThemeColorSync />
         </ThemeProvider>
+        <InstanceDocumentEnd nonce={nonce} />
       </body>
     </html>
   );

@@ -41,6 +41,16 @@ export function CompanyOverlay(props: { user: InstanceActor }) {
   return null
 }
 
+/**
+ * At the end of <body> on every page, signed in or not (an analytics or
+ * status script of the instance). `nonce` is the page CSP nonce, for a
+ * script the slot renders inline. Kledg: nothing, no tracking.
+ */
+export function InstanceDocumentEnd(props: { nonce?: string }) {
+  void props
+  return null
+}
+
 /** The user menu entries (and the matching settings links) shown to `user`. */
 export async function filterUserMenu(items: UserMenuItem[], user: InstanceActor): Promise<UserMenuItem[]> {
   void user

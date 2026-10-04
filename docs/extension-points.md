@@ -134,6 +134,7 @@ them server actions (to create an account and sign it in, for instance).
 |---|---|---|
 | `InstanceBanner` | above the header of company and settings pages (`components/layout/app-shell.tsx`) | `user` |
 | `LoginExtra` | above the sign-in card on `/login` | `redirectTo`: checked same-origin path to open after signing in |
+| `InstanceDocumentEnd` | at the end of `<body>` on every page, signed in or not (`app/layout.tsx`): an analytics or status script | `nonce`: the page CSP nonce |
 | `CompanyOverlay` | after the content of company pages (`app/(company)/layout.tsx`); floating UI goes bottom right | `user` |
 | `filterUserMenu(items, user)` | filters the account and instance pages (`components/layout/user-menu.ts`): the user menu entry (`inMenu`) and the settings sidebar links | returns the entries to show |
 | `instanceSettingsLinks(user)` | for a user who is not an instance administrator: the instance's own versions of the administrators' pages, by user menu entry (`{ instance, users, updates }`, absolute URLs). The settings sidebar then shows the "Instance" group with these links only, the breadcrumb names them and the version line links to `updates`. Kledg returns null | returns the links or null |
