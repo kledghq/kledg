@@ -102,3 +102,29 @@ Only tokens registered in the page are accepted: a drag from another site or
 a crafted link cannot make the dialog load anything. The dialog announces
 its state with `IMPORT_DIALOG_STATE_EVENT` (open, preview shown) so a panel
 can fold away while a preview needs the room.
+
+## Row level security
+
+With `KLEDG_RLS=enforce` ([rls.md](rls.md)), every statement runs with the
+context of its request: route wrappers, the MCP endpoint, crons, and the
+session of server components and server actions. Code of a fork that runs
+outside those paths (a script, a job that provisions or purges throwaway
+companies, the demo's sandbox) sets its context with `lib/rls/context.ts`:
+
+```ts
+import { withSystemContext, withUserContext } from '@/lib/rls/context'
+
+// A server job without a user, limited to the companies it handles.
+await withSystemContext('instance-extension', () => purgeCompany(id), { companyIds: [id] })
+
+// Work done for a user (an account created and signed in by the fork).
+await withUserContext(userId, () => createDemoCompany(userId))
+```
+
+`'instance-extension'` is the reason reserved to forks; the system
+context reaches every company when `companyIds` is absent, so pass it
+whenever the job concerns known companies. The flags of the database
+guards (`kledg.company_purge`, `kledg.closed_year_bypass`) still work inside
+such a transaction. Add the file to the allowlist of
+`lib/rls/__tests__/system-context-usage.test.ts` in the fork.
+

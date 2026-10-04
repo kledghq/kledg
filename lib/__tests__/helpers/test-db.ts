@@ -12,12 +12,22 @@
  *
  * KLEDG_REQUIRE_TEST_DB=true (set in CI) turns the skip into a failure: a
  * run that expects the database never passes silently without it.
+ *
+ * KLEDG_RLS=enforce runs the suite under row level security (docs/rls.md):
+ * the application connects as the role `kledg_app_test` (created here, not
+ * the owner, no BYPASSRLS), with the policies switched on. Rows that a test
+ * writes or reads directly, outside a request, go through the `system`
+ * context (KLEDG_RLS_TEST_CONTEXT); route handlers, MCP tools and crons use
+ * their real contexts. Raw `pg` clients of the tests keep the owner's URL
+ * (returned by useTestDatabase and prepareTestDatabase).
  */
 
 import { createHash } from 'crypto'
 import { readdirSync, readFileSync } from 'fs'
 import path from 'path'
 import { Client } from 'pg'
+import { appRoleStatements } from '../../rls/app-role'
+import { rlsMode } from '../../rls/mode'
 
 const DEFAULT_BASE_URL = 'postgresql://kledg:kledg@localhost:55432/kledg_test'
 export const DEFAULT_TEST_DB_PREFIX = 'kledg_test'
@@ -53,15 +63,35 @@ function urlFor(database: string, env: Env = process.env): string {
   return url.toString()
 }
 
-/** URL of the test database `name` (see testDatabaseName). */
+/** URL of the test database `name` (see testDatabaseName), as the owner. */
 export function testDatabaseUrl(name: string, env: Env = process.env): string {
   return urlFor(testDatabaseName(name, env), env)
 }
 
+/** The application role of KLEDG_RLS=enforce runs (password = name: a local test server only). */
+export const TEST_APP_ROLE = 'kledg_app_test'
+
+function rlsEnforced(env: Env = process.env): boolean {
+  return rlsMode(env) === 'enforce'
+}
+
+/** URL of the test database `name` as the application role (KLEDG_RLS=enforce). */
+export function testAppDatabaseUrl(name: string, env: Env = process.env): string {
+  const url = new URL(testDatabaseUrl(name, env))
+  url.username = TEST_APP_ROLE
+  url.password = TEST_APP_ROLE
+  return url.toString()
+}
+
+/** The URL the application (lib/prisma) uses for `name`: the application role under KLEDG_RLS=enforce. */
+function applicationUrl(name: string, env: Env = process.env): string {
+  return rlsEnforced(env) ? testAppDatabaseUrl(name, env) : testDatabaseUrl(name, env)
+}
+
 /**
- * Points DATABASE_URL at the test database `name` and returns its URL. Call
- * it in vi.hoisted, before lib/prisma is imported (Prisma reads DATABASE_URL
- * when the module loads):
+ * Points DATABASE_URL at the test database `name` and returns its URL (the
+ * owner's, for raw clients). Call it in vi.hoisted, before lib/prisma is
+ * imported (Prisma reads DATABASE_URL when the module loads):
  *
  *   await vi.hoisted(async () => {
  *     const { useTestDatabase } = await import('@/lib/__tests__/helpers/test-db')
@@ -69,9 +99,10 @@ export function testDatabaseUrl(name: string, env: Env = process.env): string {
  *   })
  */
 export function useTestDatabase(name: string): string {
-  const url = testDatabaseUrl(name)
-  process.env.DATABASE_URL = url
-  return url
+  delete process.env.KLEDG_DATABASE_URL
+  process.env.DATABASE_URL = applicationUrl(name)
+  if (rlsEnforced()) process.env.KLEDG_RLS_TEST_CONTEXT = 'system'
+  return testDatabaseUrl(name)
 }
 
 async function connect(url: string): Promise<Client> {
@@ -153,6 +184,7 @@ export async function prepareTestDatabase(name: string): Promise<string> {
         await gate.end()
       }
     }
+    if (rlsEnforced()) await grantTestAppRole(client)
     const tables = await client.query<{ tablename: string }>(
       "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
     )
@@ -163,8 +195,55 @@ export async function prepareTestDatabase(name: string): Promise<string> {
     await client.end()
   }
 
-  if (process.env.DATABASE_URL !== url) {
-    throw new Error(`DATABASE_URL must be ${url} (call useTestDatabase('${name}') in vi.hoisted)`)
+  if (process.env.DATABASE_URL !== applicationUrl(name)) {
+    throw new Error(`DATABASE_URL must be ${applicationUrl(name)} (call useTestDatabase('${name}') in vi.hoisted)`)
   }
   return url
+}
+
+/**
+ * Creates the application role (once per server: roles are shared by the
+ * databases) and grants it this database, with the policies switched on.
+ * Skipped when already done. Serialized across the server: grants to one
+ * role from several databases at once update the shared catalogs and fail
+ * ("tuple concurrently updated").
+ */
+export async function grantTestAppRole(client: Client): Promise<void> {
+  const ready = await client.query<{ ready: boolean }>(
+    `SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)
+       THEN has_table_privilege($1, 'public.companies', 'SELECT') AND kledg_rls_enforced()
+       ELSE false END AS ready`,
+    [TEST_APP_ROLE],
+  )
+  if (ready.rows[0]?.ready) return
+  const gate = await connect(urlFor('postgres'))
+  try {
+    await gate.query('SELECT pg_advisory_lock(hashtext($1))', ['kledg:test-db-app-role'])
+    // The password is set at creation only.
+    const [create] = appRoleStatements(TEST_APP_ROLE, TEST_APP_ROLE)
+    const [, ...grants] = appRoleStatements(TEST_APP_ROLE)
+    await client.query(create)
+    for (const statement of grants) await client.query(statement)
+  } finally {
+    await gate.end()
+  }
+}
+
+/**
+ * Runs `sql` as the owner of the test database `name`: the role of the
+ * migrations, as `prisma migrate deploy` would. Migration tests replay their
+ * migration with it (DDL, data migrations, catalog reads that only show the
+ * owner's tables); the application role cannot (KLEDG_RLS=enforce).
+ */
+export async function queryAsOwner<T extends Record<string, unknown> = Record<string, unknown>>(
+  name: string,
+  sql: string,
+  params: unknown[] = [],
+): Promise<T[]> {
+  const client = await connect(testDatabaseUrl(name))
+  try {
+    return (await client.query<T>(sql, params)).rows
+  } finally {
+    await client.end()
+  }
 }

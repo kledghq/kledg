@@ -16,7 +16,7 @@ await vi.hoisted(async () => {
   useTestDatabase('map_unmapped_bank_accounts')
 })
 
-import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 
 const available = await testDatabaseAvailable()
 
@@ -68,9 +68,9 @@ describe.skipIf(!available)('migration 20261011100000_map_unmapped_bank_accounts
     const none = await company(['401000'])
     const alreadyMapped = await company(['512000', '512100'], { mapped: '512100', defaultBankAccountCode: '512000' })
 
-    await prisma.$executeRawUnsafe(MIGRATION)
+    await queryAsOwner('map_unmapped_bank_accounts', MIGRATION)
     // Idempotent
-    await prisma.$executeRawUnsafe(MIGRATION)
+    await queryAsOwner('map_unmapped_bank_accounts', MIGRATION)
 
     expect(await code(single)).toBe('512000')
     expect(await code(defaultChart)).toBe('5121')

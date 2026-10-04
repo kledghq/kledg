@@ -25,6 +25,7 @@ const state = await vi.hoisted(async () => {
 vi.mock('next/headers', () => ({ headers: async () => new Headers({ cookie: state.cookie }) }))
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { withSystemContext } from '@/lib/rls/context'
 
 const available = await testDatabaseAvailable()
 
@@ -125,7 +126,8 @@ describe.skipIf(!available)('approval of actions prepared by assistants', () => 
     // Another user: 404.
     state.cookie = other.cookie
     expect((await post(id, { decision: 'approve', password: PASSWORD }, { cookie: other.cookie, origin: ORIGIN })).status).toBe(404)
-    expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id } })).status).toBe('pending')
+    // Read by the test itself, not as the signed-in user of the mocked cookie (row level security).
+    expect((await withSystemContext('test', () => prisma.mcpPendingAction.findUniqueOrThrow({ where: { id } }))).status).toBe('pending')
 
     // The owner approves; the assistant executes once.
     state.cookie = owner.cookie
@@ -133,8 +135,8 @@ describe.skipIf(!available)('approval of actions prepared by assistants', () => 
     expect((await post(id, approve, { cookie: owner.cookie, origin: ORIGIN })).status).toBe(409)
     const done = await tool(key, 'delete_rule', { companyId: company.id, ruleId: rule.id, actionId: id })
     expect(done.ok, done.text).toBe(true)
-    expect(await prisma.transactionRule.count({ where: { id: rule.id } })).toBe(0)
-    expect(await prisma.auditLog.count({ where: { action: 'MCP_ACTION_APPROVED' } })).toBe(1)
+    expect(await withSystemContext('test', () => prisma.transactionRule.count({ where: { id: rule.id } }))).toBe(0)
+    expect(await withSystemContext('test', () => prisma.auditLog.count({ where: { action: 'MCP_ACTION_APPROVED' } }))).toBe(1)
   })
 
   it('shows the approval page only while a connection uses validation mode or an action waits', async () => {

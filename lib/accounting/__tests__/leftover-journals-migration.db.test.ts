@@ -15,7 +15,7 @@ await vi.hoisted(async () => {
   useTestDatabase('leftover_journals')
 })
 
-import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 
 const available = await testDatabaseAvailable()
 
@@ -77,8 +77,9 @@ async function draftEntryIn(companyId: string, journalCode: string) {
   })
 }
 
+/** As the migrations run: with the owner's connection. */
 async function runMigration() {
-  await prisma.$executeRawUnsafe(MIGRATION)
+  await queryAsOwner('leftover_journals', MIGRATION)
 }
 
 const CANONICAL = ['AC Achats', 'AN À-nouveaux', 'BQ Banque', 'OD Opérations diverses', 'VE Ventes']
@@ -154,10 +155,13 @@ describe.skipIf(!available)('leftover journals migration', () => {
       'accounting_entries.journalId',
       'transaction_rules.journalCode',
     ])
-    const foreignKeys = await prisma.$queryRaw<{ table_name: string }[]>`
-      SELECT tc.table_name FROM information_schema.table_constraints tc
+    // information_schema shows constraints of the tables the role owns: read as the owner.
+    const foreignKeys = await queryAsOwner<{ table_name: string }>(
+      'leftover_journals',
+      `SELECT tc.table_name FROM information_schema.table_constraints tc
       JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name
-      WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name = 'journals'`
+      WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name = 'journals'`,
+    )
     expect(foreignKeys.map((f) => f.table_name)).toEqual(['accounting_entries'])
   })
 })

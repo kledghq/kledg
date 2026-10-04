@@ -352,10 +352,15 @@ model EntryLine {
   account         Account          @relation("AccountEntryLines", fields: [accountId, accountFiscalYearId], references: [id, fiscalYearId], onDelete: NoAction)
   invoicePayments InvoicePayment[]
 
+  /// Company of the entry, set by the database (trigger kledg_rls_entry_line_company)
+  /// for the row level security policies (docs/rls.md). Never written by the app.
+  companyId String? @ignore
+
   @@index([accountingEntryId])
   @@index([accountId])
   @@index([accountFiscalYearId])
   @@index([accountId, letteringCode])
+  @@index([companyId])
   @@map("entry_lines")
 }
 
@@ -512,11 +517,17 @@ model BankTransaction {
   reconciliationEntry AccountingEntry?      @relation("ReconciliationEntry")
   syncMatch           BankTransactionMatch?
 
+  /// Company of the bank account's connection, set by the database (trigger
+  /// kledg_rls_bank_transaction_company) for the row level security policies
+  /// (docs/rls.md). Never written by the app.
+  companyId String? @ignore
+
   @@unique([bankAccountId, externalTransactionId])
   @@index([bankAccountId])
   @@index([date])
   @@index([reconciled])
   @@index([bankAccountId, date])
+  @@index([companyId])
   @@map("bank_transactions")
 }
 

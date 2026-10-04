@@ -59,7 +59,8 @@ export async function deleteCompany(id: string, actor: Pick<CurrentUser, 'id' | 
     await prisma.$transaction(async (tx) => {
       // Checked under the transaction; the database trigger closes the race with a concurrent validation.
       if (await companyHasBooks(id, tx)) throw new ConflictError(COMPANY_HAS_BOOKS_MESSAGE)
-      await tx.auditLog.create({
+      // createMany: no RETURNING (a row without company is not readable back under RLS).
+      await tx.auditLog.createMany({
         data: {
           userId: actor.email || actor.id,
           action: 'COMPANY_DELETED',

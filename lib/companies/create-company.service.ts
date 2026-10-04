@@ -22,6 +22,7 @@ import { isoDateToUtc } from '@/lib/utils/date'
 import { logger } from '@/lib/logger'
 import { centsToDecimal } from '@/lib/utils/money'
 import { generateCompanySlug } from './slug'
+import { companyIdentifierTaken } from './identifiers'
 import { sharePercentage, shareCapitalCents, type CreateCompanyData } from './company-wizard'
 
 export interface CreatedCompany {
@@ -32,8 +33,7 @@ export interface CreatedCompany {
 }
 
 export async function createCompany(input: CreateCompanyData): Promise<CreatedCompany> {
-  const existing = await prisma.company.findUnique({ where: { siren: input.siren }, select: { id: true } })
-  if (existing) {
+  if (await companyIdentifierTaken('siren', input.siren)) {
     throw new ConflictError(`Une société avec le SIREN ${input.siren} existe déjà sur cette instance.`)
   }
 

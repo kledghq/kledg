@@ -66,6 +66,18 @@ KLEDG_TEST_DB_PREFIX=kledg_ci_local KLEDG_REQUIRE_TEST_DB=true pnpm test:run
     | xargs -I{} psql "$KLEDG_TEST_DATABASE_URL" -c 'DROP DATABASE "{}" WITH (FORCE)'
   ```
 
+**Row level security** ([docs/rls.md](../../docs/rls.md)): with
+`KLEDG_RLS=enforce` the helper creates the role `kledg_app_test`, switches the
+policies on and connects the application as that role. Rows a test writes or
+reads directly run as the `system` context; route handlers, MCP tools and
+crons use their real context. A test that mocks the signed-in user seeds its
+membership too (`seedMembership`, `helpers/membership.ts`); a migration test
+replays its SQL as the owner (`queryAsOwner`).
+
+```bash
+KLEDG_RLS=enforce KLEDG_TEST_DB_PREFIX=kledg_rls KLEDG_REQUIRE_TEST_DB=true pnpm test:run
+```
+
 A new database test points `DATABASE_URL` at its database before
 `lib/prisma` is imported, then prepares it in `beforeAll`:
 

@@ -20,6 +20,7 @@ import { optionalCalendarDay, optionalText } from '@/lib/api/zod-fields'
 import { LEGAL_TYPES } from './legal-forms'
 import { parseLogoInput } from './logo'
 import { assertCompanySlugAvailable } from './slug'
+import { companyIdentifierTaken } from './identifiers'
 
 /** A whole number or a decimal string, as forms send them; '' and null clear the value. */
 const numberInput = z.union([z.number(), z.string(), z.null()]).optional()
@@ -98,8 +99,7 @@ export async function getCompanyById(id: string) {
 
 /** The SIREN identifies one company of the instance. */
 async function assertSirenAvailable(siren: string, companyId: string): Promise<void> {
-  const existing = await prisma.company.findUnique({ where: { siren }, select: { id: true } })
-  if (existing && existing.id !== companyId) {
+  if (await companyIdentifierTaken('siren', siren, companyId)) {
     throw new ConflictError('Une autre société utilise déjà ce SIREN.')
   }
 }

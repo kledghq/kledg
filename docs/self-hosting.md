@@ -262,6 +262,37 @@ Points d'attention :
 - Définissez `BETTER_AUTH_URL` avec l'URL publique de l'instance.
 - La synchronisation bancaire quotidienne est un appel HTTP : voir [Tâches planifiées](#tâches-planifiées).
 
+## Isolation des sociétés dans la base (RLS)
+
+Kledg sépare les sociétés dans l'application. Avec `KLEDG_RLS=enforce`, PostgreSQL le garantit aussi (sécurité au niveau des lignes) : même une requête qui oublierait son filtre ne lit ni n'écrit les lignes d'une autre société. Recommandé dès que l'instance héberge des sociétés qui ne doivent pas se voir. Détails : [rls.md](rls.md).
+
+Par défaut (`KLEDG_RLS` absent ou `off`), rien ne change : les politiques sont dans la base mais laissent tout passer tant qu'elles ne sont pas activées.
+
+Il faut deux rôles PostgreSQL : le propriétaire du schéma, qui applique les migrations (celui que vous utilisez aujourd'hui), et un rôle applicatif sans droits de structure, soumis aux politiques.
+
+1. Mettez l'instance à jour (la migration ajoute les politiques).
+2. Créez le rôle applicatif et activez les politiques, avec la connexion du propriétaire :
+
+   ```bash
+   DATABASE_MIGRATION_URL="<URL directe du propriétaire>" pnpm db:rls-role -- --password "$(openssl rand -base64 32)"
+   ```
+
+   Notez le mot de passe. Le script est idempotent ; `--role <nom>` choisit un autre nom que `kledg_app`, `--off` désactive les politiques.
+3. Donnez ce rôle à l'application et activez l'isolation :
+   - `KLEDG_DATABASE_URL` : la même URL que `DATABASE_URL`, avec `kledg_app` et son mot de passe ;
+   - `KLEDG_RLS=enforce`.
+
+   Les migrations continuent d'utiliser `DATABASE_MIGRATION_URL`, à défaut `DATABASE_URL_UNPOOLED` puis `DATABASE_URL` : gardez-y le propriétaire.
+4. Redéployez. Au premier accès, Kledg vérifie que son rôle n'est ni superutilisateur, ni propriétaire des tables, ni `BYPASSRLS`, et que les politiques sont activées ; sinon il refuse toute requête et l'écrit dans le journal du serveur.
+
+Par hébergement :
+
+- **Vercel + Neon** : l'intégration Neon gère `DATABASE_URL` et `DATABASE_URL_UNPOOLED` (rôle propriétaire `neondb_owner`), laissez-les telles quelles. Lancez l'étape 2 depuis votre poste avec l'URL de `DATABASE_URL_UNPOOLED` (`vercel env pull` la récupère) ; créez le rôle par ce script plutôt que depuis la console Neon. Dans **Settings > Environment Variables**, ajoutez `KLEDG_DATABASE_URL` (l'URL avec pooling de `DATABASE_URL`, hôte `-pooler`, où vous remplacez l'utilisateur et le mot de passe par ceux de `kledg_app`) et `KLEDG_RLS=enforce`, pour Production et, si vous le souhaitez, Preview. Les branches Neon des déploiements Preview sont des copies de la base : elles contiennent déjà le rôle.
+- **Docker, Coolify, Dokploy** : lancez l'étape 2 depuis une copie du dépôt, `DATABASE_MIGRATION_URL` pointant sur la base (le rôle `kledg` du conteneur PostgreSQL en est le propriétaire) ; ajoutez `KLEDG_DATABASE_URL` et `KLEDG_RLS=enforce` à l'environnement du service `app`. Les migrations du démarrage (`docker-migrate.sh`) utilisent `DATABASE_MIGRATION_URL` si vous la définissez, sinon `DATABASE_URL` (le propriétaire).
+- **Railway, Render, Fly.io, Clever Cloud** : même principe. La variable injectée par l'hébergeur (`DATABASE_URL`, `POSTGRESQL_ADDON_URI`) reste celle du propriétaire et sert aux migrations ; `KLEDG_DATABASE_URL` désigne `kledg_app`.
+
+Pour revenir en arrière : retirez `KLEDG_RLS` et `KLEDG_DATABASE_URL`, puis redéployez (le propriétaire n'est jamais soumis aux politiques).
+
 ## Adresse IP des clients
 
 Kledg limite les tentatives de connexion par adresse IP et l'écrit dans le journal d'audit. Il ne croit un en-tête que si la configuration le lui dit ([configuration.md](configuration.md), `TRUST_PROXY_HOPS` et `RATE_LIMIT_IP_HEADER`) : par défaut, aucun. `TRUST_PROXY_HOPS=N` prend la N-ième adresse en partant de la droite de `X-Forwarded-For`, c'est-à-dire celle ajoutée par le N-ième proxy que vous contrôlez ; ce que le client a écrit à gauche est ignoré.

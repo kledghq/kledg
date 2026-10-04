@@ -16,7 +16,7 @@ await vi.hoisted(async () => {
   useTestDatabase('keep_rules_auto_applied')
 })
 
-import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 
 const available = await testDatabaseAvailable()
 
@@ -42,7 +42,9 @@ describe.skipIf(!available)('migration 20261011110000_keep_existing_rules_auto_a
     const disabled = await rule('Ancienne règle', { enabled: false, createdAt: before })
     const marked = await rule('Abonnements', { autoCreate: true, createdAt: before })
 
-    await prisma.$executeRawUnsafe(MIGRATION)
+    // As the migrations run: with the owner's connection.
+    const migrate = () => queryAsOwner('keep_rules_auto_applied', MIGRATION)
+    await migrate()
 
     const autoCreate = async (id: string) => (await prisma.transactionRule.findUniqueOrThrow({ where: { id } })).autoCreate
     expect(await autoCreate(enabled.id)).toBe(true)
@@ -50,14 +52,15 @@ describe.skipIf(!available)('migration 20261011110000_keep_existing_rules_auto_a
     expect(await autoCreate(marked.id)).toBe(true)
 
     // A rule created after the migration ran, box unchecked in the dialog: a second run leaves it alone
-    await prisma.$executeRawUnsafe(`CREATE TABLE "_prisma_migrations" ("migration_name" text, "started_at" timestamptz)`)
-    await prisma.$executeRawUnsafe(
+    await queryAsOwner('keep_rules_auto_applied', `CREATE TABLE "_prisma_migrations" ("migration_name" text, "started_at" timestamptz)`)
+    await queryAsOwner(
+      'keep_rules_auto_applied',
       `INSERT INTO "_prisma_migrations" VALUES ('20261011110000_keep_existing_rules_auto_applied', '2026-10-01T00:00:00Z')`,
     )
     const later = await rule('Nouvelle règle', { createdAt: new Date('2026-10-05T09:00:00Z') })
-    await prisma.$executeRawUnsafe(MIGRATION)
+    await migrate()
     expect(await autoCreate(later.id)).toBe(false)
     expect(await autoCreate(enabled.id)).toBe(true)
-    await prisma.$executeRawUnsafe(`DROP TABLE "_prisma_migrations"`)
+    await queryAsOwner('keep_rules_auto_applied', `DROP TABLE "_prisma_migrations"`)
   })
 })

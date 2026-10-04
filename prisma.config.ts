@@ -1,7 +1,9 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-// Migrations use the direct (non-pooled) connection.
+// Migrations use the direct (non-pooled) connection of the role that owns the
+// schema: DATABASE_MIGRATION_URL when the application connects as another
+// role (KLEDG_RLS=enforce, docs/rls.md), else the unpooled URL.
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -9,6 +11,7 @@ export default defineConfig({
   },
   datasource: {
     url:
+      process.env.DATABASE_MIGRATION_URL ||
       process.env.DATABASE_URL_UNPOOLED ||
       process.env.POSTGRES_URL_NON_POOLING ||
       process.env.DATABASE_URL ||

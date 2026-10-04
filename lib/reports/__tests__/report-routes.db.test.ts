@@ -29,6 +29,7 @@ vi.mock('@/lib/rbac/authorize', async () => {
 })
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { seedMembership } from '@/lib/__tests__/helpers/membership'
 
 const available = await testDatabaseAvailable()
 
@@ -51,6 +52,8 @@ const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
 async function seed() {
   const { createEntry } = await import('@/lib/accounting/services/entry-lifecycle.service')
   const company = await prisma.company.create({ data: { name: 'Atelier Été', slug: 'atelier', siren: '123456789' } })
+  // The mocked session user is a member in the database too (row level security).
+  await seedMembership(prisma, 'user-1', company.id)
   const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
   const fy = await prisma.fiscalYear.create({ data: { companyId: company.id, year: 2025, startDate: day('2025-01-01'), endDate: day('2025-12-31') } })
   const otherFy = await prisma.fiscalYear.create({ data: { companyId: other.id, year: 2025, startDate: day('2025-01-01'), endDate: day('2025-12-31') } })

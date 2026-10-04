@@ -21,7 +21,7 @@ await vi.hoisted(async () => {
   useTestDatabase('cov_validated_at_backfill')
 })
 
-import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 
 const available = await testDatabaseAvailable()
 
@@ -33,12 +33,16 @@ const BACKFILL = MIGRATION.match(/^UPDATE "accounting_entries" SET "validatedAt"
 
 let prisma: typeof import('@/lib/prisma').prisma
 
+/** As the migrations run: with the owner's connection (DDL), in one transaction. */
 async function runBackfill() {
-  await prisma.$transaction([
-    prisma.$executeRawUnsafe('ALTER TABLE "accounting_entries" DISABLE TRIGGER "accounting_entries_guard"'),
-    prisma.$executeRawUnsafe(BACKFILL!),
-    prisma.$executeRawUnsafe('ALTER TABLE "accounting_entries" ENABLE TRIGGER "accounting_entries_guard"'),
-  ])
+  await queryAsOwner(
+    'cov_validated_at_backfill',
+    `BEGIN;
+     ALTER TABLE "accounting_entries" DISABLE TRIGGER "accounting_entries_guard";
+     ${BACKFILL!}
+     ALTER TABLE "accounting_entries" ENABLE TRIGGER "accounting_entries_guard";
+     COMMIT;`,
+  )
 }
 
 describe.skipIf(!available)('migration 20261003180000_entry_validation_and_fec_fields: validatedAt backfill', () => {

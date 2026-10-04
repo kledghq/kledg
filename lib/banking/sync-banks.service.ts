@@ -18,6 +18,8 @@ import { getEncryptionKey } from '@/lib/crypto/encryption-key'
 import { toErrorResponse } from '@/lib/api/errors'
 import { errorReason } from '@/lib/banking/errors'
 import { BANK_PROVIDERS } from '@/lib/banking/providers'
+import { withSystemContext } from '@/lib/rls/context'
+import { writeAuditLog } from '@/lib/audit'
 
 export interface BankSyncRunResult {
   companyId: string
@@ -35,17 +37,36 @@ function cronFeatures(provider: string): IntegrationFeature[] {
     : [IntegrationFeature.BANKING_ACCOUNTS, IntegrationFeature.BANKING_TRANSACTIONS]
 }
 
+/**
+ * Runs without a user (row level security, docs/rls.md): the system context
+ * lists the integrations of every company, then each sync runs narrowed to
+ * its own company, so a sync can only read and write that company's rows,
+ * and is recorded in that company's audit log.
+ */
 export async function syncAllBankIntegrations(encryptionKey: string): Promise<BankSyncRunResult[]> {
-  const integrations = await prisma.integration.findMany({
-    where: { provider: { in: [...BANK_PROVIDERS] }, status: 'active', type: 'BANKING' },
-    select: { id: true, companyId: true, provider: true },
-  })
+  const integrations = await withSystemContext('cron:bank-sync', () =>
+    prisma.integration.findMany({
+      where: { provider: { in: [...BANK_PROVIDERS] }, status: 'active', type: 'BANKING' },
+      select: { id: true, companyId: true, provider: true },
+    }),
+  )
   const results: BankSyncRunResult[] = []
   for (const integration of integrations) {
     try {
-      const result = await syncIntegration(integration.id, encryptionKey, cronFeatures(integration.provider), {
-        maxDays: 30,
-      })
+      const result = await withSystemContext(
+        'cron:bank-sync',
+        async () => {
+          const synced = await syncIntegration(integration.id, encryptionKey, cronFeatures(integration.provider), { maxDays: 30 })
+          await writeAuditLog(synced.success ? 'info' : 'warn', 'Synchronisation bancaire planifiée', {
+            action: 'cron.bank-sync',
+            companyId: integration.companyId,
+            metadata: { integrationId: integration.id, provider: integration.provider, itemsSynced: synced.itemsSynced },
+            context: { userId: null },
+          })
+          return synced
+        },
+        { companyIds: [integration.companyId] },
+      )
       results.push({ ...base(integration), success: result.success, itemsSynced: result.itemsSynced, errors: result.errors })
     } catch (error) {
       results.push({ ...base(integration), success: false, itemsSynced: 0, errors: [errorReason(error)] })
