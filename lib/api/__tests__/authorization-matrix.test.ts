@@ -159,6 +159,16 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
       label: 'Virement client',
     },
   })
+  // A monthly subscription (three debits to the same counterparty), detected by /api/subscriptions
+  const subscriptionPayments = []
+  for (const day of ['2026-01-10', '2026-02-10', '2026-03-10']) {
+    subscriptionPayments.push(
+      await prisma.bankTransaction.create({
+        data: { bankAccountId: bankAccount.id, externalTransactionId: `sub-${prefix}-${day}`, amount: 29.9, date: new Date(`${day}T00:00:00Z`), side: 'debit', label: 'CB LOGICIEL', counterpartyName: 'Logiciel' },
+      }),
+    )
+  }
+  ids[`${prefix}Subscription`] = subscriptionPayments[0].id
   const rule = await prisma.transactionRule.create({
     data: { companyId: company.id, name: 'Règle', entryLines: { create: [{ accountCode: '706000', lineType: 'auto', amountType: 'full', order: 0 }] } },
   })
@@ -195,10 +205,18 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
   })
   // Budget of the fiscal year, with a line
   const budget = await prisma.budget.create({
-    data: { companyId: company.id, fiscalYearId: fy.id, lines: { create: [{ accountPrefix: '706', label: 'Prestations de services', amounts: { create: [{ month: '2026-01', amount: 1000 }] } }] } },
+    data: {
+      companyId: company.id,
+      fiscalYearId: fy.id,
+      lines: { create: [{ accountPrefix: '706', label: 'Prestations de services', amounts: { create: [{ month: '2026-01', amount: 1000 }] } }, { accountPrefix: '613', label: 'Locations' }] },
+    },
     include: { lines: true },
   })
-  Object.assign(ids, { [`${prefix}Budget`]: budget.id, [`${prefix}BudgetLine`]: budget.lines[0].id })
+  Object.assign(ids, {
+    [`${prefix}Budget`]: budget.id,
+    [`${prefix}BudgetLine`]: budget.lines.find((l) => l.accountPrefix === '706')!.id,
+    [`${prefix}ChargesLine`]: budget.lines.find((l) => l.accountPrefix === '613')!.id,
+  })
   // Management fees: a convention without subsidiary, so no other company is involved in the role checks
   const feeConvention = await prisma.managementFeeConvention.create({
     data: { companyId: company.id, label: 'Convention', costAccountPrefixes: ['6'], excludedAccountPrefixes: ['695'], startDate: new Date('2026-01-01T00:00:00Z') },
@@ -424,6 +442,9 @@ const ROUTE_MODULES = {
   budgetReport: () => import('@/app/api/budgets/[id]/report/route'),
   budgetLine: () => import('@/app/api/budget-lines/[id]/route'),
   feeConventions: () => import('@/app/api/management-fees/conventions/route'),
+  subscriptions: () => import('@/app/api/subscriptions/route'),
+  subscriptionDecision: () => import('@/app/api/subscriptions/decision/route'),
+  subscriptionBudgetItem: () => import('@/app/api/subscriptions/budget-item/route'),
   feeConvention: () => import('@/app/api/management-fees/conventions/[id]/route'),
   feePreview: () => import('@/app/api/management-fees/conventions/[id]/preview/route'),
   feeInvoices: () => import('@/app/api/management-fees/conventions/[id]/invoices/route'),
@@ -597,6 +618,8 @@ const WRITES: Call[] = [
   { label: 'create budget line', route: 'budgetLines', method: 'POST', path: () => `/api/budgets/${ids.aBudget}/lines`, params: p({ id: () => ids.aBudget }), body: () => ({ accountPrefix: '6064' }) },
   { label: 'update budget line', route: 'budgetLine', method: 'PATCH', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }), body: () => ({ amounts: [{ month: '2026-02', amountCents: 5_000 }] }) },
   { label: 'delete budget line', route: 'budgetLine', method: 'DELETE', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }) },
+  { label: 'decide on a subscription', route: 'subscriptionDecision', method: 'PUT', path: () => '/api/subscriptions/decision', body: () => ({ companyId: A(), subscriptionId: ids.aSubscription, status: 'ignored' }) },
+  { label: 'add a subscription to the budget', route: 'subscriptionBudgetItem', method: 'POST', path: () => '/api/subscriptions/budget-item', body: () => ({ companyId: A(), subscriptionId: ids.aSubscription, budgetLineId: ids.aChargesLine }) },
   { label: 'create management fee convention', route: 'feeConventions', method: 'POST', path: () => '/api/management-fees/conventions', body: () => ({ companyId: A(), label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'update management fee convention', route: 'feeConvention', method: 'PATCH', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'delete management fee convention', route: 'feeConvention', method: 'DELETE', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
@@ -677,6 +700,7 @@ const READS: Call[] = [
   { label: 'list budgets', route: 'budgets', method: 'GET', path: () => `/api/budgets?companyId=${A()}` },
   { label: 'read budget', route: 'budget', method: 'GET', path: () => `/api/budgets/${ids.aBudget}`, params: p({ id: () => ids.aBudget }) },
   { label: 'budget against the books', route: 'budgetReport', method: 'GET', path: () => `/api/budgets/${ids.aBudget}/report`, params: p({ id: () => ids.aBudget }) },
+  { label: 'list detected subscriptions', route: 'subscriptions', method: 'GET', path: () => `/api/subscriptions?companyId=${A()}` },
   { label: 'list management fee conventions', route: 'feeConventions', method: 'GET', path: () => `/api/management-fees/conventions?companyId=${A()}` },
   { label: 'read management fee convention', route: 'feeConvention', method: 'GET', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
   { label: 'list management fee invoices', route: 'feeInvoices', method: 'GET', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}/invoices`, params: p({ id: () => ids.aFeeConvention }) },

@@ -35,6 +35,7 @@ import { getInvoice, listInvoices } from '@/lib/invoices/manage-invoices.service
 import { registerExpenseReportReadTools } from '@/lib/mcp/expense-report-tools'
 import { registerBudgetReadTools } from '@/lib/mcp/budget-tools'
 import { registerManagementFeeTools } from '@/lib/mcp/management-fee-tools'
+import { registerSubscriptionReadTools } from '@/lib/mcp/subscription-tools'
 
 const MAX_ROWS = 200
 
@@ -601,6 +602,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerExpenseReportReadTools(server, access, guard)
   registerBudgetReadTools(server, guard)
   registerManagementFeeTools(server, access, guard)
+  registerSubscriptionReadTools(server, guard)
 
   // Full control (kledg:admin): validate, reconcile, import, close... Never
   // registered without it; each tool checks it again through the guard.

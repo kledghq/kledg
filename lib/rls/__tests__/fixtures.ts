@@ -341,6 +341,10 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('budget_recurring_items'), lineId: id('budget_lines'), label: 'Abonnement', amount: 50, frequency: 'MONTHLY', startMonth: '2026-01' },
       })
       record('budget_recurring_items', p, id('budget_recurring_items'))
+      await prisma.subscriptionDecision.create({
+        data: { id: id('subscription_decisions'), companyId, counterpartyKey: 'NUAGE PRO', cadence: 'MONTHLY', referenceAmount: 29.9, status: 'CONFIRMED', budgetLineId: id('budget_lines') },
+      })
+      record('subscription_decisions', p, id('subscription_decisions'))
       // Management fees: the company is the holding; company c stands for the subsidiary (only its id is referenced).
       await prisma.managementFeeConvention.create({
         data: { id: id('management_fee_conventions'), companyId, label: 'Convention', costAccountPrefixes: ['6'], excludedAccountPrefixes: ['695'], startDate: day('2026-01-01') },

@@ -144,6 +144,7 @@ model Company {
   expenseReports             ExpenseReport[]
   expenseCategoryRules       ExpenseCategoryRule[]
   budgets                    Budget[]
+  subscriptionDecisions      SubscriptionDecision[]
   managementFeeConventions   ManagementFeeConvention[]
   managementFeeSubsidiaryOf  ManagementFeeSubsidiary[]
   managementFeeBillings      ManagementFeeBilling[]      @relation("ManagementFeeBillingHolding")
@@ -2032,9 +2033,11 @@ model BudgetLine {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  budget         Budget                @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  amounts        BudgetLineAmount[]
-  recurringItems BudgetRecurringItem[]
+  budget                Budget                 @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  amounts               BudgetLineAmount[]
+  recurringItems        BudgetRecurringItem[]
+  /// Subscriptions added to the budget on this line (lib/subscriptions).
+  subscriptionDecisions SubscriptionDecision[]
 
   @@unique([budgetId, accountPrefix])
   @@map("budget_lines")
@@ -2070,6 +2073,46 @@ model BudgetRecurringItem {
 
   @@index([lineId])
   @@map("budget_recurring_items")
+}
+
+enum SubscriptionCadence {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionDecisionStatus {
+  CONFIRMED // Abonnement reconnu par l'utilisateur
+  IGNORED // Faux positif ou paiement récurrent hors abonnement (salaire, virement interne)
+}
+
+/// What a user decided about a detected subscription (lib/subscriptions,
+/// docs/abonnements.md). Detection itself is recomputed from the bank lines
+/// at each read and never stored: only decisions are. A decision is attached
+/// to the detected series of the same counterparty key and cadence whose
+/// amount is closest to referenceAmount (lib/subscriptions/detect.ts,
+/// matchDecisions), so it survives a price change.
+model SubscriptionDecision {
+  id              String                     @id @default(cuid())
+  companyId       String
+  /// Normalized counterparty (counterpartyKey in lib/subscriptions/detect.ts).
+  counterpartyKey String
+  cadence         SubscriptionCadence
+  /// Typical amount of the series when the decision was taken.
+  referenceAmount Decimal                    @db.Decimal(15, 2)
+  status          SubscriptionDecisionStatus
+  /// Budget line the subscription was last added to as a recurring item.
+  budgetLineId    String?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  budgetLine BudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, counterpartyKey, cadence, referenceAmount], map: "subscription_decisions_identity_key")
+  @@index([budgetLineId])
+  @@map("subscription_decisions")
 }
 
 enum ManagementFeePricing {

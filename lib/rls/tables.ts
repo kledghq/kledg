@@ -54,6 +54,7 @@ export const COMPANY_TABLES: readonly string[] = [
   'expense_reports',
   'expense_category_rules',
   'budgets',
+  'subscription_decisions',
   'management_fee_conventions',
   'management_fee_billings',
 ]
