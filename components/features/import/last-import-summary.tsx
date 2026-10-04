@@ -83,7 +83,7 @@ export function LastImportSummary({ result, onDismiss }: LastImportSummaryProps)
                 {(result.journalsCreated || 0) > 0 && (
                   <span>
                     <span className="font-medium text-foreground">{result.journalsCreated}</span>{' '}
-                    journal{result.journalsCreated !== 1 ? 'aux' : ''} créé
+                    {result.journalsCreated !== 1 ? 'journaux' : 'journal'} créé
                     {result.journalsCreated !== 1 ? 's' : ''}
                   </span>
                 )}

@@ -73,9 +73,7 @@ describe('LastImportSummary', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
-  // BUG: components/features/import/last-import-summary.tsx:86: the plural of journal is built
-  // as "journal" + "aux", which reads "2 journalaux créés" instead of "2 journaux créés".
-  it.skip('writes the plural of journal as journaux', () => {
+  it('writes the plural of journal as journaux', () => {
     render(
       <LastImportSummary result={{ success: false, entriesCreated: 5, journalsCreated: 2, errors: ['x'] }} onDismiss={vi.fn()} />,
     )
