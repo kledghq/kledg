@@ -68,6 +68,7 @@ export function AddressSelector({
   const [addresses, setAddresses] = useState<AddressOption[]>([])
   const [loading, setLoading] = useState(false)
   const [savingAddress, setSavingAddress] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [showNewForm, setShowNewForm] = useState(false)
   const [selectedAddressData, setSelectedAddressData] = useState<AddressOption | null>(null)
 
@@ -183,9 +184,11 @@ export function AddressSelector({
     // Get address data from form
     const addressFormData = watch(addressFieldPrefix) as Address | null | undefined
     if (!addressFormData || !addressFormData.street || !addressFormData.postalCode || !addressFormData.city) {
+      setSaveError('Renseignez la rue, le code postal et la ville.')
       return
     }
 
+    setSaveError(null)
     setSavingAddress(true)
     try {
       // Create address via API
@@ -217,11 +220,11 @@ export function AddressSelector({
         setShowNewForm(false)
         setSearchTerm('')
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create address')
+        const errorData = (await response.json().catch(() => ({}))) as { error?: string }
+        setSaveError(errorData.error || "L'adresse n'a pas pu être enregistrée. Réessayez.")
       }
-    } catch (error) {
-      // Silently fail - user can retry
+    } catch {
+      setSaveError("L'adresse n'a pas pu être enregistrée. Vérifiez votre connexion et réessayez.")
     } finally {
       setSavingAddress(false)
     }
@@ -362,6 +365,7 @@ export function AddressSelector({
               onClick={() => {
                 setShowNewForm(false)
                 setSearchTerm('')
+                setSaveError(null)
               }}
             >
               Annuler
@@ -373,6 +377,11 @@ export function AddressSelector({
             showCountry={showCountry}
             defaultCountry={defaultCountry}
           />
+          {saveError && (
+            <p role="alert" className="text-destructive text-sm">
+              {saveError}
+            </p>
+          )}
           <Button
             type="button"
             onClick={handleSaveNewAddress}
