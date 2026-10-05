@@ -13,6 +13,12 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 ### Modifié
 
 - Un brouillon de facture créé dans Qonto reste synchronisé : le supprimer dans Kledg le supprime aussi dans Qonto (refusé s’il a été finalisé dans Qonto entre-temps), et un brouillon supprimé dans Qonto disparaît de Kledg au prochain import des factures Qonto.
+- Mode simple, **Dépenses à vérifier** et **Recettes à vérifier** : le message de confirmation d'une ligne laissée en brouillon pour votre comptable propose « Annuler », qui annule le rapprochement (même droit et même journal d'audit que l'annulation d'un rapprochement, brouillon et immobilisation créés supprimés) et remet la ligne à vérifier. Une écriture déjà validée ne s'annule pas (PCG art. 1031-3).
+
+### Corrigé
+
+- Approbation des comptes : « 1 écriture en brouillon sur l'exercice n'est pas comptée dans le résultat » (au lieu de « ne est pas comptée »).
+- Approbation des comptes : la décision d'une SAS, d'une SASU ou d'une EURL ne cite plus deux fois le même article (C. com. art. L227-9 ou L223-31).
 
 ## [0.3.0] - 2026-10-05
 

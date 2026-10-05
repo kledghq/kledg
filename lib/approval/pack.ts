@@ -177,6 +177,16 @@ function confidentialityChoices(category: SizeCategory | null, details: Approval
   ]
 }
 
+/**
+ * Sources cited once each: a form's own articles often also govern its
+ * register or its filing (L223-31, L227-9), and a citation shown twice in
+ * the same parenthesis reads as a mistake.
+ */
+function uniqueSources(sources: readonly LegalSource[]): LegalSource[] {
+  const seen = new Set<string>()
+  return sources.filter((s) => (seen.has(s.label) ? false : (seen.add(s.label), true)))
+}
+
 /** The pack of a fiscal year. */
 export function buildApprovalPack(context: ApprovalContext, details: ApprovalDetails): ApprovalPack {
   const holderCount = context.holders.length
@@ -367,7 +377,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
       reason: regime.sole
         ? `L’associé unique approuve les comptes et décide de l’affectation du résultat ; la décision est consignée au registre. ${regime.register.text}`
         : `Les associés approuvent les comptes et décident de l’affectation du résultat. ${regime.register.text}`,
-      sources: [...regime.sources, ...regime.register.sources],
+      sources: uniqueSources([...regime.sources, ...regime.register.sources]),
       missing: missingDecision,
     })
     if (mode === 'meeting' && regime.attendanceSheet !== 'none') {
@@ -442,7 +452,11 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
 
   // Warnings.
   if (!context.fiscalYear.isClosed) warnings.push("L'exercice n'est pas clôturé : le résultat peut encore changer. Clôturez-le avant de faire approuver les comptes.")
-  if (context.draftEntries > 0) warnings.push(`${context.draftEntries} écriture${context.draftEntries > 1 ? 's' : ''} en brouillon sur l'exercice ne ${context.draftEntries > 1 ? 'sont' : 'est'} pas comptée${context.draftEntries > 1 ? 's' : ''} dans le résultat.`)
+  if (context.draftEntries > 0) warnings.push(
+      context.draftEntries > 1
+        ? `${context.draftEntries} écritures en brouillon sur l'exercice ne sont pas comptées dans le résultat.`
+        : "1 écriture en brouillon sur l'exercice n'est pas comptée dans le résultat.",
+    )
   if (regime && (context.company.legalType === 'EURL' || context.company.legalType === 'SASU') && holderCount > 1) {
     warnings.push(`La société est une ${context.company.legalType} mais ${holderCount} associés sont enregistrés : vérifiez la forme juridique ou la liste des associés.`)
   }
@@ -495,7 +509,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
       convocation,
       filing,
       filingBasis: filing ? (details.approvedOn ? 'approval' : 'deadline') : null,
-      sources: regime ? [...regime.sources, ...regime.filing.sources] : [],
+      sources: regime ? uniqueSources([...regime.sources, ...regime.filing.sources]) : [],
     },
     documents,
     publication: { required: Boolean(regime?.filing.required), items, notes },

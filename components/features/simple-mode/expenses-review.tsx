@@ -41,6 +41,8 @@ const COPY = {
     many: (n: number) => (n > 1 ? `${n} dépenses classées` : '1 dépense classée'),
     shown: (shown: number, count: number) => `${shown} dépenses affichées sur ${count}. Les suivantes apparaîtront une fois celles-ci classées.`,
     things: 'ces dépenses',
+    undone: 'Dépense remise à vérifier',
+    undoError: "La confirmation n'a pas été annulée. Réessayez dans un instant.",
   },
   credit: {
     title: 'Recettes à vérifier',
@@ -57,6 +59,8 @@ const COPY = {
     many: (n: number) => (n > 1 ? `${n} recettes classées` : '1 recette classée'),
     shown: (shown: number, count: number) => `${shown} recettes affichées sur ${count}. Les suivantes apparaîtront une fois celles-ci classées.`,
     things: 'ces recettes',
+    undone: 'Recette remise à vérifier',
+    undoError: "La confirmation n'a pas été annulée. Réessayez dans un instant.",
   },
 } as const
 
@@ -162,7 +166,30 @@ export function ExpensesReview({ companyId, side = 'debit' }: { companyId: strin
     )
   }
 
-  const toastFor = (result: ConfirmResult) => toast.success(confirmedMessage(result, side))
+  /**
+   * "Annuler" in the toast of a confirmation left as a draft: the
+   * reconciliation is undone through DELETE /api/transactions/[id]/reconcile
+   * (same permission, audit log), which deletes the draft entry with its
+   * simple mode record and fixed asset, and the line comes back to review.
+   * A validated entry is definitive (PCG art. 1031-3): no undo is offered.
+   */
+  const undo = async (result: ConfirmResult) => {
+    try {
+      const response = await fetch(`/api/transactions/${encodeURIComponent(result.transactionId)}/reconcile`, { method: 'DELETE' })
+      if (!response.ok) throw new Error(await responseError(response, copy.undoError))
+      toast.success(copy.undone)
+      window.dispatchEvent(new Event(COUNTS_REFRESH_EVENT))
+      setVersion((v) => v + 1)
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+
+  const toastFor = (result: ConfirmResult) => {
+    const message = confirmedMessage(result, side)
+    if (result.status === 'draft') toast.success(message, { action: { label: 'Annuler', onClick: () => void undo(result) } })
+    else toast.success(message)
+  }
 
   const confirm = async (expense: ExpenseToReview, body: { categoryId?: string; ruleId?: string; invoiceId?: string; answers?: Answers; note?: string }) => {
     setBusyFor(expense.id, true)
