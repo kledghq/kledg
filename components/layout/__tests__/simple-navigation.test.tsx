@@ -194,6 +194,6 @@ describe('DashboardBreadcrumb per mode', () => {
   it('keeps the expert titles in expert mode', async () => {
     nav.pathname = '/alpha/banking/missing-receipts'
     render(<DashboardBreadcrumb />)
-    expect(await screen.findByText('Justificatifs manquants')).toBeInTheDocument()
+    expect(await screen.findByText('Justificatifs')).toBeInTheDocument()
   })
 })

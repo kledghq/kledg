@@ -34,7 +34,7 @@ const SYNC_PERIODS = [
 ]
 
 /**
- * Filters given in the URL (the "Justificatifs manquants" page links to one
+ * Filters given in the URL (the "Justificatifs" page links to one
  * transaction this way): bankAccountId, startDate and endDate (yyyy-mm-dd),
  * hasAttachments (with, without) and search.
  */

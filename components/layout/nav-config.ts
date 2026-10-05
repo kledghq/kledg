@@ -102,7 +102,7 @@ export const navGroups: NavGroup[] = [
       { title: "Relevés", url: "/banking/statements", icon: ScrollText },
       { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
       { title: "Rapprochement", url: "/reconciliation", icon: ListChecks },
-      { title: "Justificatifs manquants", url: "/banking/missing-receipts", icon: Receipt },
+      { title: "Justificatifs", url: "/banking/missing-receipts", icon: Receipt },
       { title: "Abonnements", url: "/subscriptions", icon: Repeat },
       { title: "Prévision de trésorerie", url: "/prevision-tresorerie", icon: TrendingUp },
       { title: "Règles d'affectation", url: "/rules", icon: Workflow },
