@@ -122,6 +122,8 @@ describe('navigation', () => {
     expect(findNavEntry('/provisions')?.title).toBe('Risques et charges')
     expect(findNavEntry('/provisions/impairments')?.title).toBe('Dépréciations')
     expect(findNavEntry('/entries/123/edit')?.title).toBe('Écritures')
+    expect(findNavEntry('/rules/library')?.title).toBe('Bibliothèque de règles')
+    expect(findNavEntry('/rules/abc')?.title).toBe("Règles d'affectation")
     expect(findNavEntry('/nowhere')).toBeNull()
   })
 

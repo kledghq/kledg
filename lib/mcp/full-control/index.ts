@@ -22,6 +22,7 @@ import { registerChartTools } from './chart'
 import { registerSettingsTools } from './settings'
 import { registerBankAdminTools } from './bank-admin'
 import { registerRecordTools } from './records'
+import { registerRulesLibraryTools } from './rules-library'
 import { createCompanyTool, registerCompanyTools } from './companies'
 
 export function registerFullControlTools(server: McpServer, access: McpAccess, guard: CompanyGuard): void {
@@ -36,6 +37,7 @@ export function registerFullControlTools(server: McpServer, access: McpAccess, g
   registerChartTools(register)
   registerSettingsTools(register)
   registerBankAdminTools(register)
+  registerRulesLibraryTools(register)
   registerRecordTools(register)
   registerCompanyTools(register)
   // Outside any company: the instance policy and a grant of every company (define.ts).

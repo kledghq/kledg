@@ -88,9 +88,13 @@ async function loadServicesVatOnDebits(companyId: string): Promise<boolean | nul
  * Prefill of a new rule from the address, as the rules page read it before:
  * "Créer une règle à partir de cette transaction" passes the suggested name,
  * conditions and lines as JSON; a link with the transaction only (Démarrer
- * checklist, subscriptions) asks the API for the suggested rule.
+ * checklist, subscriptions) asks the API for the suggested rule; a template
+ * of the rules library (?template=<id>, Bibliothèque de règles) asks the
+ * API for the template with its accounts mapped to the company's chart.
  */
-async function loadPrefill(searchParams: URLSearchParams): Promise<RulePrefill> {
+async function loadPrefill(companyId: string, searchParams: URLSearchParams): Promise<RulePrefill> {
+  const template = searchParams.get('template')
+  if (template) return loadTemplatePrefill(companyId, template)
   const fromTransaction = searchParams.get('fromTransaction')
   if (!fromTransaction) return {}
   const conditionsParam = searchParams.get('conditions')
@@ -118,6 +122,30 @@ async function loadPrefill(searchParams: URLSearchParams): Promise<RulePrefill> 
     name: searchParams.get('ruleName') || undefined,
     conditions: toConditions(parseJsonArray(conditionsParam)),
     entryLines: toEntryLines(parseJsonArray(entryLinesParam)),
+  }
+}
+
+/** The rule of a template of the rules library (GET /api/rule-templates/[id]); an unknown template prefills nothing. */
+async function loadTemplatePrefill(companyId: string, templateId: string): Promise<RulePrefill> {
+  try {
+    const response = await fetch(`/api/rule-templates/${encodeURIComponent(templateId)}?companyId=${encodeURIComponent(companyId)}`)
+    if (!response.ok) {
+      toast.error('Le modèle de règle ne s’est pas chargé\u00a0: la règle s’ouvre vide.')
+      return {}
+    }
+    const data = (await response.json()) as {
+      prefill: { name: string; description: string; journalCode: string; conditions: Array<Record<string, unknown>>; entryLines: Array<Record<string, unknown>> }
+    }
+    return {
+      name: data.prefill.name,
+      description: data.prefill.description,
+      journalCode: data.prefill.journalCode,
+      conditions: toConditions(data.prefill.conditions),
+      entryLines: toEntryLines(data.prefill.entryLines),
+    }
+  } catch (error) {
+    logger.error('Error loading the rule template:', error)
+    return {}
   }
 }
 
@@ -156,7 +184,7 @@ export function RuleEditorPage({ ruleId = null }: { ruleId?: string | null }) {
           loadJournals(companyId),
           loadBankProvidesVat(companyId),
           loadServicesVatOnDebits(companyId),
-          ruleId ? loadRule(companyId, ruleId) : loadPrefill(new URLSearchParams(search)),
+          ruleId ? loadRule(companyId, ruleId) : loadPrefill(companyId, new URLSearchParams(search)),
         ])
         if (cancelled) return
         if (ruleId) {

@@ -609,6 +609,51 @@ describe('rule editor page, prefill', () => {
     })
   })
 
+  it('prefills a template of the rules library, its accounts already mapped to the chart', async () => {
+    routePage((url) =>
+      url === '/api/rule-templates/orange?companyId=c1'
+        ? Response.json({
+            prefill: {
+              name: 'Orange (télécom)',
+              description: 'Abonnements Orange, en frais de télécommunications (626).',
+              journalCode: 'BQ',
+              conditions: [
+                { conditionType: 'side', operator: 'equals', value: 'debit', value2: '' },
+                { conditionType: 'label', operator: 'regex', value: '\\borange (sa|pro)\\b', value2: '' },
+              ],
+              entryLines: [{ accountId: 'a-626000', lineType: 'debit', amountType: 'full', vatType: 'deductible', vatRateSource: 'transaction', vatRate: 20, vatAccountId: 'a-445660' }],
+            },
+          })
+        : null,
+    )
+    search = new URLSearchParams({ template: 'orange' })
+    const user = userEvent.setup()
+    render(<RuleEditorPage />)
+    expect(await screen.findByRole('textbox', { name: /^Nom/ })).toHaveValue('Orange (télécom)')
+    expect(within(lines()[0]).getAllByTestId('account-combobox')[0]).toHaveValue('a-626000')
+    expect(within(lines()[0]).getByRole('radio', { name: 'TVA détectée par la banque' })).toHaveAttribute('aria-checked', 'true')
+
+    await save(user)
+    await waitFor(() => expect(saveCalls()).toHaveLength(1))
+    expect(bodyOf(saveCalls()[0])).toMatchObject({
+      name: 'Orange (télécom)',
+      description: 'Abonnements Orange, en frais de télécommunications (626).',
+      conditions: [
+        { conditionType: 'side', operator: 'equals', value: 'debit' },
+        { conditionType: 'label', operator: 'regex', value: '\\borange (sa|pro)\\b' },
+      ],
+      entryLines: [{ accountCode: '626000', lineType: 'debit', vatType: 'deductible', vatRateSource: 'transaction', vatRate: 20, vatAccountCode: '445660' }],
+    })
+  })
+
+  it('opens an empty rule when the template cannot be loaded', async () => {
+    routePage((url) => (url.startsWith('/api/rule-templates/') ? Response.json({ error: 'Modèle de règle introuvable' }, { status: 404 }) : null))
+    search = new URLSearchParams({ template: 'nope' })
+    render(<RuleEditorPage />)
+    expect(await screen.findByRole('textbox', { name: /^Nom/ })).toHaveValue('')
+    expect(toast.error).toHaveBeenCalledWith('Le modèle de règle ne s’est pas chargé\u00a0: la règle s’ouvre vide.')
+  })
+
   it('asks the API for the suggested rule when the link names the transaction only', async () => {
     routePage((url) =>
       url === '/api/transactions/t3/create-rule'

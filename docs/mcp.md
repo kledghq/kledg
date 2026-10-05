@@ -170,6 +170,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_statement_layout` | Mise en page du bilan ou du compte de résultat (lignes, comptes, sens, ordre), une ligne, l'historique d'une ligne du bilan, les modèles du bilan ; droit `settings:read` |
 | `get_transaction_details` | Ce qu'il faut pour traiter une transaction bancaire : ligne de banque, exercices, contreparties proposées, règles qui la reconnaissent, règle qu'elle suggère ; droit `banking:read` |
 | `simulate_rule` | L'écriture qu'une règle d'affectation (enregistrée ou en cours d'écriture) passerait pour une transaction d'exemple, sans rien écrire ; droit `banking:read` |
+| `list_rule_templates` | Bibliothèque de règles ([bibliothèque de règles](bibliotheque-de-regles.md)) : modèles de règles d'affectation (conditions, lignes, traitement de la TVA et sa raison, sources officielles), comptes rapprochés du plan de la société, modèles déjà ajoutés et règles proches, et suggestions classées par le nombre de transactions des 12 derniers mois que le modèle reconnaîtrait et qu'aucune règle ne reconnaît ; un modèle avec `templateId` ; droit `banking:read` |
 | `export_report` | Fichier d'un état, comme son bouton de téléchargement (même service, mêmes contrôles) : bilan et compte de résultat (PDF, Excel), annexe (PDF, Markdown), formulaires 2054, 2055 et 2033-C, impôt sur les sociétés, TVA, impôts locaux, rémunération (PDF, CSV), indicateurs financiers (CSV, Excel), balance âgée, balance auxiliaire et journal (Excel), prévision de trésorerie (CSV, droit `banking:read` en plus), vue de groupe (CSV, Excel) ; 5 Mo au plus ; droit `reports:export` (et `reports:read` dans chaque filiale lue pour le groupe) |
 | `get_qonto_statements` | Relevés mensuels des comptes Qonto (liste filtrée par compte, IBAN et période, ou un relevé), sans les liens de fichier de Qonto ; droit `banking:read` |
 | `list_qonto_receipts` | Justificatifs que Qonto détient pour une transaction de la société ; droit `banking:read` |
@@ -269,6 +270,8 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui (annulation, rapprochement automatique) |
 | `delete_bank_transactions` | Supprimer des transactions bancaires | `banking:manage` | Oui |
 | `duplicate_rule` | Copier une règle d'affectation (désactivée) | `ledger:manage` | Non |
+| `add_rule_from_template` | Ajouter la règle d'un modèle de la bibliothèque, comptes rapprochés du plan de la société ; comptes manquants créés seulement avec `createMissingAccounts` ; refusé si la même règle existe, sauf `allowDuplicate` | `ledger:manage` | Non |
+| `copy_rules_from_company` | Copier des règles d'une autre société de l'utilisateur, comptes rapprochés du plan ; copies inactives par défaut, règles déjà présentes ignorées | `ledger:manage` ici, `banking:read` dans la société source | Non |
 | `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles), copier les justificatifs de Qonto | `banking:reconcile` | Non |
 | `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) | `banking:reconcile` | Non |
 | `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée, reprendre la création dans Qonto d'une facture sans réponse de Qonto ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
@@ -391,7 +394,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Composition du capital | `get_capital_composition`, `get_company_settings` | | `manage_company_records` (associés, personnes) | |
 | Approbation des comptes ([approbation](approbation-des-comptes.md)) | `get_year_end_formalities` (statut et données manquantes) | `update_year_end_formalities` | | Générer, signer et déposer les documents |
 | Annexe et formulaires 2054, 2055, 2033-C ([annexe](annexe-et-2054.md)) | `get_annexe`, `get_fixed_asset_movements`, `export_report` (annexe en PDF ou Markdown, formulaires en PDF ou CSV) | `manage_accounting_methods`, `manage_accounting_changes` (écritures en brouillon), `update_annexe_notes` | `validate_entries` | |
-| Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status`, `get_transaction_details`, `simulate_rule`, `get_qonto_statements`, `list_qonto_receipts`, `get_file` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `sync_bank_data`, `import_statement`, `reconcile_transaction`, `bulk_reconcile`, `run_rules`, `manage_bank_accounts`, `delete_bank_transactions`, `duplicate_rule`... | Connecter une banque |
+| Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status`, `get_transaction_details`, `simulate_rule`, `list_rule_templates`, `get_qonto_statements`, `list_qonto_receipts`, `get_file` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `sync_bank_data`, `import_statement`, `reconcile_transaction`, `bulk_reconcile`, `run_rules`, `manage_bank_accounts`, `delete_bank_transactions`, `duplicate_rule`, `add_rule_from_template`, `copy_rules_from_company`... | Connecter une banque |
 | Écritures, plan comptable, journaux, exercices | `list_entries`, `get_entry`, `get_ledger_report`, `search_accounts`, `list_journals`, `list_fiscal_years` | `create_draft_entry`, `duplicate_entry`, `prepare_opening_balances` | `update_draft_entry`, `validate_entries`, `reverse_entry`, `delete_draft_entry`, `create_account`, `manage_accounts`, `create_journal`, `manage_journals`, `manage_fiscal_years`, `import_accounting_file` | Exports Excel du journal |
 | Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `generate_depreciation` | |
 | Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (administrateurs de l'instance) | Suppression définitive de société |
@@ -405,9 +408,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 224 | 184 | 40 |
-| Lectures (GET) | 176 | 150 | 26 |
-| Total | 400 | 334 | 66 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 226 | 186 | 40 |
+| Lectures (GET) | 179 | 153 | 26 |
+| Total | 405 | 339 | 66 |
 
 ### Exclusions
 
@@ -783,6 +786,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/reports/journal` | reports:read | `get_ledger_report` (L) |
 | `GET /api/reports/tiers-flows` | reports:read | `get_tiers_flows` (L) |
 | `GET /api/reports/trial-balance` | reports:read | `get_trial_balance` (L) |
+| `GET /api/rule-templates` | banking:read | `list_rule_templates` (L) |
+| `GET /api/rule-templates/[id]` | banking:read | `list_rule_templates` (L) |
+| `POST /api/rule-templates/[id]/accounts` | ledger:manage | `add_rule_from_template` (CT) ; Option createMissingAccounts de l'outil. |
 | `GET /api/simple/entries` | entries:read | `list_entries` (L) |
 | `POST /api/simple/expenses/[id]/confirm` | banking:reconcile | `accept_expense_suggestion` (B), `validate_entries` (CT) ; Brouillon, puis validation (entries:validate) quand la société ne demande pas la revue du comptable. |
 | `POST /api/simple/expenses/[id]/receipt` | banking:reconcile | `upload_receipt` (CT) |
@@ -807,6 +813,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/transaction-rules` | banking:read | `list_rules` (CT) |
 | `POST /api/transaction-rules` | ledger:manage | `create_rule` (CT) |
 | `POST /api/transaction-rules/simulate` | banking:read | `simulate_rule` (L) |
+| `GET /api/transaction-rules/copy` | banking:read | `list_companies` (L), `list_rules` (CT) ; list_rules sur chaque autre société (droit banking:read dans chacune). |
+| `POST /api/transaction-rules/copy` | ledger:manage | `copy_rules_from_company` (CT) |
 | `POST /api/transactions/[id]/apply-rule` | banking:reconcile | `bulk_reconcile` (CT) |
 | `GET /api/transactions/[id]/create-rule` | banking:read | `get_transaction_details` (L) |
 | `GET /api/transactions/[id]/reconcile` | banking:read | `get_transaction_details` (L) |

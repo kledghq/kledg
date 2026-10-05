@@ -33,6 +33,30 @@ export type RuleWithConditions = TransactionRule & {
 };
 
 /**
+ * What matching reads of a rule: a saved rule, or a rule that is not saved
+ * (a template of the rules library, lib/rules-library).
+ */
+export type MatchableRule = Pick<TransactionRule, 'id' | 'name' | 'priority' | 'autoCreate'> & {
+  conditions: MatchableCondition[];
+};
+
+type MatchableCondition = Pick<TransactionRuleCondition, 'conditionType' | 'operator' | 'value' | 'value2'>;
+
+/** What matching reads of a transaction (the rules library loads only these columns). */
+export type MatchableTransaction = Pick<
+  EnrichedTransaction,
+  | 'label'
+  | 'reference'
+  | 'counterpartyName'
+  | 'category'
+  | 'cashflowCategory'
+  | 'cashflowSubcategory'
+  | 'operationType'
+  | 'side'
+  | 'status'
+> & { amount: { toString(): string } | number | string };
+
+/**
  * Finds rules that match a transaction
  * 
  * @param rules - Rules to check against the transaction
@@ -40,8 +64,8 @@ export type RuleWithConditions = TransactionRule & {
  * @returns Array of matching rules with confidence scores
  */
 export function findMatchingRules(
-  rules: RuleWithConditions[],
-  transaction: EnrichedTransaction,
+  rules: readonly MatchableRule[],
+  transaction: MatchableTransaction,
   budget: RegexBudget = { remaining: DEFAULT_REGEX_STEP_BUDGET }
 ): TransactionMatchResult[] {
   const results: TransactionMatchResult[] = [];
@@ -64,8 +88,8 @@ export function findMatchingRules(
  * @returns Match result with confidence score
  */
 function matchRule(
-  rule: RuleWithConditions,
-  transaction: EnrichedTransaction,
+  rule: MatchableRule,
+  transaction: MatchableTransaction,
   budget: RegexBudget
 ): TransactionMatchResult {
   // If no conditions, the rule doesn't match
@@ -138,8 +162,8 @@ export function pickRule<T extends Pick<TransactionMatchResult, 'confidence' | '
  * @returns Whether the condition matches
  */
 function matchCondition(
-  condition: TransactionRuleCondition,
-  transaction: EnrichedTransaction,
+  condition: MatchableCondition,
+  transaction: MatchableTransaction,
   budget: RegexBudget
 ): { matched: boolean } {
   switch (condition.conditionType) {
@@ -206,7 +230,7 @@ function matchCondition(
 
     case 'attachment': {
       const attachmentsCount =
-        (transaction as EnrichedTransaction & { attachmentsCount?: number }).attachmentsCount ??
+        (transaction as MatchableTransaction & { attachmentsCount?: number }).attachmentsCount ??
         (transaction as { attachments?: unknown[] }).attachments?.length ??
         0;
       const hasJustificatif = attachmentsCount > 0;
