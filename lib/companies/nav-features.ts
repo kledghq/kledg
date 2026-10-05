@@ -5,7 +5,9 @@
  *   (Establishment.isTrainingOrganization): Bilan pédagogique et financier;
  * - vatCoefficient: the company deducts its VAT by a coefficient (exempt,
  *   partly exempt) or is a training organisation, whose training is exempt
- *   (CGI art. 261, 4, 4° a): Coefficient de déduction de TVA.
+ *   (CGI art. 261, 4, 4° a): Coefficient de déduction de TVA and Taxe sur
+ *   les salaires (due by employers not subject to VAT on 90 % of their
+ *   turnover, CGI art. 231).
  * The pages stay reachable by URL; the navigation only lists them where
  * they apply. Reads run in the user's own row level security context,
  * narrowed to the companies the caller listed.

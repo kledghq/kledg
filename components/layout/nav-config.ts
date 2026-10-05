@@ -23,6 +23,8 @@ import {
   FileText,
   FolderSearch,
   Gauge,
+  GraduationCap,
+  Banknote,
   Divide,
   HandCoins,
   Hourglass,
@@ -156,6 +158,8 @@ export const navGroups: NavGroup[] = [
       { title: "Impôt sur les sociétés", url: "/impot-societes", icon: Calculator },
       { title: "Rémunération et dividendes", url: "/remuneration", icon: PiggyBank },
       { title: "Impôts locaux (CFE, CVAE)", url: "/impots-locaux", icon: MapPinned },
+      { title: "Taxe sur les salaires", url: "/taxe-sur-les-salaires", icon: Banknote, feature: "vatCoefficient" },
+      { title: "Bilan pédagogique et financier", url: "/bilan-pedagogique-financier", icon: GraduationCap, feature: "training" },
     ],
   },
   {
