@@ -29,9 +29,13 @@ import { getGrant } from '@/lib/ai-access/manage-grants.service'
 import type { ExecutionMode } from '@/lib/ai-access/access'
 import { assertCompanyWritable } from '@/lib/companies/archive-company.service'
 
-/** Whether a permission only reads (every action is 'read'): allowed on an archived company. */
+/**
+ * Whether a permission only reads or exports (every action is 'read' or
+ * 'export'): allowed on an archived company, like the GET routes (reads and
+ * exports stay open, lib/companies/archive-company.service.ts).
+ */
 function readsOnly(permission: Permission): boolean {
-  return Object.values(permission).every((actions) => (actions ?? []).every((action) => action === 'read'))
+  return Object.values(permission).every((actions) => (actions ?? []).every((action) => action === 'read' || action === 'export'))
 }
 
 /** Who is calling: an assistant authorized through OAuth (its client id) or an API key (its id). */
@@ -112,8 +116,8 @@ export interface CompanyGuard {
    * Call it after `requireFullControl`, which checks the company grant.
    */
   requireInstanceAdministrator(): void
-  /** Filter of the companies the caller may list: the user's companies within the grant. */
-  companyWhere(): Promise<Prisma.CompanyWhereInput>
+  /** Filter of the companies the caller may list: the user's companies within the grant, archived ones on request. */
+  companyWhere(options?: { includeArchived?: boolean }): Promise<Prisma.CompanyWhereInput>
   /** The connection's company grant, or null when it grants every company of the user. */
   companyIds(): Promise<readonly string[] | null>
 }
@@ -142,12 +146,13 @@ export function companyGuard({ user, caller, canAdmin }: McpAccess): CompanyGuar
       const scope = await loadCompanyScope(user.id, caller)
       return scope.all ? null : [...scope.companyIds]
     },
-    async companyWhere() {
+    async companyWhere(options = {}) {
       const scope = await loadCompanyScope(user.id, caller)
-      // Archived companies are hidden from lists (lib/companies/archive-company.service.ts).
+      // Archived companies are hidden from lists unless asked (lib/companies/archive-company.service.ts).
+      const archived: Prisma.CompanyWhereInput = options.includeArchived ? {} : { archivedAt: null }
       const member: Prisma.CompanyWhereInput = isGlobalAdmin(user)
-        ? { archivedAt: null }
-        : { archivedAt: null, organization: { members: { some: { userId: user.id } } } }
+        ? archived
+        : { ...archived, organization: { members: { some: { userId: user.id } } } }
       return scope.all ? member : { AND: [member, { id: { in: [...scope.companyIds] } }] }
     },
   }

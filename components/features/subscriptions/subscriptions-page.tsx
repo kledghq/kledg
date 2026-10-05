@@ -161,7 +161,7 @@ export function SubscriptionsPage({ companyId }: { companyId: string }) {
     if (canRule) {
       entries.push(
         <DropdownMenuItem key="rule" asChild>
-          <Link href={`/${companyId}/rules?${new URLSearchParams({ fromTransaction: s.lastTransactionId })}`}>
+          <Link href={`/${companyId}/rules/new?${new URLSearchParams({ fromTransaction: s.lastTransactionId })}`}>
             <Workflow aria-hidden />
             Créer une règle d&apos;affectation
           </Link>

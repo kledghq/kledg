@@ -27,8 +27,8 @@ const ROOT = path.resolve(__dirname, '../../..')
 const API = path.join(ROOT, 'app/api')
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 
-/** POST handlers that compute without writing: their tools are read tools. */
-const READ_ONLY_POSTS = new Set(['POST /api/transaction-rules/simulate', 'POST /api/transaction-rules/[id]/simulate'])
+/** POST handlers that compute or list without writing: their tools are read tools. */
+const READ_ONLY_POSTS = new Set(['POST /api/transaction-rules/simulate', 'POST /api/transaction-rules/[id]/simulate', 'POST /api/qonto/statements'])
 
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

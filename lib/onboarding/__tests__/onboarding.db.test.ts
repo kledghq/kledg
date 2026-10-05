@@ -268,7 +268,7 @@ describe.skipIf(!available)('onboarding', () => {
       expect(view.canManage).toBe(true)
       expect(stepOf(view, 'bank')).toMatchObject({ done: true, detail: '4 opérations reçues' })
       expect(stepOf(view, 'rule')?.detail).toBe('Libellés fréquents : OVH SAS (3 fois)')
-      expect(stepOf(view, 'rule')?.action?.href).toMatch(new RegExp(`^/${ids.aSlug}/rules\\?fromTransaction=`))
+      expect(stepOf(view, 'rule')?.action?.href).toMatch(new RegExp(`^/${ids.aSlug}/rules/new\\?fromTransaction=`))
     })
 
     it('counts an AI connection only when it may reach the company', async () => {

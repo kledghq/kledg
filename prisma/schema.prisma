@@ -1637,8 +1637,9 @@ model McpPendingAction {
   /// OAuth client or API key name, shown on the approval page.
   callerName String?
   tool       String
-  companyId  String
-  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Null for a tool acting outside any company (create_company).
+  companyId  String?
+  company    Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   /// Normalized arguments (without actionId) and their SHA-256.
   args       Json
   argsHash   String

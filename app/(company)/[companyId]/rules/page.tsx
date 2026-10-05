@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Copy, MoreHorizontal, Pencil, Plus, Trash2, Workflow } from 'lucide-react'
 
@@ -14,17 +15,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
 import { NoCompanySelected } from '@/components/features/companies/no-company-selected'
-import { TransactionRuleDialog } from '@/components/features/rules/transaction-rule-dialog'
 import { EmptyState, PageHeader, StatusBadge, useConfirm } from '@/components/shared'
 import { docsUrl } from '@/lib/docs-links'
 import { logger } from '@/lib/logger'
 import { plural } from '@/lib/utils/plural'
-
-interface Account {
-  id: string
-  code: string
-  label: string
-}
 
 interface TransactionRule {
   id: string
@@ -60,43 +54,15 @@ interface TransactionRule {
   }>
 }
 
-type DialogProps = React.ComponentProps<typeof TransactionRuleDialog>
-type Condition = NonNullable<DialogProps['initialConditions']>[number]
-type EntryLine = NonNullable<DialogProps['initialEntryLines']>[number]
-
-/** Parses a JSON array passed in the URL by "Créer une règle à partir de cette transaction". */
-function parseJsonArray(raw: string | null): Array<Record<string, unknown>> {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null) : []
-  } catch (error) {
-    logger.error('Error parsing rule prefill:', error)
-    return []
-  }
-}
-
-const toConditions = (items: Array<Record<string, unknown>>): Condition[] =>
-  items.map((c, idx) => ({ ...c, id: `temp-${idx}` }) as Condition)
-
-const toEntryLines = (items: Array<Record<string, unknown>>): EntryLine[] =>
-  items.map((l, idx) => ({ ...l, id: `temp-${idx}`, order: idx }) as EntryLine)
-
 export default function RulesPage() {
   const params = useParams()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const companyId = params?.companyId as string
   const [loading, setLoading] = useState(true)
   const [rules, setRules] = useState<TransactionRule[]>([])
   // Regex conditions saved before patterns were checked: they never match until corrected
   const [patternIssues, setPatternIssues] = useState<Map<string, string>>(new Map())
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [journals, setJournals] = useState<Array<{ id: string; code: string; label: string }>>([])
-  const [openDialog, setOpenDialog] = useState(false)
-  const [editingRule, setEditingRule] = useState<TransactionRule | null>(null)
-  const [initialConditions, setInitialConditions] = useState<Condition[]>([])
-  const [initialEntryLines, setInitialEntryLines] = useState<EntryLine[]>([])
-  const [initialRuleName, setInitialRuleName] = useState<string>('')
   const { confirm, dialog: confirmDialog } = useConfirm()
 
   const loadRules = useCallback(async () => {
@@ -118,74 +84,15 @@ export default function RulesPage() {
     }
   }, [companyId])
 
-  const loadAccounts = useCallback(async () => {
-    if (!companyId) return
-    try {
-      const response = await fetch(`/api/accounts?companyId=${companyId}`)
-      if (!response.ok) throw new Error('accounts')
-      const data = (await response.json()) as Account[] | { accounts?: Account[] }
-      setAccounts(Array.isArray(data) ? data : (data.accounts ?? []))
-    } catch (error) {
-      logger.error('Error loading accounts:', error)
-      toast.error('Le plan de comptes ne s’est pas chargé. Rechargez la page.')
-    }
-  }, [companyId])
-
-  const loadJournals = useCallback(async () => {
-    if (!companyId) return
-    try {
-      const response = await fetch(`/api/journals?companyId=${companyId}`)
-      if (!response.ok) throw new Error('journals')
-      const data: unknown = await response.json()
-      setJournals(Array.isArray(data) ? data : [])
-    } catch (error) {
-      logger.error('Error loading journals:', error)
-    }
-  }, [companyId])
-
   useEffect(() => {
     void loadRules()
-    void loadAccounts()
-    void loadJournals()
-  }, [loadRules, loadAccounts, loadJournals])
+  }, [loadRules])
 
-  // "Créer une règle à partir de cette transaction" opens the dialog prefilled.
+  // Links of earlier versions ("Créer une règle à partir de cette transaction") open the new rule page with their prefill.
   useEffect(() => {
-    const fromTransaction = searchParams.get('fromTransaction')
-    if (!companyId || !fromTransaction) return
-    const conditionsParam = searchParams.get('conditions')
-    const entryLinesParam = searchParams.get('entryLines')
-
-    if (!conditionsParam && !entryLinesParam) {
-      // Link with only the transaction (the Démarrer checklist): ask the API for the suggested rule.
-      void (async () => {
-        try {
-          const response = await fetch(`/api/transactions/${encodeURIComponent(fromTransaction)}/create-rule`)
-          if (response.ok) {
-            const data = (await response.json()) as {
-              suggestedName?: string
-              suggestedConditions?: Array<Record<string, unknown>>
-              suggestedEntryLines?: Array<Record<string, unknown>>
-            }
-            if (data.suggestedName) setInitialRuleName(data.suggestedName)
-            setInitialConditions(toConditions(data.suggestedConditions ?? []))
-            setInitialEntryLines(toEntryLines(data.suggestedEntryLines ?? []))
-          }
-        } catch (error) {
-          logger.error('Error loading the suggested rule:', error)
-        } finally {
-          setOpenDialog(true)
-        }
-      })()
-      return
-    }
-
-    const ruleName = searchParams.get('ruleName')
-    if (ruleName) setInitialRuleName(ruleName)
-    setInitialConditions(toConditions(parseJsonArray(conditionsParam)))
-    setInitialEntryLines(toEntryLines(parseJsonArray(entryLinesParam)))
-    setOpenDialog(true)
-  }, [companyId, searchParams])
+    if (!companyId || !searchParams.get('fromTransaction')) return
+    router.replace(`/${companyId}/rules/new?${searchParams.toString()}`)
+  }, [companyId, router, searchParams])
 
   const handleDelete = async (rule: TransactionRule) => {
     const ok = await confirm({
@@ -223,24 +130,18 @@ export default function RulesPage() {
     }
   }
 
-  const handleOpenDialog = (rule?: TransactionRule) => {
-    setEditingRule(rule ?? null)
-    if (!rule) {
-      setInitialConditions([])
-      setInitialEntryLines([])
-      setInitialRuleName('')
-    }
-    setOpenDialog(true)
-  }
+  const ruleHref = (rule: TransactionRule) => `/${companyId}/rules/${rule.id}`
 
   if (!companyId) {
     return <NoCompanySelected />
   }
 
   const newRuleButton = (size: 'default' | 'sm') => (
-    <Button size={size} onClick={() => handleOpenDialog()}>
-      <Plus aria-hidden />
-      Nouvelle règle
+    <Button size={size} asChild>
+      <Link href={`/${companyId}/rules/new`}>
+        <Plus aria-hidden />
+        Nouvelle règle
+      </Link>
     </Button>
   )
 
@@ -291,13 +192,12 @@ export default function RulesPage() {
               rules.map((rule) => (
                 <TableRow key={rule.id}>
                   <TableCell className="max-w-80 whitespace-normal lg:whitespace-nowrap">
-                    <button
-                      type="button"
+                    <Link
+                      href={ruleHref(rule)}
                       className="hover:text-link focus-visible:ring-ring/50 pointer-coarse:min-h-11 block max-w-full rounded-sm text-left font-medium break-words outline-none focus-visible:ring-[3px] lg:truncate"
-                      onClick={() => handleOpenDialog(rule)}
                     >
                       {rule.name}
-                    </button>
+                    </Link>
                     {rule.description ? (
                       <div className="text-muted-foreground line-clamp-2 text-xs lg:truncate">{rule.description}</div>
                     ) : null}
@@ -336,11 +236,12 @@ export default function RulesPage() {
                         variant="ghost"
                         size="icon-sm"
                         className="max-sm:hidden"
-                        onClick={() => handleOpenDialog(rule)}
-                        aria-label={`Modifier la règle ${rule.name}`}
+                        asChild
                         title="Modifier"
                       >
-                        <Pencil aria-hidden />
+                        <Link href={ruleHref(rule)} aria-label={`Modifier la règle ${rule.name}`}>
+                          <Pencil aria-hidden />
+                        </Link>
                       </Button>
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
@@ -354,7 +255,7 @@ export default function RulesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="sm:hidden" onSelect={() => handleOpenDialog(rule)}>
+                          <DropdownMenuItem className="sm:hidden" onSelect={() => router.push(ruleHref(rule))}>
                             <Pencil aria-hidden />
                             Modifier
                           </DropdownMenuItem>
@@ -376,22 +277,6 @@ export default function RulesPage() {
           </TableBody>
         </Table>
       )}
-
-      <TransactionRuleDialog
-        open={openDialog}
-        onOpenChange={(open) => {
-          setOpenDialog(open)
-          if (!open) setEditingRule(null)
-        }}
-        editingRule={editingRule}
-        companyId={companyId}
-        accounts={accounts}
-        journals={journals}
-        initialConditions={initialConditions}
-        initialEntryLines={initialEntryLines}
-        initialRuleName={initialRuleName}
-        onSave={loadRules}
-      />
 
       {confirmDialog}
     </div>
