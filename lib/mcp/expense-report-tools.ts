@@ -12,6 +12,8 @@ import { z } from 'zod'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
+import { viewMeta, withView } from '@/lib/mcp/views'
+import { expenseReportDocument } from '@/lib/mcp/views/builders'
 import { expenseActorOf } from '@/lib/expense-reports/actor'
 import { EXPENSE_CATEGORIES } from '@/lib/expense-reports/categories'
 import { getExpenseReport, listExpenseReports } from '@/lib/expense-reports/manage-expense-reports.service'
@@ -86,13 +88,14 @@ export function registerExpenseReportReadTools(server: McpServer, access: McpAcc
       }),
       inputSchema: z.object({ companyId, reportId: z.string().describe('Expense report id, from list_expense_reports.') }),
       annotations: readOnly,
+      _meta: viewMeta('document'),
     },
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { entries: ['read'] })
         const actor = await expenseActorOf(access.user, args.companyId)
         const report = await getExpenseReport(args.companyId, args.reportId, actor)
-        return json({
+        const out = {
           id: report.id,
           number: report.number,
           label: report.label,
@@ -123,7 +126,8 @@ export function registerExpenseReportReadTools(server: McpServer, access: McpAcc
           })),
           entry: report.entry,
           lettering: report.letteringCode,
-        })
+        }
+        return withView(json(out), () => expenseReportDocument(args.companyId, out))
       }),
   )
 

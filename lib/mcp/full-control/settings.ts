@@ -19,6 +19,8 @@ import { VatSettingsBodySchema, getVatSettings, updateVatSettings } from '@/lib/
 import { SimpleModeSettingsBodySchema, getSimpleModeSettings, updateSimpleModeSettings } from '@/lib/simple/simple-mode-settings.service'
 import { DeadlineSettingsBody } from '@/lib/deadlines/settings'
 import { getDeadlineSettings, saveDeadlineSettings } from '@/lib/deadlines/deadline-settings.service'
+import { CashForecastSettingsBody } from '@/lib/cash-forecast/settings'
+import { getCashForecastSettings, saveCashForecastSettings } from '@/lib/cash-forecast/cash-forecast-settings.service'
 import {
   CreateEstablishmentSchema,
   UpdateEstablishmentSchema,
@@ -58,12 +60,12 @@ import { listMembers, removeMember, updateMemberRole } from '@/lib/rbac/manage-m
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 
-const SETTINGS_SECTIONS = ['company', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings'] as const
+const SETTINGS_SECTIONS = ['company', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'cash_forecast'] as const
 
 const updateCompanySettingsTool = fullControlTool({
   name: 'update_company_settings',
   title: 'Modifier les paramètres de la société',
-  description: `Changes one section of the company settings, like the Informations page: company (the fields given of the company card: name, SIREN, legal form, closing day and month, regimes, VAT exemption, shares and nominal value, contact, sector, holding, default bank account, color, logo as a data URL), payment_terms (days and end of month, capped by Code de commerce art. L441-10), vat_settings (VAT on debits for services, CGI art. 269), simple_mode (accountantReview: whether simple mode entries wait for the accountant; null for the default), deadline_settings (options of the deadline calendar). Read them with get_company_settings. ${ACTS_AS_USER} ${TWO_STEP}`,
+  description: `Changes one section of the company settings, like the Informations page: company (the fields given of the company card: name, SIREN, legal form, closing day and month, regimes, VAT exemption, shares and nominal value, contact, sector, holding, default bank account, color, logo as a data URL), payment_terms (days and end of month, capped by Code de commerce art. L441-10), vat_settings (VAT on debits for services, CGI art. 269), simple_mode (accountantReview: whether simple mode entries wait for the accountant; null for the default), deadline_settings (options of the deadline calendar), cash_forecast (the whole object: threshold in euros, the minimum cash the company wants to keep, null for no alert; horizonMonths 3, 6 or 12; components counted by the forecast and its alert). Read them with get_company_settings. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: {
     section: z.enum(SETTINGS_SECTIONS),
     company: assistantInput(UpdateCompanySchema).optional(),
@@ -71,6 +73,7 @@ const updateCompanySettingsTool = fullControlTool({
     vatSettings: assistantInput(VatSettingsBodySchema).optional(),
     simpleMode: assistantInput(SimpleModeSettingsBodySchema).optional(),
     deadlineSettings: assistantInput(DeadlineSettingsBody).optional(),
+    cashForecast: assistantInput(CashForecastSettingsBody).optional(),
   },
   permission: { settings: ['update'] },
   amounts: 'euros',
@@ -89,11 +92,12 @@ const updateCompanySettingsTool = fullControlTool({
       vat_settings: () => getVatSettings(companyId),
       simple_mode: () => getSimpleModeSettings(companyId),
       deadline_settings: () => getDeadlineSettings(companyId),
+      cash_forecast: () => getCashForecastSettings(companyId),
     }
-    const requested = { company: values.company, payment_terms: values.paymentTerms, vat_settings: values.vatSettings, simple_mode: values.simpleMode, deadline_settings: values.deadlineSettings }[section]
+    const requested = { company: values.company, payment_terms: values.paymentTerms, vat_settings: values.vatSettings, simple_mode: values.simpleMode, deadline_settings: values.deadlineSettings, cash_forecast: values.cashForecast }[section]
     return { section, current: forAssistant(await current[section]()), requested }
   },
-  async execute({ companyId, section, company, paymentTerms, vatSettings, simpleMode, deadlineSettings }) {
+  async execute({ companyId, section, company, paymentTerms, vatSettings, simpleMode, deadlineSettings, cashForecast }) {
     switch (section) {
       case 'company': {
         const { logo, ...updated } = (await updateCompany(companyId, routeBody(UpdateCompanySchema, company ?? {}))) as Record<string, unknown>
@@ -115,6 +119,8 @@ const updateCompanySettingsTool = fullControlTool({
       }
       case 'deadline_settings':
         return { section, deadlineSettings: forAssistant(await saveDeadlineSettings(companyId, routeBody(DeadlineSettingsBody, deadlineSettings ?? {}))) }
+      case 'cash_forecast':
+        return { section, cashForecast: forAssistant(await saveCashForecastSettings(companyId, routeBody(CashForecastSettingsBody, cashForecast ?? {}))) }
     }
   },
   audit: ({ section }) => ({ section }),

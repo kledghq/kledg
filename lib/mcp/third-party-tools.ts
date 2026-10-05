@@ -13,6 +13,8 @@ import { z } from 'zod'
 import type { CompanyGuard } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
+import { viewMeta, withView } from '@/lib/mcp/views'
+import { tiersFlowsChart } from '@/lib/mcp/views/builders'
 import {
   AuxiliaryBalanceQuerySchema,
   getAuxiliaryBalance,
@@ -107,17 +109,19 @@ export function registerThirdPartyReadTools(server: McpServer, guard: CompanyGua
         kind: z.enum(['customers', 'suppliers', 'all']).default('all'),
       }),
       annotations: READ_ONLY,
+      _meta: viewMeta('chart'),
     },
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { reports: ['read'] })
         const query = parseInput(TiersFlowsQuerySchema, { fiscalYearId: args.fiscalYearId })
         const report = await getTiersFlows(args.companyId, query)
-        return json({
+        const result = json({
           fiscalYear: report.fiscalYear,
           ...(args.kind !== 'suppliers' && { customers: flowSide(report.customers) }),
           ...(args.kind !== 'customers' && { suppliers: flowSide(report.suppliers) }),
         })
+        return withView(result, () => tiersFlowsChart(args.companyId, report, args.kind))
       }),
   )
 }

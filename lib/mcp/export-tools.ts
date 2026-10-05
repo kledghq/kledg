@@ -3,7 +3,7 @@
  * export routes (balance sheet and income statement PDF and Excel, annexe,
  * fixed asset movements, corporate tax, VAT return, local taxes,
  * remuneration, bilan pédagogique et financier, financial indicators, aged and auxiliary balances, journal,
- * group). For each report, the same rule as its route:
+ * cash forecast, group). For each report, the same rule as its route:
  * - the company guard with the route's right (reports:export, the
  *   *_EXPORT constants of each feature), so the connection's grant and the
  *   user's role apply; the group exports check each subsidiary read through
@@ -54,6 +54,8 @@ import {
 import { AgedBalanceQuerySchema, AuxiliaryBalanceQuerySchema } from '@/lib/reports/third-parties/get-third-party-reports.service'
 import { exportAgedBalanceExcel, exportAuxiliaryBalanceExcel } from '@/lib/reports/third-parties/export-third-party-reports.service'
 import { exportGroup, GROUP_REPORTS, GroupExportQuerySchema } from '@/lib/group/export-group.service'
+import { CashForecastQuerySchema } from '@/lib/cash-forecast/load-cash-forecast.service'
+import { exportCashForecast } from '@/lib/cash-forecast/export-cash-forecast.service'
 
 const REPORT_EXPORT: Permission = { reports: ['export'] }
 
@@ -105,6 +107,8 @@ export const EXPORTS = {
   auxiliary_balance_excel: exportOf(REPORT_EXPORT, AuxiliaryBalanceQuerySchema, (companyId, query) => exportAuxiliaryBalanceExcel(companyId, query)),
   /** GET /api/reports/journal/export-excel */
   journal_excel: exportOf(REPORT_EXPORT, JournalReportQuerySchema, (companyId, query) => exportJournalExcel(companyId, query)),
+  /** GET /api/cash-forecast/export (reports:export and banking:read) */
+  cash_forecast: exportOf({ reports: ['export'], banking: ['read'] }, CashForecastQuerySchema, (companyId, query) => exportCashForecast(companyId, query)),
   /** GET /api/group/export (reports:export in the holding, reports:read in each subsidiary read) */
   group: exportOf(REPORT_EXPORT, GroupExportQuerySchema, (companyId, query, group) => exportGroup(companyId, query, group)),
 } satisfies Record<string, ExportDefinition>
@@ -131,6 +135,9 @@ const InputSchema = z.object({
   scenarioId: text(100).optional().describe('remuneration: a saved scenario.'),
   basis: text(20).optional().describe('remuneration: current, projection or closed.'),
   inputs: text(4000).optional().describe('remuneration: the inputs changed, as JSON (same as simulate_remuneration).'),
+  horizon: text(3).optional().describe('cash_forecast: 3, 6 or 12 months (the saved horizon by default).'),
+  granularity: text(10).optional().describe('cash_forecast: month or week.'),
+  components: text(200).optional().describe('cash_forecast: components counted, comma separated (receivables, payables, taxes, recurring, budget, trend); the saved ones by default.'),
   groupReport: z.enum(GROUP_REPORTS).optional().describe('group: which group report (combined by default).'),
   groupFilters: z
     .record(z.string().max(40), text(200))
@@ -159,7 +166,7 @@ export function registerExportTools(server: McpServer, access: McpAccess, guard:
     {
       title: 'Exporter un état en fichier',
       description: describeTool({
-        summary: `Generates the file of a report, exactly as its download button in Kledg (same service, same checks), and returns it in the result as an embedded resource (base64 blob with its MIME type and file name): balance_sheet_pdf, balance_sheet_excel, income_statement_pdf, income_statement_excel, annexe (pdf or md), fixed_asset_movements (2054, 2055, 2033-C; pdf or csv), corporate_tax, vat_return, local_taxes, remuneration (pdf or csv), training_report (bilan pédagogique et financier, csv), financial_indicators (csv or xlsx), aged_balance_excel, auxiliary_balance_excel, journal_excel, group (holding and subsidiaries; csv or xlsx). Files above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB are refused: the user downloads them from Kledg. To read the figures, prefer the matching read tool (get_balance_sheet, get_vat_return...).`,
+        summary: `Generates the file of a report, exactly as its download button in Kledg (same service, same checks), and returns it in the result as an embedded resource (base64 blob with its MIME type and file name): balance_sheet_pdf, balance_sheet_excel, income_statement_pdf, income_statement_excel, annexe (pdf or md), fixed_asset_movements (2054, 2055, 2033-C; pdf or csv), corporate_tax, vat_return, local_taxes, remuneration (pdf or csv), training_report (bilan pédagogique et financier, csv), financial_indicators (csv or xlsx), aged_balance_excel, auxiliary_balance_excel, journal_excel, cash_forecast (csv), group (holding and subsidiaries; csv or xlsx). Files above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB are refused: the user downloads them from Kledg. To read the figures, prefer the matching read tool (get_balance_sheet, get_vat_return...).`,
         access: 'read',
         permission: REPORT_EXPORT,
         amounts: 'euros',

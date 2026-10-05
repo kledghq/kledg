@@ -57,7 +57,7 @@ export interface Tiers {
  */
 export type TiersDirectory = ReadonlyMap<string, { name: string; terms: PaymentTerms | null }>
 
-function tiersOf(line: ThirdPartyLine, directory: TiersDirectory = new Map()): { code: string; label: string } {
+export function tiersOf(line: ThirdPartyLine, directory: TiersDirectory = new Map()): { code: string; label: string } {
   const aux = line.auxiliaryAccountNumber?.trim()
   if (aux) return { code: aux, label: directory.get(aux)?.name || line.auxiliaryAccountLabel?.trim() || line.accountLabel }
   return { code: line.accountCode, label: line.accountLabel }

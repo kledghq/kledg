@@ -20,6 +20,9 @@
  * - Impôt sur les sociétés estimé: the IS of the fiscal year from its
  *   entries so far, as the worksheet computes it (lib/corporate-tax), shown
  *   as an estimate; nothing for a company at the impôt sur le revenu.
+ * The cash forecast card ("Votre argent à venir") loads its own status
+ * once the page is displayed (GET /api/cash-forecast/alert): the projection
+ * never delays this page.
  *
  * Each part is loaded only when the user's roles may read it (the same
  * permissions as the dashboard sources and their routes); otherwise it is

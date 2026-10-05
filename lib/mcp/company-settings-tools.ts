@@ -2,7 +2,8 @@
  * Read tools of the company settings (kledg:read and settings:read, like
  * the GET routes of app/api/companies/[id]/**): the company card,
  * establishments, members, persons, shareholders, payment terms, VAT and
- * simple mode options, deadline calendar settings, tax regimes, addresses,
+ * simple mode options, deadline calendar and cash forecast settings, tax
+ * regimes, addresses,
  * and the layout of the balance sheet and the income statement. Changes go
  * through update_company_settings, manage_company_records and
  * manage_statement_layout (full control). Logos and photos (data URLs) are
@@ -26,6 +27,7 @@ import { getPaymentTerms } from '@/lib/companies/payment-terms.service'
 import { getVatSettings } from '@/lib/companies/vat-settings.service'
 import { getSimpleModeSettings } from '@/lib/simple/simple-mode-settings.service'
 import { getDeadlineSettings } from '@/lib/deadlines/deadline-settings.service'
+import { getCashForecastSettings } from '@/lib/cash-forecast/cash-forecast-settings.service'
 import { getTaxRegimeHistory } from '@/lib/companies/tax-regimes'
 import { SearchAddressesQuerySchema, getCompanyAddress, searchCompanyAddresses } from '@/lib/addresses/manage-addresses.service'
 import { getBalanceSheetConfig } from '@/lib/reports/balance-sheet/config/get-balance-sheet-config.service'
@@ -50,7 +52,7 @@ function withoutImages(value: unknown): unknown {
   return out
 }
 
-const SECTIONS = ['company', 'establishments', 'members', 'persons', 'person', 'shareholders', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'tax_regimes', 'addresses'] as const
+const SECTIONS = ['company', 'establishments', 'members', 'persons', 'person', 'shareholders', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'cash_forecast', 'tax_regimes', 'addresses'] as const
 
 export function registerCompanySettingsTools(server: McpServer, guard: CompanyGuard) {
   server.registerTool(
@@ -59,7 +61,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
       title: 'Paramètres de la société',
       description: describeTool({
         summary:
-          'Returns one section of the company settings: company (identity, SIREN, legal form, closing date, regimes, capital, fiscal years), establishments (SIRET, addresses, the main one first), members (users and roles), persons (who may be a shareholder), person (with personId: every data held on one person and its links, shareholdings and expense claimants, RGPD art. 15 and 20), shareholders (capital table), payment_terms (used by the aged balance), vat_settings (VAT on debits, franchise), simple_mode (whether simple mode entries wait for the accountant), deadline_settings (deadline calendar options), tax_regimes (VAT and corporate tax regime history, regimeType to narrow), addresses (search with at least 2 characters, or one addressId).',
+          'Returns one section of the company settings: company (identity, SIREN, legal form, closing date, regimes, capital, fiscal years), establishments (SIRET, addresses, the main one first), members (users and roles), persons (who may be a shareholder), person (with personId: every data held on one person and its links, shareholdings and expense claimants, RGPD art. 15 and 20), shareholders (capital table), payment_terms (used by the aged balance), vat_settings (VAT on debits, franchise), simple_mode (whether simple mode entries wait for the accountant), deadline_settings (deadline calendar options), cash_forecast (minimum cash threshold, horizon and components of the cash forecast, see get_cash_forecast), tax_regimes (VAT and corporate tax regime history, regimeType to narrow), addresses (search with at least 2 characters, or one addressId).',
         access: 'read',
         permission: { settings: ['read'] },
         amounts: 'euros',
@@ -94,6 +96,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
           vat_settings: () => getVatSettings(id),
           simple_mode: () => getSimpleModeSettings(id),
           deadline_settings: () => getDeadlineSettings(id),
+          cash_forecast: () => getCashForecastSettings(id),
           tax_regimes: () => getTaxRegimeHistory(id, args.regimeType),
           addresses: () =>
             args.addressId ? getCompanyAddress(id, args.addressId) : searchCompanyAddresses(id, parseInput(SearchAddressesQuerySchema, { search: args.search })),

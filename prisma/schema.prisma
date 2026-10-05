@@ -96,6 +96,10 @@ model Company {
   /// (VAT filing day, quarterly CA3, IS and CFE acomptes...): JSON validated by
   /// DeadlineSettingsSchema (lib/deadlines/settings.ts); null: the defaults.
   deadlineSettings           Json?
+  /// Cash forecast (lib/cash-forecast): minimum cash threshold, horizon and
+  /// the flows the projection counts; JSON validated by
+  /// CashForecastSettingsSchema (lib/cash-forecast/settings.ts); null: defaults.
+  cashForecastSettings       Json?
   /// VAT on services is due when the price is received (CGI art. 269, 2, c);
   /// a company may opt to pay it on debits (invoice). False: sales invoices of
   /// services post their VAT to 44574 "TVA collectée en attente d'encaissement"
