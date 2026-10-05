@@ -49,7 +49,7 @@ describe('approval regime per legal form', () => {
     expect(accountsPreparedBy(r)).toBe('le président')
   })
 
-  it('SASU: the associé unique decides, the officer is the président and never a gérant (Ledgerly mixed them up)', () => {
+  it('SASU: the associé unique decides, the officer is the président and never a gérant', () => {
     const r = regimeOf('SASU')
     expect(r.sole).toBe(true)
     expect(r.officerTitle.singular).toBe('président')

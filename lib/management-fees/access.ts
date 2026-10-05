@@ -7,8 +7,8 @@
  *   the user's own role there, with the permission of what is done there:
  *   reading a subsidiary's revenue needs reports:read in the subsidiary,
  *   proposing a purchase invoice to it needs entries:create in it. Being a
- *   member of the holding gives nothing in a subsidiary (Ledgerly wrote
- *   validated entries in any company whose id was sent);
+ *   member of the holding gives nothing in a subsidiary (never write in a
+ *   company only because its id was sent);
  * - the check runs through a `GroupAccess`: the web routes build it from
  *   the user's roles (userGroupAccess), the MCP tools from their company
  *   guard (lib/mcp/company-access.ts), which also applies the connection's

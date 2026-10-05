@@ -20,9 +20,8 @@
  *   https://docs.qonto.com/api-reference/business-api/expense-management/attachments/retrieve-an-attachment
  *
  * Not called: Qonto documents no list of suppliers (suppliers come from the
- * supplier invoices), and the endpoints the earlier Ledgerly client used
- * (/customers, /invoices, /payments, /vendors, /suppliers) are not in the
- * public reference.
+ * supplier invoices), and the endpoints /customers, /invoices, /payments,
+ * /vendors and /suppliers are not in the public reference.
  */
 
 import { QontoClientBase, qontoPathSegment } from './client-base'

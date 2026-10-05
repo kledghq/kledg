@@ -100,7 +100,7 @@ La page États, Composition du capital (`GET /api/reports/capital-composition?co
 - Aucune donnée personnelle hors le nom : la date et le lieu de naissance, l'adresse et les coordonnées restent sur la fiche de l'associé.
 - La page s'imprime pour l'annexe ou l'assemblée générale. Les participations détenues (2033-G, 2059-G) ne sont pas encore reprises.
 
-## Ce qui n'est pas repris de Ledgerly
+## Ce qui n'est pas couvert
 
 - Les frais de développement : prévus pour kledg-labs. Les méthodes comptables, changements de méthode et d'estimation et corrections d'erreurs sont tenus dans le registre des méthodes ([annexe](annexe-et-2054.md)).
 - Le transfert d'une dépréciation en amortissement pour raisons fiscales et la révision du plan d'amortissement après une dépréciation (la base amortissable devient la valeur nette comptable dépréciée) : le plan d'une immobilisation dépréciée se corrige à la main.

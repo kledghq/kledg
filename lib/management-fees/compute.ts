@@ -2,9 +2,8 @@
  * The one pricing engine of management fees: from the cost pool (or the
  * fixed amount), the mark-up, the allocation key and the VAT rate, the fee of
  * each subsidiary for a period, in cents. The preview, the invoices and the
- * MCP tools all call it, so what the user sees is what is invoiced (Ledgerly
- * computed the same fee three ways: the engine, the invoice and the
- * accruals disagreed).
+ * MCP tools all call it, so what the user sees is what is invoiced (one
+ * computation, so the preview, the invoice and the accruals never disagree).
  *
  * Rounding (docs/conventions.md, Money):
  * 1. Cost plus: total HT = cost pool x service share x (1 + mark-up),
