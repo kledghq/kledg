@@ -200,7 +200,7 @@ const ruleInput = {
   name: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   enabled: z.boolean().default(true),
-  priority: z.number().int().min(0).max(1000).default(0),
+  priority: z.number().int().min(-1000).max(1000).default(0),
   journalCode: z.string().max(3).default('BQ'),
   defaultVatAccountCode: z.string().max(20).optional(),
   autoCreate: z

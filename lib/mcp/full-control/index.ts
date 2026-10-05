@@ -11,7 +11,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/server'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
-import { registerFullControlTool, type RegisterTool } from './define'
+import { registerFullControlTool, registerInstanceTool, type RegisterTool } from './define'
 import { registerEntryTools } from './entries'
 import { registerBankingTools } from './banking'
 import { registerLedgerTools } from './ledger'
@@ -22,6 +22,7 @@ import { registerChartTools } from './chart'
 import { registerSettingsTools } from './settings'
 import { registerBankAdminTools } from './bank-admin'
 import { registerRecordTools } from './records'
+import { createCompanyTool, registerCompanyTools } from './companies'
 
 export function registerFullControlTools(server: McpServer, access: McpAccess, guard: CompanyGuard): void {
   if (!access.canAdmin) return
@@ -36,4 +37,7 @@ export function registerFullControlTools(server: McpServer, access: McpAccess, g
   registerSettingsTools(register)
   registerBankAdminTools(register)
   registerRecordTools(register)
+  registerCompanyTools(register)
+  // Outside any company: the instance policy and a grant of every company (define.ts).
+  registerInstanceTool(server, access, guard, createCompanyTool)
 }

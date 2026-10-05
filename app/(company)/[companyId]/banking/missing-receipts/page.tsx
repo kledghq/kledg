@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowRight, FileCheck2, RefreshCw, RotateCw } from 'lucide-react'
 
@@ -23,6 +23,12 @@ import { plural } from '@/lib/utils/plural'
 import type { MissingReceipts, MissingReceipt } from '@/lib/banking/missing-receipts.service'
 
 type Side = 'debit' | 'credit' | 'all'
+
+/** Direction asked by a link (?side=all from the simple mode home, which counts both), expenses by default. */
+function sideFromUrl(params: URLSearchParams | null): Side {
+  const side = params?.get('side')
+  return side === 'credit' || side === 'all' ? side : 'debit'
+}
 const ALL_ACCOUNTS = '__all__'
 const THRESHOLD_KEY = 'kledg:missingReceipts:threshold'
 
@@ -60,7 +66,8 @@ export default function MissingReceiptsPage() {
   const [bankAccounts, setBankAccounts] = React.useState<Array<{ id: string; name: string; displayName?: string | null; iban?: string | null }>>([])
   const [bankAccountId, setBankAccountId] = React.useState(ALL_ACCOUNTS)
   const [thresholdCents, setThresholdCents] = React.useState<number | null>(null)
-  const [side, setSide] = React.useState<Side>('debit')
+  const searchParams = useSearchParams()
+  const [side, setSide] = React.useState<Side>(() => sideFromUrl(searchParams))
   const [data, setData] = React.useState<MissingReceipts | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)

@@ -127,7 +127,8 @@ export function ResultatKpi(props: WidgetProps) {
         return {
           value: <KpiCents cents={cents} />,
           valueClassName: cents < 0 ? 'text-destructive' : undefined,
-          aside: <StatusBadge tone={cents >= 0 ? 'success' : 'danger'}>{cents >= 0 ? 'Bénéfice' : 'Perte'}</StatusBadge>,
+          // Nothing recorded yet is neither a profit nor a loss
+          aside: cents === 0 ? undefined : <StatusBadge tone={cents > 0 ? 'success' : 'danger'}>{cents > 0 ? 'Bénéfice' : 'Perte'}</StatusBadge>,
           hint: previousHint(d, (p) => p.resultatCents),
         }
       }}

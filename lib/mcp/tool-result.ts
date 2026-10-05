@@ -27,7 +27,7 @@ export function fail(message: string): ToolResult {
 }
 
 /** Runs a tool body, turning access and validation errors into tool errors. */
-export async function run(fn: () => Promise<ToolResult>): Promise<ToolResult> {
+export async function run<T extends { content: unknown[]; isError?: boolean } = ToolResult>(fn: () => Promise<T>): Promise<T | ToolResult> {
   try {
     return await fn()
   } catch (error) {

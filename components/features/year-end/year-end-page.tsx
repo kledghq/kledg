@@ -16,7 +16,7 @@ import { docsUrl } from '@/lib/docs-links'
 import type { YearEndInventory } from '@/lib/year-end/get-year-end-inventory.service'
 import type { PrepareResult } from '@/lib/year-end/prepare-year-end-entries.service'
 import type { AdjustmentStatus } from '@/lib/year-end/inventory'
-import { movementText } from './provisions-page'
+import { movementText, provisionsPageUrl } from './provisions-page'
 import { AdjustmentBadge, euros, sendJson, useJson } from './shared'
 
 interface Row {
@@ -70,6 +70,8 @@ export function YearEndPage({ companyId }: { companyId: string }) {
           })),
       ]
     : []
+  // Impairments only to assess: their page; otherwise the risks and charges first.
+  const toAssessPage = data && data.provisions.some((p) => p.status === 'to_assess') && data.provisions.every((p) => p.status !== 'to_assess' || p.category !== 'RISK_CHARGE') ? 'impairments' : 'risks'
   const toPrepare = rows.filter((r) => r.status === 'to_post' || (r.status === 'to_correct' && r.entry !== null)).length
 
   const prepare = async () => {
@@ -126,7 +128,7 @@ export function YearEndPage({ companyId }: { companyId: string }) {
           {data.totals.toAssess > 0 ? (
             <p className="text-sm" role="status">
               {data.totals.toAssess === 1 ? '1 provision ou dépréciation attend' : `${data.totals.toAssess} provisions ou dépréciations attendent`} son montant à la clôture&nbsp;:{' '}
-              <Link className="text-link underline-offset-4 hover:underline" href={`/${companyId}/provisions`}>
+              <Link className="text-link underline-offset-4 hover:underline" href={provisionsPageUrl(companyId, toAssessPage)}>
                 évaluez-les
               </Link>
               .
@@ -148,9 +150,14 @@ export function YearEndPage({ companyId }: { companyId: string }) {
               title="Rien à comptabiliser pour cet exercice"
               description="Aucune provision, dépréciation ni subvention ne concerne cet exercice. Enregistrez-les sur leurs pages si la clôture en demande."
               action={
-                <Button size="sm" variant="outline" asChild>
-                  <Link href={`/${companyId}/provisions`}>Provisions et dépréciations</Link>
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={provisionsPageUrl(companyId, 'risks')}>Risques et charges</Link>
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={provisionsPageUrl(companyId, 'impairments')}>Dépréciations</Link>
+                  </Button>
+                </>
               }
               secondaryAction={
                 <Button size="sm" variant="outline" asChild>

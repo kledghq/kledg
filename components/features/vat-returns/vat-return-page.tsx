@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowUpRight, CalendarClock, Download, FilePlus2, FileText, Info, Landmark } from 'lucide-react'
+import { ArrowRight, CalendarClock, Download, FilePlus2, FileText, Info, Landmark } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AmountInput } from '@/components/ui/amount-input'
@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Amount, ConfirmDialog, DateDisplay, EmptyState, Field, PageHeader, StatCard, StatusBadge, formatDisplayDate, type StatusTone } from '@/components/shared'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { euros, sendJson, useJson } from '@/components/features/year-end/shared'
+import { plural } from '@/lib/utils/plural'
 import { docsUrl } from '@/lib/docs-links'
 import type { VatReturnView } from '@/lib/vat-returns/load-vat-return.service'
 import type { VatReturnLine } from '@/lib/vat-returns/compute'
@@ -445,7 +446,7 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
             <StatCard
               label="Préparation"
               value={<StatusBadge tone={view.reliable ? 'success' : 'danger'}>{view.reliable ? 'Chiffres complets' : 'À corriger'}</StatusBadge>}
-              hint={`${view.movements?.entries ?? 0} écritures validées lues${view.filing ? ', déclaration déposée' : ''}`}
+              hint={`${plural(view.movements?.entries ?? 0, 'écriture validée lue', 'écritures validées lues')}${view.filing ? ', déclaration déposée' : ''}`}
             />
           </div>
 
@@ -490,7 +491,7 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
                       {check.link ? (
                         <Link href={`/${companyId}/${check.link.page}`} className="text-link inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline">
                           {check.link.label}
-                          <ArrowUpRight aria-hidden className="size-3.5" />
+                          <ArrowRight aria-hidden className="size-3.5" />
                         </Link>
                       ) : null}
                     </div>

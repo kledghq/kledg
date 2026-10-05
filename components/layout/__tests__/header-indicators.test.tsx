@@ -159,6 +159,22 @@ describe('DashboardBreadcrumb', () => {
     await waitFor(() => expect(document.title).toBe('Journaux · Atelier Lumen · Kledg'))
   })
 
+  it('names each provisions page in Saisie, not as a detail of the other', async () => {
+    nav.pathname = '/alpha/provisions/impairments'
+    const { unmount } = render(<DashboardBreadcrumb />)
+    await screen.findByRole('link', { name: /Atelier Lumen/ })
+    expect(screen.getByText('Saisie')).toBeInTheDocument()
+    expect(screen.getByText('Dépréciations')).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('link', { name: 'Risques et charges' })).toBeNull()
+    await waitFor(() => expect(document.title).toBe('Dépréciations · Atelier Lumen · Kledg'))
+    unmount()
+
+    nav.pathname = '/alpha/provisions'
+    render(<DashboardBreadcrumb />)
+    await screen.findByRole('link', { name: /Atelier Lumen/ })
+    expect(screen.getByText('Risques et charges')).toHaveAttribute('aria-current', 'page')
+  })
+
   it('links the section and names a sub page or a detail page', async () => {
     nav.pathname = '/alpha/entries/e1/edit'
     const { unmount } = render(<DashboardBreadcrumb />)

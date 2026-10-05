@@ -69,7 +69,7 @@ Même page, avec le vocabulaire de [mode simple](mode-simple.md) : « Votre arge
 | `GET /api/companies/[id]/cash-forecast-settings` | `settings:read` | Réglages |
 | `PUT /api/companies/[id]/cash-forecast-settings` | `settings:update` | Remplace les réglages, journal d'audit `UPDATE_CASH_FORECAST_SETTINGS` |
 
-MCP : `get_cash_forecast` (lecture), le seuil par `get_company_settings` et `update_company_settings`, section `cash_forecast` (contrôle total).
+MCP : `get_cash_forecast` (lecture), l'export par `export_report` (rapport `cash_forecast`), le seuil par `get_company_settings` et `update_company_settings`, section `cash_forecast` (contrôle total).
 
 ## Limites
 

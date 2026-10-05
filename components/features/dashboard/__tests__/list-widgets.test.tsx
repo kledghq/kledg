@@ -301,7 +301,7 @@ describe('ReglesList', () => {
     serve({ total: 0, rules: [] })
     const { unmount } = renderList(ReglesList, 'list-regles')
     expect(await screen.findByText("Aucune règle d'affectation")).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Créer une règle' })).toHaveAttribute('href', '/c1/rules')
+    expect(screen.getByRole('link', { name: 'Créer une règle' })).toHaveAttribute('href', '/c1/rules/new')
     unmount()
 
     serve({ total: 3, rules: [] })

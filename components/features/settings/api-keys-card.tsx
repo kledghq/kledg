@@ -201,7 +201,7 @@ export function ApiKeysCard({
           <p className="text-muted-foreground text-sm">
             Aucune clé API. Créez-en une ci-dessus si un outil vous la demande ; pour Claude ou ChatGPT, connectez-les
             depuis la page{' '}
-            <Link href="/settings/assistants" className="text-foreground font-medium underline underline-offset-4">
+            <Link href="/settings/assistants" className="text-link underline-offset-4 hover:underline">
               Assistants IA
             </Link>
             .

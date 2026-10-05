@@ -547,5 +547,8 @@ export function buildDocument(id: DocumentId, input: Input): GeneratedDocument {
       return confidentialityDocument(input)
     case 'filing-checklist':
       return filingChecklistDocument(input)
+    case 'annexe':
+      // Built from the books by lib/annexe (export-approval-document.service.tsx routes it there)
+      throw new Error('The annexe is built by lib/annexe')
   }
 }

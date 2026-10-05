@@ -101,7 +101,13 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   auto_letter_account: true,
   manage_fixed_asset: true,
   manage_depreciation_record: true,
+  archive_company: true,
+  restore_company: true,
+  create_company: true,
 }
+
+/** Full control tools acting outside any company (no companyId: the instance policy and a grant of every company). */
+const INSTANCE_TOOLS = new Set(['create_company'])
 
 /** Draft-level tools (kledg:write) of lib/mcp/drafts, besides create_draft_entry. */
 const DRAFT_TOOLS = [
@@ -116,6 +122,9 @@ const DRAFT_TOOLS = [
   'prepare_year_end_entries',
   'create_draft_expense_report',
   'update_year_end_formalities',
+  'manage_accounting_methods',
+  'manage_accounting_changes',
+  'update_annexe_notes',
   'accept_expense_suggestion',
   'prepare_vat_settlement',
   'prepare_corporate_tax_entry',
@@ -131,6 +140,7 @@ const DRAFT_TOOLS = [
   'save_local_taxes',
   'prepare_cfe_entry',
   'save_corporate_tax_inputs',
+  'save_remuneration_scenario',
   'record_tax_filing',
   'save_depreciation_record',
   'prepare_opening_balances',
@@ -166,7 +176,8 @@ describe('registerKledgTools', () => {
     for (const [name, twoStep] of Object.entries(FULL_CONTROL_TOOLS)) {
       const config = admin.tools.get(name)!
       expect(config.description, name).toContain('acts as the user')
-      expect(config.inputSchema?.shape, name).toHaveProperty('companyId')
+      if (INSTANCE_TOOLS.has(name)) expect(config.inputSchema?.shape, name).not.toHaveProperty('companyId')
+      else expect(config.inputSchema?.shape, name).toHaveProperty('companyId')
       if (twoStep) {
         expect(config.description, name).toContain('approves or refuses the action in Kledg')
         expect(config.inputSchema?.shape, name).toHaveProperty('actionId')
@@ -274,7 +285,7 @@ describe('company access in MCP tools', () => {
     for (const tool of tools) {
       const name = /'([a-z_]+)'/.exec(tool)?.[1]
       if (name === 'list_companies') {
-        expect(tool, name).toContain('await guard.companyWhere()')
+        expect(tool, name).toContain('await guard.companyWhere(')
       } else {
         expect(tool, name).toMatch(/await guard\.require\((args\.)?companyId,/)
       }
@@ -287,7 +298,7 @@ describe('full control tools', () => {
   // through registerFullControlTool (define.ts), which checks
   // guard.requireFullControl before any preview or action.
   const dir = path.resolve(__dirname, '../full-control')
-  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts', 'chart.ts', 'settings.ts', 'bank-admin.ts', 'records.ts']
+  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts', 'chart.ts', 'settings.ts', 'bank-admin.ts', 'records.ts', 'companies.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks full control first, in the single registration path', () => {
@@ -297,7 +308,16 @@ describe('full control tools', () => {
     for (const step of ['tool.preview(', 'tool.execute(', 'claimApprovedAction(', 'createPendingAction(']) {
       expect(handler.indexOf(step), step).toBeGreaterThan(guardAt)
     }
-    expect(define.split('server.registerTool(').length).toBe(2)
+    // Two registration paths: company tools, and the tools outside any company (create_company).
+    expect(define.split('server.registerTool(').length).toBe(3)
+    const instance = define.slice(define.indexOf('export function registerInstanceTool'))
+    const fullControl = instance.indexOf('if (!access.canAdmin) throw new ForbiddenError(FULL_CONTROL_REQUIRED_MESSAGE)')
+    const everyCompany = instance.indexOf('if ((await guard.companyIds()) !== null) throw new ForbiddenError(ALL_COMPANIES_REQUIRED_MESSAGE)')
+    expect(fullControl).toBeGreaterThan(0)
+    expect(everyCompany).toBeGreaterThan(fullControl)
+    for (const step of ['tool.preview(', 'tool.execute(', 'highImpactCall(']) {
+      expect(instance.indexOf(step), step).toBeGreaterThan(everyCompany)
+    }
   })
 
   it('declares every tool through fullControlTool and never registers or checks access ad hoc', () => {
@@ -309,6 +329,8 @@ describe('full control tools', () => {
         expect(source, `${file}: ${bypass}`).not.toContain(bypass)
       }
       declared += source.split('fullControlTool({').length - 1
+      // Tools outside any company are registered by index.ts through registerInstanceTool.
+      declared += source.split('instanceTool({').length - 1
       // Each declared tool is registered
       const registered = source.split('  register(').length - 1
       expect(registered, file).toBe(source.split('fullControlTool({').length - 1)
@@ -323,7 +345,7 @@ describe('draft tools', () => {
   // checks every right of the tool through the company guard before the
   // service runs.
   const dir = path.resolve(__dirname, '../drafts')
-  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts', 'records.ts']
+  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts', 'records.ts', 'remuneration.ts', 'annexe.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks the company guard first, in the single registration path', () => {

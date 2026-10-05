@@ -107,7 +107,7 @@ export const KLEDG_PROMPTS: KledgPrompt[] = [
       {
         text: "3. Pour chaque risque confirmé par l'utilisateur, enregistrez la provision ou la dépréciation avec `create_provision`, puis le montant requis à la clôture avec `record_provision_assessment`, en reprenant la justification qu'il donne. Une subvention reçue s'enregistre avec `create_investment_grant`.",
         write: true,
-        readOnlyText: "3. Pour chaque risque confirmé, indiquez la provision et le montant à saisir dans Kledg (page Provisions) ; l'accès en lecture seule ne permet pas de les enregistrer.",
+        readOnlyText: "3. Pour chaque risque confirmé, indiquez la provision ou la dépréciation et le montant à saisir dans Kledg (pages Risques et charges et Dépréciations) ; l'accès en lecture seule ne permet pas de les enregistrer.",
       },
       {
         text: "4. Préparez les dotations, reprises et quotes-parts de subventions avec `prepare_year_end_entries` : elles sont créées en brouillon. Montrez la liste et les éléments ignorés avec leur raison.",

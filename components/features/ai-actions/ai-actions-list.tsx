@@ -45,6 +45,9 @@ const TOOL_LABELS: Record<string, string> = {
   letter_entry_lines: 'Lettrer des lignes',
   unletter_entry_lines: 'Délettrer des lignes',
   create_draft_invoice: 'Enregistrer une facture',
+  create_company: 'Créer une société',
+  archive_company: 'Archiver une société',
+  restore_company: 'Restaurer une société',
 }
 
 /** Arguments shown without the file content of an import (base64). */

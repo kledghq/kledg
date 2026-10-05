@@ -130,7 +130,7 @@ Pour la suite : une source `EINVOICE`, un analyseur des formats (XML CII et UBL,
 
 ## Reprise de données d'un autre logiciel
 
-Kledg ne contient aucun import d'archive. Un outil de migration externe (celui du fork privé, `scripts/ledgerly-migration`) peut reprendre les tables `invoices`, `customers`, `suppliers` et `payments` d'une archive Ledgerly vers ces tables, par le service (`createTiers`, `createInvoice`, `postInvoice`, `recordInvoicePayment`) plutôt qu'en SQL, pour garder les contrôles :
+Kledg ne contient aucun import d'archive. Un outil de migration externe peut reprendre les factures, clients, fournisseurs et paiements d'un autre logiciel vers ces tables, par le service (`createTiers`, `createInvoice`, `postInvoice`, `recordInvoicePayment`) plutôt qu'en SQL, pour garder les contrôles :
 
 | Table Kledg | Champs à renseigner | Remarques |
 | --- | --- | --- |

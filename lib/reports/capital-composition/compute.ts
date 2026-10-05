@@ -15,8 +15,8 @@
  * - Code de commerce art. L223-2 (SARL: the capital is divided into equal
  *   parts sociales) and art. L228-1 (sociétés par actions issue actions):
  *   share capital = number of shares x nominal value.
- * - Ledgerly's report listed every shareholder for 2033-F without the 10 %
- *   threshold and printed birth data and addresses; this report keeps the
+ * - 2033-F lists only the shareholders above the 10 % threshold and needs
+ *   no birth data or addresses; this report keeps the
  *   threshold and leaves personal data out (they stay on the shareholder's
  *   record).
  */

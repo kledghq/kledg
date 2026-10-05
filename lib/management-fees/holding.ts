@@ -12,8 +12,8 @@
  *   no operating activity). A holding that invoices services to its
  *   subsidiaries is by definition a holding animatrice: the flag would hide
  *   the feature from the very companies that need it;
- * - a minimum percentage (Ledgerly counted any company held above 1 %, in
- *   one place, and used two other definitions elsewhere) is a legal question
+ * - a minimum percentage (one definition only, never a different threshold
+ *   in each place) is a legal question
  *   of each convention, not of the software: the shareholding is shown, the
  *   user decides.
  *

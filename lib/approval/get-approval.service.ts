@@ -22,7 +22,10 @@ import { calendarDayOf, todayUtc } from '@/lib/utils/date'
 import { toCents } from '@/lib/utils/money'
 import { buildApprovalPack, type ApprovalContext, type ApprovalPack } from './pack'
 import { ApprovalDetailsSchema, emptyDetails, type ApprovalDetails } from './schemas'
-import type { LegalSource } from './sources'
+import { SOURCES, type LegalSource } from './sources'
+import { loadAnnexe } from '@/lib/annexe/get-annexe.service'
+import { annexeTitle } from '@/lib/annexe/annexe-document'
+import type { GroupAccess } from '@/lib/management-fees/access'
 
 const day = (value: Date) => calendarDayOf(value) as string
 
@@ -130,7 +133,41 @@ export interface ApprovalView {
   sources: LegalSource[]
 }
 
-export async function getApproval(companyId: string, fiscalYearId: string, now?: Date): Promise<ApprovalView> {
+export interface ApprovalOptions {
+  /** false: leave the annexe out of the documents (the annexe service reads the size category here). */
+  annexe?: boolean
+  /** Reads the participations of a holding for the annexe; null leaves them unread. */
+  access?: GroupAccess | null
+}
+
+/**
+ * The annexe as a document of the pack, with what it still misses
+ * (lib/annexe): required unless the company is a micro-entreprise
+ * (C. com. L123-16-1), filed with the accounts (L232-22, L232-23).
+ */
+async function annexeDocumentOf(companyId: string, fiscalYearId: string, pack: ApprovalPack, details: ApprovalDetails, access: GroupAccess | null): Promise<ApprovalPack['documents'][number]> {
+  const category = pack.size.confirmed ?? pack.size.proposed
+  const view = await loadAnnexe(companyId, fiscalYearId, {
+    category,
+    confirmed: pack.size.confirmed !== null,
+    groupMember: details.groupMember ?? null,
+    employees: details.size.employees,
+    access,
+  })
+  const micro = view.annexe.list === 'micro'
+  return {
+    id: 'annexe',
+    title: annexeTitle(view.annexe),
+    required: !micro,
+    reason: micro
+      ? "Une micro-entreprise peut ne pas établir d'annexe ; elle mentionne à la suite du bilan ses engagements et les avances à ses dirigeants (page Annexe)."
+      : `Partie des comptes annuels, déposée avec eux : ${view.annexe.listLabel.toLowerCase()} (page Annexe).`,
+    sources: micro ? [SOURCES.L123_16_1] : [SOURCES.L123_16],
+    missing: view.annexe.missing.map((m) => m.label),
+  }
+}
+
+export async function getApproval(companyId: string, fiscalYearId: string, now?: Date, options: ApprovalOptions = {}): Promise<ApprovalView> {
   const context = await loadApprovalContext(companyId, fiscalYearId, now)
   const [row, persons] = await Promise.all([
     prisma.accountsApproval.findUnique({
@@ -146,6 +183,11 @@ export async function getApproval(companyId: string, fiscalYearId: string, now?:
   ])
   const details = parseStoredDetails(row?.details)
   const pack = buildApprovalPack(context, details)
+  if (options.annexe !== false && pack.regime) {
+    const annexe = await annexeDocumentOf(companyId, context.fiscalYear.id, pack, details, options.access ?? null)
+    const at = pack.documents.findIndex((d) => d.id === 'filing-checklist')
+    pack.documents.splice(at < 0 ? pack.documents.length : at, 0, annexe)
+  }
   if (context.unallocatedPreviousCents !== 0) {
     pack.warnings.unshift(
       "Le résultat de l'exercice précédent n'est pas encore affecté (comptes 120 ou 129 reportés à nouveau) : affectez-le d'abord depuis la page Exercices, les réserves et le report à nouveau en dépendent.",

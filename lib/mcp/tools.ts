@@ -41,10 +41,12 @@ import { registerSimpleModeReadTools } from '@/lib/mcp/simple-mode-tools'
 import { registerFinancialIndicatorTools } from '@/lib/mcp/financial-indicator-tools'
 import { registerYearEndReadTools } from '@/lib/mcp/year-end-tools'
 import { registerApprovalReadTools } from '@/lib/mcp/approval-tools'
+import { registerAnnexeReadTools } from '@/lib/mcp/annexe-tools'
 import { registerDeadlineReadTools } from '@/lib/mcp/deadline-tools'
 import { registerCashForecastTools } from '@/lib/mcp/cash-forecast-tools'
 import { registerVatReturnReadTools } from '@/lib/mcp/vat-return-tools'
 import { registerCorporateTaxReadTools } from '@/lib/mcp/corporate-tax-tools'
+import { registerRemunerationReadTools } from '@/lib/mcp/remuneration-tools'
 import { registerLocalTaxReadTools } from '@/lib/mcp/local-tax-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
@@ -52,6 +54,9 @@ import { registerDraftTools } from '@/lib/mcp/drafts'
 import { registerLedgerReadTools } from '@/lib/mcp/ledger-read-tools'
 import { registerCompanySettingsTools } from '@/lib/mcp/company-settings-tools'
 import { registerTransactionReadTools } from '@/lib/mcp/transaction-read-tools'
+import { registerExportTools } from '@/lib/mcp/export-tools'
+import { registerDocumentTools } from '@/lib/mcp/document-tools'
+import { registerCompanyLookupTools } from '@/lib/mcp/company-lookup-tools'
 import { READ_ONLY, describeTool, kledgPageUrl, writeAnnotations } from '@/lib/mcp/tool-meta'
 
 const MAX_ROWS = 200
@@ -94,20 +99,23 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
       title: 'Lister les sociétés',
       description: describeTool({
         summary:
-          'Lists the companies this connection can access on this Kledg instance (the user may have limited it to some of their companies), with their SIREN, legal form, fiscal regimes and current fiscal year. Start here to get company ids.',
+          'Lists the companies this connection can access on this Kledg instance (the user may have limited it to some of their companies), with their SIREN, legal form, fiscal regimes and current fiscal year. Start here to get company ids. Archived companies (read-only) are left out unless includeArchived is true; they then carry their archivedAt.',
         access: 'read',
         permission: 'membership',
         amounts: 'none',
-        never: "lists a company outside the connection's grant or an archived company, and never changes anything (read only).",
+        never: "lists a company outside the connection's grant, and never changes anything (read only).",
       }),
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        includeArchived: z.boolean().optional().describe('true: also the archived companies (read-only, restore_company restores them).'),
+      }),
       annotations: readOnly,
     },
-    () =>
+    ({ includeArchived }) =>
       run(async () => {
         const companies = await prisma.company.findMany({
-          where: await guard.companyWhere(),
+          where: await guard.companyWhere({ includeArchived: includeArchived === true }),
           select: {
+            archivedAt: true,
             id: true,
             name: true,
             siren: true,
@@ -125,8 +133,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           orderBy: { name: 'asc' },
         })
         return json(
-          companies.map(({ fiscalYears, ...c }) => ({
+          companies.map(({ fiscalYears, archivedAt, ...c }) => ({
             ...c,
+            ...(includeArchived === true && { archivedAt: archivedAt?.toISOString() ?? null }),
             currentFiscalYear: fiscalYears[0]
               ? { ...fiscalYears[0], startDate: day(fiscalYears[0].startDate), endDate: day(fiscalYears[0].endDate) }
               : null,
@@ -723,16 +732,21 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerFinancialIndicatorTools(server, guard)
   registerYearEndReadTools(server, guard)
   registerApprovalReadTools(server, guard)
+  registerAnnexeReadTools(server, access, guard)
   registerDeadlineReadTools(server, guard)
   registerCashForecastTools(server, guard)
   registerVatReturnReadTools(server, guard)
   registerCorporateTaxReadTools(server, access, guard)
+  registerRemunerationReadTools(server, guard)
   registerLocalTaxReadTools(server, guard)
   registerBankingReadTools(server, guard)
   registerThirdPartyReadTools(server, guard)
   registerLedgerReadTools(server, guard)
   registerCompanySettingsTools(server, guard)
   registerTransactionReadTools(server, guard)
+  registerExportTools(server, access, guard)
+  registerDocumentTools(server, guard)
+  registerCompanyLookupTools(server, access)
 
   // Full control (kledg:admin): validate, reconcile, import, close... Never
   // registered without it; each tool checks it again through the guard.

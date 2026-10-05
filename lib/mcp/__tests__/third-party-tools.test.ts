@@ -22,7 +22,10 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/company-access')>()),
   companyGuard: () => guard,
 }))
-vi.mock('@/lib/reports/third-parties/get-third-party-reports.service', () => ({ getAgedBalance: vi.fn() }))
+vi.mock('@/lib/reports/third-parties/get-third-party-reports.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/reports/third-parties/get-third-party-reports.service')>()),
+  getAgedBalance: vi.fn(),
+}))
 vi.mock('@/lib/banking/missing-receipts.service', () => ({ listMissingReceipts: vi.fn() }))
 vi.mock('@/lib/lettering/lettering.service', () => ({
   letterLines: vi.fn(),

@@ -11,11 +11,12 @@ import { NO_CACHE_HEADERS } from '@/lib/api/cache-headers'
 import { getApproval } from '@/lib/approval/get-approval.service'
 import { saveApproval } from '@/lib/approval/save-approval.service'
 import { ApprovalDetailsSchema } from '@/lib/approval/schemas'
+import { userGroupAccess } from '@/lib/management-fees/access'
 
 export const GET = companyRoute(
   { company: fromParam('id'), permission: { reports: ['read'] } },
-  async ({ params, companyId }) =>
-    NextResponse.json(await getApproval(companyId, params.fiscalYearId as string), { headers: NO_CACHE_HEADERS }),
+  async ({ params, companyId, user }) =>
+    NextResponse.json(await getApproval(companyId, params.fiscalYearId as string, undefined, { access: userGroupAccess(user) }), { headers: NO_CACHE_HEADERS }),
 )
 
 /** PUT: the whole details object (ApprovalDetailsSchema); answers the updated pack. */
@@ -23,6 +24,6 @@ export const PUT = companyRoute(
   { company: fromParam('id'), permission: { closing: ['execute'] }, body: ApprovalDetailsSchema },
   async ({ params, companyId, user, body }) => {
     await saveApproval(companyId, params.fiscalYearId as string, body, user.id)
-    return NextResponse.json(await getApproval(companyId, params.fiscalYearId as string), { headers: NO_CACHE_HEADERS })
+    return NextResponse.json(await getApproval(companyId, params.fiscalYearId as string, undefined, { access: userGroupAccess(user) }), { headers: NO_CACHE_HEADERS })
   },
 )

@@ -231,6 +231,13 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
     data: { companyId: company.id, label: 'Subvention', amount: 1000, grantedOn: new Date('2026-02-01T00:00:00Z'), spreading: 'TENTHS' },
   })
   ids[`${prefix}Provision`] = provision.id
+  // Annexe: a method of the register and a change of method of the year (no entry yet)
+  const method = await prisma.accountingMethod.create({ data: { companyId: company.id, topic: 'inventory_valuation', label: 'CMUP', description: 'Coût moyen pondéré' } })
+  const change = await prisma.accountingChange.create({
+    data: { companyId: company.id, fiscalYearId: fy.id, kind: 'METHOD_CHANGE', treatment: 'EQUITY', label: 'Stocks au CMUP', description: 'Meilleure information', impact: 100, accountCode: '310000' },
+  })
+  ids[`${prefix}Method`] = method.id
+  ids[`${prefix}Change`] = change.id
   ids[`${prefix}Grant`] = grant.id
   const fixedAsset = await prisma.fixedAsset.create({
     data: {
@@ -312,6 +319,20 @@ async function seed() {
   await prisma.corporateTaxReturn.create({
     data: { companyId: ids.aCompany, fiscalYearId: ids.aFy, filedOn: new Date('2027-01-15T00:00:00Z'), resultBeforeDeficits: 0, deficitsImputed: 0, corporateTax: 0, reducedRate: false },
   })
+  // A saved remuneration scenario, so deleting it or proposing its dividends is allowed by role (not a 404)
+  await prisma.remunerationScenario.create({
+    data: {
+      id: 'rem-scenario-a',
+      companyId: ids.aCompany,
+      fiscalYearId: ids.aFy,
+      name: 'Optimum',
+      inputs: { resultBeforePayCents: 5_000_000, status: 'assimile', reducedRate: true, reducedRateCeilingCents: 4_250_000, legalReserveRequired: true, capitalCents: 100_000, legalReserveCents: 0, priorLossesCents: 0, shareBp: 10_000, premiumsCents: 0, currentAccountCents: 0, householdParts: 1, otherIncomeCents: 0, dividendTaxation: 'best', distributionBp: 10_000, mixBp: 5_000 },
+      rulesYear: 2026,
+      remunerationCost: 0,
+      dividends: 30_000,
+      netIncome: 20_000,
+    },
+  })
   // A deadline marked in the tracker, so removing the mark is allowed by role (not a 404)
   await prisma.declarationStatus.create({ data: { companyId: ids.aCompany, deadlineId: 'cfe:2025', note: 'CFE 2025 réglée par prélèvement' } })
   const members: Array<[string, string, string]> = [
@@ -389,6 +410,10 @@ const ROUTE_MODULES = {
   corporateTaxInputs: () => import('@/app/api/companies/[id]/corporate-tax/inputs/route'),
   corporateTaxFiling: () => import('@/app/api/companies/[id]/corporate-tax/filing/route'),
   corporateTaxEntries: () => import('@/app/api/companies/[id]/corporate-tax/entries/route'),
+  remuneration: () => import('@/app/api/companies/[id]/remuneration/route'),
+  remunerationExport: () => import('@/app/api/companies/[id]/remuneration/export/route'),
+  remunerationScenarios: () => import('@/app/api/companies/[id]/remuneration/scenarios/route'),
+  remunerationPropose: () => import('@/app/api/companies/[id]/remuneration/propose-dividends/route'),
   localTaxes: () => import('@/app/api/companies/[id]/local-taxes/route'),
   localTaxesExport: () => import('@/app/api/companies/[id]/local-taxes/export/route'),
   localTaxesEntries: () => import('@/app/api/companies/[id]/local-taxes/entries/route'),
@@ -521,6 +546,15 @@ const ROUTE_MODULES = {
   groupTax: () => import('@/app/api/group/tax/route'),
   groupSimpleHome: () => import('@/app/api/group/simple-home/route'),
   provisions: () => import('@/app/api/provisions/route'),
+  accountingMethods: () => import('@/app/api/accounting-methods/route'),
+  accountingMethod: () => import('@/app/api/accounting-methods/[id]/route'),
+  accountingChanges: () => import('@/app/api/accounting-changes/route'),
+  accountingChange: () => import('@/app/api/accounting-changes/[id]/route'),
+  accountingChangeEntry: () => import('@/app/api/accounting-changes/[id]/entry/route'),
+  annexe: () => import('@/app/api/annexe/route'),
+  annexeExport: () => import('@/app/api/annexe/export/route'),
+  fixedAssetMovements: () => import('@/app/api/reports/fixed-asset-movements/route'),
+  fixedAssetMovementsExport: () => import('@/app/api/reports/fixed-asset-movements/export/route'),
   provision: () => import('@/app/api/provisions/[id]/route'),
   provisionAssessment: () => import('@/app/api/provisions/[id]/assessment/route'),
   doubtfulReceivables: () => import('@/app/api/provisions/doubtful-receivables/route'),
@@ -633,6 +667,10 @@ const WRITES: Call[] = [
   { label: 'record corporate tax filing', route: 'corporateTaxFiling', method: 'PUT', path: () => `/api/companies/${A()}/corporate-tax/filing`, params: p({ id: A }), body: () => ({ fiscalYearId: ids.aFy, filedOn: '2027-01-15', resultBeforeDeficitsCents: 0, deficitsImputedCents: 0, corporateTaxCents: 0, reducedRate: false }) },
   { label: 'delete corporate tax filing', route: 'corporateTaxFiling', method: 'DELETE', path: () => `/api/companies/${A()}/corporate-tax/filing?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
   { label: 'prepare corporate tax entry', route: 'corporateTaxEntries', method: 'POST', path: () => `/api/companies/${A()}/corporate-tax/entries`, params: p({ id: A }), body: () => ({ kind: 'charge', fiscalYearId: ids.aFy }) },
+  { label: 'export remuneration simulation', route: 'remunerationExport', method: 'GET', path: () => `/api/companies/${A()}/remuneration/export?fiscalYearId=${ids.aFy}&format=csv`, params: p({ id: A }) },
+  { label: 'save remuneration scenario', route: 'remunerationScenarios', method: 'PUT', path: () => `/api/companies/${A()}/remuneration/scenarios`, params: p({ id: A }), body: () => ({ fiscalYearId: ids.aFy, name: 'Mixte', pick: 'mix', inputs: { resultBeforePayCents: 5_000_000, status: 'assimile', reducedRate: true, reducedRateCeilingCents: 4_250_000, legalReserveRequired: true, capitalCents: 100_000, legalReserveCents: 0, priorLossesCents: 0, shareBp: 10_000, premiumsCents: 0, currentAccountCents: 0, householdParts: 1, otherIncomeCents: 0, dividendTaxation: 'best', distributionBp: 10_000, mixBp: 5_000 } }) },
+  { label: 'delete remuneration scenario', route: 'remunerationScenarios', method: 'DELETE', path: () => `/api/companies/${A()}/remuneration/scenarios?scenarioId=rem-scenario-a`, params: p({ id: A }) },
+  { label: 'propose scenario dividends', route: 'remunerationPropose', method: 'POST', path: () => `/api/companies/${A()}/remuneration/propose-dividends`, params: p({ id: A }), body: () => ({ scenarioId: 'rem-scenario-a' }) },
   { label: 'export local taxes', route: 'localTaxesExport', method: 'GET', path: () => `/api/companies/${A()}/local-taxes/export?year=2026&format=csv`, params: p({ id: A }) },
   { label: 'save local taxes', route: 'localTaxes', method: 'PUT', path: () => `/api/companies/${A()}/local-taxes`, params: p({ id: A }), body: () => ({ year: 2026, cfe: { totalCents: 100_000 } }) },
   { label: 'prepare CFE entry', route: 'localTaxesEntries', method: 'POST', path: () => `/api/companies/${A()}/local-taxes/entries`, params: p({ id: A }), body: () => ({ year: 2026, kind: 'solde' }) },
@@ -732,6 +770,16 @@ const WRITES: Call[] = [
   { label: 'create management fee convention', route: 'feeConventions', method: 'POST', path: () => '/api/management-fees/conventions', body: () => ({ companyId: A(), label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'update management fee convention', route: 'feeConvention', method: 'PATCH', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'delete management fee convention', route: 'feeConvention', method: 'DELETE', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
+  { label: 'create accounting method', route: 'accountingMethods', method: 'POST', path: () => '/api/accounting-methods', body: () => ({ companyId: A(), topic: 'depreciation', label: 'Linéaire', description: "Durée d'utilisation" }) },
+  { label: 'update accounting method', route: 'accountingMethod', method: 'PATCH', path: () => `/api/accounting-methods/${ids.aMethod}`, params: p({ id: () => ids.aMethod }), body: () => ({ topic: 'inventory_valuation', label: 'PEPS', description: 'Premier entré, premier sorti' }) },
+  { label: 'delete accounting method', route: 'accountingMethod', method: 'DELETE', path: () => `/api/accounting-methods/${ids.aMethod}`, params: p({ id: () => ids.aMethod }) },
+  { label: 'create accounting change', route: 'accountingChanges', method: 'POST', path: () => '/api/accounting-changes', body: () => ({ companyId: A(), fiscalYearId: ids.aFy, kind: 'ESTIMATE_CHANGE', label: 'Durée', description: 'Allongée' }) },
+  { label: 'update accounting change', route: 'accountingChange', method: 'PATCH', path: () => `/api/accounting-changes/${ids.aChange}`, params: p({ id: () => ids.aChange }), body: () => ({ fiscalYearId: ids.aFy, kind: 'METHOD_CHANGE', label: 'Stocks', description: 'CMUP', impactCents: 20_000, accountCode: '310000' }) },
+  { label: 'delete accounting change', route: 'accountingChange', method: 'DELETE', path: () => `/api/accounting-changes/${ids.aChange}`, params: p({ id: () => ids.aChange }) },
+  { label: 'prepare accounting change entry', route: 'accountingChangeEntry', method: 'POST', path: () => `/api/accounting-changes/${ids.aChange}/entry`, params: p({ id: () => ids.aChange }) },
+  { label: 'save annexe', route: 'annexe', method: 'PUT', path: () => '/api/annexe', body: () => ({ companyId: A(), fiscalYearId: ids.aFy, details: { commitments: { none: true } } }) },
+  { label: 'export annexe', route: 'annexeExport', method: 'GET', path: () => `/api/annexe/export?companyId=${A()}&fiscalYearId=${ids.aFy}&format=md` },
+  { label: 'export fixed asset forms', route: 'fixedAssetMovementsExport', method: 'GET', path: () => `/api/reports/fixed-asset-movements/export?companyId=${A()}&fiscalYearId=${ids.aFy}&format=csv` },
   { label: 'create provision', route: 'provisions', method: 'POST', path: () => '/api/provisions', body: () => ({ companyId: A(), category: 'RISK_CHARGE', label: 'Garantie', justification: 'Retours clients', accountCode: '1512', openedOn: '2026-01-10' }) },
   { label: 'update provision', route: 'provision', method: 'PATCH', path: () => `/api/provisions/${ids.aProvision}`, params: p({ id: () => ids.aProvision }), body: () => ({ category: 'RISK_CHARGE', label: 'Litige', justification: 'Assignation', accountCode: '1511', openedOn: '2026-02-01' }) },
   { label: 'delete provision', route: 'provision', method: 'DELETE', path: () => `/api/provisions/${ids.aProvision}`, params: p({ id: () => ids.aProvision }) },
@@ -817,6 +865,7 @@ const READS: Call[] = [
   { label: 'deadlines of a fiscal year', route: 'deadlines', method: 'GET', path: () => `/api/deadlines?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'VAT return worksheet', route: 'vatReturns', method: 'GET', path: () => `/api/companies/${A()}/vat-returns`, params: p({ id: A }) },
   { label: 'corporate tax worksheet', route: 'corporateTax', method: 'GET', path: () => `/api/companies/${A()}/corporate-tax?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
+  { label: 'remuneration simulation', route: 'remuneration', method: 'GET', path: () => `/api/companies/${A()}/remuneration?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
   { label: 'local taxes', route: 'localTaxes', method: 'GET', path: () => `/api/companies/${A()}/local-taxes?year=2026`, params: p({ id: A }) },
   { label: 'cash forecast', route: 'cashForecast', method: 'GET', path: () => `/api/cash-forecast?companyId=${A()}&horizon=3&granularity=week` },
   { label: 'cash forecast alert', route: 'cashForecastAlert', method: 'GET', path: () => `/api/cash-forecast/alert?companyId=${A()}` },
@@ -855,6 +904,9 @@ const READS: Call[] = [
   { label: 'group structure', route: 'groupStructure', method: 'GET', path: () => `/api/group/structure?companyId=${A()}` },
   { label: 'group tax and integration', route: 'groupTax', method: 'GET', path: () => `/api/group/tax?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'group simple home', route: 'groupSimpleHome', method: 'GET', path: () => `/api/group/simple-home?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'accounting methods', route: 'accountingMethods', method: 'GET', path: () => `/api/accounting-methods?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'annexe', route: 'annexe', method: 'GET', path: () => `/api/annexe?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'fixed asset forms', route: 'fixedAssetMovements', method: 'GET', path: () => `/api/reports/fixed-asset-movements?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'list provisions', route: 'provisions', method: 'GET', path: () => `/api/provisions?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'list investment grants', route: 'investmentGrants', method: 'GET', path: () => `/api/investment-grants?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'year-end inventory', route: 'yearEnd', method: 'GET', path: () => `/api/year-end?companyId=${A()}&fiscalYearId=${ids.aFy}` },

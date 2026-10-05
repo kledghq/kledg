@@ -264,7 +264,7 @@ describe('TransactionSuggestionDialog', () => {
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1))
     const url = new URL(pushMock.mock.calls[0][0], 'http://localhost')
-    expect(url.pathname).toBe('/co-1/rules')
+    expect(url.pathname).toBe('/co-1/rules/new')
     expect(url.searchParams.get('fromTransaction')).toBe('tx-2')
     expect(url.searchParams.get('ruleName')).toBe('OVH')
     expect(JSON.parse(url.searchParams.get('conditions')!)).toEqual(conditions)

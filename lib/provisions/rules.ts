@@ -27,8 +27,8 @@
  * - Chart of accounts of the PCG as amended by ANC 2022-06 (fiscal years
  *   from 1 January 2025, lib/accounting/pcg-data.ts): 151 provisions pour
  *   risques, 152 provisions pour charges, 29, 39, 49, 59 dépréciations,
- *   681/686/687 dotations, 781/786/787 reprises. Ledgerly used the codes of
- *   the former chart (153 to 158), which no longer exist.
+ *   681/686/687 dotations, 781/786/787 reprises. The codes of the former
+ *   chart (153 to 158) no longer exist.
  * - CGI art. 39, 1-5°: a provision is deductible when it covers losses or
  *   charges nettement précisées that events in progress make probable, is
  *   booked in the accounts of the year and listed on the relevé des

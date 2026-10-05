@@ -68,7 +68,7 @@ export const RuleInputSchema = z.object({
   name: z.string().max(200).optional(),
   description: z.string().max(1000).nullable().optional(),
   enabled: z.boolean().optional(),
-  priority: z.number().int().optional(),
+  priority: z.number().int().min(-1000, 'La priorité est comprise entre -1000 et 1000.').max(1000, 'La priorité est comprise entre -1000 et 1000.').optional(),
   journalCode: z.string().min(1).max(10).optional(),
   defaultVatAccountCode: code,
   /** "Créer automatiquement l'écriture": applied by the refresh without a click (lib/transactions/rule-matcher.ts). */

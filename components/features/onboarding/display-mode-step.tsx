@@ -65,7 +65,7 @@ export function DisplayModeStep({ companySlug }: { companySlug: string }) {
       </Card>
       <div className="flex justify-end">
         <Button type="button" onClick={() => void save()} loading={saving}>
-          Continuer
+          Ouvrir la société
           <ArrowRight aria-hidden />
         </Button>
       </div>

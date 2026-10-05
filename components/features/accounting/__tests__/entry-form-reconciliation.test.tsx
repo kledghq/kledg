@@ -82,6 +82,11 @@ describe('EntryFormReconciliation', () => {
     expect(within(bankLine).queryByRole('combobox')).toBeNull()
   })
 
+  it('names the account field of each line for screen readers', () => {
+    renderForm()
+    expect(screen.getByRole('combobox', { name: 'Compte de la ligne 1' })).toBeTruthy()
+  })
+
   it('blocks saving until every line has an account, without flagging a fresh form', async () => {
     const user = userEvent.setup()
     renderForm()

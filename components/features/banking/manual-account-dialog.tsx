@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Field } from '@/components/shared'
 import { isValidIban } from '@/lib/banking/iban'
+import { pickLedgerCodeForBankAccount } from '@/lib/banking/ledger-code'
 import { useLedgerBankAccounts } from './use-ledger-bank-accounts'
 import { responseError } from './types'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
@@ -41,13 +42,15 @@ interface ManualAccountDialogProps {
   onCreated?: () => void
   /** Trigger button variant (outline next to a primary action). */
   variant?: 'default' | 'outline'
+  /** Trigger button size: "sm" inside an empty state. */
+  size?: 'default' | 'sm'
 }
 
 /**
  * "Ajouter un compte bancaire": an account without API connection (any
  * bank, fed by statement files), with its 512 ledger account.
  */
-export function ManualAccountDialog({ companyId, onCreated, variant = 'outline' }: ManualAccountDialogProps) {
+export function ManualAccountDialog({ companyId, onCreated, variant = 'outline', size = 'default' }: ManualAccountDialogProps) {
   const [open, setOpen] = useState(false)
   const { can, denied } = useCompanyAccess()
   const allowed = can({ banking: ['manage'] })
@@ -57,6 +60,14 @@ export function ManualAccountDialog({ companyId, onCreated, variant = 'outline' 
     defaultValues: { name: '', iban: '', ledgerAccountCode: '' },
   })
   const { errors, isSubmitting } = form.formState
+
+  // A new company has one fitting bank ledger account (5121, the parent 512 holds no entry):
+  // choose it as a sync would, rather than ask
+  useEffect(() => {
+    if (form.getValues('ledgerAccountCode')) return
+    const code = pickLedgerCodeForBankAccount(ledgerAccounts.map((account) => account.code), null, 'EUR')
+    if (code) form.setValue('ledgerAccountCode', code, { shouldDirty: true })
+  }, [ledgerAccounts, form])
 
   const submit = form.handleSubmit(async (values) => {
     const response = await fetch('/api/banking/manual-accounts', {
@@ -77,7 +88,7 @@ export function ManualAccountDialog({ companyId, onCreated, variant = 'outline' 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={variant} disabled={!allowed} title={allowed ? undefined : denied('ajouter un compte bancaire')}>
+        <Button variant={variant} size={size} disabled={!allowed} title={allowed ? undefined : denied('ajouter un compte bancaire')}>
           <Plus aria-hidden />
           Ajouter un compte bancaire
         </Button>

@@ -1,6 +1,6 @@
 /**
- * Pages of the year-end work: the provisions and impairments with the
- * movement of the closing, the assessment sent in cents for the fiscal year
+ * Pages of the year-end work: the provisions for risks and charges and the
+ * impairments, each on its own page, with the movement of the closing, the assessment sent in cents for the fiscal year
  * shown, no action for a read-only member; the Travaux de clôture page and
  * its preparation of draft entries; the capital composition with its checks.
  * Data built by the real pure modules (lib/year-end/inventory.ts,
@@ -46,6 +46,11 @@ const grant: GrantView = {
   id: 'g1', label: 'Aide régionale', grantor: 'Région', amountCents: 500_000, grantedOn: '2026-04-01', spreading: 'TENTHS', durationYears: null,
   fixedAsset: null, accountCode: '131', transferAccountCode: '139', incomeAccountCode: '747', carriedCents: 0, notes: null,
 }
+const impairment: ProvisionView = {
+  ...provision,
+  id: 'p2', category: 'RECEIVABLE', label: 'Créance Dupont', justification: 'Retard de paiement', accountCode: '491', accountLabel: 'Dépréciations des comptes clients',
+  tiersCode: 'C001', status: 'to_assess', requiredCents: null, proposedCents: 0, bookedCents: 0, entry: null,
+}
 const INVENTORY: YearEndInventory = {
   fiscalYear: YEAR,
   provisions: [provision],
@@ -64,7 +69,7 @@ describe('year-end pages', () => {
         return new Response(JSON.stringify({ created: [{ kind: 'provision', itemId: 'p1', label: 'Litige fournisseur', entryId: 'e1', cents: 1_234_567 }], skipped: [] }), { status: 201 })
       }
       if (url.startsWith('/api/provisions/doubtful-receivables')) return new Response(JSON.stringify({ asOf: '2026-12-31', minDaysOverdue: 90, items: [] }), { status: 200 })
-      if (url.startsWith('/api/provisions')) return new Response(JSON.stringify({ fiscalYear: YEAR, provisions: INVENTORY.provisions }), { status: 200 })
+      if (url.startsWith('/api/provisions')) return new Response(JSON.stringify({ fiscalYear: YEAR, provisions: [provision, impairment] }), { status: 200 })
       if (url.startsWith('/api/year-end')) return new Response(JSON.stringify(INVENTORY), { status: 200 })
       if (url.startsWith('/api/reports/capital-composition')) {
         const composition = buildCapitalComposition({ legalType: 'SAS', shareCapitalCents: 1_000_000, totalShares: 1_000, nominalCents: 1_000 }, [
@@ -84,7 +89,7 @@ describe('year-end pages', () => {
 
   it('lists the provisions of the closing and sends an assessment in cents', async () => {
     const user = userEvent.setup()
-    render(<ProvisionsPage companyId="acme" />)
+    render(<ProvisionsPage companyId="acme" group="risks" />)
     const table = await screen.findByRole('table')
     expect(fetchMock).toHaveBeenCalledWith('/api/provisions?companyId=acme&fiscalYearId=fy26')
     const row = plain(within(table).getAllByRole('row')[1].textContent)
@@ -104,10 +109,61 @@ describe('year-end pages', () => {
     expect(JSON.parse(init.body as string)).toEqual({ fiscalYearId: 'fy26', amountCents: 900_000, basis: null })
   })
 
+  it('shows the provisions for risks and charges on their own page, without tabs or overdue customers', async () => {
+    render(<ProvisionsPage companyId="acme" group="risks" />)
+    const table = await screen.findByRole('table')
+    expect(screen.getByRole('heading', { level: 1, name: 'Risques et charges' })).toBeInTheDocument()
+    expect(within(table).getByText('Litige fournisseur')).toBeInTheDocument()
+    expect(within(table).queryByText('Créance Dupont')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByText('Créances en retard à la clôture')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Nouvelle provision' })).toBeInTheDocument()
+  })
+
+  it('shows the impairments and the overdue customers on the Dépréciations page', async () => {
+    render(<ProvisionsPage companyId="acme" group="impairments" />)
+    const table = await screen.findByRole('table')
+    expect(screen.getByRole('heading', { level: 1, name: 'Dépréciations' })).toBeInTheDocument()
+    expect(within(table).getByText('Créance Dupont')).toBeInTheDocument()
+    expect(within(table).queryByText('Litige fournisseur')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(await screen.findByText('Créances en retard à la clôture')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Nouvelle dépréciation' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/provisions/doubtful-receivables?companyId=acme&fiscalYearId=fy26&minDaysOverdue=90')
+  })
+
+  it('links the provisions to assess to their page', async () => {
+    const inventory = (provisions: ProvisionView[]): YearEndInventory => ({ ...INVENTORY, provisions, totals: { ...INVENTORY.totals, toAssess: provisions.filter((p) => p.status === 'to_assess').length } })
+    const yearEnd = (value: YearEndInventory) =>
+      fetchMock.mockImplementation(async (url: string) => {
+        if (url.startsWith('/api/companies/acme/fiscal-years')) return new Response(JSON.stringify(FISCAL_YEARS), { status: 200 })
+        return new Response(JSON.stringify(value), { status: 200 })
+      })
+
+    yearEnd(inventory([provision, impairment]))
+    const { unmount } = render(<YearEndPage companyId="acme" />)
+    expect(await screen.findByRole('link', { name: 'évaluez-les' })).toHaveAttribute('href', '/acme/provisions/impairments')
+    unmount()
+
+    yearEnd(inventory([{ ...provision, status: 'to_assess', requiredCents: null }, impairment]))
+    render(<YearEndPage companyId="acme" />)
+    expect(await screen.findByRole('link', { name: 'évaluez-les' })).toHaveAttribute('href', '/acme/provisions')
+  })
+
+  it('offers both provision pages when nothing is to book for the year', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/companies/acme/fiscal-years')) return new Response(JSON.stringify(FISCAL_YEARS), { status: 200 })
+      return new Response(JSON.stringify({ ...INVENTORY, provisions: [], grants: [] }), { status: 200 })
+    })
+    render(<YearEndPage companyId="acme" />)
+    expect(await screen.findByRole('link', { name: 'Risques et charges' })).toHaveAttribute('href', '/acme/provisions')
+    expect(screen.getByRole('link', { name: 'Dépréciations' })).toHaveAttribute('href', '/acme/provisions/impairments')
+  })
+
   it('shows no action to a read-only member', async () => {
     render(
       <CompanyAccessProvider value={{ granted: grantedPermissions(['viewer'], false), roleLabel: 'Lecture seule' }}>
-        <ProvisionsPage companyId="acme" />
+        <ProvisionsPage companyId="acme" group="risks" />
       </CompanyAccessProvider>,
     )
     const table = await screen.findByRole('table')

@@ -49,7 +49,8 @@ export interface CheckInput {
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
-const euros = (cents: number) => `${formatCentsFr(cents)} €`
+/** "1 790,00 €": formatCentsFr already ends with the euro sign. */
+const euros = (cents: number) => formatCentsFr(cents)
 
 export function corporateTaxChecks(input: CheckInput): CorporateTaxCheck[] {
   const checks: CorporateTaxCheck[] = []

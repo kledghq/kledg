@@ -11,7 +11,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Amount, EmptyState, PageHeader, StatusBadge, formatAmount, formatDisplayDate, useConfirm } from '@/components/shared'
 import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
@@ -23,7 +22,26 @@ import type { DoubtfulReceivable } from '@/lib/provisions/doubtful-receivables.s
 import { AssessmentDialog, ProvisionDialog, type ProvisionDraft } from './provision-dialogs'
 import { AdjustmentBadge, euros, sendJson, useJson } from './shared'
 
-type Group = 'risks' | 'impairments'
+export type ProvisionGroup = 'risks' | 'impairments'
+
+/**
+ * The page of each group, its own sidebar entry (nav-config.ts): Risques et
+ * charges (151, 152) and Dépréciations (29, 39, 49, 59).
+ */
+export function provisionsPageUrl(companyId: string, group: ProvisionGroup): string {
+  return group === 'risks' ? `/${companyId}/provisions` : `/${companyId}/provisions/impairments`
+}
+
+const PAGES: Record<ProvisionGroup, { title: string; description: string }> = {
+  risks: {
+    title: 'Risques et charges',
+    description: "Les provisions pour risques et charges probables (litiges, garanties, remises en état), revues à chaque clôture. Kledg propose la dotation ou la reprise de l'exercice.",
+  },
+  impairments: {
+    title: 'Dépréciations',
+    description: "Les pertes de valeur des immobilisations, des stocks, des créances et des valeurs mobilières, revues à chaque clôture. Kledg propose la dotation ou la reprise de l'exercice.",
+  },
+}
 
 /** "Dotation 1 200,00 €", "Reprise 800,00 €" or "Aucun". */
 export function movementText(cents: number): string {
@@ -33,18 +51,18 @@ export function movementText(cents: number): string {
 }
 
 /**
- * Provisions for risks and charges and impairments of assets
+ * Provisions for risks and charges (group risks, /provisions) or impairments
+ * of assets (group impairments, /provisions/impairments)
  * (docs/provisions-et-subventions.md): what each one carries in, what this
  * closing requires and the movement to book. Members who keep the books
  * record them and their assessment; the entries are prepared on the
  * Travaux de clôture page.
  */
-export function ProvisionsPage({ companyId }: { companyId: string }) {
+export function ProvisionsPage({ companyId, group }: { companyId: string; group: ProvisionGroup }) {
   const { can } = useCompanyAccess()
   const canEdit = can({ entries: ['create'] })
   const canDelete = can({ entries: ['delete'] })
   const [fiscalYearId, setFiscalYearId] = React.useState('')
-  const [group, setGroup] = React.useState<Group>('risks')
   const [editing, setEditing] = React.useState<{ provision: ProvisionView | null; draft: ProvisionDraft } | null>(null)
   const [assessing, setAssessing] = React.useState<ProvisionView | null>(null)
   const { confirm, dialog } = useConfirm()
@@ -125,8 +143,8 @@ export function ProvisionsPage({ companyId }: { companyId: string }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Provisions et dépréciations"
-        description="Les risques et charges probables, et les pertes de valeur de vos actifs, revus à chaque clôture. Kledg propose la dotation ou la reprise de l'exercice."
+        title={PAGES[group].title}
+        description={PAGES[group].description}
         docsHref={docsUrl('fiscalYear')}
         actions={
           canEdit ? (
@@ -140,12 +158,6 @@ export function ProvisionsPage({ companyId }: { companyId: string }) {
 
       <div className="flex flex-wrap items-center gap-3">
         <FiscalYearSelector id="provisions-fiscal-year" companyId={companyId} value={fiscalYearId} onValueChange={setFiscalYearId} showLabel={false} showPeriod={false} className="w-48" />
-        <Tabs value={group} onValueChange={(v) => setGroup(v as Group)}>
-          <TabsList>
-            <TabsTrigger value="risks">Risques et charges</TabsTrigger>
-            <TabsTrigger value="impairments">Dépréciations</TabsTrigger>
-          </TabsList>
-        </Tabs>
         <Button variant="outline" size="sm" asChild className="ml-auto">
           <Link href={`/${companyId}/year-end`}>
             <ClipboardCheck aria-hidden />

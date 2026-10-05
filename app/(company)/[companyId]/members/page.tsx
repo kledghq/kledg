@@ -393,7 +393,11 @@ export default function CompanyMembersPage() {
                 {loading ? (
                   <TableSkeleton columns={3} rows={3} />
                 ) : members.length === 0 ? (
-                  <TableEmpty colSpan={3}>Aucun membre pour cette société.</TableEmpty>
+                  <TableEmpty colSpan={3}>
+                    {isAdmin
+                      ? 'Aucun membre pour l’instant. Administrateur de l’instance, vous ouvrez cette société sans en être membre\u00a0: ajoutez votre expert-comptable ou un associé avec «\u00a0Ajouter un membre\u00a0».'
+                      : 'Aucun membre pour cette société.'}
+                  </TableEmpty>
                 ) : members.map((m) => {
                   const baseRole =
                     (m.roles.find((r) =>

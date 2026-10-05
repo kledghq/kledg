@@ -534,7 +534,7 @@ describe('CompanyWizard, display mode step (first run, docs/mode-simple.md)', ()
     expect(screen.getByRole('link', { name: 'Inviter votre comptable' })).toHaveAttribute('href', '/atelier-lumen/members')
 
     fetchMock.mockResolvedValueOnce(Response.json({ mode: 'simple', chosen: true }))
-    await user.click(screen.getByRole('button', { name: /Continuer/ }))
+    await user.click(screen.getByRole('button', { name: 'Ouvrir la société' }))
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/atelier-lumen/simple'))
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit]
     expect(url).toBe('/api/account/display-mode')

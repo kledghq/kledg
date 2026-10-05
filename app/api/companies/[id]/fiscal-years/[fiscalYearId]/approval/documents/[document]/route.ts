@@ -12,6 +12,7 @@ import { enforceRateLimit } from '@/lib/rate-limit'
 import { exportApprovalDocument } from '@/lib/approval/export-approval-document.service'
 import { DOCUMENT_IDS, type DocumentId } from '@/lib/approval/pack'
 import { DOCUMENT_FORMATS } from '@/lib/approval/schemas'
+import { userGroupAccess } from '@/lib/management-fees/access'
 
 const DocumentQuery = z.object({ format: z.enum(DOCUMENT_FORMATS, { error: 'Format attendu : pdf ou md' }).optional().default('pdf') })
 
@@ -21,6 +22,6 @@ export const GET = companyRoute(
     const document = params.document as string
     if (!(DOCUMENT_IDS as readonly string[]).includes(document)) throw new NotFoundError('Document inconnu')
     await enforceRateLimit('export', user.id)
-    return downloadResponse(await exportApprovalDocument(companyId, params.fiscalYearId as string, document as DocumentId, query.format))
+    return downloadResponse(await exportApprovalDocument(companyId, params.fiscalYearId as string, document as DocumentId, query.format, undefined, userGroupAccess(user)))
   },
 )

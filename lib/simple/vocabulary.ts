@@ -181,7 +181,7 @@ export function missingReceiptsLabel(count: number): string {
 }
 
 export const MISSING_RECEIPTS_HINT =
-  "Prenez la facture en photo ou glissez le PDF";
+  "Des paiements sans facture jointe, à retrouver et garder";
 
 /** "Relancer Studio Nord pour 2 400,00 €". */
 export function chaseLabel(customer: string, formatted: string): string {

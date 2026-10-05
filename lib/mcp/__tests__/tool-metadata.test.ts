@@ -19,8 +19,8 @@ import { registerKledgTools } from '@/lib/mcp/tools'
 import { AMOUNTS_IN_EUROS, NO_AMOUNTS, describeTool, permissionLabel } from '@/lib/mcp/tool-meta'
 import type { McpAccess } from '@/lib/mcp/company-access'
 
-/** Tools that call a bank provider (Qonto, Revolut, Ponto): the only open world tools. */
-const OPEN_WORLD = new Set(['sync_bank', 'sync_bank_data', 'upload_receipt', 'import_qonto_invoices'])
+/** Tools that call a bank provider (Qonto, Revolut, Ponto) or the public company directory: the only open world tools. */
+const OPEN_WORLD = new Set(['sync_bank', 'sync_bank_data', 'upload_receipt', 'import_qonto_invoices', 'get_qonto_statements', 'list_qonto_receipts', 'get_file', 'lookup_siren'])
 
 type Config = {
   title?: string
@@ -62,7 +62,7 @@ describe('MCP tool metadata', () => {
             expect(a.destructiveHint, name).toBe(false)
             expect(a.idempotentHint, name).toBe(true)
           }
-          // Only the tools that call a bank provider reach a third party.
+          // Only the tools that call a bank provider or the company directory reach a third party.
           expect(a.openWorldHint, name).toBe(OPEN_WORLD.has(name))
         }
       })
@@ -72,7 +72,7 @@ describe('MCP tool metadata', () => {
           const description = config.description ?? ''
           expect(description.includes(AMOUNTS_IN_EUROS) || description.includes(NO_AMOUNTS), `${name}: unit`).toBe(true)
           expect(description, name).toMatch(/Access: kledg:(read|write|admin)/)
-          expect(description, name).toMatch(/(right|rights) in the company|membership of the company/)
+          expect(description, name).toMatch(/(right|rights) in the company|membership of the company|company creation policy/)
           expect(description, name).toMatch(/ Never [a-z]/)
         }
       })

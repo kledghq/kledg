@@ -119,6 +119,8 @@ describe('navigation', () => {
     expect(findNavEntry('/accounts/plan')?.title).toBe('Plan de comptes')
     expect(findNavEntry('/accounts/abc/entries')?.title).toBe('Comptes')
     expect(findNavEntry('/banking/statements')?.title).toBe('Relevés')
+    expect(findNavEntry('/provisions')?.title).toBe('Risques et charges')
+    expect(findNavEntry('/provisions/impairments')?.title).toBe('Dépréciations')
     expect(findNavEntry('/entries/123/edit')?.title).toBe('Écritures')
     expect(findNavEntry('/nowhere')).toBeNull()
   })
