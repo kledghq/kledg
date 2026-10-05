@@ -92,7 +92,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 - **Annotations** (MCP `ToolAnnotations`), toujours les quatre :
   - lecture : `readOnlyHint` vrai, `destructiveHint` faux, `idempotentHint` vrai, `openWorldHint` faux ;
   - écriture : `readOnlyHint` faux ; `destructiveHint` vrai quand l'appel remplace ou supprime quelque chose qui existe (les montants d'une ligne, une évaluation, un brouillon, une écriture validée) et faux quand il ne fait qu'ajouter ; `idempotentHint` vrai quand le même appel répété ne change rien de plus ;
-  - `openWorldHint` vrai seulement pour `sync_bank`, qui interroge la banque.
+  - `openWorldHint` vrai seulement pour les outils qui appellent une banque : `sync_bank`, `sync_bank_data`, `upload_receipt` et `import_qonto_invoices`.
 
   Un test (`lib/mcp/__tests__/tool-metadata.test.ts`) vérifie titre, annotations, description et convention de montants de chaque outil, à chaque niveau d'accès.
 - **Erreurs** : en français ; une société hors de l'autorisation répond « Société introuvable », un rôle insuffisant « Accès refusé ».
@@ -140,6 +140,16 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_bank_sync_status` | État des flux bancaires : connexions, dernière synchronisation, erreur, consentement, et par compte les opérations non rapprochées et la plus ancienne, sans IBAN ni identifiant ; droit `banking:read` |
 | `list_expenses_to_review` | Dépenses à vérifier du mode simple : transactions non rapprochées avec la catégorie proposée (règles, historique de la contrepartie, dictionnaire des payeurs français, mots du libellé, catégorie de la banque), la confiance, la raison et la question à trancher ([catégories simples](categories-simples.md)) ; droit `banking:read` |
 | `list_expense_claimants` | Bénéficiaires de notes de frais (identifiant, compte auxiliaire) que le rôle de l'utilisateur lui montre ; droit `entries:read` |
+| `get_entry` | Une écriture avec son journal, sa date, son numéro, son statut, sa pièce et chaque ligne (compte, libellé, débit, crédit, lettrage, compte auxiliaire) ; droit `entries:read` |
+| `get_ledger_report` | Grand livre (par compte, solde d'ouverture, lignes avec solde progressif, solde de clôture ; filtre par début de compte) ou journal (écritures par journal avec totaux) d'une période, 1 000 lignes au plus ; droit `reports:read` |
+| `list_fixed_assets` | Immobilisations avec comptes, valeurs, plan d'amortissement et totaux ; une immobilisation avec ses amortissements, l'état de ses dotations par exercice, les écritures auxquelles lier un amortissement ; droit `entries:read` |
+| `list_expense_category_rules` | Règles de mots-clés qui donnent la catégorie (et le compte) des lignes de notes de frais ; droit `entries:read` |
+| `get_company_settings` | Une section des paramètres de la société : fiche, établissements, membres, personnes, associés, délai de paiement, options de TVA, mode simple, calendrier des échéances, régimes fiscaux, adresses ; logos et photos remplacés par leur présence ; droit `settings:read` |
+| `get_statement_layout` | Mise en page du bilan ou du compte de résultat (lignes, comptes, sens, ordre), une ligne, l'historique d'une ligne du bilan, les modèles du bilan ; droit `settings:read` |
+| `get_transaction_details` | Ce qu'il faut pour traiter une transaction bancaire : ligne de banque, exercices, contreparties proposées, règles qui la reconnaissent, règle qu'elle suggère ; droit `banking:read` |
+| `simulate_rule` | L'écriture qu'une règle d'affectation (enregistrée ou en cours d'écriture) passerait pour une transaction d'exemple, sans rien écrire ; droit `banking:read` |
+
+`get_bank_sync_status` donne aussi les intégrations bancaires (identifiant pour `sync_bank_data`, statut, fonctions actives, sans identifiant ni donnée du prestataire) et `list_management_fee_conventions` les périodes facturées d'une convention (vue `billings`) et les filiales candidates (vue `subsidiaries`).
 
 ### Lecture et brouillons (`kledg:write`)
 
@@ -163,6 +173,19 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `prepare_corporate_tax_entry` | Préparer en **brouillon** la charge d'impôt de l'exercice (695 / 444, journal OD, dernier jour) ou le paiement d'un acompte de l'exercice suivant (444 / 512, journal BQ, à son échéance) ; inchangé si le brouillon correspond, remplacé s'il est périmé, jamais si l'écriture est validée ; ne dépose ni ne paie | `entries:create` | Oui (brouillon périmé) | Oui |
 | `mark_declaration` | Enregistrer qu'une échéance est déposée et/ou payée (dates, montant en euros, référence de la pièce, note) ou non due, ou retirer l'enregistrement ; refuse ce qu'une autre page enregistre (TVA, liasse, acomptes d'IS, approbation) ; ne dépose ni ne paie | `entries:create` | Non | Oui |
 | `accept_expense_suggestion` | Confirmer une dépense à vérifier : la proposition, une catégorie du catalogue (avec la réponse à sa question) ou une règle ; écriture en **brouillon** rapprochée avec la transaction, quel que soit le réglage de validation, sans créer de règle | `banking:reconcile` et `entries:create` | Non | Non |
+| `accept_all_expense_suggestions` | « Tout confirmer » du mode simple : les dépenses sûres (confiance haute, sans question) parmi celles données, chacune en **brouillon** rapproché ; les autres reviennent avec leur raison | `banking:reconcile` et `entries:create` | Non | Oui |
+| `manage_tiers` | Clients et fournisseurs : créer, modifier, rattacher les comptes auxiliaires déjà utilisés sur des lignes 40 et 41 | `entries:create` (créer, rattacher), `entries:update` (modifier) | Oui (modifier) | Non |
+| `duplicate_entry` | Copier une écriture en **brouillon** | `entries:create` | Non | Non |
+| `update_draft_invoice` | Modifier une facture encore en brouillon (champs et lignes, ou seulement les comptes des lignes d'une facture importée) ; refusé une fois comptabilisée | `entries:update` | Oui | Oui |
+| `update_provision`, `update_investment_grant` | Remplacer une provision ou une subvention ; figées dès qu'un mouvement est validé | `entries:create` | Oui | Oui |
+| `update_draft_expense_report` | Remplacer la période, le libellé et les lignes d'une note de frais en brouillon (ou soumise, pour un valideur) ; Kledg recalcule montants et TVA | `expenses:submit` | Oui | Oui |
+| `reclassify_doubtful_receivable` | Reclasser une créance de 411 en 416 à la clôture, en **brouillon** | `entries:create` | Non | Non |
+| `save_local_taxes` | Saisir l'avis de CFE (total, acompte, date, note) et les ajustements de la valeur ajoutée de la CVAE d'une année | `entries:create` | Oui | Oui |
+| `prepare_cfe_entry` | Préparer l'écriture de CFE (acompte ou solde, 63511 / 512 ou 63511 / 447) en **brouillon** ; inchangée si elle correspond, jamais si elle est validée | `entries:create` | Oui (brouillon périmé) | Oui |
+| `save_corporate_tax_inputs` | Saisir ce que les comptes ne disent pas pour l'impôt sur les sociétés (capital libéré, 75 % de personnes physiques, déficits reportables, lignes à la main, acomptes versés) | `entries:create` | Oui | Oui |
+| `record_tax_filing` | Enregistrer le dépôt d'une déclaration de TVA ou d'impôt sur les sociétés (date, montants), ou retirer cet enregistrement ; ne dépose ni ne paie | `entries:create` | Oui | Oui |
+| `save_depreciation_record` | Enregistrer l'amortissement d'une période (un enregistrement, pas une écriture) ou le lier à une écriture | `entries:create` (enregistrer ; `entries:update` pour remplacer), `entries:update` (lier) | Oui | Oui |
+| `prepare_opening_balances` | Soldes d'ouverture du premier exercice en **brouillon** au journal AN | `entries:create` | Non | Non |
 
 À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
 
@@ -197,6 +220,33 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `letter_entry_lines` | Lettrer des lignes d'un compte de tiers : code suivant du compte et date du jour, débits égaux aux crédits, écritures validées, exercice ouvert | `entries:update` | Oui |
 | `unletter_entry_lines` | Délettrer un code d'un compte de tiers, dans un exercice ouvert | `entries:update` | Oui |
 | `create_draft_invoice` | Enregistrer une facture d'achat ou de vente en brouillon (lignes, plusieurs taux, totaux calculés par Kledg) et, sur demande, son écriture en brouillon dans l'exercice de sa date | `entries:create` | Oui |
+| `manage_accounts` | Plan comptable : modifier un compte, supprimer un compte et ses sous-comptes, compléter le plan du PCG, semer le PCG, supprimer les comptes hors PCG | `ledger:manage` | Oui (suppressions) |
+| `manage_journals` | Modifier ou supprimer un journal sans écriture, rétablir les journaux par défaut | `ledger:manage` | Oui (suppression) |
+| `manage_fiscal_years` | Créer un exercice, changer les dates d'un exercice ouvert, supprimer un exercice ouvert sans écriture | `ledger:manage` | Oui (suppression) |
+| `import_accounting_file` | Importer un FEC, un CSV ou un Excel d'écritures (base64, 5 Mo au plus) ; l'aperçu donne les exercices du FEC | `entries:create` et `ledger:manage` | Oui |
+| `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances | `settings:update` | Oui |
+| `manage_company_records` | Établissements, personnes, associés, régimes fiscaux, adresses | `settings:update` | Oui |
+| `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles) | `settings:update` | Oui |
+| `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
+| `manage_bank_accounts` | Nom, compte 512 et synchronisation d'un compte bancaire, compte par défaut, comptes synchronisés d'une connexion, déconnexion d'une banque (identifiants supprimés, opérations gardées) | `banking:manage` | Oui (comptes synchronisés, déconnexion) |
+| `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui (annulation, rapprochement automatique) |
+| `delete_bank_transactions` | Supprimer des transactions bancaires | `banking:manage` | Oui |
+| `duplicate_rule` | Copier une règle d'affectation (désactivée) | `ledger:manage` | Non |
+| `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles), copier les justificatifs de Qonto | `banking:reconcile` | Non |
+| `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) | `banking:reconcile` | Non |
+| `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
+| `import_qonto_invoices` | Importer les clients et les factures de Qonto (idempotent) | `entries:create` et `banking:read` | Oui |
+| `delete_tiers` | Supprimer un client ou un fournisseur sans facture | `entries:delete` | Oui |
+| `delete_budget_items` | Supprimer un budget ou une ligne | `budgets:manage` | Oui |
+| `delete_year_end_items` | Supprimer une provision, une évaluation ou une subvention, avec leurs brouillons | `entries:delete` (provision, subvention), `entries:create` (évaluation) | Oui |
+| `manage_expense_report` | Soumettre, renvoyer, valider, rouvrir une note de frais, la comptabiliser (brouillon) ou l'annuler, constater son remboursement, la supprimer ; paiements candidats (lecture) | `expenses:submit`, `expenses:validate`, `entries:create`, `entries:delete` ou `entries:update` selon l'action, comme les routes | Oui (sauf la lecture) |
+| `manage_expense_settings` | Bénéficiaires des notes de frais et règles de mots-clés des catégories | `expenses:validate` | Oui (suppressions) |
+| `manage_management_fee_convention` | Créer, remplacer ou supprimer une convention de frais de gestion (droits vérifiés dans chaque filiale) ; la génération des factures reste dans Kledg | `entries:create` | Oui |
+| `auto_letter_account` | Lettrage automatique d'un compte de tiers (toutes les propositions) | `entries:update` | Oui |
+| `manage_fixed_asset` | Modifier une immobilisation, la supprimer avec ses brouillons de dotation | `ledger:manage` | Oui (suppression) |
+| `manage_depreciation_record` | Comptabiliser un amortissement en écriture **validée**, ou supprimer l'enregistrement | `entries:create` et `entries:validate` (comptabiliser), `entries:delete` (supprimer) | Oui |
+
+Un outil qui regroupe plusieurs routes prend une `action` (ou une `section`, un `scope`) et vérifie, en plus de son droit, celui de la route de chaque action (`actions` de `fullControlTool` et `draftTool`, `permissionsOfAction` dans `lib/mcp/tool-meta.ts`) ; seules ses actions à fort impact (`highImpactActions`) suivent le mode d'exécution, les autres s'exécutent aussitôt. Les montants des corps de routes en centimes et les taux en points de base deviennent des euros et des pour cent pour l'assistant (`lib/mcp/euros.ts`), puis le schéma de la route vérifie le corps (messages en français).
 
 Les opérations répétées n'agissent pas deux fois : un import du même relevé, une nouvelle exécution des règles, une seconde génération des dotations ou un second rapprochement ne créent rien de plus.
 
@@ -251,7 +301,7 @@ Chaque appel d'un outil de brouillons (sauf un aperçu `dryRun`) écrit `MCP_WRI
 - **Génération des factures de frais de gestion** : `preview_management_fees` calcule, rien ne facture. Générer les factures engage la holding et chaque filiale (prix de transfert, TVA, série de numérotation, factures d'achat proposées aux filiales) : la décision se prend dans Kledg par une personne qui a les droits dans chaque société (décision du mainteneur, 2026-10-04).
 - **Documents de l'approbation des comptes** : `update_year_end_formalities` renseigne les données, les documents (convocation, procès-verbal, rapport de gestion, dépôt) se génèrent et se signent dans Kledg.
 - **Validation ou comptabilisation hors du contrôle total** : les outils de brouillons ne valident rien, ne comptabilisent ni notes de frais ni factures, ne clôturent rien ; en contrôle total, ces actions suivent le [mode d'exécution](#mode-dexécution-du-contrôle-total).
-- Suppression de société, gestion des membres et des rôles, paramètres de l'instance et mises à jour, connexion d'une banque et identifiants des prestataires, clés API et autorisations d'assistants, suppression ou réouverture d'exercice, mise en page des états. Ces actions restent dans l'interface.
+- Création, archivage et suppression de société, paramètres de l'instance et mises à jour, comptes des utilisateurs de l'instance, connexion d'une banque et identifiants des prestataires, clés API et autorisations d'assistants, compte personnel (mot de passe, sessions, préférences). Ces actions restent dans l'interface ; la liste complète, avec la raison de chaque exclusion, est dans l'[inventaire de l'API](#inventaire-de-lapi).
 
 ## Prompts
 
@@ -273,25 +323,411 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 
 | Fonctionnalité | Lecture | Brouillons | Contrôle total | Kledg seulement |
 | --- | --- | --- | --- | --- |
-| Budgets ([budget](budget.md)) | `list_budgets`, `get_budget`, `get_budget_report` | `create_budget`, `create_budget_line`, `update_budget_line` | | Supprimer un budget ou une ligne |
-| Abonnements détectés ([abonnements](abonnements.md)) | `list_detected_subscriptions` | `classify_subscription`, `add_subscription_to_budget` | | Règle d'affectation depuis un abonnement (voir `create_rule` en CT) |
-| Frais de gestion ([frais de gestion](frais-de-gestion.md)) | `list_management_fee_conventions`, `preview_management_fees` | | | Conventions, génération des factures (décision documentée ci-dessus) |
-| Notes de frais ([notes de frais](notes-de-frais.md)) | `list_expense_reports`, `get_expense_report`, `list_expense_claimants` | `create_draft_expense_report` | | Soumettre, renvoyer, valider, comptabiliser, constater le remboursement ; bénéficiaires et mots-clés |
-| Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `list_invoices`, `get_invoice` | | `create_draft_invoice` | Créer ou modifier un tiers, comptabiliser une facture existante, import Qonto |
-| Lettrage ([lettrage et tiers](lettrage-et-tiers.md)) | | | `list_unlettered_lines`, `letter_entry_lines`, `unletter_entry_lines` | Propositions automatiques en un clic |
+| Budgets ([budget](budget.md)) | `list_budgets`, `get_budget`, `get_budget_report` | `create_budget`, `create_budget_line`, `update_budget_line` | `delete_budget_items` | |
+| Abonnements détectés ([abonnements](abonnements.md)) | `list_detected_subscriptions` | `classify_subscription`, `add_subscription_to_budget` | `create_rule` (règle depuis un abonnement) | |
+| Frais de gestion ([frais de gestion](frais-de-gestion.md)) | `list_management_fee_conventions` (conventions, périodes facturées, filiales), `preview_management_fees` | | `manage_management_fee_convention` | Génération des factures (décision documentée ci-dessus) |
+| Notes de frais ([notes de frais](notes-de-frais.md)) | `list_expense_reports`, `get_expense_report`, `list_expense_claimants`, `list_expense_category_rules` | `create_draft_expense_report`, `update_draft_expense_report` | `manage_expense_report` (soumettre, renvoyer, valider, rouvrir, comptabiliser, rembourser, supprimer), `manage_expense_settings` (bénéficiaires et mots-clés) | |
+| Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `list_invoices`, `get_invoice` | `manage_tiers`, `update_draft_invoice` | `create_draft_invoice`, `manage_invoice`, `delete_tiers`, `import_qonto_invoices` | |
+| Lettrage ([lettrage et tiers](lettrage-et-tiers.md)) | | | `list_unlettered_lines`, `letter_entry_lines`, `unletter_entry_lines`, `auto_letter_account` | |
 | Balance âgée et balance auxiliaire | `get_aged_balance`, `get_auxiliary_balance` | | | Exports Excel |
-| Mode simple, dépenses à vérifier ([catégories simples](categories-simples.md)) | `list_expenses_to_review` | `accept_expense_suggestion` (brouillon) | | Valider les saisies du mode simple (voir `validate_entries` en CT), envoyer un justificatif, réglage de validation |
-| Justificatifs manquants | `list_missing_receipts` | | | Joindre une pièce (à la banque) |
-| Échéances fiscales et juridiques | `list_tax_deadlines` | | | Réglages du calendrier |
-| Déclarations de TVA ([déclarations de TVA](declarations-tva.md)) | `get_vat_return` | `prepare_vat_settlement` (brouillon) | `validate_entries` | Déposer et payer (sur impots.gouv.fr), enregistrer le dépôt, exports PDF et CSV |
-| Impôt sur les sociétés ([impôt sur les sociétés](impot-societes.md)) | `get_corporate_tax` | `prepare_corporate_tax_entry` (brouillon) | `validate_entries` | Déclarer et payer (sur impots.gouv.fr), réponses du taux réduit, déficits, lignes à la main, acomptes versés, enregistrer le dépôt, exports PDF et CSV |
-| Impôts locaux ([impôts locaux](impots-locaux.md)) | `get_local_taxes` | | | Saisir l'avis de CFE et les ajustements, écritures de CFE en brouillon, exports PDF et CSV, payer (sur impots.gouv.fr) |
+| Mode simple, dépenses à vérifier ([catégories simples](categories-simples.md)) | `list_expenses_to_review` | `accept_expense_suggestion`, `accept_all_expense_suggestions` (brouillons) | `validate_entries`, `upload_receipt`, `update_company_settings` (réglage de validation) | |
+| Justificatifs manquants | `list_missing_receipts` | | `upload_receipt` (Qonto) | |
+| Échéances fiscales et juridiques | `list_tax_deadlines` | | `update_company_settings` (réglages du calendrier) | |
+| Déclarations de TVA ([déclarations de TVA](declarations-tva.md)) | `get_vat_return` | `prepare_vat_settlement` (brouillon), `record_tax_filing` (dépôt enregistré) | `validate_entries` | Déposer et payer (sur impots.gouv.fr), exports PDF et CSV |
+| Impôt sur les sociétés ([impôt sur les sociétés](impot-societes.md)) | `get_corporate_tax` | `prepare_corporate_tax_entry` (brouillon), `save_corporate_tax_inputs` (taux réduit, déficits, lignes à la main, acomptes versés), `record_tax_filing` | `validate_entries` | Déclarer et payer (sur impots.gouv.fr), exports PDF et CSV |
+| Impôts locaux ([impôts locaux](impots-locaux.md)) | `get_local_taxes` | `save_local_taxes`, `prepare_cfe_entry` (brouillon) | | Exports PDF et CSV, payer (sur impots.gouv.fr) |
 | Suivi des déclarations ([échéances](echeances.md)) | `list_declarations_status` | `mark_declaration` | | Joindre une pièce Qonto |
 | Indicateurs financiers, SIG et ratios ([indicateurs](indicateurs-financiers.md)) | `get_sig`, `get_financial_ratios` | | | Exports CSV et Excel, widgets |
-| Provisions et dépréciations ([provisions](provisions-et-subventions.md)) | `get_year_end_inventory`, `list_doubtful_receivables` | `create_provision`, `record_provision_assessment` | | Modifier ou supprimer une provision, reclassement en 416 |
-| Subventions d'investissement | `get_year_end_inventory` | `create_investment_grant` | | Modifier ou supprimer une subvention |
+| Provisions et dépréciations ([provisions](provisions-et-subventions.md)) | `get_year_end_inventory`, `list_doubtful_receivables` | `create_provision`, `update_provision`, `record_provision_assessment`, `reclassify_doubtful_receivable` (416, brouillon) | `delete_year_end_items` | |
+| Subventions d'investissement | `get_year_end_inventory` | `create_investment_grant`, `update_investment_grant` | `delete_year_end_items` | |
 | Travaux de clôture | `get_year_end_inventory` | `prepare_year_end_entries` (brouillons) | `validate_entries`, `generate_depreciation`, `close_fiscal_year`, `allocate_result` | |
-| Composition du capital | `get_capital_composition` | | | Saisie des associés |
+| Composition du capital | `get_capital_composition`, `get_company_settings` | | `manage_company_records` (associés, personnes) | |
 | Approbation des comptes ([approbation](approbation-des-comptes.md)) | `get_year_end_formalities` (statut et données manquantes) | `update_year_end_formalities` | | Générer, signer et déposer les documents |
-| Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `import_statement`, `reconcile_transaction`, `run_rules`... | Connecter une banque |
+| Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status`, `get_transaction_details`, `simulate_rule` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `sync_bank_data`, `import_statement`, `reconcile_transaction`, `bulk_reconcile`, `run_rules`, `manage_bank_accounts`, `delete_bank_transactions`, `duplicate_rule`... | Connecter une banque |
+| Écritures, plan comptable, journaux, exercices | `list_entries`, `get_entry`, `get_ledger_report`, `search_accounts`, `list_journals`, `list_fiscal_years` | `create_draft_entry`, `duplicate_entry`, `prepare_opening_balances` | `update_draft_entry`, `validate_entries`, `reverse_entry`, `delete_draft_entry`, `create_account`, `manage_accounts`, `create_journal`, `manage_journals`, `manage_fiscal_years`, `import_accounting_file` | Exports Excel du journal |
+| Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `generate_depreciation` | |
+| Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (administrateurs de l'instance) | Création, archivage et suppression de société |
 
+## Inventaire de l'API
+
+Règle du mainteneur : tout ce qu'un utilisateur peut faire dans Kledg se fait aussi par le serveur MCP, au bon niveau d'accès et avec les mêmes contrôles que l'interface et l'API. Chaque gestionnaire de `app/api` (méthode et chemin) correspond aux outils MCP qui font la même chose, ou à une exclusion écrite avec sa raison. La table vit dans le code (`lib/mcp/route-coverage.ts`) et un test (`lib/mcp/__tests__/route-coverage.test.ts`) échoue quand une route n'a ni outil ni exclusion, quand un outil nommé n'existe pas, quand une route qui modifie des données ne correspond à aucun outil d'écriture, ou quand cette page ne liste pas la route.
+
+Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, contrôle total (`kledg:admin`, avec le [mode d'exécution](#mode-dexécution-du-contrôle-total) pour les actions à fort impact). Le droit est celui que la route vérifie dans la société ; l'outil vérifie le même, action par action pour un outil qui regroupe plusieurs routes.
+
+| | Gestionnaires | Couverts par un outil | Exclus |
+| --- | --- | --- | --- |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 201 | 157 | 44 |
+| Lectures (GET) | 144 | 100 | 44 |
+| Total | 345 | 257 | 88 |
+
+### Exclusions
+
+| Exclusion | Raison | Gestionnaires (dont écritures) |
+| --- | --- | --- |
+| Authentification | Authentification du navigateur (Better Auth : connexion, sessions, fournisseur OAuth) ; un assistant se connecte par OAuth ou par clé API. | 2 (1) |
+| Compte personnel | Compte personnel de l'utilisateur (identité, mot de passe, sessions, préférences d'affichage) ; un assistant n'agit jamais sur l'identité ni la sécurité du compte. | 11 (8) |
+| Accès des assistants | Accès des assistants (clés API, autorisations, mode d'exécution) ; un assistant ne peut pas modifier ses propres droits. | 4 (3) |
+| Approbation des actions IA | Approbation des actions IA, réservée à la session et au mot de passe de l'utilisateur dans Kledg (mode validation) ; un assistant ne peut pas approuver. | 2 (1) |
+| Serveur MCP | Le serveur MCP lui-même. | 3 (2) |
+| Tâches planifiées | Tâche planifiée appelée par la plateforme avec son secret, jamais par un utilisateur. | 2 (0) |
+| Disponibilité | Sonde de disponibilité de l'instance, sans donnée. | 1 (0) |
+| Administration de l'instance | Administration de l'instance (utilisateurs, mises à jour, messagerie), hors de toute société ; reste dans les pages d'administration. | 13 (9) |
+| Cycle de vie des sociétés | Création, archivage, restauration ou suppression d'une société : hors du périmètre d'une connexion (définie société par société), soumis à la politique de l'instance et à la conservation des livres (10 ans). | 4 (4) |
+| Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
+| Exports de fichiers | Export d'un fichier (PDF, Excel, CSV) ; l'assistant lit les mêmes données avec l'outil de lecture correspondant. | 12 (0) |
+| Téléchargements | Téléchargement d'un fichier (pièce jointe, justificatif) du prestataire ou de Kledg. | 3 (0) |
+| Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
+| Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
+| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 8 (3) |
+| Relevés Qonto | Liste et fichiers PDF des relevés Qonto ; les opérations arrivent par sync_bank_data et import_statement. | 4 (1) |
+| Recherche SIRENE | Recherche d'une entreprise dans le répertoire SIRENE pour la création d'une société (voir la création de société). | 1 (0) |
+
+### Table des routes
+
+| Route | Droit vérifié | Outils MCP (niveau) ou exclusion |
+| --- | --- | --- |
+| `GET /api/account/appearance` | session | Exclu : compte personnel |
+| `PUT /api/account/appearance` | session | Exclu : compte personnel |
+| `GET /api/account/display-mode` | session | Exclu : compte personnel |
+| `PUT /api/account/display-mode` | session | Exclu : compte personnel |
+| `POST /api/account/email` | session | Exclu : compte personnel |
+| `POST /api/account/password` | session | Exclu : compte personnel |
+| `PATCH /api/account/profile` | session | Exclu : compte personnel |
+| `DELETE /api/account` | session | Exclu : compte personnel |
+| `DELETE /api/account/sessions/[id]` | session | Exclu : compte personnel |
+| `GET /api/account/sessions` | session | Exclu : compte personnel |
+| `DELETE /api/account/sessions` | session | Exclu : compte personnel |
+| `GET /api/accounts/[id]/balance-evolution` | entries:read | `get_ledger_report` (L) |
+| `GET /api/accounts/[id]/entries` | entries:read | `list_entries` (L) |
+| `GET /api/accounts/[id]` | entries:read | `search_accounts` (L) |
+| `DELETE /api/accounts/[id]` | ledger:manage | `manage_accounts` (CT) |
+| `PATCH /api/accounts/[id]` | ledger:manage | `manage_accounts` (CT) |
+| `GET /api/accounts/check-exists` | entries:read | `search_accounts` (L) |
+| `POST /api/accounts/check-pcg-compliance` | ledger:manage | `manage_accounts` (CT) |
+| `POST /api/accounts/delete-non-pcg` | ledger:manage | `manage_accounts` (CT) |
+| `GET /api/accounts` | entries:read | `search_accounts` (L) |
+| `POST /api/accounts` | ledger:manage | `create_account` (CT) |
+| `POST /api/accounts/seed-pcg` | ledger:manage | `manage_accounts` (CT) |
+| `GET /api/addresses/[id]` | settings:read | `get_company_settings` (L) |
+| `GET /api/addresses` | settings:read | `get_company_settings` (L) |
+| `POST /api/addresses` | settings:update | `manage_company_records` (CT) |
+| `PUT /api/ai-access/api-keys/[id]` | session | Exclu : accès des assistants |
+| `POST /api/ai-access/api-keys` | session | Exclu : accès des assistants |
+| `PUT /api/ai-access/assistants` | session | Exclu : accès des assistants |
+| `GET /api/ai-access/grants` | session | Exclu : accès des assistants |
+| `POST /api/ai-actions/[id]` | session | Exclu : approbation des actions ia |
+| `GET /api/ai-actions` | session | Exclu : approbation des actions ia |
+| `GET /api/auth/[...all]` | aucun (voir exclusion) | Exclu : authentification |
+| `POST /api/auth/[...all]` | aucun (voir exclusion) | Exclu : authentification |
+| `PUT /api/banking/accounts/[id]` | banking:manage | `manage_bank_accounts` (CT) |
+| `GET /api/banking/accounts` | banking:read | `get_bank_sync_status` (L), `list_bank_accounts` (CT) |
+| `POST /api/banking/accounts/sync` | banking:manage | `manage_bank_accounts` (CT) |
+| `GET /api/banking/attachments/[attachmentId]/proxy` | banking:read | Exclu : téléchargements |
+| `POST /api/banking/attachments/sync` | banking:reconcile | `sync_bank_data` (CT) |
+| `POST /api/banking/connections/[id]/refresh` | banking:reconcile | `sync_bank` (CT) |
+| `DELETE /api/banking/connections/[id]` | banking:manage | `manage_bank_accounts` (CT) |
+| `GET /api/banking/connections` | banking:read | `get_bank_sync_status` (L) |
+| `POST /api/banking/import-statement` | banking:reconcile | `import_statement` (CT) |
+| `GET /api/banking/institutions` | banking:read | Exclu : connexion d'une banque |
+| `POST /api/banking/manual-accounts` | banking:manage | `create_bank_account` (CT) |
+| `GET /api/banking/missing-receipts` | banking:read | `list_missing_receipts` (L) |
+| `POST /api/banking/ponto` | banking:manage | Exclu : connexion d'une banque |
+| `POST /api/banking/reconciliation/auto-reconcile` | banking:reconcile | `bulk_reconcile` (CT) |
+| `GET /api/banking/reconciliation` | banking:read | `list_bank_transactions` (L), `list_entries` (L) |
+| `POST /api/banking/reconciliation` | banking:reconcile | `reconcile_transaction` (CT) |
+| `DELETE /api/banking/reconciliation` | banking:reconcile | `unreconcile_transaction` (CT) |
+| `POST /api/banking/revolut/authorize` | banking:manage | Exclu : connexion d'une banque |
+| `GET /api/banking/revolut/callback` | banking:manage | Exclu : connexion d'une banque |
+| `GET /api/banking/revolut` | banking:manage | Exclu : connexion d'une banque |
+| `POST /api/banking/revolut` | banking:manage | Exclu : connexion d'une banque |
+| `POST /api/banking/select-account` | banking:manage | `manage_bank_accounts` (CT) |
+| `PATCH /api/budget-lines/[id]` | budgets:manage | `update_budget_line` (B) |
+| `DELETE /api/budget-lines/[id]` | budgets:manage | `delete_budget_items` (CT) |
+| `POST /api/budgets/[id]/lines` | budgets:manage | `create_budget_line` (B) |
+| `GET /api/budgets/[id]/report` | reports:read | `get_budget_report` (L) |
+| `GET /api/budgets/[id]` | reports:read | `get_budget` (L) |
+| `DELETE /api/budgets/[id]` | budgets:manage | `delete_budget_items` (CT) |
+| `GET /api/budgets` | reports:read | `list_budgets` (L) |
+| `POST /api/budgets` | budgets:manage | `create_budget` (B) |
+| `POST /api/companies/[id]/archive` | administrateur de l’instance | Exclu : cycle de vie des sociétés |
+| `DELETE /api/companies/[id]/archive` | administrateur de l’instance | Exclu : cycle de vie des sociétés |
+| `GET /api/companies/[id]/balance-sheet/compare` | reports:read | `get_balance_sheet` (L) ; Un appel par exercice. |
+| `POST /api/companies/[id]/balance-sheet/config/default` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/balance-sheet/config/history` | settings:read | `get_statement_layout` (L) |
+| `POST /api/companies/[id]/balance-sheet/config/history` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/balance-sheet/config/line/[lineId]` | settings:read | `get_statement_layout` (L) |
+| `PATCH /api/companies/[id]/balance-sheet/config/line/[lineId]` | settings:update | `manage_statement_layout` (CT) |
+| `DELETE /api/companies/[id]/balance-sheet/config/line/[lineId]` | settings:update | `manage_statement_layout` (CT) |
+| `POST /api/companies/[id]/balance-sheet/config/line` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/balance-sheet/config` | settings:read | `get_statement_layout` (L) |
+| `POST /api/companies/[id]/balance-sheet/config` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/balance-sheet/config/templates` | settings:read | `get_statement_layout` (L) |
+| `POST /api/companies/[id]/balance-sheet/config/templates` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/balance-sheet/export-excel` | reports:export | Exclu : exports de fichiers |
+| `GET /api/companies/[id]/balance-sheet/export-pdf` | reports:export | Exclu : exports de fichiers |
+| `GET /api/companies/[id]/balance-sheet` | reports:read | `get_balance_sheet` (L) |
+| `GET /api/companies/[id]/balance-sheet/validate-income-statement` | reports:read | `get_balance_sheet` (L), `get_income_statement` (L) |
+| `POST /api/companies/[id]/corporate-tax/entries` | entries:create | `prepare_corporate_tax_entry` (B) |
+| `GET /api/companies/[id]/corporate-tax/export` | reports:export | Exclu : exports de fichiers |
+| `PUT /api/companies/[id]/corporate-tax/filing` | entries:create | `record_tax_filing` (B) |
+| `DELETE /api/companies/[id]/corporate-tax/filing` | entries:create | `record_tax_filing` (B) |
+| `PUT /api/companies/[id]/corporate-tax/inputs` | entries:create | `save_corporate_tax_inputs` (B) |
+| `GET /api/companies/[id]/corporate-tax` | reports:read | `get_corporate_tax` (L) |
+| `GET /api/companies/[id]/deadline-settings` | settings:read | `get_company_settings` (L) |
+| `PUT /api/companies/[id]/deadline-settings` | settings:update | `update_company_settings` (CT) |
+| `PUT /api/companies/[id]/declarations/status` | entries:create | `mark_declaration` (B) |
+| `DELETE /api/companies/[id]/declarations/status` | entries:create | `mark_declaration` (B) |
+| `PATCH /api/companies/[id]/establishments/[establishmentId]` | settings:update | `manage_company_records` (CT) |
+| `DELETE /api/companies/[id]/establishments/[establishmentId]` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]/establishments` | settings:read | `get_company_settings` (L) |
+| `POST /api/companies/[id]/establishments` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]/fiscal-years/[fiscalYearId]/approval/documents/[document]` | reports:export | Exclu : documents de l'approbation |
+| `GET /api/companies/[id]/fiscal-years/[fiscalYearId]/approval` | reports:read | `get_year_end_formalities` (L) |
+| `PUT /api/companies/[id]/fiscal-years/[fiscalYearId]/approval` | closing:execute | `update_year_end_formalities` (B) |
+| `POST /api/companies/[id]/fiscal-years/[fiscalYearId]/close` | closing:execute | `close_fiscal_year` (CT) |
+| `GET /api/companies/[id]/fiscal-years/[fiscalYearId]/close/simulate` | closing:execute | `close_fiscal_year` (CT) ; Aperçu (dryRun) de l'outil, droit closing:execute comme la route. |
+| `GET /api/companies/[id]/fiscal-years/[fiscalYearId]/depreciation` | reports:read | `list_fixed_assets` (L), `generate_depreciation` (CT) ; Dotations à passer : aperçu (dryRun) de generate_depreciation. |
+| `POST /api/companies/[id]/fiscal-years/[fiscalYearId]/depreciation` | entries:create, entries:validate | `generate_depreciation` (CT) |
+| `GET /api/companies/[id]/fiscal-years/[fiscalYearId]/result-allocation` | reports:read | `allocate_result` (CT) ; Aperçu (dryRun) de l'outil. |
+| `POST /api/companies/[id]/fiscal-years/[fiscalYearId]/result-allocation` | closing:execute | `allocate_result` (CT) |
+| `GET /api/companies/[id]/fiscal-years/[fiscalYearId]` | entries:read | `list_fiscal_years` (L) |
+| `PATCH /api/companies/[id]/fiscal-years/[fiscalYearId]` | ledger:manage | `manage_fiscal_years` (CT) |
+| `DELETE /api/companies/[id]/fiscal-years/[fiscalYearId]` | ledger:manage | `manage_fiscal_years` (CT) |
+| `GET /api/companies/[id]/fiscal-years` | entries:read | `list_fiscal_years` (L) |
+| `POST /api/companies/[id]/fiscal-years` | ledger:manage | `manage_fiscal_years` (CT) |
+| `POST /api/companies/[id]/income-statement/config/default` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/income-statement/config/line/[lineId]` | settings:read | `get_statement_layout` (L) |
+| `PATCH /api/companies/[id]/income-statement/config/line/[lineId]` | settings:update | `manage_statement_layout` (CT) |
+| `DELETE /api/companies/[id]/income-statement/config/line/[lineId]` | settings:update | `manage_statement_layout` (CT) |
+| `POST /api/companies/[id]/income-statement/config/line` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/income-statement/config` | settings:read | `get_statement_layout` (L) |
+| `POST /api/companies/[id]/income-statement/config` | settings:update | `manage_statement_layout` (CT) |
+| `GET /api/companies/[id]/income-statement/export-excel` | reports:export | Exclu : exports de fichiers |
+| `GET /api/companies/[id]/income-statement/export-pdf` | reports:export | Exclu : exports de fichiers |
+| `GET /api/companies/[id]/income-statement` | reports:read | `get_income_statement` (L) |
+| `POST /api/companies/[id]/local-taxes/entries` | entries:create | `prepare_cfe_entry` (B) |
+| `GET /api/companies/[id]/local-taxes/export` | reports:export | Exclu : exports de fichiers |
+| `GET /api/companies/[id]/local-taxes` | reports:read | `get_local_taxes` (L) |
+| `PUT /api/companies/[id]/local-taxes` | entries:create | `save_local_taxes` (B) |
+| `PATCH /api/companies/[id]/members/[memberId]` | administrateur de l’instance | `manage_members` (CT) |
+| `DELETE /api/companies/[id]/members/[memberId]` | administrateur de l’instance | `manage_members` (CT) |
+| `GET /api/companies/[id]/members` | settings:read | `get_company_settings` (L) |
+| `POST /api/companies/[id]/members` | administrateur de l’instance | `manage_members` (CT) |
+| `GET /api/companies/[id]/onboarding` | entries:read | Exclu : aides de l'interface |
+| `POST /api/companies/[id]/onboarding` | ledger:manage | Exclu : aides de l'interface |
+| `GET /api/companies/[id]/opening-balances` | entries:read | `list_fiscal_years` (L), `list_entries` (L) |
+| `POST /api/companies/[id]/opening-balances` | entries:create | `prepare_opening_balances` (B), `validate_entries` (CT) ; Brouillon, puis validation (entries:validate) comme l'option validate de la route. |
+| `GET /api/companies/[id]/payment-terms` | settings:read | `get_company_settings` (L) |
+| `PUT /api/companies/[id]/payment-terms` | settings:update | `update_company_settings` (CT) |
+| `GET /api/companies/[id]/persons` | settings:read | `get_company_settings` (L) |
+| `POST /api/companies/[id]/persons` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]` | settings:read | `get_company_settings` (L) |
+| `PATCH /api/companies/[id]` | settings:update | `update_company_settings` (CT) |
+| `DELETE /api/companies/[id]` | administrateur de l’instance | Exclu : cycle de vie des sociétés |
+| `PATCH /api/companies/[id]/shareholders/[shareholderId]` | settings:update | `manage_company_records` (CT) |
+| `DELETE /api/companies/[id]/shareholders/[shareholderId]` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]/shareholders` | settings:read | `get_company_settings` (L) |
+| `POST /api/companies/[id]/shareholders` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]/simple-mode-settings` | settings:read | `get_company_settings` (L) |
+| `PUT /api/companies/[id]/simple-mode-settings` | settings:update | `update_company_settings` (CT) |
+| `GET /api/companies/[id]/simple/counts` | banking:read | `list_expenses_to_review` (L) |
+| `GET /api/companies/[id]/tax-regimes` | settings:read | `get_company_settings` (L) |
+| `POST /api/companies/[id]/tax-regimes` | settings:update | `manage_company_records` (CT) |
+| `PATCH /api/companies/[id]/tax-regimes` | settings:update | `manage_company_records` (CT) |
+| `DELETE /api/companies/[id]/tax-regimes` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]/vat-returns/export` | reports:export | Exclu : exports de fichiers |
+| `PUT /api/companies/[id]/vat-returns/filing` | entries:create | `record_tax_filing` (B) |
+| `DELETE /api/companies/[id]/vat-returns/filing` | entries:create | `record_tax_filing` (B) |
+| `GET /api/companies/[id]/vat-returns` | reports:read | `get_vat_return` (L) |
+| `POST /api/companies/[id]/vat-returns/settlement` | entries:create | `prepare_vat_settlement` (B) |
+| `GET /api/companies/[id]/vat-settings` | settings:read | `get_company_settings` (L) |
+| `PUT /api/companies/[id]/vat-settings` | settings:update | `update_company_settings` (CT) |
+| `GET /api/companies/lookup` | session | Exclu : recherche sirene |
+| `GET /api/companies` | session | `list_companies` (L) |
+| `POST /api/companies` | session | Exclu : cycle de vie des sociétés |
+| `GET /api/cron/sync-banks` | aucun (voir exclusion) | Exclu : tâches planifiées |
+| `GET /api/cron/sync-qonto` | aucun (voir exclusion) | Exclu : tâches planifiées |
+| `GET /api/dashboard/layout` | reports:read | Exclu : aides de l'interface |
+| `PUT /api/dashboard/layout` | reports:read | Exclu : aides de l'interface |
+| `DELETE /api/dashboard/layout` | reports:read | Exclu : aides de l'interface |
+| `GET /api/dashboard/widgets` | reports:read | Exclu : aides de l'interface |
+| `GET /api/deadlines` | reports:read | `list_tax_deadlines` (L) |
+| `POST /api/entries/[id]/duplicate` | entries:create | `duplicate_entry` (B) |
+| `POST /api/entries/[id]/reverse` | entries:create, entries:validate | `reverse_entry` (CT) |
+| `GET /api/entries/[id]` | entries:read | `get_entry` (L) |
+| `PATCH /api/entries/[id]` | entries:update | `update_draft_entry` (CT), `validate_entries` (CT) |
+| `DELETE /api/entries/[id]` | entries:delete | `delete_draft_entry` (CT) |
+| `POST /api/entries/bulk-delete` | entries:delete | `delete_draft_entry` (CT) ; Un appel par brouillon. |
+| `POST /api/entries/bulk-validate` | entries:validate | `validate_entries` (CT) |
+| `GET /api/entries/next-number` | entries:read | `validate_entries` (CT) ; L'aperçu (dryRun) donne le numéro de chaque écriture. |
+| `GET /api/entries` | entries:read | `list_entries` (L) |
+| `POST /api/entries` | entries:create | `create_draft_entry` (B), `validate_entries` (CT) ; Brouillon, puis validation (entries:validate) pour une écriture créée validée. |
+| `PATCH /api/expense-category-rules/[id]` | expenses:validate | `manage_expense_settings` (CT) |
+| `DELETE /api/expense-category-rules/[id]` | expenses:validate | `manage_expense_settings` (CT) |
+| `GET /api/expense-category-rules` | entries:read | `list_expense_category_rules` (L) |
+| `POST /api/expense-category-rules` | expenses:validate | `manage_expense_settings` (CT) |
+| `PATCH /api/expense-claimants/[id]` | expenses:validate | `manage_expense_settings` (CT) |
+| `DELETE /api/expense-claimants/[id]` | expenses:validate | `manage_expense_settings` (CT) |
+| `GET /api/expense-claimants/options` | expenses:validate | `manage_expense_settings` (CT) ; Action claimant_options, en lecture. |
+| `GET /api/expense-claimants` | entries:read | `list_expense_claimants` (L) |
+| `POST /api/expense-claimants` | expenses:validate | `manage_expense_settings` (CT) |
+| `POST /api/expense-reports/[id]/post` | entries:create | `manage_expense_report` (CT) |
+| `DELETE /api/expense-reports/[id]/post` | entries:delete | `manage_expense_report` (CT) |
+| `GET /api/expense-reports/[id]/reimbursement` | expenses:validate, entries:read | `manage_expense_report` (CT) ; Action reimbursement_candidates, en lecture. |
+| `POST /api/expense-reports/[id]/reimbursement` | entries:update | `manage_expense_report` (CT) |
+| `GET /api/expense-reports/[id]` | entries:read | `get_expense_report` (L) |
+| `PATCH /api/expense-reports/[id]` | expenses:submit | `update_draft_expense_report` (B) |
+| `DELETE /api/expense-reports/[id]` | expenses:submit | `manage_expense_report` (CT) |
+| `POST /api/expense-reports/[id]/workflow` | expenses:submit | `manage_expense_report` (CT) |
+| `GET /api/expense-reports/receipts` | expenses:submit, banking:read | Exclu : aides de l'interface |
+| `GET /api/expense-reports` | entries:read | `list_expense_reports` (L) |
+| `POST /api/expense-reports` | expenses:submit | `create_draft_expense_report` (B) |
+| `GET /api/fec` | reports:export | `export_fec` (CT) |
+| `GET /api/fixed-assets/[id]/depreciation-status` | entries:read | `list_fixed_assets` (L) |
+| `GET /api/fixed-assets/[id]/depreciation/[entryId]/candidates` | entries:read | `list_fixed_assets` (L) |
+| `POST /api/fixed-assets/[id]/depreciation/[entryId]/post` | entries:create, entries:validate | `manage_depreciation_record` (CT) |
+| `DELETE /api/fixed-assets/[id]/depreciation/[entryId]` | entries:delete | `manage_depreciation_record` (CT) |
+| `PATCH /api/fixed-assets/[id]/depreciation/[entryId]` | entries:update | `save_depreciation_record` (B) |
+| `POST /api/fixed-assets/[id]/depreciation` | entries:create | `save_depreciation_record` (B) |
+| `GET /api/fixed-assets/[id]` | entries:read | `list_fixed_assets` (L) |
+| `PATCH /api/fixed-assets/[id]` | ledger:manage | `manage_fixed_asset` (CT) |
+| `DELETE /api/fixed-assets/[id]` | ledger:manage | `manage_fixed_asset` (CT) |
+| `GET /api/fixed-assets` | entries:read | `list_fixed_assets` (L) |
+| `POST /api/fixed-assets` | ledger:manage | `create_fixed_asset` (CT) |
+| `GET /api/fixed-assets/stats` | entries:read | `list_fixed_assets` (L) |
+| `GET /api/group/export` | reports:export | Exclu : exports de fichiers |
+| `GET /api/group/participations` | reports:read | `get_participations` (L) |
+| `GET /api/group/view` | reports:read | `get_group_view` (L) |
+| `GET /api/health` | aucun (voir exclusion) | Exclu : disponibilité |
+| `POST /api/import/preview-fiscal-years` | entries:read | `import_accounting_file` (CT) ; Aperçu (dryRun) de l'import. |
+| `POST /api/import` | entries:create, ledger:manage | `import_accounting_file` (CT) |
+| `POST /api/instance/test-email` | administrateur de l’instance | Exclu : administration de l'instance |
+| `GET /api/integrations/[id]/credentials` | banking:manage | Exclu : connexion d'une banque |
+| `POST /api/integrations/[id]/features` | banking:manage | Exclu : connexion d'une banque |
+| `POST /api/integrations/[id]/resources` | banking:manage | Exclu : connexion d'une banque |
+| `PUT /api/integrations/[id]` | banking:manage | Exclu : connexion d'une banque |
+| `POST /api/integrations/[id]/sync` | banking:reconcile | `sync_bank_data` (CT) |
+| `GET /api/integrations` | banking:read | `get_bank_sync_status` (L) |
+| `POST /api/integrations` | banking:manage | Exclu : connexion d'une banque |
+| `POST /api/integrations/sync` | banking:reconcile | `sync_bank_data` (CT) |
+| `POST /api/integrations/verify` | banking:manage | Exclu : connexion d'une banque |
+| `PATCH /api/investment-grants/[id]` | entries:create | `update_investment_grant` (B) |
+| `DELETE /api/investment-grants/[id]` | entries:delete | `delete_year_end_items` (CT) |
+| `GET /api/investment-grants` | reports:read | `get_year_end_inventory` (L) |
+| `POST /api/investment-grants` | entries:create | `create_investment_grant` (B) |
+| `GET /api/invoices/[id]/attachment` | entries:read | Exclu : téléchargements |
+| `PATCH /api/invoices/[id]/lines` | entries:update | `update_draft_invoice` (B) |
+| `DELETE /api/invoices/[id]/payments/[paymentId]` | entries:update | `manage_invoice` (CT) |
+| `GET /api/invoices/[id]/payments/candidates` | entries:read | `manage_invoice` (CT) ; Action payment_candidates, en lecture. |
+| `POST /api/invoices/[id]/payments` | entries:update | `manage_invoice` (CT) |
+| `POST /api/invoices/[id]/post` | entries:create | `manage_invoice` (CT) |
+| `DELETE /api/invoices/[id]/post` | entries:delete | `manage_invoice` (CT) |
+| `GET /api/invoices/[id]` | entries:read | `get_invoice` (L) |
+| `PATCH /api/invoices/[id]` | entries:update | `update_draft_invoice` (B) |
+| `DELETE /api/invoices/[id]` | entries:delete | `manage_invoice` (CT) |
+| `POST /api/invoices/[id]/settle` | entries:update | `manage_invoice` (CT) |
+| `POST /api/invoices/import-qonto` | entries:create | `import_qonto_invoices` (CT) |
+| `GET /api/invoices` | entries:read | `list_invoices` (L) |
+| `POST /api/invoices` | entries:create | `create_draft_invoice` (CT) |
+| `PATCH /api/journals/[id]` | ledger:manage | `manage_journals` (CT) |
+| `DELETE /api/journals/[id]` | ledger:manage | `manage_journals` (CT) |
+| `POST /api/journals/defaults` | ledger:manage | `manage_journals` (CT) |
+| `POST /api/journals` | ledger:manage | `create_journal` (CT) |
+| `GET /api/journals` | entries:read | `list_journals` (L) |
+| `GET /api/lettering/accounts` | entries:read | `list_unlettered_lines` (CT) |
+| `POST /api/lettering/auto` | entries:update | `auto_letter_account` (CT) |
+| `GET /api/lettering` | entries:read | `list_unlettered_lines` (CT) |
+| `POST /api/lettering` | entries:update | `letter_entry_lines` (CT) |
+| `GET /api/lettering/suggestions` | entries:read | `list_unlettered_lines` (CT) |
+| `POST /api/lettering/unletter` | entries:update | `unletter_entry_lines` (CT) |
+| `GET /api/management-fees/conventions/[id]/invoices` | reports:read | `list_management_fee_conventions` (L) |
+| `POST /api/management-fees/conventions/[id]/invoices` | entries:create | Exclu : factures de frais de gestion |
+| `GET /api/management-fees/conventions/[id]/preview` | reports:read | `preview_management_fees` (L) |
+| `GET /api/management-fees/conventions/[id]` | reports:read | `list_management_fee_conventions` (L) |
+| `PATCH /api/management-fees/conventions/[id]` | entries:create | `manage_management_fee_convention` (CT) |
+| `DELETE /api/management-fees/conventions/[id]` | entries:create | `manage_management_fee_convention` (CT) |
+| `GET /api/management-fees/conventions` | reports:read | `list_management_fee_conventions` (L) |
+| `POST /api/management-fees/conventions` | entries:create | `manage_management_fee_convention` (CT) |
+| `GET /api/management-fees/subsidiaries` | reports:read | `list_management_fee_conventions` (L) |
+| `GET /api/mcp` | aucun (voir exclusion) | Exclu : serveur mcp |
+| `POST /api/mcp` | aucun (voir exclusion) | Exclu : serveur mcp |
+| `DELETE /api/mcp` | aucun (voir exclusion) | Exclu : serveur mcp |
+| `PUT /api/provisions/[id]/assessment` | entries:create | `record_provision_assessment` (B) |
+| `DELETE /api/provisions/[id]/assessment` | entries:create | `delete_year_end_items` (CT) |
+| `PATCH /api/provisions/[id]` | entries:create | `update_provision` (B) |
+| `DELETE /api/provisions/[id]` | entries:delete | `delete_year_end_items` (CT) |
+| `POST /api/provisions/doubtful-receivables/reclassify` | entries:create | `reclassify_doubtful_receivable` (B) |
+| `GET /api/provisions/doubtful-receivables` | reports:read | `list_doubtful_receivables` (L) |
+| `GET /api/provisions` | reports:read | `get_year_end_inventory` (L) |
+| `POST /api/provisions` | entries:create | `create_provision` (B) |
+| `GET /api/qonto/accounts` | banking:read | Exclu : connexion d'une banque |
+| `POST /api/qonto/connect` | banking:manage | Exclu : connexion d'une banque |
+| `GET /api/qonto/statements/[id]/proxy` | banking:read | Exclu : relevés qonto |
+| `GET /api/qonto/statements/[id]` | banking:read | Exclu : relevés qonto |
+| `GET /api/qonto/statements` | banking:read | Exclu : relevés qonto |
+| `POST /api/qonto/statements` | banking:read | Exclu : relevés qonto |
+| `GET /api/qonto/status` | banking:read | `get_bank_sync_status` (L) |
+| `POST /api/qonto/test-connection` | banking:manage | Exclu : connexion d'une banque |
+| `GET /api/qonto/transactions/[id]/attachments` | banking:read | Exclu : téléchargements |
+| `POST /api/qonto/transactions/[id]/attachments/upload` | banking:reconcile | `upload_receipt` (CT) |
+| `POST /api/qonto/verify` | banking:manage | Exclu : connexion d'une banque |
+| `GET /api/reports/aged-balance/export-excel` | reports:export | Exclu : exports de fichiers |
+| `GET /api/reports/aged-balance` | reports:read | `get_aged_balance` (L) |
+| `GET /api/reports/auxiliary-balance/export-excel` | reports:export | Exclu : exports de fichiers |
+| `GET /api/reports/auxiliary-balance` | reports:read | `get_auxiliary_balance` (L) |
+| `GET /api/reports/capital-composition` | reports:read | `get_capital_composition` (L) |
+| `GET /api/reports/depreciation` | reports:read | `list_fixed_assets` (L) |
+| `GET /api/reports/financial-indicators/export` | reports:export | Exclu : exports de fichiers |
+| `GET /api/reports/financial-indicators` | reports:read | `get_sig` (L), `get_financial_ratios` (L) |
+| `GET /api/reports/grand-livre` | reports:read | `get_ledger_report` (L) |
+| `GET /api/reports/journal/export-excel` | reports:export | Exclu : exports de fichiers |
+| `GET /api/reports/journal` | reports:read | `get_ledger_report` (L) |
+| `GET /api/reports/trial-balance` | reports:read | `get_trial_balance` (L) |
+| `GET /api/simple/entries` | entries:read | `list_entries` (L) |
+| `POST /api/simple/expenses/[id]/confirm` | banking:reconcile | `accept_expense_suggestion` (B), `validate_entries` (CT) ; Brouillon, puis validation (entries:validate) quand la société ne demande pas la revue du comptable. |
+| `POST /api/simple/expenses/[id]/receipt` | banking:reconcile | `upload_receipt` (CT) |
+| `POST /api/simple/expenses/confirm-all` | banking:reconcile | `accept_all_expense_suggestions` (B), `validate_entries` (CT) ; Brouillons, puis validation (entries:validate). |
+| `GET /api/simple/expenses` | banking:read | `list_expenses_to_review` (L) |
+| `POST /api/subscriptions/budget-item` | budgets:manage | `add_subscription_to_budget` (B) |
+| `PUT /api/subscriptions/decision` | banking:reconcile | `classify_subscription` (B) |
+| `GET /api/subscriptions` | banking:read | `list_detected_subscriptions` (L) |
+| `GET /api/tasks/count` | banking:read | Exclu : aides de l'interface |
+| `POST /api/tasks/refresh` | banking:reconcile | `sync_bank_data` (CT) |
+| `GET /api/tiers/[id]` | entries:read | `list_tiers` (L) |
+| `PATCH /api/tiers/[id]` | entries:update | `manage_tiers` (B) |
+| `DELETE /api/tiers/[id]` | entries:delete | `delete_tiers` (CT) |
+| `POST /api/tiers/attach-auxiliary` | entries:create | `manage_tiers` (B) |
+| `GET /api/tiers` | entries:read | `list_tiers` (L) |
+| `POST /api/tiers` | entries:create | `manage_tiers` (B) |
+| `POST /api/transaction-rules/[id]/duplicate` | ledger:manage | `duplicate_rule` (CT) |
+| `PUT /api/transaction-rules/[id]` | ledger:manage | `update_rule` (CT) |
+| `DELETE /api/transaction-rules/[id]` | ledger:manage | `delete_rule` (CT) |
+| `POST /api/transaction-rules/[id]/simulate` | banking:read | `simulate_rule` (L) |
+| `POST /api/transaction-rules/execute` | banking:reconcile | `run_rules` (CT) |
+| `GET /api/transaction-rules` | banking:read | `list_rules` (CT) |
+| `POST /api/transaction-rules` | ledger:manage | `create_rule` (CT) |
+| `POST /api/transaction-rules/simulate` | banking:read | `simulate_rule` (L) |
+| `POST /api/transactions/[id]/apply-rule` | banking:reconcile | `bulk_reconcile` (CT) |
+| `GET /api/transactions/[id]/create-rule` | banking:read | `get_transaction_details` (L) |
+| `GET /api/transactions/[id]/reconcile` | banking:read | `get_transaction_details` (L) |
+| `POST /api/transactions/[id]/reconcile` | banking:reconcile | `reconcile_transaction` (CT) |
+| `DELETE /api/transactions/[id]/reconcile` | banking:reconcile | `unreconcile_transaction` (CT) |
+| `GET /api/transactions/[id]/suggest` | banking:read | `get_transaction_details` (L) |
+| `POST /api/transactions/bulk-delete` | banking:manage | `delete_bank_transactions` (CT) |
+| `POST /api/transactions/bulk-reconcile` | banking:reconcile | `bulk_reconcile` (CT) |
+| `POST /api/transactions/bulk-unreconcile` | banking:reconcile | `bulk_reconcile` (CT) |
+| `GET /api/transactions` | banking:read | `list_bank_transactions` (L) |
+| `PUT /api/updates/channel` | administrateur de l’instance | Exclu : administration de l'instance |
+| `POST /api/updates/connection` | administrateur de l’instance | Exclu : administration de l'instance |
+| `DELETE /api/updates/connection` | administrateur de l’instance | Exclu : administration de l'instance |
+| `GET /api/updates/github` | administrateur de l’instance | Exclu : administration de l'instance |
+| `POST /api/updates/install` | administrateur de l’instance | Exclu : administration de l'instance |
+| `POST /api/updates/prepare` | administrateur de l’instance | Exclu : administration de l'instance |
+| `GET /api/updates` | administrateur de l’instance | Exclu : administration de l'instance |
+| `GET /api/updates/version` | administrateur de l’instance | Exclu : administration de l'instance |
+| `PATCH /api/users/[id]` | administrateur de l’instance | Exclu : administration de l'instance |
+| `DELETE /api/users/[id]` | administrateur de l’instance | Exclu : administration de l'instance |
+| `GET /api/users` | administrateur de l’instance | Exclu : administration de l'instance |
+| `POST /api/users` | administrateur de l’instance | Exclu : administration de l'instance |
+| `POST /api/year-end/entries` | entries:create | `prepare_year_end_entries` (B) |
+| `GET /api/year-end` | reports:read | `get_year_end_inventory` (L) |

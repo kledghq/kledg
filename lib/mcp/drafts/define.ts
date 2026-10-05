@@ -13,6 +13,8 @@
  *    guard (connection grant, membership, role, archived company), exactly
  *    like the matching API route: a company outside the grant is
  *    "Société introuvable";
+ *    a tool grouping several routes behind an `action` input also checks
+ *    the right of the route of that action (`actions`);
  * 3. the tool calls the lib service the web UI uses (same checks, locks and
  *    database triggers);
  * 4. the call is written to the audit log (MCP_WRITE) with the user, the
@@ -25,11 +27,12 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
+import { ValidationError } from '@/lib/accounting/errors'
 import { parseInput } from '@/lib/api/zod-fields'
 import type { Permission } from '@/lib/rbac/authorize'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
-import { describeTool, writeAnnotations } from '@/lib/mcp/tool-meta'
+import { describeTool, permissionsOfAction, writeAnnotations, type ActionPermissions } from '@/lib/mcp/tool-meta'
 import { assistantOf } from '@/lib/mcp/full-control/define'
 
 export const companyIdInput = z.string().min(1, 'La société est requise').describe('Company id, from list_companies.')
@@ -50,6 +53,8 @@ export interface DraftResult {
 export interface DraftContext {
   access: McpAccess
   companyId: string
+  /** Checks one more right in the company (actions whose right depends on the data, like the route's `authorize`). */
+  authorize: (permission: Permission) => Promise<void>
 }
 
 export interface DraftTool<S extends Shape, R extends DraftResult> {
@@ -62,8 +67,10 @@ export interface DraftTool<S extends Shape, R extends DraftResult> {
   units?: string
   /** Input fields; companyId is added to every tool. */
   input: S
-  /** Rights checked in the company, all of them, like the API route. */
+  /** Rights checked in the company, all of them, like the API route (empty when every action states its own). */
   permission: Permission | readonly Permission[]
+  /** Tools with an `action` input: the rights of each action, checked besides `permission`, like each matching route. */
+  actions?: ActionPermissions
   destructive: boolean
   idempotent: boolean
   execute: (args: DraftArgs<S>, ctx: DraftContext) => Promise<R>
@@ -90,21 +97,25 @@ async function audit(tool: string, access: McpAccess, companyId: string, ids: Re
 
 export function registerDraftTool<S extends Shape, R extends DraftResult>(server: McpServer, access: McpAccess, guard: CompanyGuard, tool: DraftTool<S, R>): void {
   const inputSchema = z.object({ companyId: companyIdInput, ...tool.input })
-  const permissions: readonly Permission[] = Array.isArray(tool.permission) ? tool.permission : [tool.permission as Permission]
+  const basePermissions: readonly Permission[] = Array.isArray(tool.permission) ? tool.permission : [tool.permission as Permission]
+  if (basePermissions.length === 0 && !tool.actions) throw new Error(`${tool.name}: a draft tool checks at least one right`)
 
   server.registerTool(
     tool.name,
     {
       title: tool.title,
-      description: describeTool({ summary: tool.summary, access: 'write', permission: tool.permission, amounts: tool.amounts, units: tool.units, never: tool.never }),
+      description: describeTool({ summary: tool.summary, access: 'write', permission: tool.permission, actions: tool.actions, amounts: tool.amounts, units: tool.units, never: tool.never }),
       inputSchema,
       annotations: writeAnnotations({ destructive: tool.destructive, idempotent: tool.idempotent }),
     },
     (raw: unknown) =>
       run(async () => {
         const args = parseInput(inputSchema, raw) as DraftArgs<S>
+        const permissions = [...basePermissions, ...permissionsOfAction(tool.actions, (args as { action?: unknown }).action)]
+        if (permissions.length === 0) throw new ValidationError('Action inconnue.')
         for (const permission of permissions) await guard.require(args.companyId, permission)
-        const result = await tool.execute(args, { access, companyId: args.companyId })
+        const authorize = (permission: Permission) => guard.require(args.companyId, permission)
+        const result = await tool.execute(args, { access, companyId: args.companyId, authorize })
         const ids = tool.audit(args, result)
         if (ids) await audit(tool.name, access, args.companyId, ids)
         return json(result)

@@ -6,6 +6,8 @@
  *    (403 without kledg:admin, then the connection's company grant and the
  *    user's role, exactly like the other tools: a company outside the grant
  *    is "Société introuvable");
+ *    A tool grouping several routes behind an `action` input also checks,
+ *    the same way, the right of the route of that action (`actions`);
  * 2. the user's full control calls are rate limited;
  * 3. a tool with `confirmation: true` (high impact) runs according to the
  *    connection's execution mode (access.executionMode, stored on its grant):
@@ -16,6 +18,8 @@
  *    - 'automatic' (the owner's choice for full control): it executes on
  *      the call, with no pending action. `dryRun: true` still returns the
  *      preview without writing, for an assistant that wants to show it;
+ *    When only some actions of a tool are high impact (`highImpactActions`),
+ *    the others run at once, like a direct tool;
  * 4. every action (not the dry runs nor the plain reads) is written to the
  *    audit log with the user, the assistant (OAuth client name or API key
  *    name), the execution mode, the tool and the main ids.
@@ -34,7 +38,9 @@ import { enforceRateLimit } from '@/lib/rate-limit'
 import type { Permission } from '@/lib/rbac/authorize'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
-import { READ_ONLY, describeTool, writeAnnotations } from '@/lib/mcp/tool-meta'
+import { READ_ONLY, describeTool, permissionsOfAction, writeAnnotations, type ActionPermissions } from '@/lib/mcp/tool-meta'
+import { ForbiddenError } from '@/lib/accounting/errors'
+import type { GroupAccess } from '@/lib/management-fees/access'
 import type { ExecutionMode } from '@/lib/ai-access/access'
 import { claimApprovedAction, createPendingAction, finishAction } from './pending-actions'
 import { TWO_STEP, stepFor } from './descriptions'
@@ -44,6 +50,14 @@ export const companyIdInput = z.string().describe('Company id, from list_compani
 export interface FullControlContext {
   access: McpAccess
   companyId: string
+  /** Checks one more right in the company (rights that depend on the data, like the route's `authorize`). */
+  authorize: (permission: Permission) => Promise<void>
+  /** Whether the user's role in the company also grants `permission` (like the route's `can`), without throwing. */
+  can: (permission: Permission) => Promise<boolean>
+  /** Refuses (403) a user who is not an instance administrator, like the route's adminRoute. */
+  requireInstanceAdministrator: () => void
+  /** Access to other companies of a group (subsidiaries): full control, grant and role in each. */
+  group: GroupAccess
 }
 
 type Shape = z.ZodRawShape
@@ -57,6 +71,11 @@ interface ToolBase<S extends Shape, R> {
   input: S
   /** Permission checked in the company by requireFullControl. */
   permission: Permission
+  /**
+   * Tools with an `action` input: the rights of each action, checked by
+   * requireFullControl besides `permission`, like each matching route.
+   */
+  actions?: ActionPermissions
   /** Main ids written to the audit log with the action; null for plain reads (not audited). */
   audit: ((args: Args<S>, result: R) => Record<string, unknown>) | null
   execute: (args: Args<S>, ctx: FullControlContext) => Promise<R>
@@ -86,6 +105,12 @@ export interface ConfirmedTool<S extends Shape, P, R> extends ToolBase<S, R> {
   confirmation: true
   /** Dry run: exactly what `execute` would do, without writing. */
   preview: (args: Args<S>, ctx: FullControlContext) => Promise<P>
+  /**
+   * Tools with an `action` input whose actions are not all high impact: the
+   * actions that follow the execution mode; the others run at once, like a
+   * direct tool. Every action is high impact when absent.
+   */
+  highImpactActions?: readonly string[]
 }
 
 export type FullControlTool<S extends Shape, P, R> = DirectTool<S, R> | ConfirmedTool<S, P, R>
@@ -180,6 +205,7 @@ export function registerFullControlTool<S extends Shape, P, R>(
     summary: tool.confirmation ? tool.description.replace(TWO_STEP, stepFor(mode)) : tool.description,
     access: 'admin',
     permission: tool.permission,
+    actions: tool.actions,
     amounts: tool.amounts,
     units: tool.units,
     never: tool.never,
@@ -201,22 +227,45 @@ export function registerFullControlTool<S extends Shape, P, R>(
         const args = rest as Args<S>
         const companyId = args.companyId
         await guard.requireFullControl(companyId, tool.permission)
+        const action = (args as { action?: unknown }).action
+        for (const permission of permissionsOfAction(tool.actions, action)) await guard.requireFullControl(companyId, permission)
         await limitFullControl(access.user.id)
-        const ctx: FullControlContext = { access, companyId }
+        const ctx: FullControlContext = {
+          access,
+          companyId,
+          authorize: (permission) => guard.requireFullControl(companyId, permission),
+          can: (permission) =>
+            guard.requireFullControl(companyId, permission).then(
+              () => true,
+              (error) => {
+                if (error instanceof ForbiddenError) return false
+                throw error
+              },
+            ),
+          requireInstanceAdministrator: () => guard.requireInstanceAdministrator(),
+          group: {
+            userId: access.user.id,
+            require: (id, permission) => guard.requireFullControl(id, permission),
+            companyIds: () => guard.companyIds(),
+          },
+        }
+        const highImpact = tool.confirmation && (!tool.highImpactActions || tool.highImpactActions.includes(String(action)))
 
-        if (tool.confirmation && automatic) {
+        // A dry run asked in automatic mode only previews, whatever the action.
+        if (tool.confirmation && automatic && dryRun) {
+          return json({ dryRun: true, preview: await tool.preview(args, ctx), nextStep: AUTOMATIC_NEXT_STEP })
+        }
+
+        if (tool.confirmation && highImpact && automatic) {
           // The user chose automatic execution for this connection: no pending
           // action. Scope, grant, role and rate limit were checked above; the
           // service and the database triggers keep the accounting invariants.
-          if (dryRun) {
-            return json({ dryRun: true, preview: await tool.preview(args, ctx), nextStep: AUTOMATIC_NEXT_STEP })
-          }
           const result = await tool.execute(args, ctx)
           if (tool.audit) await audit(tool.name, access, companyId, tool.audit(args, result))
           return json({ executed: true, result })
         }
 
-        if (tool.confirmation) {
+        if (tool.confirmation && highImpact) {
           const binding = { userId: access.user.id, caller: access.caller, tool: tool.name, companyId, args }
           if (!actionId) {
             const preview = await tool.preview(args, ctx)
@@ -253,7 +302,8 @@ export function registerFullControlTool<S extends Shape, P, R>(
 
         const result = await tool.execute(args, ctx)
         if (tool.audit) await audit(tool.name, access, companyId, tool.audit(args, result))
-        return json(result)
+        // An action of a high-impact tool that is not high impact itself answers like an executed one.
+        return json(tool.confirmation ? { executed: true, result } : result)
       }),
   )
 }

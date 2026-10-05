@@ -76,6 +76,31 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   letter_entry_lines: true,
   unletter_entry_lines: true,
   create_draft_invoice: true,
+  manage_accounts: true,
+  manage_journals: true,
+  manage_fiscal_years: true,
+  import_accounting_file: true,
+  update_company_settings: true,
+  manage_company_records: true,
+  manage_statement_layout: true,
+  manage_members: true,
+  manage_bank_accounts: true,
+  bulk_reconcile: true,
+  delete_bank_transactions: true,
+  duplicate_rule: false,
+  sync_bank_data: false,
+  upload_receipt: false,
+  manage_invoice: true,
+  import_qonto_invoices: true,
+  delete_tiers: true,
+  delete_budget_items: true,
+  delete_year_end_items: true,
+  manage_expense_report: true,
+  manage_expense_settings: true,
+  manage_management_fee_convention: true,
+  auto_letter_account: true,
+  manage_fixed_asset: true,
+  manage_depreciation_record: true,
 }
 
 /** Draft-level tools (kledg:write) of lib/mcp/drafts, besides create_draft_entry. */
@@ -95,6 +120,20 @@ const DRAFT_TOOLS = [
   'prepare_vat_settlement',
   'prepare_corporate_tax_entry',
   'mark_declaration',
+  'accept_all_expense_suggestions',
+  'manage_tiers',
+  'duplicate_entry',
+  'update_draft_invoice',
+  'update_provision',
+  'update_investment_grant',
+  'update_draft_expense_report',
+  'reclassify_doubtful_receivable',
+  'save_local_taxes',
+  'prepare_cfe_entry',
+  'save_corporate_tax_inputs',
+  'record_tax_filing',
+  'save_depreciation_record',
+  'prepare_opening_balances',
 ]
 
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
@@ -248,7 +287,7 @@ describe('full control tools', () => {
   // through registerFullControlTool (define.ts), which checks
   // guard.requireFullControl before any preview or action.
   const dir = path.resolve(__dirname, '../full-control')
-  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts']
+  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts', 'chart.ts', 'settings.ts', 'bank-admin.ts', 'records.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks full control first, in the single registration path', () => {
@@ -284,7 +323,7 @@ describe('draft tools', () => {
   // checks every right of the tool through the company guard before the
   // service runs.
   const dir = path.resolve(__dirname, '../drafts')
-  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts']
+  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts', 'records.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks the company guard first, in the single registration path', () => {

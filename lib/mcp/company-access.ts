@@ -106,6 +106,12 @@ export interface CompanyGuard {
    * control never exceeds the user's own role in the company.
    */
   requireFullControl(companyId: string, permission: Permission): Promise<void>
+  /**
+   * Refuses (403) a user who is not an instance administrator: the rule of
+   * the routes built with adminRoute (members of a company, for instance).
+   * Call it after `requireFullControl`, which checks the company grant.
+   */
+  requireInstanceAdministrator(): void
   /** Filter of the companies the caller may list: the user's companies within the grant. */
   companyWhere(): Promise<Prisma.CompanyWhereInput>
   /** The connection's company grant, or null when it grants every company of the user. */
@@ -128,6 +134,9 @@ export function companyGuard({ user, caller, canAdmin }: McpAccess): CompanyGuar
     async requireFullControl(companyId, permission) {
       if (!canAdmin) throw new ForbiddenError(FULL_CONTROL_REQUIRED_MESSAGE)
       await require(companyId, permission)
+    },
+    requireInstanceAdministrator() {
+      if (!isGlobalAdmin(user)) throw new ForbiddenError("Action réservée aux administrateurs de l'instance.")
     },
     async companyIds() {
       const scope = await loadCompanyScope(user.id, caller)

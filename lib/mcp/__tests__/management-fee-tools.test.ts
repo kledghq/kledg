@@ -21,7 +21,7 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/company-access')>()),
   companyGuard: () => guard,
 }))
-vi.mock('@/lib/management-fees/manage-conventions.service', () => ({ listConventions: vi.fn() }))
+vi.mock('@/lib/management-fees/manage-conventions.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/management-fees/manage-conventions.service')>()), listConventions: vi.fn() }))
 vi.mock('@/lib/management-fees/compute-management-fees.service', () => ({ computeConventionFees: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'

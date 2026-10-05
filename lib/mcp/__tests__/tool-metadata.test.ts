@@ -19,6 +19,9 @@ import { registerKledgTools } from '@/lib/mcp/tools'
 import { AMOUNTS_IN_EUROS, NO_AMOUNTS, describeTool, permissionLabel } from '@/lib/mcp/tool-meta'
 import type { McpAccess } from '@/lib/mcp/company-access'
 
+/** Tools that call a bank provider (Qonto, Revolut, Ponto): the only open world tools. */
+const OPEN_WORLD = new Set(['sync_bank', 'sync_bank_data', 'upload_receipt', 'import_qonto_invoices'])
+
 type Config = {
   title?: string
   description?: string
@@ -59,8 +62,8 @@ describe('MCP tool metadata', () => {
             expect(a.destructiveHint, name).toBe(false)
             expect(a.idempotentHint, name).toBe(true)
           }
-          // Only sync_bank reaches a third party (the bank).
-          expect(a.openWorldHint, name).toBe(name === 'sync_bank')
+          // Only the tools that call a bank provider reach a third party.
+          expect(a.openWorldHint, name).toBe(OPEN_WORLD.has(name))
         }
       })
 
