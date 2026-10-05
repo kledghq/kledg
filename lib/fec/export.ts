@@ -13,6 +13,10 @@
  * - One record per entry line; amounts from Decimal(15, 2) as exact cents.
  * - PieceRef falls back to the entry number and EcritureLib to the entry
  *   description, then the account label, so no mandatory field is blank.
+ * - Drafts left in the year are counted: the export report warns that the
+ *   file is not the final book of the year while they remain (the FEC holds
+ *   "l'ensemble des données comptables", BOFiP § 20; a draft is not yet an
+ *   entry, PCG art. 1031-3).
  */
 
 import { prisma } from '@/lib/prisma'
@@ -220,6 +224,8 @@ export interface FecExport {
   content: string
   entries: number
   lines: number
+  /** Draft entries of the year, left out of the file. */
+  drafts: number
 }
 
 /** FEC of a fiscal year: file name "SirenFECAAAAMMJJ.txt" and content. */
@@ -237,11 +243,15 @@ export async function exportFec(companyId: string, fiscalYearId: string): Promis
   const closingDay = calendarDayOf(fiscalYear.endDate)
   if (!closingDay) throw new ValidationError("Date de clôture de l'exercice invalide")
 
-  const ledger = await loadFecLedger(companyId, fiscalYearId)
+  const [ledger, drafts] = await Promise.all([
+    loadFecLedger(companyId, fiscalYearId),
+    prisma.accountingEntry.count({ where: { companyId, fiscalYearId, status: 'draft' } }),
+  ])
   return {
     fileName: fecFileName(siren, closingDay.replace(/-/g, '')),
     content: buildFec(ledger),
     entries: ledger.length,
     lines: ledger.reduce((n, e) => n + e.lines.length, 0),
+    drafts,
   }
 }

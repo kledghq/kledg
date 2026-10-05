@@ -29,8 +29,19 @@ export async function exportFecOfYear(companyId: string, fiscalYearId?: string):
   return exportFec(companyId, fiscalYearId ?? (await defaultFecFiscalYearId(companyId)))
 }
 
-/** The compliance report of an exported FEC, with its counts. */
-export function fecComplianceReport(fec: FecExport): FecValidationReport & Pick<FecExport, 'fileName' | 'entries' | 'lines'> {
+/**
+ * The compliance report of an exported FEC, with its counts. Drafts of the
+ * year are not in the file: a warning says so, since the file is then not
+ * the final book of the year.
+ */
+export function fecComplianceReport(fec: FecExport): FecValidationReport & Pick<FecExport, 'fileName' | 'entries' | 'lines' | 'drafts'> {
   const report = validateFec(fec.content, { fileName: fec.fileName, closingDate: FEC_FILE_NAME.exec(fec.fileName)?.[2] })
-  return { fileName: fec.fileName, entries: fec.entries, lines: fec.lines, ...report }
+  if (fec.drafts > 0) {
+    const drafts = fec.drafts === 1 ? '1 écriture en brouillon' : `${fec.drafts} écritures en brouillon`
+    report.warnings.unshift({
+      line: null,
+      message: `${drafts} de l'exercice ne figure${fec.drafts === 1 ? '' : 'nt'} pas dans le fichier : validez-les ou supprimez-les avant de remettre le FEC.`,
+    })
+  }
+  return { fileName: fec.fileName, entries: fec.entries, lines: fec.lines, drafts: fec.drafts, ...report }
 }

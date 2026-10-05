@@ -140,6 +140,12 @@ describe.skipIf(!available)('FEC round trip (PostgreSQL)', () => {
     const exported = await fecExport.exportFec(source.id, fiscalYearId)
     expect(exported.fileName).toBe('123456789FEC20251231.txt')
     expect(exported.entries).toBe(6) // the draft is not part of the FEC
+    // ...but the export says so: the books of the year are not final while drafts remain
+    expect(exported.drafts).toBe(1)
+    const { fecComplianceReport } = await import('@/lib/fec/export-fec.service')
+    expect(fecComplianceReport(exported).warnings).toEqual([
+      { line: null, message: expect.stringContaining('1 écriture en brouillon') },
+    ])
     const report = validator.validateFec(exported.content, { fileName: exported.fileName, closingDate: '20251231' })
     expect(report.errors).toEqual([])
     expect(report.warnings).toEqual([])
