@@ -98,10 +98,14 @@ export interface SuggestionSignals {
   history: Map<string, HistoryChoice[]>
 }
 
-/** Category of a rule: the one of its first line that is neither bank nor VAT. */
-function ruleCategory(lines: Array<{ accountCode: string }>): string | null {
+/**
+ * Category of a rule: the one of its first line that is neither bank nor
+ * VAT; when several categories book to that account, the one the rule's name
+ * names, else none (the rule is shown by its name).
+ */
+function ruleCategory(name: string, lines: Array<{ accountCode: string }>): string | null {
   const main = lines.find((l) => !isBankAccountCode(l.accountCode) && !isVatAccount(l.accountCode))
-  return main ? (categoryOfAccount(main.accountCode)?.id ?? null) : null
+  return main ? (categoryOfAccount(main.accountCode, name)?.id ?? null) : null
 }
 
 /** Loads the rules and the history of the company (three queries). */
@@ -119,7 +123,7 @@ export async function loadSuggestionSignals(companyId: string, now = new Date())
       take: HISTORY_ROWS,
     }),
   ])
-  const ruleById = new Map(ruleRows.map((r) => [r.id, { name: r.name, categoryId: ruleCategory(r.entryLines) }]))
+  const ruleById = new Map(ruleRows.map((r) => [r.id, { name: r.name, categoryId: ruleCategory(r.name, r.entryLines) }]))
 
   const history = new Map<string, HistoryChoice[]>()
   const add = (key: string, choice: HistoryChoice) => {
@@ -160,9 +164,9 @@ export async function loadSuggestionSignals(companyId: string, now = new Date())
   }
   for (const t of expert) {
     const account = mainAccount.get(t.reconciledWith!)
-    const category = account ? categoryOfAccount(account.code) : null
-    if (!category) continue
     const name = counterpartyOf(t)
+    const category = account ? categoryOfAccount(account.code, `${name ?? ''} ${t.label ?? ''}`) : null
+    if (!category) continue
     add(counterpartyKey(name, t.label), { categoryId: category.id, day: toIsoDateUtc(t.date) })
   }
 

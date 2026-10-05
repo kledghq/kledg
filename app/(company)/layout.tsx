@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/session'
 import { AppSidebar } from '@/components/layout/app-sidebar'
+import { DisplayModeSwitch } from '@/components/layout/display-mode-switch'
 import { AppShell } from '@/components/layout/app-shell'
 import { DashboardBreadcrumb } from '@/components/layout/dashboard-breadcrumb'
 import { CompanyOverlay } from '@/components/instance/slots'
@@ -35,6 +36,7 @@ export default async function DashboardLayout({
       user={user}
       isAdmin={isGlobalAdmin(user)}
       after={<CompanyOverlay user={user} />}
+      headerActions={<DisplayModeSwitch key={mode} mode={mode} />}
     >
       {children}
     </AppShell>

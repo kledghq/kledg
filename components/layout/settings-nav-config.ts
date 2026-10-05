@@ -37,7 +37,7 @@ export const settingsNavGroups: SettingsNavGroup[] = [
     label: "Instance",
     adminOnly: true,
     items: [
-      { title: "État de l'instance", url: "/welcome", icon: Gauge, menuItem: "instance" },
+      { title: "Configuration", url: "/settings/configuration", icon: Gauge, menuItem: "instance" },
       { title: "Utilisateurs", url: "/settings/users", icon: Users, menuItem: "users" },
       { title: "Créer un compte", url: "/settings/users/new", icon: UserPlus, menuItem: "create-user" },
       { title: "Mises à jour", url: "/settings/updates", icon: CircleArrowUp, menuItem: "updates" },

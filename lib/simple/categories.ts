@@ -393,19 +393,41 @@ export function searchCategories(query: string, among: readonly SimpleCategory[]
   })
 }
 
+/** Lower case, without accents, words separated by single spaces. */
+function plain(text: string): string {
+  return ` ${text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `
+}
+
+/** Whether `hint` names the category: one of its keywords, or its label, as whole words. */
+function hintNames(category: SimpleCategory, hint: string): boolean {
+  const words = [...(category.keywords ?? []), category.label].map((w) => plain(w).trim()).filter(Boolean)
+  return words.some((w) => hint.includes(` ${w} `))
+}
+
 /**
  * Category of an account an entry used (a rule, an expert reconciliation),
- * for the history: the first category of the catalogue whose account, or
- * one of whose answers' accounts, the code starts with, the longest match
- * first (6257 before 625). Null when no category books there.
+ * for the history: the categories of the catalogue whose account, or one of
+ * whose answers' accounts, the code starts with, the longest match first
+ * (6257 before 625). Several categories can book to the same account (6061:
+ * energy and fuel): `hint` (the rule's name, the bank label) then picks the
+ * one it names, and without a hint naming one of them the answer is null
+ * rather than a guess. Without `hint`, the first of the catalogue.
  */
-export function categoryOfAccount(code: string): SimpleCategory | null {
-  let best: { category: SimpleCategory; length: number } | null = null
+export function categoryOfAccount(code: string, hint?: string): SimpleCategory | null {
+  let length = 0
+  let matches: SimpleCategory[] = []
   for (const category of SIMPLE_CATEGORIES) {
     const accounts = [category.posting.account, ...(category.question?.answers.map((a) => a.posting.account).filter((a): a is string => Boolean(a)) ?? [])]
-    for (const account of accounts) {
-      if (code.startsWith(account) && (!best || account.length > best.length)) best = { category, length: account.length }
+    const best = Math.max(0, ...accounts.filter((account) => code.startsWith(account)).map((account) => account.length))
+    if (best === 0 || best < length) continue
+    if (best > length) {
+      length = best
+      matches = []
     }
+    if (!matches.includes(category)) matches.push(category)
   }
-  return best?.category ?? null
+  if (matches.length <= 1 || hint === undefined) return matches[0] ?? null
+  const text = plain(hint)
+  const named = matches.filter((category) => hintNames(category, text))
+  return named.length === 1 ? named[0] : null
 }

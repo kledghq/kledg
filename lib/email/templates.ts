@@ -60,6 +60,20 @@ export function setupLinkEmail(to: string, url: string, ttlMinutes: number): Ema
   }
 }
 
+export function testEmail(to: string, url: string): EmailMessage {
+  return {
+    to,
+    subject: `Email de test ${APP_NAME}`,
+    html: layout(
+      'Les emails fonctionnent',
+      `Cet email de test confirme que votre instance ${APP_NAME} envoie ses emails : invitations, mots de passe oubliés et liens de vérification partiront de la même adresse.`,
+      { label: 'Ouvrir la configuration', url },
+      "Vous l'avez demandé depuis la page Configuration de votre instance.",
+    ),
+    text: `Email de test ${APP_NAME} : votre instance envoie ses emails. ${url}`,
+  }
+}
+
 export function verifyEmailEmail(to: string, url: string): EmailMessage {
   return {
     to,

@@ -395,6 +395,11 @@ Si vous préférez le bouton **Sync fork** de GitHub : forkez `kledghq/kledg` de
 
 GitHub désactive les Actions d'un nouveau fork : la page **Mises à jour** réactive le workflow *Update from Kledg* avant de le lancer. Si votre fork n'a plus ce workflow, l'installation synchronise sa branche principale avec la branche `main` de Kledg (API *merge upstream*, l'équivalent de **Sync fork**), sans pull request ni aperçu.
 
+Le bouton **Sync fork** de GitHub agit directement sur la branche principale, que l'hébergeur redéploie aussitôt en production :
+
+- **Update branch** fusionne la branche `main` de Kledg. Sans conflit, cela fonctionne, mais sans les garde-fous de la page **Mises à jour** et de la pull request hebdomadaire : vous recevez la branche `main` du moment, pas la dernière version publiée, même avec le canal `releases` ; aucun aperçu n'est construit avant la production ; et rien ne rappelle de sauvegarder la base avant les migrations. En cas de conflit, GitHub refuse et propose d'ouvrir une pull request.
+- **Discard N commits** remet votre branche exactement sur celle de Kledg : vos propres commits disparaissent (réglages, workflows, code), et la production est redéployée dans cet état. Si l'un d'eux ajoutait une migration absente de Kledg, le code ne la connaîtra plus. N'utilisez pas ce bouton.
+
 ### À la main
 
 ```bash

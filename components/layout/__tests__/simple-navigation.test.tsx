@@ -110,7 +110,8 @@ describe('AppSidebar per mode', () => {
     )
     window.dispatchEvent(new Event(SIMPLE_COUNTS_REFRESH_EVENT))
     expect(await screen.findByRole('link', { name: 'Dépenses, 1 à vérifier' })).toBeInTheDocument()
-    expect(within(screen.getByRole('group', { name: 'Affichage' })).getByRole('radio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true')
+    // The display mode switch is in the header now, not in the sidebar.
+    expect(screen.queryByRole('group', { name: 'Affichage' })).toBeNull()
   })
 })
 

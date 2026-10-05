@@ -48,7 +48,7 @@ account, for instance). A refused action answers 403 with
 | `connect-bank` | bank API connections (`lib/banking/guard.ts`: Revolut Business, Ponto) |
 | `send-email` | `lib/email`: when refused, emails are written to the server log, and new members get a generated password instead of a welcome email |
 | `setup` | `/` and `/setup`: when refused, the first-run setup never opens (`/setup` redirects to `/login`); accounts are provisioned otherwise |
-| `onboarding` | the guided start: the welcome page after setup (`/welcome`, its user menu entry "État de l'instance"), the "Démarrer" checklist of company dashboards and its help menu entry (`GET/POST /api/companies/[id]/onboarding` answers `enabled: false`, hiding it is refused). Empty states of company pages then show their plain action. A demo instance with seeded companies would refuse it |
+| `onboarding` | the guided start: the Configuration page shown after setup (`/settings/configuration`, formerly `/welcome`, its user menu entry "Configuration"), the "Démarrer" checklist of company dashboards and its help menu entry (`GET/POST /api/companies/[id]/onboarding` answers `enabled: false`, hiding it is refused). Empty states of company pages then show their plain action. A demo instance with seeded companies would refuse it |
 
 ### Company creation
 

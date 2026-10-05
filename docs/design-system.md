@@ -170,7 +170,7 @@ Pages outside a company (Mes sociétés, account and instance settings) use
 the same frame (`components/layout/app-shell.tsx`) with a settings sidebar
 (`components/layout/settings-nav-config.ts`): a link back to the last
 company opened, then Mes sociétés, Compte (Profil, Apparence, Assistants IA, Clés
-API) and, for instance administrators, Instance (État de l'instance, Utilisateurs, Créer un compte, Mises à
+API) and, for instance administrators, Instance (Configuration, Utilisateurs, Créer un compte, Mises à
 jour). Settings are navigated in this sidebar only.
 
 The user menu in the sidebar footer (`components/layout/nav-user.tsx`) stays

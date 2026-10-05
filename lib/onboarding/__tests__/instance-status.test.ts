@@ -19,6 +19,29 @@ describe('instanceStatus', () => {
     expect(status.cronSecretSet).toBe(true)
   })
 
+  it('says what the configuration page needs, never a value', () => {
+    const env = {
+      SETUP_TOKEN: 'setup-token-value',
+      BETTER_AUTH_SECRETS: '2:new-secret-value',
+      ENCRYPTION_KEY: 'a'.repeat(64),
+      KLEDG_RLS: 'enforce',
+      BETTER_AUTH_URL: 'https://compta.exemple.fr/',
+    }
+    const status = instanceStatus(env, allowed)
+    expect(status).toMatchObject({
+      setupTokenSet: true,
+      secretRotation: true,
+      encryptionKey: 'own',
+      rls: 'enforce',
+      appUrl: 'https://compta.exemple.fr/',
+      effectiveUrl: 'https://compta.exemple.fr',
+    })
+    expect(JSON.stringify(status)).not.toMatch(/token-value|secret-value|aaaa/)
+    const plain = instanceStatus({ VERCEL: '1', VERCEL_PROJECT_PRODUCTION_URL: 'kledg-x.vercel.app' }, allowed)
+    expect(plain).toMatchObject({ setupTokenSet: false, secretRotation: false, encryptionKey: 'derived', rls: 'off', appUrl: null })
+    expect(plain.effectiveUrl).toBe('https://kledg-x.vercel.app')
+  })
+
   it('detects the hosting platform', () => {
     expect(instanceStatus({ VERCEL: '1' }, allowed).platform).toBe('vercel')
     expect(instanceStatus({ KLEDG_RUNTIME: 'docker' }, allowed).platform).toBe('docker')

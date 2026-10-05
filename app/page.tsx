@@ -24,7 +24,7 @@ export default async function Home() {
 
   if (company) redirect(`/${company.slug}`)
   // A fresh instance: the administrator starts with the welcome page.
-  if (isGlobalAdmin(user) && (await isActionAllowed('onboarding', user))) redirect('/welcome')
+  if (isGlobalAdmin(user) && (await isActionAllowed('onboarding', user))) redirect('/settings/configuration')
   // A user the instance lets create companies starts with the creation wizard.
   if (!isGlobalAdmin(user) && !(await companyCreationRefusal(user))) redirect('/companies/new')
   redirect('/companies')

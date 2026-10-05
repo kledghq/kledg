@@ -43,7 +43,7 @@ describe('SetupForm', () => {
     await user.type(screen.getByLabelText('Mot de passe'), 'long-password')
     await user.click(screen.getByRole('button', { name: 'Créer le compte administrateur' }))
 
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith('/welcome'))
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith('/settings/configuration'))
     expect(setup.createFirstAdmin).toHaveBeenCalledWith({
       name: 'Marie Dupont',
       email: 'marie@acme.fr',
