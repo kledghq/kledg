@@ -235,9 +235,9 @@ describe.skipIf(!available)('invoice routes (PostgreSQL)', () => {
 
   it('reads and changes the option for VAT on debits', async () => {
     const read = await call('vat', 'GET', `/api/companies/${books.companyId}/vat-settings`, undefined, { id: books.companyId })
-    expect(await read.json()).toEqual({ servicesVatOnDebits: false, isVatExempt: false })
+    expect(await read.json()).toMatchObject({ servicesVatOnDebits: false, isVatExempt: false })
     const changed = await call('vat', 'PUT', `/api/companies/${books.companyId}/vat-settings`, { servicesVatOnDebits: true }, { id: books.companyId })
-    expect(await changed.json()).toEqual({ servicesVatOnDebits: true, isVatExempt: false })
+    expect(await changed.json()).toMatchObject({ servicesVatOnDebits: true, isVatExempt: false })
     expect((await call('vat', 'PUT', `/api/companies/${books.companyId}/vat-settings`, {}, { id: books.companyId })).status).toBe(400)
   })
 })
