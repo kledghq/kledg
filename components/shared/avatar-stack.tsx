@@ -16,6 +16,9 @@ export interface StackedHolder {
 
 const SIZES = { sm: 'size-6 text-[10px]', md: 'size-8 text-xs' } as const
 
+/** How much each avatar slides under the previous one: about 40 % of its width. */
+const OVERLAP = { sm: '-space-x-2.5', md: '-space-x-3.5' } as const
+
 const percentText = (bp: number) => `${(bp / 100).toFixed(2).replace(/\.?0+$/, '').replace('.', ',')} %`
 
 /** "Claire Vasseur, 60 %": the accessible name and the title of an avatar. */
@@ -62,7 +65,7 @@ export function AvatarStack({ holders, max = 3, size = 'md', className }: { hold
   const rest = sorted.slice(max)
   const restLabel = rest.length > 0 ? `${rest.length} autre${rest.length > 1 ? 's' : ''} associé${rest.length > 1 ? 's' : ''}\u00a0: ${rest.map(holderLabel).join(' ; ')}` : ''
   return (
-    <span role="group" aria-label="Associés de la holding" data-slot="avatar-stack" className={cn('flex shrink-0 items-center -space-x-2', className)}>
+    <span role="group" aria-label="Associés de la holding" data-slot="avatar-stack" className={cn('flex shrink-0 items-center', OVERLAP[size], className)}>
       {shown.map((h, i) => (
         <StackAvatar key={`${h.name}-${i}`} holder={h} size={size} />
       ))}
