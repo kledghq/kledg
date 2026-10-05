@@ -67,6 +67,12 @@ export async function companyOfBudgetLine(id: string): Promise<CompanyRow> {
 export const companyOfProvision = (id: string): Promise<CompanyRow> =>
   prisma.provision.findUnique({ where: { id }, select })
 
+export const companyOfAccountingMethod = (id: string): Promise<CompanyRow> =>
+  prisma.accountingMethod.findUnique({ where: { id }, select })
+
+export const companyOfAccountingChange = (id: string): Promise<CompanyRow> =>
+  prisma.accountingChange.findUnique({ where: { id }, select })
+
 export const companyOfInvestmentGrant = (id: string): Promise<CompanyRow> =>
   prisma.investmentGrant.findUnique({ where: { id }, select })
 
