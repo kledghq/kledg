@@ -58,6 +58,16 @@ import { registerExportTools } from '@/lib/mcp/export-tools'
 import { registerDocumentTools } from '@/lib/mcp/document-tools'
 import { registerCompanyLookupTools } from '@/lib/mcp/company-lookup-tools'
 import { READ_ONLY, describeTool, kledgPageUrl, writeAnnotations } from '@/lib/mcp/tool-meta'
+import { viewMeta, withView } from '@/lib/mcp/views'
+import {
+  balanceSheetView,
+  bankTransactionsList,
+  entriesList,
+  incomeStatementView,
+  invoiceDocument,
+  missingReceiptsList,
+  trialBalanceView,
+} from '@/lib/mcp/views/builders'
 
 const MAX_ROWS = 200
 
@@ -255,11 +265,13 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
       }),
       inputSchema: z.object({ companyId, startDate: isoDate, endDate: isoDate }),
       annotations: readOnly,
+      _meta: viewMeta('statement'),
     },
     ({ companyId, startDate, endDate }) =>
       run(async () => {
         await guard.require(companyId, { reports: ['read'] })
-        return json(await getTrialBalance(companyId, new Date(startDate), new Date(endDate)))
+        const data = await getTrialBalance(companyId, new Date(startDate), new Date(endDate))
+        return withView(json(data), () => trialBalanceView(companyId, data))
       }),
   )
 
@@ -281,12 +293,14 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         variant: z.enum(['complete', 'simplified']).default('simplified'),
       }),
       annotations: readOnly,
+      _meta: viewMeta('statement'),
     },
     ({ companyId, fiscalYearId, variant }) =>
       run(async () => {
         await guard.require(companyId, { reports: ['read'] })
         const fiscalYear = await resolveFiscalYear(companyId, fiscalYearId)
-        return json(await generateBalanceSheet(companyId, fiscalYear.id, variant))
+        const data = await generateBalanceSheet(companyId, fiscalYear.id, variant)
+        return withView(json(data), () => balanceSheetView(companyId, fiscalYear, variant, data))
       }),
   )
 
@@ -308,12 +322,14 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         variant: z.enum(['complete', 'simplified']).default('simplified'),
       }),
       annotations: readOnly,
+      _meta: viewMeta('statement'),
     },
     ({ companyId, fiscalYearId, variant }) =>
       run(async () => {
         await guard.require(companyId, { reports: ['read'] })
         const fiscalYear = await resolveFiscalYear(companyId, fiscalYearId)
-        return json(await generateIncomeStatement(companyId, fiscalYear.id, variant))
+        const data = await generateIncomeStatement(companyId, fiscalYear.id, variant)
+        return withView(json(data), () => incomeStatementView(companyId, fiscalYear, variant, data))
       }),
   )
 
@@ -341,6 +357,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         limit: z.number().int().min(1).max(MAX_ROWS).default(50),
       }),
       annotations: readOnly,
+      _meta: viewMeta('actions'),
     },
     (args) =>
       run(async () => {
@@ -386,24 +403,23 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
             },
           },
         })
-        return json(
-          entries.map((e) => ({
-            id: e.id,
-            number: e.entryNumber,
-            date: day(e.date),
-            journal: e.journal.code,
-            description: e.description,
-            reference: e.reference,
-            status: e.status,
-            lines: e.lines.map((l) => ({
-              account: l.account.code,
-              accountLabel: l.account.label,
-              debit: l.debit,
-              credit: l.credit,
-              label: l.description,
-            })),
+        const result = entries.map((e) => ({
+          id: e.id,
+          number: e.entryNumber,
+          date: day(e.date),
+          journal: e.journal.code,
+          description: e.description,
+          reference: e.reference,
+          status: e.status,
+          lines: e.lines.map((l) => ({
+            account: l.account.code,
+            accountLabel: l.account.label,
+            debit: l.debit,
+            credit: l.credit,
+            label: l.description,
           })),
-        )
+        }))
+        return withView(json(result), () => entriesList(args.companyId, access, args, fiscalYear, result))
       }),
   )
 
@@ -428,6 +444,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         limit: z.number().int().min(1).max(MAX_ROWS).default(50),
       }),
       annotations: readOnly,
+      _meta: viewMeta('actions'),
     },
     (args) =>
       run(async () => {
@@ -458,7 +475,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
             bankAccount: { select: { name: true } },
           },
         })
-        return json(transactions.map((t) => ({ ...t, date: day(t.date), bankAccount: t.bankAccount.name })))
+        const result = transactions.map((t) => ({ ...t, date: day(t.date), bankAccount: t.bankAccount.name }))
+        return withView(json(result), () => bankTransactionsList(args.companyId, access, args, result))
       }),
   )
 
@@ -532,6 +550,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         limit: z.number().int().min(1).max(MAX_ROWS).default(50),
       }),
       annotations: readOnly,
+      _meta: viewMeta('actions'),
     },
     (args) =>
       run(async () => {
@@ -545,7 +564,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           side: args.side,
           limit: args.limit,
         })
-        return json({
+        const out = {
           period: result.period,
           threshold: fromCents(result.thresholdCents),
           count: result.count,
@@ -560,7 +579,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
             bankAccount: t.bankAccount.displayName || t.bankAccount.name,
             reconciled: t.reconciled,
           })),
-        })
+        }
+        return withView(json(out), () => missingReceiptsList(args.companyId, access, args, out))
       }),
   )
 
@@ -684,12 +704,13 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
       }),
       inputSchema: z.object({ companyId, invoiceId: z.string().describe('Invoice id, from list_invoices.') }),
       annotations: readOnly,
+      _meta: viewMeta('document'),
     },
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { entries: ['read'] })
         const invoice = await getInvoice(args.companyId, args.invoiceId)
-        return json({
+        const out = {
           id: invoice.id,
           direction: invoice.direction,
           number: invoice.number,
@@ -719,7 +740,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           entry: invoice.entry,
           payments: invoice.payments.map((p) => ({ amount: fromCents(p.amountCents), entryNumber: p.entry.entryNumber, date: p.entry.date })),
           source: invoice.source,
-        })
+        }
+        return withView(json(out), () => invoiceDocument(args.companyId, out))
       }),
   )
 

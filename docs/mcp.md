@@ -325,6 +325,10 @@ Chaque action en contrôle total (pas les lectures `list_rules` et `list_bank_ac
 
 Chaque appel d'un outil de brouillons (sauf un aperçu `dryRun`) écrit `MCP_WRITE`, avec l'utilisateur, l'assistant, l'outil et les identifiants principaux. La préparation d'une action à approuver écrit `MCP_FULL_CONTROL_PENDING`, votre décision `MCP_ACTION_APPROVED` ou `MCP_ACTION_REJECTED`, et une exécution refusée (action non approuvée, refusée, déjà exécutée, expirée ou pour d'autres arguments) `MCP_FULL_CONTROL_REFUSED`. Les services écrivent en plus leurs propres entrées habituelles (clôture, affectation du résultat, rapprochement...).
 
+### Vues interactives
+
+Dans Claude et ChatGPT, les états financiers (`get_balance_sheet`, `get_income_statement`, `get_trial_balance`), les flux et la trésorerie (`get_tiers_flows`, `get_group_view`, `get_group_treasury`), les listes à traiter (`list_entries`, `list_bank_transactions`, `list_missing_receipts`), les factures et notes de frais (`get_invoice`, `get_expense_report`) et l'organigramme du groupe (`get_group_structure`) s'affichent en tableau, graphique ou fiche dans la conversation (extension MCP Apps). Leurs boutons passent par les mêmes outils : droits, approbation dans Kledg et journal d'audit inchangés. Les clients en texte seul reçoivent la même réponse qu'avant. Fonctionnement et sécurité : [mcp-views.md](mcp-views.md).
+
 ### Ce que le serveur ne fait pas
 
 À aucun niveau, contrôle total compris :
