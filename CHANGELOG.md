@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- **Serveur MCP : vues interactives** (extension MCP Apps, Claude et ChatGPT) : bilan, compte de résultat et balance générale en tableau avec la colonne N-1, trésorerie du groupe en courbe, flux avec les clients et fournisseurs et flux entre les sociétés du groupe en diagramme, brouillons, transactions à rapprocher et justificatifs manquants en liste avec boutons, facture et note de frais en fiche, organigramme du groupe. Cinq modèles HTML autonomes (aucun appel réseau, CSP stricte, données écrites en texte), clair et sombre, montants au format français. Les boutons appellent les outils de Kledg par l'assistant : une action à fort impact montre d'abord son aperçu et attend votre approbation dans Kledg en mode validation. Les clients en texte seul reçoivent la même réponse qu'avant. Détails dans [docs/mcp-views.md](docs/mcp-views.md).
+
 ## [0.2.0] - 2026-10-05
 
 ### Ajouté

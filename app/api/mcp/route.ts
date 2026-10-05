@@ -3,6 +3,7 @@ import { createMcpHandler } from 'mcp-handler'
 import { withMcpUser, type McpAccess } from '@/lib/mcp/auth'
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { registerKledgPrompts } from '@/lib/mcp/prompts'
+import { registerKledgViews } from '@/lib/mcp/views'
 
 export const maxDuration = 60
 
@@ -27,6 +28,7 @@ const handler = withMcpUser((request, access) => {
     (server) => {
       registerKledgTools(server, access)
       registerKledgPrompts(server, access)
+      registerKledgViews(server)
     },
     {
       serverInfo: { name: 'kledg', version: pkg.version },
