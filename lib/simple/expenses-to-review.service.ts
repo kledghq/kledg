@@ -10,7 +10,11 @@
  * - the history per normalized counterparty (counterpartyKey of
  *   lib/subscriptions/detect.ts): categories chosen in simple mode
  *   (simple_mode_entries), and the counterpart account of the transactions
- *   reconciled in expert mode (their entries' lines).
+ *   reconciled in expert mode (their entries' lines), each with its side;
+ * - for money in ("Recettes à vérifier"): the open sales invoices
+ *   (invoice-receipts.service.ts), the names of the company's partners
+ *   (physical shareholders) and its customers (tiers) with the category of
+ *   their usual revenue account.
  *
  * Declined operations moved no money and are left out (as in the missing
  * receipts list). countExpensesToReview is what the simple home shows.
@@ -30,10 +34,14 @@ import { addUtcDays, todayUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { categoryOfAccount, findCategory } from './categories'
 import { displayNameOf } from './payees'
 import { getSimpleModeSettings, type SimpleModeSettings } from './simple-mode-settings.service'
-import { suggestCategory, type HistoryChoice, type RuleSignal, type Suggestion } from './suggest'
+import { suggestCategory, type CustomerSignal, type HistoryChoice, type RuleSignal, type Suggestion } from './suggest'
+import { loadOpenSalesInvoices } from './invoice-receipts.service'
+import type { OpenInvoice } from './match-invoice'
 import type { Answers, Side } from './posting'
 
 export const MAX_EXPENSES = 200
+/** Customers and partners read for the suggestions of money in. */
+const MAX_NAMES = 1_000
 /** History read: the reconciliations of the last two years, at most this many. */
 const HISTORY_ROWS = 2_000
 const HISTORY_DAYS = 730
@@ -96,6 +104,34 @@ export async function countExpensesToReview(companyId: string, side: 'debit' | '
 export interface SuggestionSignals {
   rules: (transaction: Parameters<typeof enrichTransaction>[0]) => RuleSignal | null
   history: Map<string, HistoryChoice[]>
+  /** Signals of money in; empty when only money out is reviewed. */
+  invoices: OpenInvoice[]
+  owners: string[]
+  customers: CustomerSignal[]
+}
+
+/** Signals of money in: open sales invoices, partners, customers (four queries). */
+async function loadIncomeSignals(companyId: string): Promise<Pick<SuggestionSignals, 'invoices' | 'owners' | 'customers'>> {
+  const [invoices, shareholders, customers] = await Promise.all([
+    loadOpenSalesInvoices(companyId),
+    prisma.shareholder.findMany({
+      where: { companyId, type: 'PHYSICAL', personId: { not: null } },
+      select: { person: { select: { firstName: true, name: true, usualName: true } } },
+      take: MAX_NAMES,
+    }),
+    prisma.tiers.findMany({
+      where: { companyId, kind: 'CUSTOMER' },
+      select: { name: true, defaultAccountCode: true },
+      orderBy: { name: 'asc' },
+      take: MAX_NAMES,
+    }),
+  ])
+  const owners = shareholders.flatMap((s) => (s.person ? [`${s.person.firstName} ${s.person.usualName || s.person.name}`.trim()] : []))
+  return {
+    invoices,
+    owners,
+    customers: customers.map((c) => ({ name: c.name, categoryId: c.defaultAccountCode ? (categoryOfAccount(c.defaultAccountCode)?.id ?? null) : null })),
+  }
 }
 
 /**
@@ -108,9 +144,13 @@ function ruleCategory(name: string, lines: Array<{ accountCode: string }>): stri
   return main ? (categoryOfAccount(main.accountCode, name)?.id ?? null) : null
 }
 
-/** Loads the rules and the history of the company (three queries). */
-export async function loadSuggestionSignals(companyId: string, now = new Date()): Promise<SuggestionSignals> {
-  const [matcher, ruleRows, simpleRows] = await Promise.all([
+/**
+ * Loads the rules and the history of the company (four queries), and the
+ * signals of money in unless `income` is false.
+ */
+export async function loadSuggestionSignals(companyId: string, options: { now?: Date; income?: boolean } = {}): Promise<SuggestionSignals> {
+  const now = options.now ?? new Date()
+  const [matcher, ruleRows, simpleRows, income] = await Promise.all([
     loadRuleMatcher(companyId),
     prisma.transactionRule.findMany({
       where: { companyId, enabled: true },
@@ -118,10 +158,11 @@ export async function loadSuggestionSignals(companyId: string, now = new Date())
     }),
     prisma.simpleModeEntry.findMany({
       where: { companyId, categoryId: { not: null } },
-      select: { counterpartyKey: true, categoryId: true, answers: true, bankTransactionId: true, entry: { select: { date: true } } },
+      select: { counterpartyKey: true, categoryId: true, answers: true, bankTransactionId: true, bankTransaction: { select: { side: true } }, entry: { select: { date: true } } },
       orderBy: { createdAt: 'desc' },
       take: HISTORY_ROWS,
     }),
+    options.income === false ? { invoices: [], owners: [], customers: [] } : loadIncomeSignals(companyId),
   ])
   const ruleById = new Map(ruleRows.map((r) => [r.id, { name: r.name, categoryId: ruleCategory(r.name, r.entryLines) }]))
 
@@ -135,14 +176,19 @@ export async function loadSuggestionSignals(companyId: string, now = new Date())
   const fromSimple = new Set<string>()
   for (const row of simpleRows) {
     if (row.bankTransactionId) fromSimple.add(row.bankTransactionId)
-    add(row.counterpartyKey, { categoryId: row.categoryId!, answers: (row.answers as Answers | null) ?? null, day: toIsoDateUtc(row.entry.date) })
+    add(row.counterpartyKey, {
+      categoryId: row.categoryId!,
+      answers: (row.answers as Answers | null) ?? null,
+      day: toIsoDateUtc(row.entry.date),
+      ...(row.bankTransaction ? { side: normalizeSide(row.bankTransaction.side) } : {}),
+    })
   }
 
   // Expert reconciliations: the counterpart account of the entry, mapped to a category
   const since = addUtcDays(todayUtc(now), -HISTORY_DAYS)
   const reconciled = await prisma.bankTransaction.findMany({
     where: { ...transactionOfCompany(companyId), reconciled: true, reconciledWith: { not: null }, date: { gte: since } },
-    select: { id: true, date: true, label: true, counterpartyName: true, providerData: true, reconciledWith: true },
+    select: { id: true, date: true, side: true, label: true, counterpartyName: true, providerData: true, reconciledWith: true },
     orderBy: { date: 'desc' },
     take: HISTORY_ROWS,
   })
@@ -167,10 +213,11 @@ export async function loadSuggestionSignals(companyId: string, now = new Date())
     const name = counterpartyOf(t)
     const category = account ? categoryOfAccount(account.code, `${name ?? ''} ${t.label ?? ''}`) : null
     if (!category) continue
-    add(counterpartyKey(name, t.label), { categoryId: category.id, day: toIsoDateUtc(t.date) })
+    add(counterpartyKey(name, t.label), { categoryId: category.id, day: toIsoDateUtc(t.date), side: normalizeSide(t.side) })
   }
 
   return {
+    ...income,
     history,
     rules: (transaction) => {
       const best = pickRule(matcher(enrichTransaction(transaction)).filter((m) => m.matched))
@@ -208,7 +255,13 @@ export function suggestionFor(transaction: LoadedTransaction, signals: Suggestio
       bankCategory: bankCategoryOf(transaction),
       bankVatCents: bankVatCentsOf(transaction),
     },
-    { rule: signals.rules(transaction), history: signals.history.get(counterpartyKey(counterparty, transaction.label)) ?? [] },
+    {
+      rule: signals.rules(transaction),
+      history: signals.history.get(counterpartyKey(counterparty, transaction.label)) ?? [],
+      invoices: signals.invoices,
+      owners: signals.owners,
+      customers: signals.customers,
+    },
   )
 }
 
@@ -235,7 +288,7 @@ export async function listExpensesToReview(companyId: string, query: z.output<ty
     }),
     prisma.bankTransaction.count({ where }),
     fiscalYearPeriods(companyId),
-    loadSuggestionSignals(companyId),
+    loadSuggestionSignals(companyId, { income: query.side !== 'debit' }),
     getSimpleModeSettings(companyId),
   ])
   const items = rows.map((row): ExpenseToReview => {

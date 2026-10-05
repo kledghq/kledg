@@ -59,7 +59,10 @@ import { simpleValidationSummary } from "./simple-validation.service";
 import { addIsoDays, calendarDayOf, todayUtc, utcDate } from "@/lib/utils/date";
 import { cfeSchedule } from "@/lib/local-taxes/cfe";
 import { parseCents } from "@/lib/utils/money";
-import { countExpensesToCheck } from "./count-expenses-to-check.service";
+import {
+  countExpensesToCheck,
+  countIncomeToCheck,
+} from "./count-expenses-to-check.service";
 
 /** Customers to chase listed at most on the home. */
 export const MAX_CUSTOMERS_TO_CHASE = 3;
@@ -120,6 +123,8 @@ export interface SimpleHome {
   todo: {
     /** Null without banking:read. */
     expensesToCheck: number | null;
+    /** Bank credits not identified yet; null without banking:read. */
+    incomeToCheck: number | null;
     /** Bank lines of the fiscal year without a supporting document; null without banking:read or fiscal year. */
     missingReceipts: number | null;
     /**
@@ -383,6 +388,7 @@ export async function loadSimpleHome(
     result,
     deadlines,
     expensesToCheck,
+    incomeToCheck,
     missingReceipts,
     accountants,
     validation,
@@ -399,6 +405,7 @@ export async function loadSimpleHome(
       ? homeDeadlines(companyId, today, ctx.now)
       : skip<DeadlinesOfHome>(),
     canBank ? countExpensesToCheck(companyId) : skip<number>(),
+    canBank ? countIncomeToCheck(companyId) : skip<number>(),
     canBank && fy ? countMissingReceipts(companyId, fy) : skip<number>(),
     ctx.can({ settings: ["read"] })
       ? loadAccountants(companyId)
@@ -452,6 +459,7 @@ export async function loadSimpleHome(
       : null,
     todo: {
       expensesToCheck,
+      incomeToCheck,
       missingReceipts,
       declarations: deadlines?.declarations ?? null,
       customersToChase: aged?.toChase ?? null,

@@ -54,7 +54,7 @@ describe('simple navigation', () => {
     expect(Object.fromEntries(items.map((item) => [item.title, item.url]))).toEqual({
       Accueil: '/simple',
       Dépenses: '/simple/depenses',
-      Recettes: '/invoices/sales',
+      Recettes: '/simple/recettes',
       Factures: '/invoices/purchases',
       Banque: '/banking',
       Justificatifs: '/banking/missing-receipts',
@@ -67,15 +67,19 @@ describe('simple navigation', () => {
     expect(findNavEntry('/entries')?.title).toBe('Écritures')
     expect(findNavEntry('/banking/missing-receipts', simpleNavGroups)?.title).toBe('Justificatifs')
     expect(findNavEntry('/simple/depenses', simpleNavGroups)?.title).toBe('Dépenses')
+    expect(findNavEntry('/simple/recettes', simpleNavGroups)?.title).toBe('Recettes')
   })
 
   it('renders the simple entries with the company prefix, the active one and the count to check', () => {
-    inSidebar(<NavMain groups={simpleNavGroups} counts={{ expensesToCheck: 5 }} />)
+    inSidebar(<NavMain groups={simpleNavGroups} counts={{ expensesToCheck: 5, incomeToCheck: 2 }} />)
     expect(screen.getByRole('link', { name: 'Accueil' })).toHaveAttribute('aria-current', 'page')
     const expenses = screen.getByRole('link', { name: /Dépenses/ })
     expect(expenses).toHaveAttribute('href', '/alpha/simple/depenses')
     expect(expenses).toHaveAccessibleName('Dépenses, 5 à vérifier')
     expect(screen.getByText('5', { selector: '[data-sidebar="menu-badge"]' })).toBeInTheDocument()
+    const income = screen.getByRole('link', { name: /Recettes/ })
+    expect(income).toHaveAttribute('href', '/alpha/simple/recettes')
+    expect(income).toHaveAccessibleName('Recettes, 2 à vérifier')
     expect(screen.getByRole('link', { name: 'Mon comptable' })).toHaveAttribute('href', '/alpha/members')
     expect(screen.queryByRole('link', { name: 'Écritures' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Tableau de bord' })).toBeNull()
@@ -99,11 +103,12 @@ describe('AppSidebar per mode', () => {
 
   it('shows the simple navigation with the count of the company, refreshed on demand', async () => {
     fetchMock.mockImplementation(async (url: string) =>
-      url.includes('/simple/counts') ? Response.json({ expensesToCheck: 3 }) : Response.json([]),
+      url.includes('/simple/counts') ? Response.json({ expensesToCheck: 3, incomeToCheck: 4 }) : Response.json([]),
     )
     inSidebar(<AppSidebar companies={[]} mode="simple" />)
     expect(screen.queryByRole('link', { name: 'Tableau de bord' })).toBeNull()
     expect(await screen.findByRole('link', { name: 'Dépenses, 3 à vérifier' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Recettes, 4 à vérifier' })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/companies/alpha/simple/counts')
     fetchMock.mockImplementation(async (url: string) =>
       url.includes('/simple/counts') ? Response.json({ expensesToCheck: 1 }) : Response.json([]),

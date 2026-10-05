@@ -49,11 +49,12 @@ const URSSAF = ['URSSAF']
 export const PAYEES: readonly PayeeEntry[] = [
   // Taxes and social bodies, routed by what the label says
   { match: TAX_OFFICE, with: ['TVA', 'CA3', 'CA12'], name: 'impôts, TVA', debit: 'tva-payee', confidence: 'high' },
-  { match: TAX_OFFICE, with: ['IS', 'IMPOT SOCIETES', 'IMPOT SUR LES SOCIETES', 'ACOMPTE IS', 'SOLDE IS'], name: 'impôts, impôt sur les sociétés', debit: 'impot-societes', confidence: 'high' },
+  { match: TAX_OFFICE, with: ['IS', 'IMPOT SOCIETES', 'IMPOT SUR LES SOCIETES', 'ACOMPTE IS', 'SOLDE IS'], name: 'impôts, impôt sur les sociétés', debit: 'impot-societes', credit: 'impot-societes', confidence: 'high' },
   { match: TAX_OFFICE, with: ['CFE', 'CVAE', 'TAXE FONCIERE', 'TAXES FONCIERES'], name: 'impôts, taxes locales', debit: 'impots-taxes', confidence: 'high' },
   { match: TAX_OFFICE, with: ['PAS', 'PRELEVEMENT A LA SOURCE', 'RETENUE A LA SOURCE'], name: 'impôts, prélèvement à la source', debit: 'prelevement-source', confidence: 'high' },
-  { match: TAX_OFFICE, with: ['REMBOURSEMENT', 'REMB', 'REMBT', 'CREDIT TVA', 'TVA'], name: 'impôts, remboursement', credit: 'remboursement-tva', confidence: 'high' },
-  { match: TAX_OFFICE, name: 'impôts', debit: null, credit: null, confidence: 'medium', hint: 'Paiement aux impôts : précisez lequel (TVA, impôt sur les sociétés, CFE).' },
+  { match: TAX_OFFICE, with: ['TVA', 'CREDIT TVA', 'CREDIT DE TVA', 'REMBOURSEMENT TVA', 'REMBOURSEMENT CREDIT TVA'], name: 'impôts, remboursement de TVA', credit: 'remboursement-tva', confidence: 'high' },
+  { match: TAX_OFFICE, name: 'impôts', debit: null, confidence: 'medium', hint: 'Paiement aux impôts : précisez lequel (TVA, impôt sur les sociétés, CFE).' },
+  { match: TAX_OFFICE, name: 'impôts', credit: null, confidence: 'medium', hint: 'Versement des impôts : précisez lequel (remboursement de TVA, d’impôt sur les sociétés).' },
   { match: ['ANTAI'], name: 'amende (ANTAI)', debit: 'amendes', confidence: 'high' },
   { match: URSSAF, with: ['INDEPENDANT', 'INDEPENDANTS', 'TI', 'SSI', 'CPSTI', 'TNS', 'AUTO ENTREPRENEUR', 'MICRO ENTREPRENEUR'], name: 'URSSAF des indépendants', debit: 'cotisations-dirigeant', confidence: 'high' },
   { match: URSSAF, name: 'URSSAF', debit: 'charges-sociales', confidence: 'medium' },
@@ -103,7 +104,16 @@ export const PAYEES: readonly PayeeEntry[] = [
   { match: ['QONTO', 'SHINE', 'MANAGER ONE', 'BLANK'], name: 'banque en ligne', debit: 'frais-bancaires', confidence: 'high' },
   { match: ['STRIPE', 'SUMUP', 'PAYPLUG', 'MOLLIE', 'GOCARDLESS', 'ADYEN', 'LYRA', 'ZETTLE', 'SQUARE'], name: 'prestataire de paiement', debit: 'commissions-paiement', credit: 'ventes-prestations', confidence: 'medium' },
   { match: ['PAYPAL'], name: 'PayPal', debit: null, credit: 'ventes-prestations', confidence: 'medium', hint: 'Paiement PayPal : choisissez ce que vous avez acheté.' },
+  { match: ['BPIFRANCE', 'BPI FRANCE', 'BPI'], with: ['SUBVENTION', 'AIDE', 'BOURSE FRENCH TECH', 'BFT', 'AIDE INNOVATION'], name: 'Bpifrance, aide', credit: 'subvention', confidence: 'high' },
+  { match: ['BPIFRANCE', 'BPI FRANCE', 'BPI'], with: ['PRET', 'DEBLOCAGE', 'PRET AMORCAGE', 'PRET D AMORCAGE', 'PGE'], name: 'Bpifrance, prêt', credit: 'emprunt-recu', confidence: 'high' },
   { match: ['BPIFRANCE', 'BPI FRANCE'], name: 'Bpifrance', debit: 'remboursement-emprunt', credit: null, confidence: 'medium', hint: 'Versement de Bpifrance : précisez s’il s’agit d’un prêt ou d’une subvention.' },
+
+  // Public bodies that pay operating aid: family allowance funds (crèches),
+  // the agency paying hiring and apprenticeship aid, the employment agency
+  { match: ['CAF', 'CAISSE D ALLOCATIONS FAMILIALES', 'CNAF'], name: 'CAF', credit: 'subvention', confidence: 'medium' },
+  { match: ['ASP', 'AGENCE DE SERVICES ET DE PAIEMENT', 'AGENCE SERVICES PAIEMENT'], name: 'Agence de services et de paiement', credit: 'subvention', confidence: 'high' },
+  { match: ['FRANCE TRAVAIL', 'POLE EMPLOI', 'AGEFIPH'], name: 'aide à l’emploi', credit: 'subvention', confidence: 'medium' },
+  { match: ['CONSEIL REGIONAL', 'REGION'], with: ['SUBVENTION', 'AIDE'], name: 'région', credit: 'subvention', confidence: 'high' },
 
   // Services
   { match: ['INFOGREFFE', 'GREFFE', 'LEGALSTART', 'LEGALPLACE', 'CAPTAIN CONTRAT', 'INPI', 'ANNONCES LEGALES', 'BODACC', 'JOURNAL OFFICIEL'], name: 'formalités', debit: 'formalites', confidence: 'high' },
@@ -135,10 +145,25 @@ export const KEYWORDS: readonly PayeeEntry[] = [
   { match: ['HONORAIRES'], name: 'honoraires', debit: 'honoraires', confidence: 'medium' },
   { match: ['DIVIDENDES', 'DIVIDENDE'], name: 'dividendes', debit: 'dividendes', confidence: 'medium' },
   { match: ['COMPTE COURANT', 'APPORT EN COMPTE COURANT', 'APPORT ASSOCIE'], name: 'compte courant', debit: 'compte-courant-associe', credit: 'compte-courant-associe', confidence: 'medium' },
-  { match: ['SUBVENTION'], name: 'subvention', credit: 'subvention', confidence: 'medium' },
+  { match: ['SUBVENTION', 'AIDE A L EMBAUCHE', 'AIDE EMBAUCHE', 'AIDE APPRENTISSAGE', 'AIDE A L APPRENTISSAGE'], name: 'subvention', credit: 'subvention', confidence: 'medium' },
   { match: ['INDEMNITE', 'INDEMNISATION', 'SINISTRE'], name: 'indemnité', credit: 'indemnites-recues', confidence: 'medium' },
-  { match: ['INTERETS', 'INTERETS CREDITEURS'], name: 'intérêts', credit: 'interets-recus', confidence: 'medium' },
+  { match: ['INTERETS CREDITEURS', 'INTERETS CREDIT', 'REMUNERATION DU COMPTE', 'INTERETS LIVRET'], name: 'intérêts créditeurs', credit: 'interets-recus', confidence: 'high' },
+  { match: ['INTERETS'], name: 'intérêts', credit: 'interets-recus', confidence: 'medium' },
+  { match: ['VERSEMENT ESPECES', 'DEPOT ESPECES', 'REMISE ESPECES', 'VERSEMENT D ESPECES', 'DEPOT D ESPECES'], name: 'dépôt d’espèces', credit: 'depot-especes', confidence: 'high' },
+  { match: ['DEPOT DE GARANTIE', 'RESTITUTION CAUTION', 'REMBOURSEMENT CAUTION', 'RESTITUTION DEPOT'], name: 'dépôt de garantie', credit: 'depot-garantie-rendu', confidence: 'medium' },
+  { match: ['REMISE CHEQUE', 'REMISE DE CHEQUE', 'REMISE CHEQUES', 'REM CHQ', 'REMISE CHQ', 'DEPOT CHEQUE'], name: 'remise de chèque', credit: null, confidence: 'medium', hint: 'Remise de chèque : choisissez ce qu’il paie (une vente, une facture).' },
 ]
+
+/**
+ * Words of a bank label that announce a refund: a supplier gives money back
+ * (REMBOURSEMENT SNCF, AVOIR AMAZON, REFUND STRIPE).
+ */
+export const REFUND_WORDS: readonly string[] = ['REMBOURSEMENT', 'REMBT', 'REMB', 'RBT', 'AVOIR', 'REFUND', 'RETOUR', 'ANNULATION']
+
+/** Whether the text of a bank line (bankText) announces a refund. */
+export function announcesRefund(text: string): boolean {
+  return REFUND_WORDS.some((w) => text.includes(` ${w} `))
+}
 
 export interface DictionaryMatch {
   entry: PayeeEntry

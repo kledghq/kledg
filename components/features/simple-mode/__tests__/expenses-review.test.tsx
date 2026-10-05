@@ -122,3 +122,77 @@ describe('ExpensesReview', () => {
     expect(screen.getByRole('note')).toBeTruthy()
   })
 })
+
+describe('ExpensesReview, money in (Recettes à vérifier)', () => {
+  const fetchMock = vi.fn()
+  const invoices = [{ id: 'inv-1', number: 'F-2026-012', customerName: 'Studio Nord', customerSiren: null, remainingCents: 120_000, dueDate: '2026-10-01' }]
+  const credit = (id: string, label: string, amountCents: number): ExpenseToReview => ({
+    id,
+    date: '2026-09-29',
+    side: 'credit',
+    amountCents,
+    name: label.replace(/^VIR SEPA /, ''),
+    label,
+    suggestion: suggestCategory({ side: 'credit', amountCents, label, counterpartyName: null, bankCategory: null }, { history: [], invoices }),
+    hasReceipt: false,
+    canUploadReceipt: false,
+    blockedReason: null,
+  })
+  const items = [credit('nord', 'VIR SEPA STUDIO NORD F-2026-012', 120_000), credit('bpi', 'VIR SEPA BPIFRANCE SUBVENTION INNOVATION', 3_000_000)]
+  const income: ExpensesToReview = { items, count: 2, bulkConfirmableIds: items.map((i) => i.id), review: { accountantReview: false, setting: null, accountants: [] } }
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/confirm')) {
+        return new Response(
+          JSON.stringify({ transactionId: 'nord', status: 'validated', needsReview: false, learnedRule: null, fixedAsset: null, invoice: { id: 'inv-1', number: 'F-2026-012', customerName: 'Studio Nord', recorded: true, lettered: true, remainingCents: 0, pending: null } }),
+          { status: 201 },
+        )
+      }
+      if (init?.method) return new Response('{}', { status: 500 })
+      return new Response(JSON.stringify(income), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  const renderIncome = () =>
+    render(
+      <CompanyAccessProvider value={{ granted: grantedPermissions(['companyAdmin'], false), roleLabel: '' }}>
+        <ExpensesReview companyId="atelier-lumen" side="credit" />
+      </CompanyAccessProvider>,
+    )
+
+  it('loads the money in and shows the invoice a credit pays, the subsidy, and the way to the sales invoices', async () => {
+    renderIncome()
+    expect(screen.getByRole('heading', { level: 1, name: 'Recettes à vérifier' })).toBeTruthy()
+    const nord = (await screen.findByText('STUDIO NORD F-2026-012')).closest('li')!
+    expect(plain(nord.textContent)).toContain('Facture n° F-2026-012, Studio Nord')
+    expect(plain(nord.textContent)).toContain('Règle la facture n° F-2026-012 de Studio Nord')
+    const bpi = screen.getByText('BPIFRANCE SUBVENTION INNOVATION').closest('li')!
+    expect(plain(bpi.textContent)).toContain("Subvention d'exploitation")
+    expect(String(fetchMock.mock.calls[0][0])).toBe('/api/simple/expenses?companyId=atelier-lumen&side=credit')
+    expect(screen.getByRole('link', { name: 'Factures de vente' })).toHaveAttribute('href', '/atelier-lumen/invoices/sales')
+    expect(screen.getByRole('button', { name: 'Tout confirmer (2)' })).toBeTruthy()
+    expect(plain(screen.getByText(/Une fois confirmées/).textContent)).toBe('Une fois confirmées, ces recettes sont enregistrées dans vos comptes.')
+  })
+
+  it('sends the invoice on OK, says the invoice is paid and refreshes the counts of the navigation', async () => {
+    const user = userEvent.setup()
+    const refreshed = vi.fn()
+    window.addEventListener('simple:counts-refresh', refreshed)
+    renderIncome()
+    const nord = (await screen.findByText('STUDIO NORD F-2026-012')).closest('li')!
+    await user.click(within(nord).getByRole('button', { name: 'OK' }))
+    await waitFor(() => expect(screen.queryByText('STUDIO NORD F-2026-012')).toBeNull())
+    const [url, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/nord/confirm'))!
+    expect(url).toBe('/api/simple/expenses/nord/confirm')
+    expect(JSON.parse(String(init.body))).toEqual({ invoiceId: 'inv-1' })
+    expect(toast.success).toHaveBeenCalledWith('Facture n° F-2026-012 payée.')
+    expect(refreshed).toHaveBeenCalled()
+    window.removeEventListener('simple:counts-refresh', refreshed)
+  })
+})

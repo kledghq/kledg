@@ -6,6 +6,10 @@
  * service (expenses-to-review.service.ts) gathers the signals from the
  * database; nothing here reads it.
  *
+ * Money in is first compared with the open sales invoices (match-invoice.ts):
+ * a credit that pays one is proposed as the payment of that invoice, before
+ * any category, so a sale already invoiced is never booked twice.
+ *
  * Signals, in priority order (the first that gives a category wins):
  * 1. the company's transaction rules: the best matching rule (rule-matcher,
  *    highest priority then most specific). Its lines are applied as the
@@ -15,10 +19,19 @@
  *    categories chosen in simple mode, and the accounts of the transactions
  *    reconciled in expert mode, latest first. The same choice the last
  *    times is a strong signal; diverging choices a weaker one;
+ *    For money in from a supplier usually paid (history of expenses), the
+ *    refund of that expense, at medium confidence at most;
  * 3. the built-in dictionary of French payees (payees.ts), routed by side
- *    and by the words that name the tax or the contribution;
+ *    and by the words that name the tax or the contribution; for money in
+ *    whose label announces a refund (REMBOURSEMENT, AVOIR), the refund of
+ *    what that payee is usually paid for;
  * 4. keywords of the label (restaurant, loyer, péage...);
- * 5. the category the bank gives (Qonto categories), mapped when it is
+ * 5. money in from a partner of the company (a physical shareholder's
+ *    name): the question "Est-ce de l'argent que vous avez prêté à votre
+ *    société ?" (current account, capital or sale);
+ * 6. money in from a known customer (tiers): a sale, of the category of the
+ *    customer's usual account;
+ * 7. the category the bank gives (Qonto categories), mapped when it is
  *    unambiguous.
  * A category of the wrong direction (an income for money out, an expense
  * for money in) is never proposed. Below the medium threshold nothing is
@@ -29,12 +42,13 @@
  * all at once ("Tout confirmer").
  */
 
-import { findCategory, type Question, type SimpleCategory } from './categories'
-import { bankText, KEYWORDS, matchDictionary, PAYEES } from './payees'
+import { findCategory, refundOf, type Question, type SimpleCategory } from './categories'
+import { matchInvoice, significantWords, type OpenInvoice } from './match-invoice'
+import { announcesRefund, bankText, KEYWORDS, matchDictionary, PAYEES } from './payees'
 import { questionApplies, type Answers, type Side } from './posting'
 
 export type Confidence = 'high' | 'medium' | 'low'
-export type SuggestionSource = 'rule' | 'history' | 'payee' | 'keyword' | 'bank' | 'none'
+export type SuggestionSource = 'invoice' | 'rule' | 'history' | 'payee' | 'keyword' | 'owner' | 'customer' | 'bank' | 'none'
 
 export interface EngineTransaction {
   side: Side
@@ -63,11 +77,39 @@ export interface HistoryChoice {
   answers?: Answers | null
   /** yyyy-mm-dd of the transaction. */
   day: string
+  /**
+   * Side of that transaction. Only choices made on the same side count: a
+   * VAT payment says nothing about a VAT refund. Unknown: counts for both.
+   */
+  side?: Side
+}
+
+/** A customer of the company (tiers), with the category of its usual revenue account. */
+export interface CustomerSignal {
+  name: string
+  categoryId: string | null
 }
 
 export interface EngineContext {
   rule?: RuleSignal | null
   history: readonly HistoryChoice[]
+  /** Open sales invoices, for money in. */
+  invoices?: readonly OpenInvoice[]
+  /** Names of the partners of the company (physical shareholders). */
+  owners?: readonly string[]
+  /** Customers of the company. */
+  customers?: readonly CustomerSignal[]
+}
+
+/** The open invoice a credit pays, as proposed. */
+export interface InvoiceSuggestion {
+  invoiceId: string
+  number: string
+  customerName: string
+  /** Left to pay on the invoice before this credit. */
+  remainingCents: number
+  /** The credit pays part of it. */
+  partial: boolean
 }
 
 export interface Suggestion {
@@ -76,6 +118,8 @@ export interface Suggestion {
   /** Rule whose lines are applied when the suggestion is confirmed as is. */
   ruleId: string | null
   ruleName: string | null
+  /** Open sales invoice the credit pays: confirming records the payment. */
+  invoice: InvoiceSuggestion | null
   confidence: Confidence
   /** 0 to 1, for ordering and tests; the confidence is what the UI shows. */
   score: number
@@ -93,7 +137,7 @@ export interface Suggestion {
 export const HIGH_CONFIDENCE = 0.85
 export const MEDIUM_CONFIDENCE = 0.55
 
-const SCORES = { rule: 0.95, historyRepeated: 0.92, historyOnce: 0.8, payeeHigh: 0.88, payeeMedium: 0.7, keywordHigh: 0.86, keywordMedium: 0.6, bank: 0.56 } as const
+const SCORES = { rule: 0.95, historyRepeated: 0.92, historyOnce: 0.8, payeeHigh: 0.88, payeeMedium: 0.7, keywordHigh: 0.86, keywordMedium: 0.6, owner: 0.75, customer: 0.7, refund: 0.7, bank: 0.56 } as const
 
 /** How many of the latest choices are looked at. */
 const HISTORY_DEPTH = 6
@@ -129,9 +173,10 @@ function confidenceOf(score: number): Confidence {
   return 'low'
 }
 
-/** A category may be proposed for this side: no income for money out, no expense for money in. */
+/** A category may be proposed for this side: no income nor refund for money out, no expense for money in. */
 export function fitsSide(category: SimpleCategory, side: Side): boolean {
-  return category.kind === 'other' || category.kind === (side === 'debit' ? 'expense' : 'income')
+  if (category.kind === 'other') return true
+  return side === 'debit' ? category.kind === 'expense' : category.kind === 'income' || category.kind === 'refund'
 }
 
 interface Candidate {
@@ -146,16 +191,37 @@ interface Candidate {
 
 const plural = (n: number, one: string, many: string) => (n > 1 ? many : one)
 
+/**
+ * Money in from a payee whose payments were classified as expenses: the
+ * refund of the latest of them, never more than medium confidence (a
+ * supplier may also be a customer).
+ */
+function refundFromHistory(history: readonly HistoryChoice[]): Candidate | null {
+  const latest = history
+    .filter((h) => findCategory(h.categoryId)?.kind === 'expense' && refundOf(h.categoryId) !== null)
+    .slice()
+    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0))[0]
+  if (!latest) return null
+  const expense = findCategory(latest.categoryId)!
+  return {
+    categoryId: refundOf(latest.categoryId)!.id,
+    score: SCORES.refund,
+    source: 'history',
+    reason: `Remboursement d’un fournisseur que vous classez en « ${expense.label} »`,
+    answers: latest.answers,
+  }
+}
+
 function fromHistory(history: readonly HistoryChoice[], side: Side): Candidate | null {
   const usable = history
     .filter((h) => {
       const category = findCategory(h.categoryId)
-      return category !== null && fitsSide(category, side)
+      return category !== null && fitsSide(category, side) && (h.side === undefined || h.side === side)
     })
     .slice()
     .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0))
     .slice(0, HISTORY_DEPTH)
-  if (usable.length === 0) return null
+  if (usable.length === 0) return side === 'credit' ? refundFromHistory(history) : null
 
   const latest = usable[0]
   let streak = 0
@@ -197,6 +263,13 @@ function fromDictionary(tx: EngineTransaction): Candidate | null {
       reason: `Reconnu : ${payee.entry.name}`,
     }
   }
+  const refund = tx.side === 'credit' && announcesRefund(text)
+  if (refund) {
+    // A supplier gives money back: the refund of what it is usually paid for
+    const paid = matchDictionary(PAYEES, text, 'debit')
+    const category = refundOf(paid?.categoryId)
+    if (paid && category) return { categoryId: category.id, score: SCORES.refund, source: 'payee', reason: `Remboursement reconnu : ${paid.entry.name}` }
+  }
   const keyword = matchDictionary(KEYWORDS, text, tx.side)
   if (keyword?.categoryId) {
     return {
@@ -206,7 +279,43 @@ function fromDictionary(tx: EngineTransaction): Candidate | null {
       reason: `Le libellé mentionne « ${keyword.matched.toLowerCase()} »`,
     }
   }
+  if (keyword && keyword.categoryId === null && keyword.entry.hint) return { categoryId: null, score: 0, source: 'keyword', reason: keyword.entry.hint }
+  if (refund) {
+    const paid = matchDictionary(KEYWORDS, text, 'debit')
+    const category = refundOf(paid?.categoryId)
+    if (paid && category) return { categoryId: category.id, score: SCORES.keywordMedium, source: 'keyword', reason: `Remboursement : le libellé mentionne « ${paid.matched.toLowerCase()} »` }
+    return { categoryId: null, score: 0, source: 'payee', reason: 'Remboursement : choisissez la dépense qui vous est remboursée.' }
+  }
   return null
+}
+
+/** Whole words of the bank line naming a person or a company (significant words of the name, match-invoice.ts). */
+function names(text: string, name: string): boolean {
+  const significant = significantWords(name)
+  return significant.length > 0 && significant.every((w) => text.includes(` ${w} `))
+}
+
+/** Money in from a partner of the company: what it is depends on a question. */
+function fromOwner(tx: EngineTransaction, owners: readonly string[] | undefined): Candidate | null {
+  if (tx.side !== 'credit' || !owners?.length) return null
+  const text = bankText(tx.counterpartyName, tx.label)
+  const owner = owners.find((name) => names(text, name))
+  return owner ? { categoryId: 'versement-associe', score: SCORES.owner, source: 'owner', reason: `Virement de ${owner}, associé de la société` } : null
+}
+
+/** Money in from a known customer: a sale. */
+function fromCustomer(tx: EngineTransaction, customers: readonly CustomerSignal[] | undefined): Candidate | null {
+  if (tx.side !== 'credit' || !customers?.length) return null
+  const text = bankText(tx.counterpartyName, tx.label)
+  const customer = customers.find((c) => names(text, c.name))
+  if (!customer) return null
+  const category = findCategory(customer.categoryId)
+  return {
+    categoryId: category && category.kind === 'income' ? category.id : 'ventes-prestations',
+    score: SCORES.customer,
+    source: 'customer',
+    reason: `Votre client ${customer.name}`,
+  }
 }
 
 function fromBank(tx: EngineTransaction): Candidate | null {
@@ -223,6 +332,7 @@ function finish(candidate: Candidate | null, tx: EngineTransaction): Suggestion 
     categoryId: null,
     ruleId: null,
     ruleName: null,
+    invoice: null,
     confidence: 'low',
     score: candidate?.score ?? 0,
     source: 'none',
@@ -239,6 +349,7 @@ function finish(candidate: Candidate | null, tx: EngineTransaction): Suggestion 
       categoryId: candidate.categoryId,
       ruleId: candidate.ruleId ?? null,
       ruleName: candidate.ruleName ?? null,
+      invoice: null,
       confidence: confidenceOf(candidate.score),
       score: candidate.score,
       source: 'rule',
@@ -266,6 +377,7 @@ function finish(candidate: Candidate | null, tx: EngineTransaction): Suggestion 
     categoryId: category.id,
     ruleId: null,
     ruleName: null,
+    invoice: null,
     confidence,
     score: candidate.score,
     source: candidate.source,
@@ -278,6 +390,24 @@ function finish(candidate: Candidate | null, tx: EngineTransaction): Suggestion 
 
 /** The suggestion for one transaction. */
 export function suggestCategory(tx: EngineTransaction, context: EngineContext): Suggestion {
+  // Money in that pays an open sales invoice is that payment, whatever else says.
+  const invoice = tx.side === 'credit' && context.invoices?.length ? matchInvoice(tx, context.invoices) : null
+  if (invoice) {
+    const confidence = confidenceOf(invoice.score)
+    return {
+      categoryId: null,
+      ruleId: null,
+      ruleName: null,
+      invoice: { invoiceId: invoice.invoiceId, number: invoice.number, customerName: invoice.customerName, remainingCents: invoice.remainingCents, partial: invoice.partial },
+      confidence,
+      score: invoice.score,
+      source: 'invoice',
+      reason: invoice.reason,
+      answers: {},
+      pendingQuestion: null,
+      bulkConfirmable: confidence === 'high',
+    }
+  }
   if (context.rule) {
     const category = findCategory(context.rule.categoryId)
     return finish(
@@ -292,7 +422,7 @@ export function suggestCategory(tx: EngineTransaction, context: EngineContext): 
       tx,
     )
   }
-  const candidates = [fromHistory(context.history, tx.side), fromDictionary(tx), fromBank(tx)]
+  const candidates = [fromHistory(context.history, tx.side), fromDictionary(tx), fromOwner(tx, context.owners), fromCustomer(tx, context.customers), fromBank(tx)]
   // The first signal that names a category of the right direction with enough confidence wins.
   for (const candidate of candidates) {
     if (!candidate || candidate.categoryId === null) continue

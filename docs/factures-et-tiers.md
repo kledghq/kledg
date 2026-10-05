@@ -50,7 +50,7 @@ La facture crée une **écriture en brouillon** datée du jour de la facture, au
 - **Avoir** (381) : les mêmes lignes, sens inversés.
 - **Franchise en base** (CGI art. 293 B) : la TVA d'un achat n'est pas déductible, elle s'ajoute à la charge de chaque ligne.
 - **Un taux partagé** entre deux comptes de TVA (une immobilisation et une fourniture au même taux) : la TVA du taux se répartit au prorata des bases, le reste au centime sur la plus grosse, pour que les lignes de TVA fassent exactement la TVA du document.
-- Une facture se comptabilise une fois : la ligne de la facture est verrouillée pendant la comptabilisation (deux clics simultanés donnent une écriture et un refus). Supprimer l'écriture en brouillon depuis Écritures ramène la facture en brouillon. Une écriture validée se corrige par contre-passation (PCG art. 1031-3).
+- Une facture se comptabilise une fois : la ligne de la facture est verrouillée pendant la comptabilisation (deux clics simultanés donnent une écriture et un refus). Supprimer l'écriture en brouillon depuis Écritures ramène la facture en brouillon. Une écriture validée se corrige par contre-passation (PCG art. 1031-3). Une facture dont un règlement a été confirmé dans les recettes à vérifier du mode simple ne peut être ni décomptabilisée depuis la facture ni supprimée tant que ce rapprochement n'est pas annulé ([catégories simples](categories-simples.md#recettes-à-vérifier)).
 - Taux étranger (facture importée d'un fournisseur européen) : refus, la TVA étrangère ou l'autoliquidation se saisit à la main.
 
 ### TVA sur les encaissements (CGI art. 269, 2, c)

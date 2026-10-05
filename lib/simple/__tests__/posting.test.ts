@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { findCategory, SIMPLE_CATEGORIES } from '../categories'
+import { ALL_CATEGORIES, findCategory } from '../categories'
 import { buildPostingLines, exclTaxCents, plausibleBankVat, resolvePosting, type Side } from '../posting'
 
 function plan(id: string, amountCents: number, options: { side?: Side; answers?: Record<string, string>; bankVatCents?: number | null; recoveryRatio?: number | null } = {}) {
@@ -22,6 +22,7 @@ function plan(id: string, amountCents: number, options: { side?: Side; answers?:
   return buildPostingLines({
     category,
     posting: resolution.posting,
+    kind: resolution.kind,
     side: options.side ?? 'debit',
     amountCents,
     bankVatCents: options.bankVatCents,
@@ -159,6 +160,63 @@ describe('income VAT lines', () => {
 
   it('books a grant and interest without VAT', () => {
     expect(lines(plan('subvention', 500_000, { side: 'credit' }))).toEqual([['741', 0, 500_000]])
+    expect(lines(plan('interets-recus', 1_234, { side: 'credit' }))).toEqual([['768', 0, 1_234]])
+  })
+
+  it('collects the VAT at the rate of the invoice (CGI art. 278, 279, 278-0 bis, 281 quater), none abroad', () => {
+    // 1 100 € TTC at 10 %: 1 000 € + 100 €
+    expect(lines(plan('ventes-prestations', 110_000, { side: 'credit', answers: { 'sale-vat-rate': 'intermediate' } }))).toEqual([
+      ['706', 0, 100_000],
+      ['44571', 0, 10_000],
+    ])
+    // 105,50 € TTC at 5,5 %: 100 € + 5,50 €
+    expect(lines(plan('ventes-marchandises', 10_550, { side: 'credit', answers: { 'sale-vat-rate': 'reduced' } }))).toEqual([
+      ['707', 0, 10_000],
+      ['44571', 0, 550],
+    ])
+    // 102,10 € TTC at 2,1 %: 100 € + 2,10 €
+    expect(lines(plan('ventes-produits', 10_210, { side: 'credit', answers: { 'sale-vat-rate': 'super-reduced' } }))).toEqual([
+      ['701', 0, 10_000],
+      ['44571', 0, 210],
+    ])
+    expect(lines(plan('ventes-prestations', 250_000, { side: 'credit', answers: { 'sale-vat-rate': 'none' } }))).toEqual([['706', 0, 250_000]])
+  })
+
+  it('books money from a partner by the answer: current account, capital, or a sale with its VAT', () => {
+    expect(lines(plan('versement-associe', 500_000, { side: 'credit', answers: { 'owner-money': 'loan' } }))).toEqual([['455', 0, 500_000]])
+    expect(lines(plan('versement-associe', 500_000, { side: 'credit', answers: { 'owner-money': 'capital' } }))).toEqual([['1013', 0, 500_000]])
+    expect(lines(plan('versement-associe', 120_000, { side: 'credit', answers: { 'owner-money': 'sale' } }))).toEqual([
+      ['706', 0, 100_000],
+      ['44571', 0, 20_000],
+    ])
+  })
+
+  it('books movements of money in on one line: loan received, VAT refund, deposit returned, cash deposited', () => {
+    expect(lines(plan('emprunt-recu', 3_000_000, { side: 'credit' }))).toEqual([['164', 0, 3_000_000]])
+    expect(lines(plan('remboursement-tva', 184_300, { side: 'credit' }))).toEqual([['44567', 0, 184_300]])
+    expect(lines(plan('depot-garantie-rendu', 240_000, { side: 'credit' }))).toEqual([['275', 0, 240_000]])
+    expect(lines(plan('depot-especes', 35_000, { side: 'credit' }))).toEqual([['53', 0, 35_000]])
+  })
+})
+
+describe('refund VAT lines (règlement ANC n° 2022-06: the refund reduces the charge)', () => {
+  it('reverses the charge and the deductible VAT of a refunded phone bill', () => {
+    expect(lines(plan('remboursement:telephone-internet', 4_799, { side: 'credit' }))).toEqual([
+      ['626', 0, 3_999],
+      ['44566', 0, 800],
+    ])
+  })
+
+  it('reverses only what was recovered: nothing on a train ticket, 80 % on passenger car fuel', () => {
+    expect(lines(plan('remboursement:deplacements', 12_800, { side: 'credit' }))).toEqual([['6251', 0, 12_800]])
+    expect(lines(plan('remboursement:carburant', 6_000, { side: 'credit', answers: { vehicle: 'passenger-car' } }))).toEqual([
+      ['6061', 0, 5_200],
+      ['44566', 0, 800],
+    ])
+  })
+
+  it('reverses a charge without VAT on one line', () => {
+    expect(lines(plan('remboursement:assurances', 32_000, { side: 'credit' }))).toEqual([['616', 0, 32_000]])
   })
 })
 
@@ -168,7 +226,7 @@ describe('every category', () => {
     return question ? { [question.id]: question.answers[0].id } : {}
   }
 
-  it.each(SIMPLE_CATEGORIES.map((c) => c.id))('%s: counterpart lines sum to the amount, one side only, both sides', (id) => {
+  it.each(ALL_CATEGORIES.map((c) => c.id))('%s: counterpart lines sum to the amount, one side only, both sides', (id) => {
     for (const side of ['debit', 'credit'] as const) {
       for (const amount of [1, 999, 4_799, 149_900, 1_234_567]) {
         const p = plan(id, amount, { side, answers: answersFor(id) })

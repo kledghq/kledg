@@ -8,7 +8,9 @@
  * - listSimpleModeEntries: the expert view "Saisies du mode simple à
  *   valider": each entry with its category, the answers, the note, its
  *   lines, its transaction and the fixed asset created with it ("Immobilisation
- *   créée : <label>, amortie sur N ans", durable equipment). Validation itself goes through the usual
+ *   créée : <label>, amortie sur N ans", durable equipment), or the sales
+ *   invoice a customer payment settles (recorded on the invoice once the
+ *   entry is validated, invoice-receipts.service.ts). Validation itself goes through the usual
  *   service (POST /api/entries/bulk-validate, validateEntries: definitive
  *   number in date order, PCG art. 1031-3); a correction through the entry
  *   form, as for any draft.
@@ -103,6 +105,8 @@ export interface SimpleModeEntryView {
   hasReceipt: boolean
   /** Fixed asset created with the entry (durable equipment), and the mention shown to the accountant. */
   fixedAsset: { id: string; label: string; years: number | null; mention: string } | null
+  /** Sales invoice a customer payment settles, and whether the payment is recorded on it yet. */
+  invoice: { id: string; number: string; customerName: string; recorded: boolean } | null
   createdAt: string
 }
 
@@ -139,6 +143,7 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
       createdAt: true,
       bankTransactionId: true,
       fixedAsset: { select: { id: true, label: true, depreciationDuration: true } },
+      invoice: { select: { id: true, number: true, tiers: { select: { name: true } } } },
       bankTransaction: { select: { label: true, counterpartyName: true, providerData: true, _count: { select: { attachments: true } } } },
       entry: {
         select: {
@@ -147,7 +152,10 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
           status: true,
           date: true,
           description: true,
-          lines: { select: { debit: true, credit: true, description: true, account: { select: { code: true, label: true } } }, orderBy: { createdAt: 'asc' } },
+          lines: {
+            select: { debit: true, credit: true, description: true, account: { select: { code: true, label: true } }, _count: { select: { invoicePayments: true } } },
+            orderBy: { createdAt: 'asc' },
+          },
         },
       },
     },
@@ -177,7 +185,7 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
         description: row.entry.description,
         name: transaction ? displayNameOf(transaction.counterpartyName, transaction.label) : (row.entry.description ?? ''),
         categoryId: row.categoryId,
-        categoryLabel: findCategory(row.categoryId)?.label ?? null,
+        categoryLabel: findCategory(row.categoryId)?.label ?? (row.invoice ? `Paiement de la facture n° ${row.invoice.number}` : null),
         ruleId: row.ruleId,
         answers,
         answerLabels: answerLabels(row.categoryId, answers),
@@ -190,6 +198,9 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
         hasReceipt: (transaction?._count.attachments ?? 0) > 0,
         fixedAsset: row.fixedAsset
           ? { id: row.fixedAsset.id, label: row.fixedAsset.label, years: row.fixedAsset.depreciationDuration, mention: fixedAssetMention(row.fixedAsset.label, row.fixedAsset.depreciationDuration) }
+          : null,
+        invoice: row.invoice
+          ? { id: row.invoice.id, number: row.invoice.number, customerName: row.invoice.tiers.name, recorded: row.entry.lines.some((l) => l._count.invoicePayments > 0) }
           : null,
         createdAt: row.createdAt.toISOString(),
       }

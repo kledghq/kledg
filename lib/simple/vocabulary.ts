@@ -167,6 +167,14 @@ export function expensesToCheckLabel(count: number): string {
 export const EXPENSES_TO_CHECK_HINT =
   "Kledg propose une catégorie, une seule question à trancher";
 
+/** "3 recettes à identifier". */
+export function incomeToCheckLabel(count: number): string {
+  return `${plural(count, "recette", "recettes")} à identifier`;
+}
+
+export const INCOME_TO_CHECK_HINT =
+  "Kledg retrouve la facture payée ou propose une catégorie";
+
 /** "3 justificatifs manquants". */
 export function missingReceiptsLabel(count: number): string {
   return plural(count, "justificatif manquant", "justificatifs manquants");

@@ -64,7 +64,7 @@ export interface NavItem {
 }
 
 /** Counts the simple navigation shows next to an entry. */
-export type NavCountKey = "expensesToCheck"
+export type NavCountKey = "expensesToCheck" | "incomeToCheck"
 
 export interface NavGroup {
   /** Group heading. Omitted for the top group (dashboard). */
@@ -156,8 +156,8 @@ export const navGroups: NavGroup[] = [
  * who does not keep books. Entries open the existing pages where they fit;
  * expert pages stay reachable by URL (the mode changes no permission), they
  * are only not listed here.
- * - Accueil, Dépenses: the simple pages (app/(company)/[companyId]/simple).
- * - Recettes: the sales invoices (what customers owe and paid).
+ * - Accueil, Dépenses, Recettes: the simple pages (app/(company)/[companyId]/simple);
+ *   Recettes links to the sales invoices (what customers owe and paid).
  * - Factures: the purchase invoices (the bills received).
  * - Banque: the bank accounts; Justificatifs: the missing receipts.
  * - Mon comptable: the members of the company, where the accountant is.
@@ -167,7 +167,7 @@ export const simpleNavGroups: NavGroup[] = [
     items: [
       { title: "Accueil", url: "/simple", icon: House },
       { title: "Dépenses", url: "/simple/depenses", icon: ArrowUpRight, count: "expensesToCheck" },
-      { title: "Recettes", url: "/invoices/sales", icon: ArrowDownLeft },
+      { title: "Recettes", url: "/simple/recettes", icon: ArrowDownLeft, count: "incomeToCheck" },
       { title: "Factures", url: "/invoices/purchases", icon: FileInput },
       { title: "Banque", url: "/banking", icon: Landmark },
       { title: "Justificatifs", url: "/banking/missing-receipts", icon: Receipt },
@@ -197,6 +197,7 @@ const subPages: Array<{ path: string; title: string }> = [
   { path: "/entries/new", title: "Nouvelle écriture" },
   { path: "/entries/[id]/edit", title: "Modifier l'écriture" },
   { path: "/simple/depenses", title: "Dépenses à vérifier" },
+  { path: "/simple/recettes", title: "Recettes à vérifier" },
   { path: "/entries/[id]", title: "Écriture" },
   { path: "/fiscal-years/opening-balances", title: "Bilan d'ouverture" },
   { path: "/invoices/new", title: "Nouvelle facture" },
