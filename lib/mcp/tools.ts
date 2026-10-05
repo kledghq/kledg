@@ -53,6 +53,9 @@ import { registerDraftTools } from '@/lib/mcp/drafts'
 import { registerLedgerReadTools } from '@/lib/mcp/ledger-read-tools'
 import { registerCompanySettingsTools } from '@/lib/mcp/company-settings-tools'
 import { registerTransactionReadTools } from '@/lib/mcp/transaction-read-tools'
+import { registerExportTools } from '@/lib/mcp/export-tools'
+import { registerDocumentTools } from '@/lib/mcp/document-tools'
+import { registerCompanyLookupTools } from '@/lib/mcp/company-lookup-tools'
 import { READ_ONLY, describeTool, kledgPageUrl, writeAnnotations } from '@/lib/mcp/tool-meta'
 
 const MAX_ROWS = 200
@@ -95,20 +98,23 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
       title: 'Lister les sociétés',
       description: describeTool({
         summary:
-          'Lists the companies this connection can access on this Kledg instance (the user may have limited it to some of their companies), with their SIREN, legal form, fiscal regimes and current fiscal year. Start here to get company ids.',
+          'Lists the companies this connection can access on this Kledg instance (the user may have limited it to some of their companies), with their SIREN, legal form, fiscal regimes and current fiscal year. Start here to get company ids. Archived companies (read-only) are left out unless includeArchived is true; they then carry their archivedAt.',
         access: 'read',
         permission: 'membership',
         amounts: 'none',
-        never: "lists a company outside the connection's grant or an archived company, and never changes anything (read only).",
+        never: "lists a company outside the connection's grant, and never changes anything (read only).",
       }),
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        includeArchived: z.boolean().optional().describe('true: also the archived companies (read-only, restore_company restores them).'),
+      }),
       annotations: readOnly,
     },
-    () =>
+    ({ includeArchived }) =>
       run(async () => {
         const companies = await prisma.company.findMany({
-          where: await guard.companyWhere(),
+          where: await guard.companyWhere({ includeArchived: includeArchived === true }),
           select: {
+            archivedAt: true,
             id: true,
             name: true,
             siren: true,
@@ -126,8 +132,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           orderBy: { name: 'asc' },
         })
         return json(
-          companies.map(({ fiscalYears, ...c }) => ({
+          companies.map(({ fiscalYears, archivedAt, ...c }) => ({
             ...c,
+            ...(includeArchived === true && { archivedAt: archivedAt?.toISOString() ?? null }),
             currentFiscalYear: fiscalYears[0]
               ? { ...fiscalYears[0], startDate: day(fiscalYears[0].startDate), endDate: day(fiscalYears[0].endDate) }
               : null,
@@ -735,6 +742,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerLedgerReadTools(server, guard)
   registerCompanySettingsTools(server, guard)
   registerTransactionReadTools(server, guard)
+  registerExportTools(server, access, guard)
+  registerDocumentTools(server, guard)
+  registerCompanyLookupTools(server, access)
 
   // Full control (kledg:admin): validate, reconcile, import, close... Never
   // registered without it; each tool checks it again through the guard.

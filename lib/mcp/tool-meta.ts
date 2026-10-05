@@ -69,8 +69,13 @@ export interface ToolDescription {
   /** What the tool does and returns. */
   summary: string
   access: AccessLevel
-  /** Right(s) checked in the company, like the matching API route; 'membership' when being a member is enough. */
-  permission: Permission | readonly Permission[] | 'membership'
+  /**
+   * Right(s) checked in the company, like the matching API route; 'membership'
+   * when being a member is enough; 'company-creation' for the tools outside
+   * any company that the instance policy on company creation governs
+   * (create_company, lookup_siren).
+   */
+  permission: Permission | readonly Permission[] | 'membership' | 'company-creation'
   /** Tools with an `action` input: the rights each action needs besides `permission`, like each matching route. */
   actions?: ActionPermissions
   /** 'euros' when the tool takes or returns amounts. */
@@ -94,6 +99,9 @@ export function permissionsOfAction(actions: ActionPermissions | undefined, acti
 /** The description of a tool, in the order the guard test checks. */
 export function describeTool(d: ToolDescription): string {
   const units = [d.amounts === 'euros' ? AMOUNTS_IN_EUROS : NO_AMOUNTS, d.units].filter(Boolean).join(' ')
+  if (d.permission === 'company-creation') {
+    return `${d.summary} ${units} Access: ${LEVELS[d.access]} and the instance's company creation policy (instance administrators by default), outside any company. Never ${d.never}`
+  }
   const label = d.permission === 'membership' ? '' : permissionLabel(d.permission)
   const right = d.permission === 'membership' || !label ? 'membership of the company' : `the ${label} right${label.includes(' and ') ? 's' : ''} in the company`
   const perAction = d.actions

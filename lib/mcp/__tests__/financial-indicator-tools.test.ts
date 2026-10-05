@@ -22,7 +22,10 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/company-access')>()),
   companyGuard: () => guard,
 }))
-vi.mock('@/lib/reports/financial-indicators/get-financial-indicators.service', () => ({ getFinancialIndicators: vi.fn() }))
+vi.mock('@/lib/reports/financial-indicators/get-financial-indicators.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/reports/financial-indicators/get-financial-indicators.service')>()),
+  getFinancialIndicators: vi.fn(),
+}))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { getFinancialIndicators } from '@/lib/reports/financial-indicators/get-financial-indicators.service'

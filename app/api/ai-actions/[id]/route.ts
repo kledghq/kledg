@@ -27,7 +27,7 @@ export const POST = authedRoute({ body: DecisionSchema }, async ({ request, para
   const decided = await decideAction(user.id, params.id as string, body.decision)
   await writeAuditLog(decided.status === 'approved' ? 'info' : 'warn', `MCP action ${decided.status}: ${decided.tool}`, {
     action: decided.status === 'approved' ? 'MCP_ACTION_APPROVED' : 'MCP_ACTION_REJECTED',
-    companyId: decided.companyId,
+    companyId: decided.companyId ?? undefined,
     metadata: { actionId: decided.id, tool: decided.tool, userId: user.id },
   })
   return NextResponse.json({ id: decided.id, status: decided.status })

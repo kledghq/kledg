@@ -36,8 +36,8 @@ import { prisma } from '@/lib/prisma'
 import { writeAuditLog } from '@/lib/audit'
 import { enforceRateLimit } from '@/lib/rate-limit'
 import type { Permission } from '@/lib/rbac/authorize'
-import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
-import { json, run } from '@/lib/mcp/tool-result'
+import { FULL_CONTROL_REQUIRED_MESSAGE, type CompanyGuard, type McpAccess } from '@/lib/mcp/company-access'
+import { json, run, type ToolResult } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool, permissionsOfAction, writeAnnotations, type ActionPermissions } from '@/lib/mcp/tool-meta'
 import { ForbiddenError } from '@/lib/accounting/errors'
 import type { GroupAccess } from '@/lib/management-fees/access'
@@ -157,7 +157,7 @@ const MODE_NOTES: Record<ExecutionMode, string> = { automatic: 'mode automatique
 async function audit(
   tool: string,
   access: McpAccess,
-  companyId: string,
+  companyId: string | null,
   ids: Record<string, unknown>,
   refused?: string,
   action?: string,
@@ -167,7 +167,7 @@ async function audit(
   const mode = access.executionMode
   await writeAuditLog(refused ? 'warn' : 'info', `MCP full control${refused ? ' refused' : action ? ' pending' : ''} (${MODE_NOTES[mode]}): ${tool} by ${who}`, {
     action: action ?? (refused ? 'MCP_FULL_CONTROL_REFUSED' : 'MCP_FULL_CONTROL'),
-    companyId,
+    companyId: companyId ?? undefined,
     metadata: {
       source: 'mcp',
       tool,
@@ -256,54 +256,182 @@ export function registerFullControlTool<S extends Shape, P, R>(
           return json({ dryRun: true, preview: await tool.preview(args, ctx), nextStep: AUTOMATIC_NEXT_STEP })
         }
 
-        if (tool.confirmation && highImpact && automatic) {
-          // The user chose automatic execution for this connection: no pending
-          // action. Scope, grant, role and rate limit were checked above; the
-          // service and the database triggers keep the accounting invariants.
-          const result = await tool.execute(args, ctx)
-          if (tool.audit) await audit(tool.name, access, companyId, tool.audit(args, result))
-          return json({ executed: true, result })
-        }
-
         if (tool.confirmation && highImpact) {
-          const binding = { userId: access.user.id, caller: access.caller, tool: tool.name, companyId, args }
-          if (!actionId) {
-            const preview = await tool.preview(args, ctx)
-            const assistant = await assistantOf(access)
-            const pending = await createPendingAction(binding, preview, assistant.name)
-            await audit(tool.name, access, companyId, { actionId: pending.id }, undefined, 'MCP_FULL_CONTROL_PENDING')
-            return json({
-              dryRun: true,
-              preview,
-              actionId: pending.id,
-              approvalUrl: pending.approvalUrl,
-              expiresAt: pending.expiresAt.toISOString(),
-              nextStep: APPROVAL_NEXT_STEP,
-            })
-          }
-          try {
-            await claimApprovedAction(actionId, binding)
-          } catch (error) {
-            // Unapproved, refused, replayed, expired or tampered actions leave a trace before the refusal.
-            await audit(tool.name, access, companyId, { actionId }, error instanceof Error ? error.message : 'refused')
-            throw error
-          }
-          let result: R
-          try {
-            result = await tool.execute(args, ctx)
-          } catch (error) {
-            await finishAction(actionId, false)
-            throw error
-          }
-          await finishAction(actionId, true)
-          if (tool.audit) await audit(tool.name, access, companyId, { ...tool.audit(args, result), actionId })
-          return json({ executed: true, result })
+          const audited = tool.audit
+          return highImpactCall<P, R>({
+            access,
+            tool: tool.name,
+            companyId,
+            args,
+            actionId,
+            preview: () => tool.preview(args, ctx),
+            execute: () => tool.execute(args, ctx),
+            audit: audited && ((result: R) => audited(args, result)),
+          })
         }
 
         const result = await tool.execute(args, ctx)
         if (tool.audit) await audit(tool.name, access, companyId, tool.audit(args, result))
         // An action of a high-impact tool that is not high impact itself answers like an executed one.
         return json(tool.confirmation ? { executed: true, result } : result)
+      }),
+  )
+}
+
+interface HighImpactCall<P, R> {
+  access: McpAccess
+  tool: string
+  /** The company of the action; null for a tool outside any company (create_company). */
+  companyId: string | null
+  /** Arguments of the call, without actionId nor dryRun (bound to the pending action). */
+  args: unknown
+  actionId?: string
+  preview: () => Promise<P>
+  execute: () => Promise<R>
+  /** Main ids written to the audit log with the action. */
+  audit: ((result: R) => Record<string, unknown>) | null
+  /** The company of the audit entry once executed, when the action created it. */
+  auditCompany?: (result: R) => string | null
+}
+
+/**
+ * A high-impact action according to the connection's execution mode: at
+ * once in automatic mode (scope, grant, role and rate limit were checked by
+ * the caller), else a dry run and a pending action the user approves in
+ * Kledg, executed once when called again with its actionId.
+ */
+async function highImpactCall<P, R>(call: HighImpactCall<P, R>): Promise<ToolResult> {
+  const { access, tool, companyId } = call
+  const auditCompany = (result: R) => call.auditCompany?.(result) ?? companyId
+  if (access.executionMode === 'automatic') {
+    // The user chose automatic execution for this connection: no pending
+    // action. The service and the database triggers keep the accounting invariants.
+    const result = await call.execute()
+    if (call.audit) await audit(tool, access, auditCompany(result), call.audit(result))
+    return json({ executed: true, result })
+  }
+
+  const binding = { userId: access.user.id, caller: access.caller, tool, companyId, args: call.args }
+  if (!call.actionId) {
+    const preview = await call.preview()
+    const assistant = await assistantOf(access)
+    const pending = await createPendingAction(binding, preview, assistant.name)
+    await audit(tool, access, companyId, { actionId: pending.id }, undefined, 'MCP_FULL_CONTROL_PENDING')
+    return json({
+      dryRun: true,
+      preview,
+      actionId: pending.id,
+      approvalUrl: pending.approvalUrl,
+      expiresAt: pending.expiresAt.toISOString(),
+      nextStep: APPROVAL_NEXT_STEP,
+    })
+  }
+  const actionId = call.actionId
+  try {
+    await claimApprovedAction(actionId, binding)
+  } catch (error) {
+    // Unapproved, refused, replayed, expired or tampered actions leave a trace before the refusal.
+    await audit(tool, access, companyId, { actionId }, error instanceof Error ? error.message : 'refused')
+    throw error
+  }
+  let result: R
+  try {
+    result = await call.execute()
+  } catch (error) {
+    await finishAction(actionId, false)
+    throw error
+  }
+  await finishAction(actionId, true)
+  if (call.audit) await audit(tool, access, auditCompany(result), { ...call.audit(result), actionId })
+  return json({ executed: true, result })
+}
+
+export const ALL_COMPANIES_REQUIRED_MESSAGE =
+  "Cette connexion est limitée à certaines sociétés\u00a0: une société créée lui resterait inaccessible. Créez la société dans Kledg, ou utilisez une connexion autorisée sur toutes vos sociétés."
+
+/**
+ * A full control tool acting outside any company: creating one
+ * (create_company). Always high impact (the execution mode applies).
+ */
+export interface InstanceTool<S extends Shape, P, R> {
+  name: string
+  title: string
+  /** What the tool does; contains TWO_STEP (replaced per mode). */
+  description: string
+  input: S
+  /** The right the tool needs: the instance policy on company creation. */
+  permission: 'company-creation'
+  amounts: 'euros' | 'none'
+  units?: string
+  never: string
+  destructive?: boolean
+  idempotent?: boolean
+  /** Dry run: exactly what `execute` would do, without writing (with the policy checks). */
+  preview: (args: z.infer<z.ZodObject<S>>, access: McpAccess) => Promise<P>
+  execute: (args: z.infer<z.ZodObject<S>>, access: McpAccess) => Promise<R>
+  /** The company of the audit entry (the created one) and the main ids. */
+  audit: (args: z.infer<z.ZodObject<S>>, result: R) => { companyId: string | null; ids: Record<string, unknown> }
+}
+
+/** Declares an instance tool (identity, for type inference). */
+export function instanceTool<S extends Shape, P, R>(tool: InstanceTool<S, P, R>): InstanceTool<S, P, R> {
+  return tool
+}
+
+/**
+ * Registers a tool acting outside any company. On each call: 403 without
+ * kledg:admin; 403 for a connection limited to some companies (the grant
+ * names companies, it cannot name one that does not exist yet, and row
+ * level security would hide the new company from it), so only a connection
+ * granted every company of the user acts, and the new company is in its
+ * grant from the start; the rate limit of full control; then the execution
+ * mode, like every high-impact tool (pending action without company).
+ */
+export function registerInstanceTool<S extends Shape, P, R>(
+  server: McpServer,
+  access: McpAccess,
+  guard: CompanyGuard,
+  tool: InstanceTool<S, P, R>,
+): void {
+  const mode = access.executionMode
+  const automatic = mode === 'automatic'
+  const inputSchema = z.object(tool.input).extend(automatic ? dryRunFields : confirmFields)
+  server.registerTool(
+    tool.name,
+    {
+      title: tool.title,
+      description: describeTool({
+        summary: tool.description.replace(TWO_STEP, stepFor(mode)),
+        access: 'admin',
+        permission: tool.permission,
+        amounts: tool.amounts,
+        units: tool.units,
+        never: tool.never,
+      }),
+      inputSchema,
+      annotations: writeAnnotations({ destructive: tool.destructive ?? false, idempotent: tool.idempotent ?? false }),
+    },
+    (raw: unknown) =>
+      run(async () => {
+        const { actionId, dryRun, ...rest } = inputSchema.parse(raw) as z.infer<z.ZodObject<S>> & { actionId?: string; dryRun?: boolean }
+        const args = rest as z.infer<z.ZodObject<S>>
+        if (!access.canAdmin) throw new ForbiddenError(FULL_CONTROL_REQUIRED_MESSAGE)
+        if ((await guard.companyIds()) !== null) throw new ForbiddenError(ALL_COMPANIES_REQUIRED_MESSAGE)
+        await limitFullControl(access.user.id)
+        if (automatic && dryRun) {
+          return json({ dryRun: true, preview: await tool.preview(args, access), nextStep: AUTOMATIC_NEXT_STEP })
+        }
+        return highImpactCall({
+          access,
+          tool: tool.name,
+          companyId: null,
+          args,
+          actionId,
+          preview: () => tool.preview(args, access),
+          execute: () => tool.execute(args, access),
+          audit: (result) => tool.audit(args, result).ids,
+          auditCompany: (result) => tool.audit(args, result).companyId,
+        })
       }),
   )
 }

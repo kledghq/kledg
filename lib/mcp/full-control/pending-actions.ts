@@ -63,7 +63,8 @@ export interface ActionBinding {
   userId: string
   caller: McpCaller
   tool: string
-  companyId: string
+  /** The company of the action; null for a tool outside any company (create_company). */
+  companyId: string | null
   /** Arguments of the call, without actionId. */
   args: unknown
 }
@@ -156,10 +157,13 @@ export async function finishAction(actionId: string, ok: boolean): Promise<void>
   })
 }
 
+/** Shown instead of a company name for an action outside any company (create_company). */
+export const NO_COMPANY_LABEL = 'Nouvelle société'
+
 export interface PendingActionView {
   id: string
   tool: string
-  companyId: string
+  companyId: string | null
   companyName: string
   callerName: string | null
   args: unknown
@@ -183,7 +187,7 @@ export async function listActionsOfUser(userId: string, now: Date = new Date()):
     id: row.id,
     tool: row.tool,
     companyId: row.companyId,
-    companyName: row.company.name,
+    companyName: row.company?.name ?? NO_COMPANY_LABEL,
     callerName: row.callerName,
     args: row.args,
     preview: row.preview,
@@ -205,7 +209,7 @@ export async function decideAction(
   actionId: string,
   decision: 'approve' | 'reject',
   now: Date = new Date(),
-): Promise<{ id: string; tool: string; companyId: string; status: 'approved' | 'rejected' }> {
+): Promise<{ id: string; tool: string; companyId: string | null; status: 'approved' | 'rejected' }> {
   const row = await prisma.mcpPendingAction.findFirst({ where: { id: actionId, userId } })
   if (!row) throw new NotFoundError('Action introuvable')
   if (row.status !== 'pending') throw new ConflictError('Cette action a déjà été traitée.')
