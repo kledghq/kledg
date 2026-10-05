@@ -65,10 +65,11 @@ const SLOT = 'min-h-28'
  * projection never delays the page. A skeleton of the same height holds its
  * place meanwhile. Then the alert when the projection crosses the saved
  * threshold, a line saying it stays above, or (no threshold) an invitation
- * to look at the forecast and set one. Nothing for a member who may not
- * read the bank.
+ * to look at the forecast and set one, unless `invite` is false (the
+ * dashboard shows it only to who may set the threshold). Nothing for a
+ * member who may not read the bank.
  */
-export function CashForecastStatusCard({ companyId, mode, href }: { companyId: string; mode: ForecastMode; href: string }) {
+export function CashForecastStatusCard({ companyId, mode, href, invite = true }: { companyId: string; mode: ForecastMode; href: string; invite?: boolean }) {
   const access = useCompanyAccess()
   const allowed = access.can(CASH_FORECAST_PERMISSION)
   const [state, setState] = React.useState<StatusState>({ status: 'loading' })
@@ -95,6 +96,7 @@ export function CashForecastStatusCard({ companyId, mode, href }: { companyId: s
     return <CashForecastAlertCard alert={state.data.alert} mode={mode} href={href} className={SLOT} />
   }
   const above = state.status === 'ready' && state.data.thresholdCents !== null
+  if (state.status === 'ready' && !above && !invite) return null
   const Icon = above ? CircleCheck : TrendingUp
   const sentence =
     state.status === 'error'

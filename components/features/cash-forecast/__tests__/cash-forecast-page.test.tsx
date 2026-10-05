@@ -209,6 +209,18 @@ describe('cash forecast status card', () => {
     expect(within(invite).getByRole('link', { name: 'Voir le détail' })).toHaveAttribute('href', '/atelier-lumen/prevision-tresorerie')
   })
 
+  it('shows no invitation without a threshold to a member who may not set it (dashboard), but keeps the alert and the above line', async () => {
+    vi.stubGlobal('fetch', answer({ thresholdCents: null, horizonMonths: 6, alert: null }))
+    const none = render(<CashForecastStatusCard companyId="acme" mode="expert" href="/acme/prevision-tresorerie" invite={false} />)
+    await waitFor(() => expect(none.container.querySelector('[aria-busy="true"]')).toBeNull())
+    expect(none.container).toBeEmptyDOMElement()
+    none.unmount()
+
+    vi.stubGlobal('fetch', answer({ thresholdCents: 500_000, horizonMonths: 6, alert: null }))
+    render(<CashForecastStatusCard companyId="acme" mode="expert" href="/acme/prevision-tresorerie" invite={false} />)
+    expect(await screen.findByRole('region', { name: 'Prévision de trésorerie' })).toBeInTheDocument()
+  })
+
   it('renders nothing, and asks nothing, for a member who may not read the bank', () => {
     const fetchMock = answer({ thresholdCents: null, horizonMonths: 6, alert: null })
     vi.stubGlobal('fetch', fetchMock)
