@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Copy } from 'lucide-react'
+import { Copy, Info } from 'lucide-react'
 import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -20,8 +21,13 @@ function CopyLine({ value }: { value: string }) {
         variant="ghost"
         aria-label="Copier"
         onClick={async () => {
-          await navigator.clipboard.writeText(value)
-          toast.success('Copié')
+          try {
+            await navigator.clipboard.writeText(value)
+            toast.success('Copié')
+          } catch {
+            // Refused outside HTTPS or by the browser: the text stays selectable
+            toast.error('Copie impossible dans ce navigateur\u00a0: sélectionnez le texte puis copiez-le.')
+          }
         }}
       >
         <Copy aria-hidden />
@@ -30,11 +36,34 @@ function CopyLine({ value }: { value: string }) {
   )
 }
 
+/**
+ * An address only this computer or its network can reach: claude.ai and
+ * ChatGPT connect from the internet, so they cannot use it.
+ */
+export function isLocalOrigin(origin: string): boolean {
+  let host: string
+  try {
+    host = new URL(origin).hostname
+  } catch {
+    return false
+  }
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host === '[::1]' ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  )
+}
+
 function TabLabel({ children, connected }: { children: React.ReactNode; connected: boolean }) {
   return (
     <span className="flex items-center gap-1.5">
       {children}
-      {connected && <span aria-label="connecté" className="bg-success size-1.5 rounded-full" />}
+      {connected && <span role="img" aria-label="connecté" className="bg-success size-1.5 rounded-full" />}
     </span>
   )
 }
@@ -81,6 +110,16 @@ export function McpConnectCard({
           <div className="text-sm font-medium">URL du serveur MCP</div>
           <CopyLine value={url} />
         </div>
+        {origin && isLocalOrigin(origin) ? (
+          <Alert role="note">
+            <Info aria-hidden />
+            <AlertTitle>Adresse locale</AlertTitle>
+            <AlertDescription>
+              Claude et ChatGPT se connectent depuis internet et ne peuvent pas joindre cette adresse. Ouvrez Kledg à
+              son adresse publique pour les connecter, ou utilisez Claude Code sur cet ordinateur.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <Tabs defaultValue="claude">
           <TabsList>
             <TabsTrigger value="claude">
@@ -120,7 +159,7 @@ export function McpConnectCard({
                 Aucun en-tête n&apos;est nécessaire.
               </li>
               <li>
-                Cliquez sur <strong>Ajouter</strong> : Claude ouvre Kledg. Connectez-vous et choisissez
+                Cliquez sur <strong>Ajouter</strong>&nbsp;: Claude ouvre Kledg. Connectez-vous et choisissez
                 l&apos;accès&nbsp;: lecture seule, lecture et brouillons d&apos;écritures (par défaut), ou contrôle total.
               </li>
             </ol>
@@ -131,18 +170,27 @@ export function McpConnectCard({
           </TabsContent>
           <TabsContent value="chatgpt" className="text-muted-foreground space-y-3 pt-2 text-sm">
             {chatgpt && <Connected label="ChatGPT est connecté" />}
-            <p>
-              Dans ChatGPT, ouvrez <strong>Paramètres, Applications et connecteurs</strong>, créez un
-              connecteur avec l&apos;URL ci-dessus et l&apos;authentification <strong>OAuth</strong>.
-              ChatGPT vous redirige vers Kledg pour choisir l&apos;accès&nbsp;: lecture seule, lecture et brouillons
-              d&apos;écritures (par défaut), ou contrôle total.
-            </p>
+            <p>Dans ChatGPT&nbsp;:</p>
+            <ol className="list-decimal space-y-1.5 pl-5">
+              <li>
+                Ouvrez <strong>Paramètres</strong>, puis <strong>Applications et connecteurs</strong>.
+              </li>
+              <li>
+                Créez un connecteur nommé <strong>Kledg</strong> avec l&apos;URL ci-dessus et l&apos;authentification{' '}
+                <strong>OAuth</strong>.
+              </li>
+              <li>
+                ChatGPT ouvre Kledg. Connectez-vous et choisissez l&apos;accès&nbsp;: lecture seule, lecture et
+                brouillons d&apos;écritures (par défaut), ou contrôle total.
+              </li>
+            </ol>
+            <p>ChatGPT apparaît ensuite dans les assistants autorisés ci-dessous.</p>
           </TabsContent>
           <TabsContent value="claude-code" className="text-muted-foreground space-y-3 pt-2 text-sm">
             {claudeCode && <Connected label={hasApiKey ? 'Clé API active' : 'Claude Code est connecté'} />}
             <p>
               Créez une clé API sur la page{' '}
-              <Link href="/settings/api-keys" className="text-foreground font-medium underline underline-offset-4">
+              <Link href="/settings/api-keys" className="text-link underline-offset-4 hover:underline">
                 Clés API
               </Link>
               , puis lancez&nbsp;:
