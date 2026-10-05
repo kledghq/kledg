@@ -420,7 +420,8 @@ describe.skipIf(!available)('depreciation entries', () => {
     })
     expect(entry.journal.code).toBe('OD')
     expect(entry.date.toISOString()).toBe('2025-12-31T00:00:00.000Z')
-    expect(entry.lines.map((l) => [l.account.code, Number(l.debit), Number(l.credit)])).toEqual([
+    // Lines are read without an order (createMany gives them the same createdAt): debit first
+    expect(entry.lines.map((l) => [l.account.code, Number(l.debit), Number(l.credit)]).sort((x, y) => Number(y[1]) - Number(x[1]))).toEqual([
       ['6811', 368, 0],
       ['28183', 0, 368],
     ])
