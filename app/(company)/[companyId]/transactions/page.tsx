@@ -113,6 +113,22 @@ export default function TransactionsPage() {
     }
   }, [companyId, accountsVersion])
 
+  // The bank sync only makes sense for a connected bank: accounts fed by statement files have nothing to sync
+  const [hasApiConnection, setHasApiConnection] = useState(false)
+  useEffect(() => {
+    if (!companyId) return
+    let cancelled = false
+    fetch(`/api/banking/connections?companyId=${companyId}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { connections?: Array<{ provider: string; integration?: unknown }> } | null) => {
+        if (!cancelled && data) setHasApiConnection((data.connections ?? []).some((c) => c.provider !== 'MANUAL' && Boolean(c.integration)))
+      })
+      .catch((error) => logger.error('Error loading bank connections:', error))
+    return () => {
+      cancelled = true
+    }
+  }, [companyId])
+
   useEffect(() => {
     if (!companyId) return
     // Values offered by the category filters (distinct provider categories)
@@ -174,24 +190,26 @@ export default function TransactionsPage() {
         description="Les opérations de vos comptes bancaires, à rapprocher avec les écritures."
         docsHref={docsUrl('bankReconciliation')}
         actions={
-          <>
-            <Label htmlFor="sync-period" className="sr-only">
-              Période à synchroniser
-            </Label>
-            <Select value={syncDays} onValueChange={setSyncDays} disabled={syncing}>
-              <SelectTrigger id="sync-period" className="w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SYNC_PERIODS.map((period) => (
-                  <SelectItem key={period.days} value={period.days}>
-                    {period.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <SyncButton syncing={syncing} onClick={handleSync} />
-          </>
+          hasApiConnection ? (
+            <>
+              <Label htmlFor="sync-period" className="sr-only">
+                Période à synchroniser
+              </Label>
+              <Select value={syncDays} onValueChange={setSyncDays} disabled={syncing}>
+                <SelectTrigger id="sync-period" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SYNC_PERIODS.map((period) => (
+                    <SelectItem key={period.days} value={period.days}>
+                      {period.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <SyncButton syncing={syncing} onClick={handleSync} />
+            </>
+          ) : undefined
         }
       />
 
