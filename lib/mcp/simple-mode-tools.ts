@@ -26,7 +26,7 @@ export function registerSimpleModeReadTools(server: McpServer, guard: CompanyGua
       title: 'Dépenses à vérifier',
       description: describeTool({
         summary:
-          "Lists the company's bank transactions not reconciled yet (simple mode, \"Dépenses à vérifier\" for money out, side debit, the default; \"Recettes à vérifier\" for money in, side credit), latest first. For money in, Kledg first looks for the open sales invoice the credit pays (amount at most what is left to pay, invoice number, customer SIREN or name in the label): suggestion.invoice gives it (invoiceId, number, customer, amount left to pay in euros, partial payment or not), with source invoice. Otherwise each line has the category Kledg proposes from its plain language catalogue: categoryId and label, the transaction rule when one matches (ruleId), confidence (high, medium or low; low means no category, the line is to classify), the source (invoice, rule, history of the same counterparty, built-in French payee dictionary, label keyword, partner of the company, known customer, bank category) and the reason in French, the question to answer first when the category needs one (fixed asset above 500 € HT, meal guests, vehicle type, rent VAT, VAT rate of a sale, money from a partner: loan to the company, capital increase or sale) with its answer ids, whether it can be confirmed without anything else (bulkConfirmable), whether a receipt is attached, and why it cannot be confirmed yet (no open fiscal year). Kledg never invents a category: a payee it recognises without knowing what was bought stays to classify with a hint.",
+          "Lists the company's bank transactions not reconciled yet (simple mode, \"Dépenses à vérifier\" for money out, side debit, the default; \"Recettes à vérifier\" for money in, side credit), latest first. For money in, Kledg first looks for the open sales invoice the credit pays (amount at most what is left to pay, invoice number, customer SIREN or name in the label): suggestion.invoice gives it (invoiceId, number, customer, amount left to pay in euros, partial payment or not), with source invoice. Otherwise each line has the category Kledg proposes from its plain language catalogue: categoryId and label, the transaction rule when one matches (ruleId), confidence (high, medium or low; low means no category, the line is to classify), the source (invoice, rule, history of the same counterparty, built-in French payee dictionary, label keyword, partner of the company, known customer, bank category) and the reason in French, the question to answer first when the category needs one (fixed asset above 500 € HT, meal guests, vehicle type, rent VAT, VAT rate of a sale, money from a partner: loan to the company, capital increase or sale) with its answer ids, whether it can be confirmed without anything else (bulkConfirmable), whether a receipt is attached, and why it cannot be confirmed yet (no open fiscal year). Kledg never invents a category: a payee it recognises without knowing what was bought stays to classify with a hint. mealRule (split, unknown, none) tells whether a meal alone on that day is split: for a company taxed at the impôt sur le revenu, the meal-guests answer alone (the exploitant or an associé) books only the frais supplémentaires to 6256 and the rest to 62568, to add back (BOI-BNC-BASE-40-60-60), alone-employee keeps it whole; mealRuleExplanation says how the profits are taxed.",
         access: 'read',
         permission: { banking: ['read'] },
         amounts: 'euros',
@@ -46,6 +46,7 @@ export function registerSimpleModeReadTools(server: McpServer, guard: CompanyGua
         const list = await listExpensesToReview(args.companyId, { side: args.side, limit: args.limit })
         return json({
           count: list.count,
+          mealRuleExplanation: list.mealRuleExplanation,
           expenses: list.items.map((item) => {
             const s = item.suggestion
             return {
@@ -74,6 +75,7 @@ export function registerSimpleModeReadTools(server: McpServer, guard: CompanyGua
               },
               hasReceipt: item.hasReceipt,
               blockedReason: item.blockedReason,
+              mealRule: item.mealRule,
             }
           }),
         })

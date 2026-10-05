@@ -61,6 +61,34 @@ Règles appliquées dans cet ordre, la première qui s'applique décide (`lib/ex
 
 La TVA non récupérée fait partie de la charge de la ligne. L'éditeur affiche la règle appliquée sous chaque ligne.
 
+### Repas de l'exploitant (société à l'impôt sur le revenu)
+
+Quand le bénéfice est imposé à l'impôt sur le revenu de l'exploitant ou des associés (BIC ou BNC), le repas qu'un exploitant ou un associé prend **seul** parce que la distance l'empêche de déjeuner chez lui n'est déductible que pour ses **frais supplémentaires** : la part au-delà de la valeur d'un repas pris au domicile, et jusqu'à la limite au-delà de laquelle la dépense est excessive (BOI-BNC-BASE-40-60-60, § 60 à 170 ; étendu aux BIC par les actualités ACTU-2025-00025 et ACTU-2026-00008). La part jusqu'à la valeur du repas au domicile est une dépense personnelle, la part au-delà de la limite aussi (§ 160), sauf circonstances exceptionnelles (§ 150) que le comptable apprécie.
+
+Seuils TTC par année civile du repas (`MEAL_THRESHOLDS`, `lib/expense-reports/exploitant-meals.ts`) :
+
+| Année | Repas au domicile (§ 130) | Limite (§ 140) | Déductible au plus par repas | Source |
+| --- | --- | --- | --- | --- |
+| 2022 | 5,00 € | 19,40 € | 14,40 € | [BOI-BNC-BASE-40-60-60 du 09/02/2022](https://bofip.impots.gouv.fr/bofip/4628-PGP.html/identifiant=BOI-BNC-BASE-40-60-60-20220209) |
+| 2023 | 5,20 € | 20,20 € | 15,00 € | [BOI-BNC-BASE-40-60-60 du 25/01/2023](https://bofip.impots.gouv.fr/bofip/4628-PGP.html/identifiant=BOI-BNC-BASE-40-60-60-20230125) |
+| 2024 | 5,35 € | 20,70 € | 15,35 € | [BOI-BNC-BASE-40-60-60 du 17/01/2024](https://bofip.impots.gouv.fr/bofip/4628-PGP.html/identifiant=BOI-BNC-BASE-40-60-60-20240117) |
+| 2025 | 5,45 € | 21,10 € | 15,65 € | [BOI-BNC-BASE-40-60-60 du 19/02/2025](https://bofip.impots.gouv.fr/bofip/4628-PGP.html/identifiant=BOI-BNC-BASE-40-60-60-20250219), [ACTU-2025-00025](https://bofip.impots.gouv.fr/bofip/14587-PGP.html/ACTU-2025-00025) |
+| 2026 | 5,50 € | 21,40 € | 15,90 € | [BOI-BNC-BASE-40-60-60 du 18/02/2026](https://bofip.impots.gouv.fr/bofip/4628-PGP.html/identifiant=BOI-BNC-BASE-40-60-60-20260218), [ACTU-2026-00008](https://bofip.impots.gouv.fr/bofip/14932-PGP.html/ACTU-2026-00008) |
+
+Une année sans valeurs connues de Kledg prend les dernières connues (les premières pour une année antérieure à 2022), et l'explication le signale. Chaque année, ajoutez la ligne de l'année avec sa source et un test.
+
+**Calcul**, par repas : part déductible TTC = min(max(TTC - repas au domicile, 0), limite - repas au domicile), le reste n'est pas déductible. Exemple du § 170 en 2026 : 25 € donnent 15,90 € déductibles et 9,10 € non déductibles. La TVA ne change pas (règles de la section TVA récupérable). Quand la TVA est récupérée, la charge est le TTC moins cette TVA, et la part non déductible de la charge est la même proportion du montant payé, arrondie au centime le plus proche : 25 € à 10 % (charge 22,73 €) donnent 14,46 € sur 6256 et 8,27 € sur 62568. Sans TVA récupérée, le partage est exactement celui du BOFiP.
+
+**Comptes** : la part déductible reste sur le compte de la ligne (6256 Missions), la part non déductible va au compte **62568 « Repas de l'exploitant, part non déductible »**, sous-compte de 6256 créé dans le plan de l'exercice s'il manque (complété de zéros à la longueur du compte de la ligne, 625680 pour un plan à six chiffres ; un compte déjà présent sous 62568 est repris). Son solde est la somme à **réintégrer** sur la déclaration de résultat : ligne **316** « Rémunérations et avantages personnels non déductibles » du tableau 2033-B-SD (régime simplifié, notice 2033-NOT-SD 2026 : « dépenses personnelles ... comptabilisées en charges ») ou ligne **WD** « Avantages personnels non déductibles » du 2058-A-SD (régime normal), liasse jointe à la 2031-SD. Kledg ne prépare pas la 2031-SD : le comptable reporte le solde de 62568.
+
+**Qui est concerné** :
+
+- **La société** : son imposition des bénéfices au jour du repas (`lib/companies/profit-taxation.ts`). Kledg lit d'abord le régime d'imposition des bénéfices des régimes fiscaux (Informations, Régimes fiscaux, type « Impôt sur les sociétés » : régime normal ou simplifié pour l'IS, micro-société, ou **Impôt sur le revenu (pas d'IS)**, valeur `income_tax`), à défaut le champ de la société, puis la forme juridique : EI, SNC, SCS et SCI à l'impôt sur le revenu (CGI art. 8) ; EURL et SELARL dont l'associé unique est une personne physique à l'impôt sur le revenu (CGI art. 8, 4°), une personne morale à l'IS ; SARL, SAS, SASU, SA, SELAS et SCA à l'IS (CGI art. 206, 1). Une SARL de famille (CGI art. 239 bis AA) ou une option temporaire (art. 239 bis AB) s'enregistre en « Impôt sur le revenu » dans les régimes fiscaux. Une EURL sans associé enregistré, ou une société sans forme ni régime, est **inconnue** : rien n'est partagé et l'éditeur, la fiche et l'outil MCP disent de renseigner le régime. Une société à l'IS ou au régime micro (charges réelles non déduites) n'est pas concernée.
+- **Le bénéficiaire** : un associé (genre Associé, ou une personne liée qui figure parmi les associés personnes physiques), ou le dirigeant d'un entrepreneur individuel, est l'exploitant ; un salarié lié à une personne ou un dirigeant non associé suit les règles des salariés (repas entièrement déductible). Le bénéficiaire créé automatiquement à la première note d'un membre (salarié par défaut, sans personne liée) ne dit rien : chaque repas en déplacement demande alors **« Qui a pris ce repas ? »** (l'exploitant ou un associé, ou un salarié), réponse enregistrée sur la ligne (`expense_lines.mealTaker`, migration `20261119090000_expense_meal_taker`). Comptabiliser une note dont un repas n'a pas de réponse est refusé avec le numéro de la ligne.
+- **La dépense** : la catégorie Repas en déplacement seulement. Les repas d'affaires (6257) et les autres catégories ne changent pas.
+
+L'éditeur affiche sous chaque repas la part déductible, la part non déductible, les seuils de l'année et le lien vers la source (`GET /api/expense-reports/meal-rule?companyId=&claimantId=&day=`, droit `expenses:submit`, un membre qui ne valide pas ne lit que son propre bénéficiaire) ; la fiche de la note (`GET /api/expense-reports/[id]`, champs `lines[].meal` et `mealRule`) et la comptabilisation recalculent tout sur le serveur, à la date de chaque repas.
+
 ### Indemnités kilométriques
 
 Barème forfaitaire fixé par arrêté, appliqué par l'URSSAF (une indemnité dans la limite du barème est exonérée de cotisations) et versionné par année dans `lib/expense-reports/mileage-scale.ts` :
@@ -106,6 +134,7 @@ Une écriture en brouillon, par le chemin unique de création des écritures (`c
 | Compte | Débit | Crédit |
 | --- | --- | --- |
 | Compte de charge de chaque ligne | TTC moins la TVA récupérable | |
+| 62568 Repas de l'exploitant, part non déductible (société à l'impôt sur le revenu) | part non déductible d'un repas seul de l'exploitant | |
 | 44566 TVA sur autres biens et services, par taux | TVA récupérable | |
 | Compte du bénéficiaire (421, 455, 467 ou le sien), avec son compte auxiliaire | | Total à rembourser |
 
@@ -139,7 +168,7 @@ Un remboursement payé par Qonto arrive comme une transaction bancaire : rappro
 
 - `list_expense_reports`, `get_expense_report` : lecture, droit `entries:read` dans la société et la société autorisée pour la connexion, puis les notes que le rôle de l'utilisateur lui montre.
 - `list_expense_claimants` : les bénéficiaires (identifiant, compte auxiliaire) que le rôle de l'utilisateur lui montre, droit `entries:read`.
-- `create_draft_expense_report` (lecture et brouillons, `kledg:write`, droit `expenses:submit` comme `POST /api/expense-reports`) : crée une note en brouillon à partir de justificatifs (dépenses avec montant payé en euros, taux, TVA et éventuellement l'identifiant d'une pièce Qonto de la société) et de trajets, pour l'utilisateur ou, s'il valide les notes, pour un autre bénéficiaire. `dryRun: true` montre les totaux et la TVA récupérée par ligne sans rien enregistrer. La note reste un brouillon : la personne la soumet, un valideur la valide et la comptabilise dans Kledg. La réponse donne le lien `reviewUrl` vers la note. Cet outil demandait auparavant le contrôle total.
+- `create_draft_expense_report` (lecture et brouillons, `kledg:write`, droit `expenses:submit` comme `POST /api/expense-reports`) : crée une note en brouillon à partir de justificatifs (dépenses avec montant payé en euros, taux, TVA et éventuellement l'identifiant d'une pièce Qonto de la société) et de trajets, pour l'utilisateur ou, s'il valide les notes, pour un autre bénéficiaire. `dryRun: true` montre les totaux et la TVA récupérée par ligne sans rien enregistrer. Pour une société à l'impôt sur le revenu, chaque repas en déplacement porte `meal` (parts déductible et non déductible, seuils de l'année, source ; `status: ask` quand il faut préciser `mealTaker`, EXPLOITANT ou EMPLOYEE) ; `get_expense_report` donne le même `meal` par ligne et `mealRule`. La note reste un brouillon : la personne la soumet, un valideur la valide et la comptabilise dans Kledg. La réponse donne le lien `reviewUrl` vers la note. Cet outil demandait auparavant le contrôle total.
 
 ## Limites
 
@@ -148,3 +177,4 @@ Un remboursement payé par Qonto arrive comme une transaction bancaire : rappro
 - Pas d'avance sur frais ni de lettrage partiel : un remboursement partiel attend d'être complété pour lettrer la note.
 - La limite des cadeaux (73 € TTC par bénéficiaire et par an) est vérifiée par ligne, pas sur l'année.
 - Le cumul kilométrique de l'année compte les notes saisies dans Kledg : des trajets remboursés hors de Kledg dans l'année ne sont pas connus.
+- Repas de l'exploitant : les circonstances exceptionnelles qui justifieraient une dépense au-delà de la limite (BOI-BNC-BASE-40-60-60, § 150) ne sont pas saisies ; le comptable les apprécie et corrige l'écriture. Les seuils ne s'appliquent qu'au compte 62568 : Kledg ne prépare pas la 2031-SD ni la 2035-SD.

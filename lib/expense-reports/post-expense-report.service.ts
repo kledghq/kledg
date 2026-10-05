@@ -13,6 +13,14 @@
  * | 44566 TVA sur autres biens et services, per rate | recoverable VAT | |
  * | Claimant account (421, 455, 467 or its own), with its auxiliary number | | what the report owes |
  *
+ * Meals of the exploitant (exploitant-meals.ts, BOI-BNC-BASE-40-60-60): at a
+ * company taxed at the impôt sur le revenu, a meal alone (MEALS) of the
+ * exploitant or an associé is split: the deductible part (the frais
+ * supplémentaires) on the line's account, the rest on 62568 "Repas de
+ * l'exploitant, part non déductible" (created in the year's chart when
+ * missing), whose balance is added back on the return. A meal whose taker
+ * is unknown is refused until the line says it.
+ *
  * Invariants owned here:
  * - only a validated report posts, once: its row is locked and its entryId
  *   checked under the lock;
@@ -38,7 +46,8 @@ import { accountByRoot, accountsByCode } from '@/lib/invoices/ledger-accounts'
 import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { EXPENSE_CATEGORIES, type ExpenseCategory } from './categories'
-import { lockExpenseReport, REPORT_NOT_FOUND } from './manage-expense-reports.service'
+import { lockExpenseReport, reportMealRule, REPORT_NOT_FOUND } from './manage-expense-reports.service'
+import { nonDeductibleMealsAccount } from './meal-rule.service'
 import { DEFAULT_CLAIMANT_ACCOUNT } from './status'
 
 /** Journals tried in order: a dedicated NDF journal, else miscellaneous operations. */
@@ -81,10 +90,22 @@ export async function postExpenseReport(companyId: string, reportId: string, opt
         label: true,
         periodEnd: true,
         totalInclTax: true,
-        claimant: { select: { name: true, kind: true, accountCode: true, auxiliaryAccountNumber: true } },
+        claimant: { select: { name: true, kind: true, accountCode: true, auxiliaryAccountNumber: true, personId: true } },
         lines: {
           orderBy: { position: 'asc' },
-          select: { position: true, date: true, label: true, supplierName: true, category: true, accountCode: true, amountInclTax: true, vatRateBp: true, recoverableVat: true },
+          select: {
+            position: true,
+            kind: true,
+            date: true,
+            label: true,
+            supplierName: true,
+            category: true,
+            accountCode: true,
+            amountInclTax: true,
+            vatRateBp: true,
+            recoverableVat: true,
+            mealTaker: true,
+          },
         },
       },
     })
@@ -112,7 +133,7 @@ export async function postExpenseReport(companyId: string, reportId: string, opt
     // Accounts of that year's chart: a code typed on the line is taken as is, a category's default by its PCG root.
     const typed = report.lines.filter((l) => l.accountCode).map((l) => l.accountCode as string)
     const byCode = await accountsByCode(tx, companyId, fiscalYear, typed)
-    const byRoot = new Map<string, { id: string }>()
+    const byRoot = new Map<string, { id: string; code: string }>()
     const lineAccount = async (line: (typeof report.lines)[number]) => {
       if (line.accountCode) return byCode.get(line.accountCode)!
       const definition = EXPENSE_CATEGORIES[line.category as ExpenseCategory]
@@ -124,18 +145,38 @@ export async function postExpenseReport(companyId: string, reportId: string, opt
       ? (await accountsByCode(tx, companyId, fiscalYear, [report.claimant.accountCode])).get(report.claimant.accountCode)!
       : await accountByRoot(tx, companyId, fiscalYear, DEFAULT_CLAIMANT_ACCOUNT[report.claimant.kind].root, DEFAULT_CLAIMANT_ACCOUNT[report.claimant.kind].label, PURPOSE)
 
+    const meals = await reportMealRule(tx, companyId, report)
+    const unanswered = report.lines.filter((_, i) => meals.lines[i]?.status === 'ask')
+    if (unanswered.length > 0) {
+      throw new ValidationError(
+        `${unanswered.map((l) => `Ligne ${l.position}`).join(', ')} : indiquez qui a pris ce repas (l’exploitant ou un associé, ou un salarié). La société est imposée à l’impôt sur le revenu : le repas de l’exploitant n’est déductible que pour ses frais supplémentaires.`,
+      )
+    }
+
     const description = `Note de frais ${report.number} ${report.claimant.name}`.slice(0, 250)
     const planned: PlannedLine[] = []
     const vatByRate = new Map<number, number>()
-    for (const line of report.lines) {
+    for (const [index, line] of report.lines.entries()) {
       const recoverable = cents(line.recoverableVat)
       const expense = cents(line.amountInclTax) - recoverable
-      if (expense > 0) {
+      const lineDescription = [line.label, line.supplierName].filter(Boolean).join(', ')
+      const split = meals.lines[index]?.status === 'split' ? meals.lines[index]!.split! : null
+      if (split && split.nonDeductibleCents > 0) {
+        const account = await lineAccount(line)
+        if (split.deductibleCents > 0) planned.push({ accountId: account.id, debitCents: split.deductibleCents, creditCents: 0, description: lineDescription.slice(0, 250) })
+        const nonDeductible = await nonDeductibleMealsAccount(tx, companyId, fiscalYear.id, account.code)
+        planned.push({
+          accountId: nonDeductible.id,
+          debitCents: split.nonDeductibleCents,
+          creditCents: 0,
+          description: `${lineDescription}, part non déductible (repas de l’exploitant)`.slice(0, 250),
+        })
+      } else if (expense > 0) {
         planned.push({
           accountId: (await lineAccount(line)).id,
           debitCents: expense,
           creditCents: 0,
-          description: [line.label, line.supplierName].filter(Boolean).join(', ').slice(0, 250),
+          description: lineDescription.slice(0, 250),
         })
       }
       if (recoverable > 0) vatByRate.set(line.vatRateBp, (vatByRate.get(line.vatRateBp) ?? 0) + recoverable)

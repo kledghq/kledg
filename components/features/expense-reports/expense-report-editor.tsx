@@ -26,6 +26,9 @@ import { CLAIMANT_KIND_LABELS } from '@/lib/expense-reports/status'
 import { RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
 import { localDateToIso } from '@/lib/utils/date'
 import { ExpenseTotals } from './expense-totals'
+import { mealLineTreatment } from '@/lib/expense-reports/exploitant-meals'
+import type { MealRuleView } from '@/lib/expense-reports/meal-rule.service'
+import { MealTreatmentNote } from './meal-split-note'
 
 const lineSchema = z.object({
   kind: z.enum(['EXPENSE', 'MILEAGE']),
@@ -44,6 +47,8 @@ const lineSchema = z.object({
   fiscalPower: z.string(),
   electric: z.boolean(),
   distanceKm: z.string(),
+  /** Who took a meal alone when the claimant does not say it (company at IR); '' when not asked. */
+  mealTaker: z.enum(['', 'EXPLOITANT', 'EMPLOYEE']),
 })
 
 const formSchema = z
@@ -116,6 +121,7 @@ export const emptyExpenseLine = (kind: 'EXPENSE' | 'MILEAGE', date: string): Exp
   fiscalPower: '',
   electric: false,
   distanceKm: '',
+  mealTaker: '',
 })
 
 /** The lines as the amounts module reads them (invalid fields count as empty). */
@@ -199,6 +205,24 @@ export function ExpenseReportEditor({ companyId, reportId, initial, canManage, c
   const inputs = assignPriorDistances(lineInputsOf(lines ?? []), mileageBaselines)
   const totals = computeReport(inputs, { vatExempt })
 
+  // Meals of the exploitant at a company taxed at IR: the company side and the claimant's role, for the report's last day
+  const claimantId = useWatch({ control, name: 'claimantId' })
+  const periodEnd = useWatch({ control, name: 'periodEnd' })
+  const hasMeals = (lines ?? []).some((l) => l.kind === 'EXPENSE' && l.category === 'MEALS')
+  const [mealRule, setMealRule] = React.useState<MealRuleView | null>(null)
+  React.useEffect(() => {
+    if (!hasMeals) return
+    let cancelled = false
+    const query = new URLSearchParams({ companyId, ...(claimantId ? { claimantId } : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(periodEnd ?? '') ? { day: periodEnd } : {}) })
+    fetch(`/api/expense-reports/meal-rule?${query.toString()}`)
+      .then(async (response) => (response.ok ? ((await response.json()) as MealRuleView) : null))
+      .then((view) => !cancelled && setMealRule(view))
+      .catch(() => !cancelled && setMealRule(null))
+    return () => {
+      cancelled = true
+    }
+  }, [companyId, claimantId, periodEnd, hasMeals])
+
   /** Proposes the category of the company's keyword rules while the line still has the default one. */
   const applyRule = (index: number) => {
     const line = getValues(`lines.${index}`)
@@ -245,6 +269,7 @@ export function ExpenseReportEditor({ companyId, reportId, initial, canManage, c
                 receiptKind: line.receiptKind,
                 receiptAttachmentId: line.receiptAttachmentId || null,
                 receiptReference: line.receiptReference || null,
+                mealTaker: line.category === 'MEALS' && line.mealTaker ? line.mealTaker : null,
               },
         ),
       }
@@ -325,6 +350,22 @@ export function ExpenseReportEditor({ companyId, reportId, initial, canManage, c
             const computed = totals.lines[index]
             const mileage = line.kind === 'MILEAGE'
             const category = EXPENSE_CATEGORIES[(line.category as ExpenseCategory) ?? 'OTHER'] ?? EXPENSE_CATEGORIES.OTHER
+            const meal =
+              mealRule && !mileage && computed && !computed.error
+                ? mealLineTreatment(
+                    {
+                      kind: line.kind,
+                      category: line.category,
+                      amountInclTaxCents: computed.amountInclTaxCents,
+                      recoverableVatCents: computed.recoverableVatCents,
+                      date: /^\d{4}-\d{2}-\d{2}$/.test(line.date) ? line.date : mealRule.day,
+                      mealTaker: line.mealTaker || null,
+                    },
+                    mealRule.company,
+                    mealRule.claimant,
+                  )
+                : null
+            const askTaker = !mileage && line.category === 'MEALS' && mealRule?.company.applies === true && mealRule.claimant.role === 'unknown'
             return (
               <fieldset key={item.id} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-12" aria-label={`Ligne ${index + 1}`} data-testid="expense-line">
                 <legend className="sr-only">{`Ligne ${index + 1}`}</legend>
@@ -482,6 +523,31 @@ export function ExpenseReportEditor({ companyId, reportId, initial, canManage, c
                     <Field label="Référence du justificatif" optional className="lg:col-span-3">
                       <Input {...register(`lines.${index}.receiptReference`)} placeholder="ex. ticket n° 4521, classé mars" autoComplete="off" />
                     </Field>
+                    {askTaker ? (
+                      <Field
+                        label="Qui a pris ce repas ?"
+                        htmlFor={`line-${index}-taker`}
+                        required
+                        className="lg:col-span-4"
+                        hint="La société est imposée à l’impôt sur le revenu : le repas seul de l’exploitant n’est déductible que pour ses frais supplémentaires."
+                      >
+                        <Controller
+                          control={control}
+                          name={`lines.${index}.mealTaker`}
+                          render={({ field }) => (
+                            <Select value={field.value || undefined} onValueChange={field.onChange}>
+                              <SelectTrigger id={`line-${index}-taker`} className="w-full">
+                                <SelectValue placeholder="Choisissez" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="EXPLOITANT">L’exploitant ou un associé</SelectItem>
+                                <SelectItem value="EMPLOYEE">Un salarié</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </Field>
+                    ) : null}
                   </>
                 )}
                 <Field label="Compte" optional className="lg:col-span-2" hint={`Vide\u00a0: ${(mileage ? EXPENSE_CATEGORIES.MILEAGE : category).account ?? 'à choisir'}`}>
@@ -503,6 +569,7 @@ export function ExpenseReportEditor({ companyId, reportId, initial, canManage, c
                       </>
                     )}
                   </p>
+                  {meal ? <MealTreatmentNote treatment={meal} account={line.accountCode || category.account || '6256'} /> : null}
                   <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)}>
                     <Trash2 aria-hidden />
                     Retirer la ligne

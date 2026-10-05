@@ -13,7 +13,7 @@ import { Amount, EmptyState, PageHeader, formatAmount, formatDisplayDate } from 
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
 import { responseError } from '@/hooks/use-cursor-list'
 import { cn } from '@/lib/utils'
-import { findCategory } from '@/lib/simple/categories'
+import { answersFor, findCategory } from '@/lib/simple/categories'
 import type { Answers } from '@/lib/simple/posting'
 import type { ExpenseToReview, ExpensesToReview } from '@/lib/simple/expenses-to-review.service'
 import type { ConfirmAllResult, ConfirmResult } from '@/lib/simple/confirm-expense.service'
@@ -435,15 +435,20 @@ function ExpenseRow({ expense, note, onNote, busy, canConfirm, onConfirm, onEdit
       {question ? (
         <div className="flex flex-wrap items-center gap-3 lg:ml-[7.5rem]">
           <span className="text-sm">{question.text}</span>
-          {question.answers.map((a) => (
+          {answersFor(question, expense.mealRule === 'split').map((a) => (
             <Button key={a.id} size="sm" variant="outline" disabled={!canConfirm || blocked || busy} onClick={() => onConfirm({ ...s.answers, [question.id]: a.id })}>
-              {a.label}
+              {a.shownLabel}
             </Button>
           ))}
           <Button size="sm" variant="ghost" onClick={onEdit} disabled={!canConfirm || blocked || busy}>
             Autre catégorie
           </Button>
           <p className="text-muted-foreground basis-full text-xs">{question.help}</p>
+          {question.id === 'meal-guests' && expense.mealRule === 'split' ? (
+            <p className="text-muted-foreground basis-full text-xs">
+              Société à l’impôt sur le revenu&nbsp;: le repas seul de l’exploitant ou d’un associé n’est déductible que pour ses frais supplémentaires (BOI-BNC-BASE-40-60-60), Kledg isole le reste au compte 62568.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

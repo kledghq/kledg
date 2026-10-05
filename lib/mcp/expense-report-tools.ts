@@ -20,6 +20,37 @@ import { getExpenseReport, listExpenseReports } from '@/lib/expense-reports/mana
 import { listClaimants } from '@/lib/expense-reports/manage-expense-claimants.service'
 import { EXPENSE_STATUS_FILTERS } from '@/lib/expense-reports/status'
 import { fromCents } from '@/lib/utils/money'
+import type { MealLineTreatment } from '@/lib/expense-reports/exploitant-meals'
+
+/**
+ * A meal line under the rule on the meals of the exploitant of a company at
+ * IR (lib/expense-reports/exploitant-meals.ts), in euros: status split (the
+ * charge on the line's account and on 62568), not-concerned, ask (who took
+ * the meal: answer mealTaker) or unknown-taxation.
+ */
+export function mealOut(treatment: MealLineTreatment | null) {
+  if (!treatment) return null
+  const split = treatment.split
+  return {
+    status: treatment.status,
+    reason: treatment.reason,
+    ...(split
+      ? {
+          deductible: fromCents(split.deductibleCents),
+          nonDeductible: fromCents(split.nonDeductibleCents),
+          nonDeductibleAccount: '62568',
+          thresholds: {
+            year: split.thresholds.year,
+            appliedYear: split.thresholds.appliedYear,
+            estimated: split.thresholds.estimated,
+            homeMeal: fromCents(split.thresholds.homeMealCents),
+            limit: fromCents(split.thresholds.limitCents),
+            source: split.thresholds.source.url,
+          },
+        }
+      : {}),
+  }
+}
 
 const companyId = z.string().describe('Company id, from list_companies.')
 
@@ -79,7 +110,7 @@ export function registerExpenseReportReadTools(server: McpServer, access: McpAcc
       title: 'Note de frais',
       description: describeTool({
         summary:
-          'One expense report with its lines: date, supplier, category, account, amount paid, VAT shown and the part recoverable with the reason (no recovery on passenger transport and staff lodging, CGI ann. II art. 206, IV, 2; a receipt over 150 € HT needs an invoice in the company name), mileage trips with the scale year applied, its entry and status.',
+          'One expense report with its lines: date, supplier, category, account, amount paid, VAT shown and the part recoverable with the reason (no recovery on passenger transport and staff lodging, CGI ann. II art. 206, IV, 2; a receipt over 150 € HT needs an invoice in the company name), mileage trips with the scale year applied, its entry and status. For a company taxed at the impôt sur le revenu, each meal alone (MEALS) of the exploitant or an associé carries meal: the deductible part (frais supplémentaires above the home meal value, up to the yearly limit, BOI-BNC-BASE-40-60-60) and the non-deductible part posted to 62568 and added back on the return, with the year’s thresholds and source; status ask when who took the meal is unknown (posting is refused until mealTaker is given). mealRule gives the company taxation and the claimant role.',
         access: 'read',
         permission: { entries: ['read'] },
         amounts: 'euros',
@@ -122,10 +153,13 @@ export function registerExpenseReportReadTools(server: McpServer, access: McpAcc
             recovery: l.recovery,
             receipt: l.receiptKind,
             hasReceiptFile: l.receiptAttachmentId !== null,
+            mealTaker: l.mealTaker,
+            meal: mealOut(l.meal),
             ...(l.kind === 'MILEAGE' ? { mileage: { distanceKm: l.distanceKm, vehicle: l.vehicleType, fiscalPower: l.fiscalPower, electric: l.electric, scaleYear: l.scaleYear, priorDistanceKm: l.priorDistanceKm } } : {}),
           })),
           entry: report.entry,
           lettering: report.letteringCode,
+          mealRule: report.mealRule,
         }
         return withView(json(out), () => expenseReportDocument(args.companyId, out))
       }),

@@ -99,6 +99,13 @@ export interface EngineContext {
   owners?: readonly string[]
   /** Customers of the company. */
   customers?: readonly CustomerSignal[]
+  /**
+   * The company is taxed at the impôt sur le revenu on the transaction day:
+   * who a meal was with changes what is deductible (meal of the exploitant,
+   * lib/expense-reports/exploitant-meals.ts), so the meal question has no
+   * default and is asked.
+   */
+  askMealGuests?: boolean
 }
 
 /** The open invoice a credit pays, as proposed. */
@@ -327,7 +334,7 @@ function fromBank(tx: EngineTransaction): Candidate | null {
 
 const UNCLASSIFIED_REASON = 'À classer : choisissez la catégorie'
 
-function finish(candidate: Candidate | null, tx: EngineTransaction): Suggestion {
+function finish(candidate: Candidate | null, tx: EngineTransaction, askMealGuests = false): Suggestion {
   const none = (reason = UNCLASSIFIED_REASON): Suggestion => ({
     categoryId: null,
     ruleId: null,
@@ -369,7 +376,7 @@ function finish(candidate: Candidate | null, tx: EngineTransaction): Suggestion 
   if (question && questionApplies(category, tx.amountCents, tx.bankVatCents)) {
     const known = question.reusable ? candidate.answers?.[question.id] : undefined
     if (known && question.answers.some((a) => a.id === known)) answers[question.id] = known
-    else if (question.defaultAnswerId) answers[question.id] = question.defaultAnswerId
+    else if (question.defaultAnswerId && !(askMealGuests && question.id === 'meal-guests')) answers[question.id] = question.defaultAnswerId
     else pendingQuestion = question
   }
   const confidence = confidenceOf(candidate.score)
@@ -420,6 +427,7 @@ export function suggestCategory(tx: EngineTransaction, context: EngineContext): 
         ruleName: context.rule.ruleName,
       },
       tx,
+      context.askMealGuests,
     )
   }
   const candidates = [fromHistory(context.history, tx.side), fromDictionary(tx), fromOwner(tx, context.owners), fromCustomer(tx, context.customers), fromBank(tx)]
@@ -427,9 +435,9 @@ export function suggestCategory(tx: EngineTransaction, context: EngineContext): 
   for (const candidate of candidates) {
     if (!candidate || candidate.categoryId === null) continue
     const category = findCategory(candidate.categoryId)
-    if (category && fitsSide(category, tx.side) && candidate.score >= MEDIUM_CONFIDENCE) return finish(candidate, tx)
+    if (category && fitsSide(category, tx.side) && candidate.score >= MEDIUM_CONFIDENCE) return finish(candidate, tx, context.askMealGuests)
   }
   // A payee recognised without a category explains why the line stays to classify.
   const recognised = candidates.find((c) => c && c.categoryId === null)
-  return finish(recognised ?? null, tx)
+  return finish(recognised ?? null, tx, context.askMealGuests)
 }

@@ -33,6 +33,8 @@ function line(id: string, label: string, amountCents: number, history: Array<{ c
     hasReceipt: false,
     canUploadReceipt: true,
     blockedReason: null,
+    mealRule: 'none',
+    mealRuleExplanation: null,
   }
 }
 
@@ -42,6 +44,7 @@ const LIST: ExpensesToReview = {
   count: 3,
   bulkConfirmableIds: ITEMS.filter((i) => i.suggestion.bulkConfirmable).map((i) => i.id),
   review: { accountantReview: true, setting: null, accountants: [{ name: 'Marc Renaud' }] },
+  mealRuleExplanation: null,
 }
 
 function renderAs(roles: string[]) {
@@ -189,9 +192,11 @@ describe('ExpensesReview, money in (Recettes à vérifier)', () => {
     hasReceipt: false,
     canUploadReceipt: false,
     blockedReason: null,
+    mealRule: 'none',
+    mealRuleExplanation: null,
   })
   const items = [credit('nord', 'VIR SEPA STUDIO NORD F-2026-012', 120_000), credit('bpi', 'VIR SEPA BPIFRANCE SUBVENTION INNOVATION', 3_000_000)]
-  const income: ExpensesToReview = { items, count: 2, bulkConfirmableIds: items.map((i) => i.id), review: { accountantReview: false, setting: null, accountants: [] } }
+  const income: ExpensesToReview = { items, count: 2, bulkConfirmableIds: items.map((i) => i.id), review: { accountantReview: false, setting: null, accountants: [] }, mealRuleExplanation: null }
 
   beforeEach(() => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {

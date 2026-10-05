@@ -78,6 +78,14 @@ export interface QuestionAnswer {
    * collected VAT), not a movement.
    */
   kind?: CategoryKind
+  /**
+   * Label for a company taxed at the impôt sur le revenu, where the answer
+   * changes what is deductible (meals of the exploitant,
+   * lib/expense-reports/exploitant-meals.ts).
+   */
+  incomeTaxLabel?: string
+  /** Offered only to a company taxed at the impôt sur le revenu (accepted from any company: same posting). */
+  incomeTaxOnly?: boolean
 }
 
 export interface Question {
@@ -161,17 +169,35 @@ const vehicle = (account: string): Question => ({
   source: 'CGI ann. II art. 206, IV, 2, 6° (véhicules de tourisme et services qui s’y rapportent); CGI art. 298, 4, 1°, a (carburant, 80 %); BOI-TVA-DED-30-30-20 et -40',
 })
 
+/**
+ * Who a meal was with. For a company taxed at the impôt sur le revenu, a meal
+ * alone of the exploitant or an associé is deductible only for its frais
+ * supplémentaires (BOI-BNC-BASE-40-60-60; lib/expense-reports/exploitant-meals.ts):
+ * "alone" then means the exploitant or an associé, and "alone-employee" an
+ * employee (employer rules, fully deductible). Both book to 6256.
+ */
 const MEAL_GUESTS: Question = {
   id: 'meal-guests',
   text: 'Avec qui était ce repas ?',
   help: 'Notez les noms des invités pour votre comptable : ils justifient la dépense.',
   answers: [
     { id: 'guests', label: 'Avec des clients ou partenaires', posting: { account: '6257' } },
-    { id: 'alone', label: 'Seul, en déplacement', posting: { account: '6256' } },
+    { id: 'alone', label: 'Seul, en déplacement', incomeTaxLabel: 'Vous ou un associé, seul en déplacement', posting: { account: '6256' } },
+    { id: 'alone-employee', label: 'Un salarié, seul en déplacement', incomeTaxOnly: true, posting: { account: '6256' } },
   ],
   reusable: false,
   defaultAnswerId: 'guests',
-  source: 'PCG art. 932-1 (6256 Missions, 6257 Réceptions); CGI ann. II art. 206, IV (ancien art. 236, abrogé par le décret n° 2007-566 du 16 avril 2007 : TVA des repas d’affaires déductible)',
+  source: 'PCG art. 932-1 (6256 Missions, 6257 Réceptions); CGI ann. II art. 206, IV (ancien art. 236, abrogé par le décret n° 2007-566 du 16 avril 2007 : TVA des repas d’affaires déductible); BOI-BNC-BASE-40-60-60 (repas seul de l’exploitant à l’IR : frais supplémentaires seulement)',
+}
+
+/** The answer a meal alone of the exploitant gives, at a company taxed at the impôt sur le revenu. */
+export const EXPLOITANT_MEAL_ANSWER = { questionId: 'meal-guests', answerId: 'alone' } as const
+
+/** The answers of a question offered to a company, with their label for it. */
+export function answersFor(question: Question, incomeTax: boolean): Array<QuestionAnswer & { shownLabel: string }> {
+  return question.answers
+    .filter((a) => incomeTax || !a.incomeTaxOnly)
+    .map((a) => ({ ...a, shownLabel: incomeTax && a.incomeTaxLabel ? a.incomeTaxLabel : a.label }))
 }
 
 const RENT_VAT: Question = {

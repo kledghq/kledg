@@ -34,6 +34,7 @@ export function formValuesOf(report: ExpenseReportDetailData): ExpenseFormValues
       fiscalPower: l.fiscalPower ? String(l.fiscalPower) : '',
       electric: l.electric,
       distanceKm: l.distanceKm ? String(l.distanceKm) : '',
+      mealTaker: l.mealTaker ?? '',
     })),
   }
 }

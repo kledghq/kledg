@@ -193,6 +193,13 @@ describe('questions and bulk confirmation', () => {
     })
   })
 
+  it('asks who a meal was with at a company taxed at IR (the answer changes what is deductible), out of "Tout confirmer"', () => {
+    const history: HistoryChoice[] = [{ categoryId: 'repas-affaires', day: '2026-09-01' }, { categoryId: 'repas-affaires', day: '2026-08-01' }]
+    const s = suggestCategory(tx('CB LE PETIT BISTROT'), { history, askMealGuests: true })
+    expect(s).toMatchObject({ categoryId: 'repas-affaires', answers: {}, bulkConfirmable: false })
+    expect(s.pendingQuestion?.id).toBe('meal-guests')
+  })
+
   it('confirms in bulk only high confidence lines', () => {
     expect(suggest(tx('PRLV SEPA FREE PRO')).bulkConfirmable).toBe(true)
     expect(suggest(tx('PRLV SEPA URSSAF ILE DE FRANCE')).bulkConfirmable).toBe(false)

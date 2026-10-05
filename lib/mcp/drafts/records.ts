@@ -170,7 +170,7 @@ const updateExpenseReportTool = draftTool({
   name: 'update_draft_expense_report',
   title: 'Modifier une note de frais',
   summary:
-    'Replaces the period, label and lines of an expense report (lines in the route shape: kind EXPENSE or MILEAGE, date, label, amountInclTax and vat in euros, vatRate in percent, receipt, vehicle and distance for mileage): a brouillon by its author or a validator, a soumise by a validator; refused (409) once validated. Kledg recomputes the amounts and the recoverable VAT.',
+    'Replaces the period, label and lines of an expense report (lines in the route shape: kind EXPENSE or MILEAGE, date, label, amountInclTax and vat in euros, vatRate in percent, receipt, vehicle and distance for mileage): a brouillon by its author or a validator, a soumise by a validator; refused (409) once validated. Kledg recomputes the amounts and the recoverable VAT. For a company taxed at the impôt sur le revenu, a MEALS line takes mealTaker (EXPLOITANT or EMPLOYEE) when get_expense_report shows meal.status ask: posting is refused until it is given.',
   never: 'submits, validates, posts or deletes the report.',
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, VAT rates in percent, distances in km.',

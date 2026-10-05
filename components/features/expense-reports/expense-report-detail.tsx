@@ -21,6 +21,8 @@ import { EXPENSE_CATEGORIES, type ExpenseCategory } from '@/lib/expense-reports/
 import { VEHICLE_LABELS, type VehicleType } from '@/lib/expense-reports/mileage-scale'
 import { CLAIMANT_KIND_LABELS, EXPENSE_STATUS_LABELS, EXPENSE_STATUS_TONES, type ExpenseReportStatus } from '@/lib/expense-reports/status'
 import { ExpenseTotals } from './expense-totals'
+import type { MealLineTreatment, MealTaker } from '@/lib/expense-reports/exploitant-meals'
+import { MealTreatmentNote } from './meal-split-note'
 
 export interface ExpenseReportDetailData {
   id: string
@@ -66,6 +68,9 @@ export interface ExpenseReportDetailData {
     priorDistanceKm: number | null
     scaleYear: number | null
     powerClass: string | null
+    mealTaker: MealTaker | null
+    /** Meal alone of the exploitant of a company at IR (lib/expense-reports/exploitant-meals.ts); null: not concerned. */
+    meal: MealLineTreatment | null
   }>
 }
 
@@ -332,6 +337,7 @@ export function ExpenseReportDetailView({ companyId, reportId }: { companyId: st
                         </>
                       ) : null}
                     </p>
+                    {line.meal ? <MealTreatmentNote treatment={line.meal} account={line.accountCode ?? EXPENSE_CATEGORIES[line.category].account ?? '6256'} /> : null}
                     {line.receiptAttachmentId && mayReadReceipts ? (
                       <Button variant="link" size="xs" onClick={() => setPreview(line)}>
                         <Eye aria-hidden />
@@ -367,6 +373,7 @@ export function ExpenseReportDetailView({ companyId, reportId }: { companyId: st
                             : [line.supplierName, EXPENSE_CATEGORIES[line.category].label].filter(Boolean).join(', ')}
                         </span>
                         <span className="text-muted-foreground block text-xs">{line.recovery}</span>
+                        {line.meal ? <MealTreatmentNote treatment={line.meal} account={line.accountCode ?? EXPENSE_CATEGORIES[line.category].account ?? '6256'} /> : null}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{line.accountCode ?? EXPENSE_CATEGORIES[line.category].account ?? '?'}</TableCell>
                       <TableCell className="text-xs">
