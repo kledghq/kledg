@@ -240,6 +240,26 @@ describe.skipIf(!available)('fiscal year closing', () => {
     expect(sheet2026.netResult).toBe(0)
   })
 
+  it('leaves the closing entry out of the FEC of the closed year (LPF art. A47 A-1)', async () => {
+    // "hors écritures de centralisation et hors écritures de solde des comptes
+    // de charges et de produits": the FEC of a closed year must still give the
+    // result as the balance of classes 6 and 7.
+    const c = await createCompany()
+    await bookYear(c)
+    expect((await closeFiscalYear(c.id, c.fy2025)).success).toBe(true)
+    const { exportFec } = await import('@/lib/fec/export')
+    const { validateFec } = await import('@/lib/fec/validator')
+    const fec = await exportFec(c.id, c.fy2025)
+    const rows = fec.content.trim().split('\r\n').slice(1).map((row) => row.split('\t'))
+    expect(rows.some((r) => r[0] === 'CL')).toBe(false)
+    const cents = (v: string) => Math.round(Number(v.replace(',', '.')) * 100)
+    const result = rows.filter((r) => /^[67]/.test(r[4])).reduce((sum, r) => sum + cents(r[12]) - cents(r[11]), 0)
+    expect(result).toBe(RESULT_2025 * 100)
+    const report = validateFec(fec.content, { fileName: fec.fileName, closingDate: '20251231' })
+    expect(report.errors).toEqual([])
+    expect(report.warnings).toEqual([])
+  })
+
   it('is idempotent: a second closing changes nothing', async () => {
     const c = await createCompany()
     await bookYear(c)
