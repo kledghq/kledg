@@ -22,6 +22,8 @@ export const VatSettingsBodySchema = z.object({
    * nonies A, I, 12°); null or empty: the default of lib/invoices/vat-exemptions.ts.
    */
   vatExemptionMention: z.string().trim().max(MAX_MENTION_LENGTH, `${MAX_MENTION_LENGTH} caractères au plus`).nullable().optional(),
+}).refine((body) => body.servicesVatOnDebits !== undefined || body.vatExemptionMention !== undefined, {
+  error: 'Précisez si la TVA sur les prestations est payée d’après les débits, ou la mention d’exonération',
 })
 
 export interface VatSettings {
