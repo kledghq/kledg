@@ -101,6 +101,14 @@ model Company {
   /// services post their VAT to 44574 "TVA collectée en attente d'encaissement"
   /// until paid (lib/invoices/posting-plan.ts).
   servicesVatOnDebits        Boolean           @default(false)
+  /// Assujetti partiel (CGI ann. II art. 205 to 207, docs/organisme-de-formation.md):
+  /// the company makes taxable and exempt operations (training sales of CGI
+  /// art. 261, 4, 4° a) and deducts its VAT by the coefficient de déduction
+  /// (lib/vat-deduction). False: full deduction, unless isVatExempt.
+  partialVatDeduction        Boolean           @default(false)
+  /// Mention printed on the invoices of exempt training sales (CGI ann. II
+  /// art. 242 nonies A, I, 10°); null: the default of lib/invoices/vat-exemptions.ts.
+  vatExemptionMention        String?
   /// Simple mode (docs/categories-simples.md): whether the entries a user
   /// confirms in simple mode stay drafts until the accountant validates them.
   /// Null: the default, on when the company has a member with the accountant
@@ -168,6 +176,10 @@ model Company {
   accountingMethods          AccountingMethod[]
   accountingChanges          AccountingChange[]
   annexeNotes                AnnexeNote[]
+  vatDeductionYears          VatDeductionYear[]
+  revenueAccountSettings     RevenueAccountSetting[]
+  trainingReports            TrainingReport[]
+  payrollTaxYears            PayrollTaxYear[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -188,8 +200,8 @@ model Establishment {
   notes                             String? // Notes sur l'établissement
   // Organisme de formation (attribué au SIRET, pas au SIREN)
   isTrainingOrganization            Boolean   @default(false) // Indique si cet établissement est un organisme de formation
-  trainingActivityDeclarationNumber String? // Numéro de déclaration d'activité (NDA) délivré par la DIRECCTE pour cet établissement
-  trainingActivityDeclarationDate   DateTime? // Date de déclaration d'activité (permet de savoir quand le BPF est requis)
+  trainingActivityDeclarationNumber String? // Numéro de déclaration d'activité (NDA) enregistré par la DREETS (DRIEETS en Île-de-France, DIRECCTE avant le 1er avril 2021)
+  trainingActivityDeclarationDate   DateTime? // Date d'enregistrement de la déclaration d'activité (bilan pédagogique et financier annuel, Code du travail R6352-23)
   createdAt                         DateTime  @default(now())
   updatedAt                         DateTime  @updatedAt
 
@@ -270,6 +282,7 @@ model FiscalYear {
   remunerationScenarios    RemunerationScenario[]
   accountingChanges        AccountingChange[]
   annexeNote               AnnexeNote?
+  trainingReports          TrainingReport[]
 
   @@unique([companyId, year])
   /// Target of composite foreign keys that keep a child row in the company of its fiscal year (budgets).
@@ -1749,6 +1762,10 @@ model Tiers {
   paymentTermsEndOfMonth Boolean?
   /// Id of the client or supplier at Qonto (idempotent import).
   qontoId                String?
+  /// Origin of the training revenue of this customer in the bilan
+  /// pédagogique et financier (lib/training-report/origins.ts); null: the
+  /// origin of the revenue account.
+  trainingOrigin         String?
   notes                  String?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
@@ -1838,6 +1855,10 @@ model InvoiceLine {
   nature       InvoiceLineNature @default(SERVICES)
   /// Purchase of a fixed asset: VAT to 44562.
   fixedAsset   Boolean           @default(false)
+  /// Exempt sale and its legal basis (lib/invoices/vat-exemptions.ts:
+  /// "training", CGI art. 261, 4, 4° a); only on a 0 % line. Null: taxable
+  /// or another 0 % operation (export, intra-Community supply).
+  vatExemption String?
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -2786,4 +2807,100 @@ model AnnexeNote {
   @@unique([fiscalYearId, companyId])
   @@index([companyId])
   @@map("annexe_notes")
+}
+
+/// Coefficient de déduction of a partly exempt company for one calendar year
+/// (CGI ann. II art. 205 to 207, lib/vat-deduction): what the books cannot
+/// tell. The coefficient de taxation is computed from the revenue of the
+/// year; the provisional coefficient of a year comes from the definitive one
+/// of the year before, else from the estimate entered here.
+model VatDeductionYear {
+  id                       String   @id @default(cuid())
+  companyId                String
+  /// Calendar year.
+  year                     Int
+  /// Estimated coefficient de taxation in percent, for a year without a
+  /// definitive coefficient the year before (art. 207, I); null: the year
+  /// before decides.
+  estimatedTaxationPercent Int?
+  /// Coefficient d'assujettissement in percent (art. 206, II); 100 by default.
+  assujettissementPercent  Int      @default(100)
+  /// VAT borne in the year on goods and services subject to the coefficient,
+  /// entered when the books cannot give it; null: derived from 44562 and 44566.
+  incurredVat              Decimal? @db.Decimal(15, 2)
+  note                     String?
+  createdById              String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year])
+  @@index([companyId])
+  @@map("vat_deduction_years")
+}
+
+/// What the user says about a revenue account (a class 7 account code or
+/// root, "706" covers "7061"): its VAT treatment for the coefficient de
+/// taxation and its origin in the bilan pédagogique et financier. Null fields
+/// keep the automatic reading.
+model RevenueAccountSetting {
+  id             String   @id @default(cuid())
+  companyId      String
+  accountCode    String
+  /// taxable, exempt or excluded (lib/vat-deduction/revenue.ts).
+  vatTreatment   String?
+  /// Line of frame C of the BPF (lib/training-report/origins.ts).
+  trainingOrigin String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, accountCode])
+  @@index([companyId])
+  @@map("revenue_account_settings")
+}
+
+/// The bilan pédagogique et financier of a training organisation for one
+/// closed fiscal year (Code du travail L6352-11, R6352-22: "au cours de
+/// l'exercice comptable"; cerfa 10443*17): the frames entered by hand
+/// (trainers, trainees, hours, objectives, specialities, charges overrides),
+/// JSON validated by lib/training-report/schemas.ts. The financial frame C
+/// comes from the books.
+model TrainingReport {
+  id           String     @id @default(cuid())
+  companyId    String
+  fiscalYearId String
+  data         Json       @default("{}")
+  createdById  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, fiscalYearId])
+  @@index([companyId])
+  @@index([fiscalYearId])
+  @@map("training_reports")
+}
+
+/// Taxe sur les salaires of one calendar year (CGI art. 231, lib/payroll-tax):
+/// the individual annual remunerations the books cannot give (the brackets
+/// apply per employee), JSON validated by lib/payroll-tax/schemas.ts.
+model PayrollTaxYear {
+  id          String   @id @default(cuid())
+  companyId   String
+  year        Int
+  data        Json     @default("{}")
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year])
+  @@index([companyId])
+  @@map("payroll_tax_years")
 }
