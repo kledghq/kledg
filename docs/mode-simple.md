@@ -56,6 +56,14 @@ dépenses et des recettes à vérifier envoient l'évènement
 `simple:counts-refresh` après chaque confirmation pour que la barre
 latérale les relise.
 
+### Espace groupe
+
+L'espace groupe d'une holding a aussi son mode simple : quatre pages
+(Accueil du groupe, Mes sociétés, Qui possède quoi, Argent entre mes
+sociétés) avec les chiffres des vues expertes en mots simples, et le
+sélecteur Simple / Expert ouvre l'accueil du groupe du mode choisi
+([espace groupe](vue-groupe.md#mode-simple)).
+
 ### Accueil
 
 `app/(company)/[companyId]/simple/page.tsx`, données de

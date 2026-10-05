@@ -4,11 +4,11 @@ import { Lock } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { Amount, EmptyState, HelpTip, PageHeader, StatusBadge } from '@/components/shared'
+import { Amount, EmptyState, HelpTip, StatusBadge } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import { FIGURE_ROWS, FLOW_CATEGORY_LABELS, INDICATIVE_NOTICE } from '@/lib/group/labels'
 import type { GroupView } from '@/lib/group/get-group-view.service'
-import { ExportButtons, GroupFiscalYear, LoadError, Notice, PerimeterNotes, ownership, useGroupReport, useReportUrl } from './space'
+import { ExportButtons, LoadError, Notice, PerimeterNotes, ownership, useGroupReport, useReportUrl, SectionIntro } from './space'
 
 const cents = (value: number | null | undefined, signed = false) =>
   value === null || value === undefined ? <span className="text-muted-foreground">-</span> : <Amount value={value / 100} className={cn(signed && value < 0 && 'text-destructive')} />
@@ -18,19 +18,17 @@ const cents = (value: number | null | undefined, signed = false) =>
  * the aggregate, the intragroup flows removed once, the figures after
  * eliminations) and the flows found in the books (docs/vue-groupe.md).
  */
-export function GroupEliminationsPage() {
+export function GroupEliminationsSection() {
   const url = useReportUrl('view')
   const view = useGroupReport<GroupView>(url, "La vue combinée ne s'est pas chargée. Réessayez dans un instant.")
   const data = view.data
   const loading = view.loading || !data
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Éliminations"
+      <SectionIntro
         description="Les chiffres de chaque société, leur total agrégé, les flux entre sociétés du groupe retirés une fois et les chiffres après éliminations."
         actions={<ExportButtons report="combined" disabled={!data} />}
       />
-      <GroupFiscalYear hint="Écritures validées de chaque société, écriture de clôture exclue. Chaque filiale est lue avec vos droits dans cette filiale." />
       {view.error ? (
         <LoadError message={view.error} onRetry={view.retry} />
       ) : (

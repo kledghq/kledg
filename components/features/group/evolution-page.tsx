@@ -3,56 +3,35 @@
 import * as React from 'react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { PageHeader, formatDisplayDate } from '@/components/shared'
+import { formatDisplayDate } from '@/components/shared'
 import type { GroupEvolutionReport, MonthFigures } from '@/lib/group/get-group-evolution.service'
 import { ProduitsChargesBars, TreasuryLineChart } from './charts'
-import { Cents, CompanyLink, ExportButtons, GroupFiscalYear, LoadError, Notice, PerimeterNotes, useGroupReport, useReportUrl } from './space'
-
-const GROUP = 'group'
+import { Cents, CompanyLink, ExportButtons, LoadError, Notice, PerimeterNotes, useGroupReport, useReportUrl, SectionIntro, useGroupSpace } from './space'
 
 /** Évolution of the group space: month by month, the group or one company. */
-export function GroupEvolutionPage() {
+export function GroupEvolutionSection() {
   const report = useGroupReport<GroupEvolutionReport>(useReportUrl('evolution'), "L'évolution du groupe ne s'est pas chargée. Réessayez dans un instant.")
   const data = report.data
-  const [selected, setSelected] = React.useState(GROUP)
-  const company = data?.companies.find((c) => c.id === selected) ?? null
+  // The company chosen in the filter of the Pilotage view, or the group.
+  const { companyFilter } = useGroupSpace()
+  const company = data?.companies.find((c) => c.id === companyFilter) ?? null
   const months = (data?.months ?? []).map((m) => ({ month: m.month, ...(company ? m.byCompany[company.id] : m.total) }) as MonthFigures & { month: string })
   const cash = months.filter((m) => m.tresorerieCents !== null).map((m) => ({ month: m.month, cents: m.tresorerieCents as number }))
   const label = company ? company.name : 'le groupe'
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Évolution"
+      <SectionIntro
         description="Produits, charges, résultat et trésorerie mois par mois, pour le groupe ou pour une société."
         actions={<ExportButtons report="evolution" disabled={!data} />}
       />
-      <GroupFiscalYear />
       {report.error ? (
         <LoadError message={report.error} onRetry={report.retry} />
       ) : (
         <>
           <Notice>Le groupe est la somme des sociétés lues, à 100&nbsp;% et flux intragroupe compris&nbsp;: une agrégation, pas une consolidation.</Notice>
           {data ? <PerimeterNotes warnings={data.warnings} unreachable={data.unreachable} /> : null}
-          <div className="max-w-xs space-y-2">
-            <Label htmlFor="evolution-company">Afficher</Label>
-            <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger id="evolution-company" size="sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={GROUP}>Le groupe</SelectItem>
-                {data?.companies.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <Card aria-busy={report.loading || undefined}>
               <CardHeader>

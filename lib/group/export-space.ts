@@ -18,8 +18,10 @@ import type { GroupIndicatorsReport } from './get-group-indicators.service'
 import type { GroupLedgerReport } from './get-group-ledger.service'
 import type { GroupPersonsReport } from './get-group-persons.service'
 import type { GroupTreasuryReport } from './get-group-treasury.service'
+import type { GroupStructureReport } from './get-group-structure.service'
+import type { GroupTaxReport } from './get-group-tax.service'
 import type { PeriodRef } from './get-group-view.service'
-import { FLOW_CATEGORY_LABELS, FIGURE_ROWS } from './labels'
+import { FLOW_CATEGORY_LABELS, FIGURE_ROWS, PARTICIPATION_KIND_LABELS } from './labels'
 import type { GroupTransaction } from './list-group-transactions.service'
 import type { GroupCompanyLink } from './members'
 
@@ -165,7 +167,7 @@ export function transactionsDoc(holding: { name: string }, companies: GroupCompa
   const names = new Map(companies.map((c) => [c.id, c.name]))
   return {
     title: `Transactions bancaires du groupe ${holding.name}`,
-    notice: truncated ? `Les ${items.length} transactions les plus récentes : affinez les filtres pour exporter les autres.` : null,
+    notice: truncated ? `Les ${items.length} transactions les plus récentes\u00a0: affinez les filtres pour exporter les autres.` : null,
     holdingName: holding.name,
     year,
     sections: [
@@ -197,4 +199,105 @@ export function ledgerDoc(report: GroupLedgerReport): ExportDoc {
     })
   }
   return { title: `Grand livre combiné du groupe ${report.holding.name}, ${period(report.fiscalYear)}`, notice: report.notice, holdingName: report.holding.name, year: report.fiscalYear.year, sections }
+}
+
+const KIND_LABELS: Record<string, string> = {
+  holding: 'Holding',
+  subsidiary: 'Filiale',
+  person: 'Personne',
+  company: 'Société',
+  other: 'Autre actionnaire',
+  hidden: 'Société non accessible',
+}
+
+export function structureDoc(report: GroupStructureReport, year: number): ExportDoc {
+  const labelOf = new Map(report.nodes.map((n) => [n.id, n.label]))
+  const nodes: Section = {
+    name: 'Organigramme',
+    header: ['Nom', 'Nature', 'Niveau', 'Détention par la holding (directe)', 'Détention par la holding (indirecte)', 'Détention par la holding (totale)', 'Dirigeants'],
+    rows: report.nodes.map((n) => [
+      n.label,
+      KIND_LABELS[n.kind] ?? n.kind,
+      n.level,
+      n.holdingInterest ? percentCell(n.holdingInterest.directBp) : '',
+      n.holdingInterest ? percentCell(n.holdingInterest.indirectBp) : '',
+      n.holdingInterest ? percentCell(n.holdingInterest.totalBp) : '',
+      n.officers.map((o) => (o.title ? `${o.name} (${o.title})` : o.name)).join(', '),
+    ]),
+    amountColumns: [],
+  }
+  const edges: Section = {
+    name: 'Détentions',
+    header: ['Détenteur', 'Société détenue', 'Pourcentage', 'Catégorie'],
+    rows: report.edges.map((e) => [labelOf.get(e.from) ?? '', labelOf.get(e.to) ?? '', e.bp === null ? 'Non lu' : percentCell(e.bp), e.kind ? PARTICIPATION_KIND_LABELS[e.kind] : '']),
+    amountColumns: [],
+  }
+  return { title: `Structure du groupe ${report.holding.name}`, holdingName: report.holding.name, year, sections: [nodes, edges] }
+}
+
+const CHECK_LABELS = { ok: 'Remplie', ko: 'Non remplie', check: 'À vérifier' } as const
+
+export function taxDoc(report: GroupTaxReport): ExportDoc {
+  const sim = report.integration
+  const companies: Section = {
+    name: 'Impôt par société',
+    header: ['Société', 'Rôle', 'Exercice', 'Résultat fiscal', 'Déficits imputés', 'Bénéfice imposable', 'Impôt sur les sociétés', 'Taux réduit', 'Contribution sociale', 'Total', 'Solde à payer', 'Échéance du solde'],
+    rows: report.companies.map((c) => [
+      c.company.name,
+      roleOf(c.company),
+      c.fiscalYear ? `Du ${formatIsoDateFr(c.fiscalYear.startDate)} au ${formatIsoDateFr(c.fiscalYear.endDate)}` : 'Aucun exercice',
+      c.resultBeforeDeficitsCents,
+      c.deficitsImputedCents,
+      c.taxableProfitCents,
+      c.corporateTaxCents,
+      c.reducedRateApplied === null ? '' : c.reducedRateApplied ? 'Oui' : 'Non',
+      c.socialContributionCents,
+      c.totalCents,
+      c.balanceCents,
+      c.balanceDue ? formatIsoDateFr(c.balanceDue) : '',
+    ]),
+    amountColumns: [4, 5, 6, 7, 9, 10, 11],
+  }
+  companies.rows.push(...notReadRows(report.unreachable, companies.header.length))
+  const parent: Section = {
+    name: 'Régime mère-fille',
+    header: ['Société mère', 'Filiale', 'Détention', 'Seuil de 5 %', 'Dividendes reçus', 'Appliqué dans l’impôt de la mère'],
+    rows: report.parentSubsidiary.map((p) => [p.parent.name, p.subsidiary.name, percentCell(p.stakeBp), p.eligible ? 'Atteint' : 'Non atteint', p.dividendsCents, p.applied ? 'Oui' : 'Non']),
+    amountColumns: [5],
+  }
+  const members: Section = {
+    name: 'Intégration, périmètre',
+    header: ['Société', 'Détention par le groupe', 'Membre possible', 'Conditions'],
+    rows: sim.members.map((m) => [
+      m.name,
+      m.interestBp === null ? 'Société mère' : percentCell(m.interestBp),
+      m.member ? 'Oui' : 'Non',
+      m.checks.map((c) => `${c.label} : ${CHECK_LABELS[c.status]}`).join(' ; '),
+    ]),
+    amountColumns: [],
+  }
+  const result: Section = {
+    name: 'Intégration, simulation',
+    header: ['Ligne', 'Montant', 'Détail'],
+    rows: [
+      ...sim.results.map((r) => [`Résultat fiscal de ${r.name}`, r.resultBeforeDeficitsCents, '']),
+      ...sim.adjustments.map((a) => [a.label, a.origin === 'info' ? null : a.amountCents, a.detail]),
+      ['Résultat d’ensemble avant déficits', sim.resultBeforeDeficitsCents, ''],
+      ['Déficits antérieurs imputés', sim.deficits.imputedCents, 'Chacun sur le bénéfice de sa société, dans la limite de l’article 209, I'],
+      ['Impôt sur les sociétés du groupe', sim.group?.corporateTaxCents ?? null, sim.group?.reducedRate.applied ? 'Taux réduit appliqué une fois' : 'Taux normal'],
+      ['Contribution sociale du groupe', sim.group?.socialContribution.cents ?? null, ''],
+      ['Total du groupe', sim.group?.totalCents ?? null, ''],
+      ['Somme des impôts des sociétés imposées séparément', sim.separateTotalCents, ''],
+      ['Économie (positive) ou surcoût (négatif)', sim.savingCents, sim.notice],
+    ],
+    amountColumns: [2],
+  }
+  const sources: Section = { name: 'Sources', header: ['Source', 'Lien'], rows: sim.sources.map((s) => [s.label, s.url]), amountColumns: [] }
+  return {
+    title: `Fiscalité du groupe ${report.holding.name}, ${period(report.fiscalYear)}`,
+    holdingName: report.holding.name,
+    year: report.fiscalYear.year,
+    notice: sim.notice,
+    sections: [companies, parent, members, result, sources],
+  }
 }

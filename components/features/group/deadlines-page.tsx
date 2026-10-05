@@ -6,11 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { DateDisplay, PageHeader, StatCard, StatusBadge, type StatusTone } from '@/components/shared'
+import { DateDisplay, StatCard, StatusBadge, type StatusTone } from '@/components/shared'
 import { DEADLINE_COLUMNS, DEADLINE_COLUMN_LABELS, type ColumnSummary } from '@/lib/group/deadline-summary'
 import type { DeclarationStatusCode } from '@/lib/declarations/status'
 import type { GroupDeadlinesReport } from '@/lib/group/get-group-deadlines.service'
-import { Cents, CompanyLink, ExportButtons, GroupFiscalYear, LoadError, PerimeterNotes, useGroupReport, useReportUrl } from './space'
+import { Cents, CompanyLink, ExportButtons, LoadError, PerimeterNotes, useGroupReport, useReportUrl, SectionIntro } from './space'
 
 const STATUS_TONES: Record<DeclarationStatusCode, StatusTone> = { todo: 'neutral', filed: 'info', paid: 'success', overdue: 'danger', 'not-due': 'neutral' }
 
@@ -29,7 +29,7 @@ function SummaryCell({ summary }: { summary: ColumnSummary }) {
 }
 
 /** Impôts et échéances of the group space: the tracker of every company, by kind, then the list. */
-export function GroupDeadlinesPage() {
+export function GroupDeadlinesSection() {
   const report = useGroupReport<GroupDeadlinesReport>(useReportUrl('deadlines'), "Les échéances du groupe ne se sont pas chargées. Réessayez dans un instant.")
   const data = report.data
   const [filter, setFilter] = React.useState<'open' | 'all' | 'overdue'>('open')
@@ -37,12 +37,10 @@ export function GroupDeadlinesPage() {
   const rows = (data?.deadlines ?? []).filter((d) => (filter === 'all' ? true : filter === 'overdue' ? !d.settled && d.status === 'overdue' : !d.settled))
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Impôts et échéances"
+      <SectionIntro
         description="Les déclarations de chaque société du groupe et leur suivi : TVA, impôt sur les sociétés, CFE et approbation des comptes. Le suivi se met à jour sur la page Échéances de chaque société."
         actions={<ExportButtons report="deadlines" disabled={!data} />}
       />
-      <GroupFiscalYear />
       {report.error ? (
         <LoadError message={report.error} onRetry={report.retry} />
       ) : (

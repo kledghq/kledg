@@ -16,7 +16,9 @@ import type { GroupAccess } from '@/lib/management-fees/access'
 import { fileNamePart } from '@/lib/reports/export-reports.service'
 import { formatIsoDateFr } from '@/lib/utils/date'
 import { percentCell, toCsv, toWorkbook, type ExportDoc, type Row } from './export-doc'
-import { companiesDoc, deadlinesDoc, evolutionDoc, indicatorsDoc, ledgerDoc, personsDoc, transactionsDoc, treasuryDoc } from './export-space'
+import { companiesDoc, deadlinesDoc, evolutionDoc, indicatorsDoc, ledgerDoc, personsDoc, structureDoc, taxDoc, transactionsDoc, treasuryDoc } from './export-space'
+import { getGroupStructure } from './get-group-structure.service'
+import { getGroupTax, GroupTaxQuerySchema } from './get-group-tax.service'
 import { getGroupCompanies } from './get-group-companies.service'
 import { getGroupDeadlines } from './get-group-deadlines.service'
 import { getGroupEvolution } from './get-group-evolution.service'
@@ -29,7 +31,7 @@ import { getParticipations, type ParticipationsReport } from './get-participatio
 import { FIGURE_ROWS, FLOW_CATEGORY_LABELS, INDICATIVE_NOTICE, PARTICIPATION_KIND_LABELS } from './labels'
 import { GroupTransactionsQuerySchema, listGroupTransactions, MAX_GROUP_TRANSACTIONS_PAGE, type GroupTransaction } from './list-group-transactions.service'
 
-export const GROUP_REPORTS = ['combined', 'participations', 'companies', 'indicators', 'evolution', 'treasury', 'persons', 'deadlines', 'transactions', 'ledger'] as const
+export const GROUP_REPORTS = ['combined', 'participations', 'companies', 'indicators', 'evolution', 'treasury', 'persons', 'deadlines', 'transactions', 'ledger', 'structure', 'tax'] as const
 export type GroupReport = (typeof GROUP_REPORTS)[number]
 
 /** File name of each report, before the holding and the year. */
@@ -44,12 +46,14 @@ const FILE_NAMES: Record<GroupReport, string> = {
   deadlines: 'Echeances_du_groupe',
   transactions: 'Transactions_du_groupe',
   ledger: 'Grand_livre_combine',
+  structure: 'Structure_du_groupe',
+  tax: 'Fiscalite_du_groupe',
 }
 
 /** Transactions exported at most (the most recent ones, with a notice). */
 export const MAX_EXPORTED_TRANSACTIONS = 5000
 
-export const GroupExportQuerySchema = GroupLedgerQuerySchema.extend(GroupTransactionsQuerySchema.omit({ limit: true, cursor: true }).shape).extend({
+export const GroupExportQuerySchema = GroupLedgerQuerySchema.extend(GroupTransactionsQuerySchema.omit({ limit: true, cursor: true }).shape).extend(GroupTaxQuerySchema.omit({ fiscalYearId: true }).shape).extend({
   report: z.enum(GROUP_REPORTS, { error: 'Rapport inconnu' }).default('combined'),
   format: z.enum(['csv', 'xlsx'], { error: "Format d'export inconnu\u00a0: csv ou xlsx" }).default('xlsx'),
 })
@@ -194,6 +198,12 @@ async function buildDoc(holdingId: string, query: GroupExportQuery, access: Grou
       return deadlinesDoc(await getGroupDeadlines(holdingId, query, access))
     case 'ledger':
       return ledgerDoc(await getGroupLedger(holdingId, query, access))
+    case 'tax':
+      return taxDoc(await getGroupTax(holdingId, query, access))
+    case 'structure': {
+      const fy = periodRef(await resolveHoldingFiscalYear(holdingId, query.fiscalYearId))
+      return structureDoc(await getGroupStructure(holdingId, access), fy.year)
+    }
     case 'persons': {
       const fy = periodRef(await resolveHoldingFiscalYear(holdingId, query.fiscalYearId))
       return personsDoc(await getGroupPersons(holdingId, access), fy.year)

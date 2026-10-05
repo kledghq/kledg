@@ -168,11 +168,14 @@ Simple / Expert switch; simple-mode pages take their wording from
 
 The group space of a holding (`/<holding>/group/...`, [vue-groupe.md](vue-groupe.md))
 replaces the company navigation with its own (`components/layout/group-nav-config.ts`):
-the switcher shows the group as the current selection (the main
-shareholder's photo or the holding's logo, "Groupe <holding>", the number
-of companies), the menu lists only the group pages, the breadcrumb reads
-"Groupe <holding> / Page", and choosing a company in the switcher opens its
-own pages. A natural person is shown with `PersonAvatar` (their photo, or
+the switcher shows the group as the current selection (the holding's
+shareholders as an overlapping `AvatarStack`, largest stake first, at most
+three then "+N", each named "Name, 60 %"; else the holding's logo;
+"Groupe <holding>", the number of companies), the header of each view
+repeats it, the menu lists only the group views of the display mode (five
+views in expert mode, four plain pages in simple mode), the breadcrumb
+reads "Groupe <holding> / Vue", and choosing a company in the switcher
+opens its own pages. A natural person is shown with `PersonAvatar` (their photo, or
 their initials), never a coloured tile.
 
 Pages outside a company (Mes sociétés, account and instance settings) use

@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { Amount, DateDisplay, LoadMore, PageHeader, StatusBadge } from '@/components/shared'
+import { Amount, DateDisplay, LoadMore, StatusBadge } from '@/components/shared'
 import { responseError, useCursorList } from '@/hooks/use-cursor-list'
 import type { GroupTransaction, GroupTransactionsPage } from '@/lib/group/list-group-transactions.service'
 import type { GroupCompanyLink } from '@/lib/group/members'
-import { CompanyLink, ExportButtons, LoadError, PerimeterNotes, useGroupSpace } from './space'
+import { CompanyLink, ExportButtons, LoadError, PerimeterNotes, useGroupSpace, SectionIntro } from './space'
 
 const ALL = 'all'
 const PAGE = 50
@@ -27,7 +27,7 @@ function SignedAmount({ t }: { t: GroupTransaction }) {
 }
 
 /** Transactions of the group space: every company's bank transactions in one list, read only. */
-export function GroupTransactionsPageView() {
+export function GroupTransactionsSection() {
   const { companyId } = useGroupSpace()
   const [company, setCompany] = React.useState(ALL)
   const [side, setSide] = React.useState(ALL)
@@ -61,8 +61,7 @@ export function GroupTransactionsPageView() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Transactions"
+      <SectionIntro
         description="Les transactions bancaires de toutes les sociétés du groupe, des plus récentes aux plus anciennes. Consultation seule : le rapprochement se fait dans chaque société."
         actions={<ExportButtons report="transactions" extra={filters} />}
       />

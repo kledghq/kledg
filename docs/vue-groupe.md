@@ -2,30 +2,91 @@
 
 Une holding a son **espace groupe** (`/<holding>/group`), ouvert depuis le sélecteur de société (section **Groupes**) ou l'entrée **États, Vue groupe** de la holding. Il remplace le menu de la société par celui du groupe, comme si le groupe était une société :
 
-- le sélecteur affiche le groupe comme sélection courante : la photo de l'associé principal de la holding (à défaut le logo de la holding), « Groupe <holding> » et le nombre de sociétés ;
-- le menu ne liste que les pages du groupe, aucune page de société (ni Banque, ni Saisie, ni États) ; choisir une société dans le sélecteur ramène à ses propres pages ;
-- le fil d'Ariane lit « Groupe <holding> > page », l'onglet « Page · Groupe <holding> · Kledg » ;
+- le sélecteur affiche le groupe comme sélection courante : les **associés de la holding** en pile d'avatars (photo, à défaut les initiales ; une société avec son logo, à défaut ses initiales, en carré), du plus gros pourcentage au plus petit, trois au plus puis « +N », chacun nommé pour les lecteurs d'écran et dans son info-bulle (« Claire Vasseur, 60 % ») ; à défaut d'associé, le logo de la holding ; puis « Groupe <holding> » et le nombre de sociétés. Un associé sans nom, ou une société actionnaire que l'utilisateur ne lit pas, n'est pas montré ;
+- l'en-tête de chaque vue répète cette pile, le nom du groupe et le nombre de sociétés ;
+- le menu ne liste que les vues du groupe, aucune page de société ; choisir une société dans le sélecteur ramène à ses propres pages ;
+- le fil d'Ariane lit « Groupe <holding> > vue », l'onglet « Vue · Groupe <holding> · Kledg » ;
 - sur téléphone, le même tiroir que pour une société, refermé après chaque choix ;
-- l'exercice de la holding choisi sur une page reste choisi sur les autres.
+- l'exercice de la holding choisi dans une vue reste choisi dans les autres.
 
-| Page | Contenu |
-| --- | --- |
-| Vue d'ensemble | Chiffre d'affaires, EBE, résultat, trésorerie, capitaux propres et endettement du groupe après éliminations ; une carte par société (chiffres clés, déclarations en retard, transactions à rapprocher, brouillons) ; la trésorerie du groupe mois par mois ; la liste des déclarations en retard de toutes les sociétés |
-| Sociétés | Forme juridique, SIREN, détention par la holding, dirigeants (de la dernière approbation des comptes, avec la photo de l'associé du même nom), chiffres clés, lien vers la société |
-| Comparaison | Les sociétés côte à côte sur l'exercice N et N-1 : chiffre d'affaires, valeur ajoutée, EBE, résultats, CAF, BFR, trésorerie nette, dettes financières, capitaux propres, marges ; l'agrégat du groupe ; un graphique N face à N-1 par société |
-| Évolution | Produits, charges, résultat et trésorerie mois par mois, pour le groupe ou une société choisie ; cumul par société |
-| Trésorerie | Soldes bancaires par société et par devise, trésorerie comptable (512) mois par mois, comptes courants et prêts entre sociétés et leurs écarts |
-| Ratios | Marges, délais de paiement, endettement, BFR et trésorerie nette par société et pour l'agrégat |
-| Éliminations | La vue combinée et les flux intragroupe (ci-dessous) |
-| Participations | Le tableau des filiales et participations (ci-dessous) |
-| Associés et dirigeants | Les personnes et les sociétés qui détiennent des parts, avec leur photo, leurs pourcentages direct, indirect et total dans chaque société, et les dirigeants |
-| Impôts et échéances | Le suivi des déclarations de chaque société, résumé par nature (TVA, IS, CFE et CVAE, approbation des comptes, autres), puis la liste |
-| Transactions | Les transactions bancaires de toutes les sociétés en une liste, des plus récentes aux plus anciennes, page par page, filtres société, texte, sens et rapprochement ; consultation seule |
-| Grand livre combiné | Chaque compte utilisé par les sociétés, le solde de chacune et le total ; les lignes d'un compte dans toutes les sociétés |
+## Cinq vues, chacune répond à une question
 
-La rémunération des dirigeants et la valorisation ne font pas partie de l'espace groupe ; le menu leur garde une place dans la section Structure.
+Le premier espace groupe avait douze pages, une par tableau. Elles sont regroupées en cinq vues, chacune pour une question qu'un dirigeant de groupe ou son expert-comptable se pose ; un onglet de la vue est dans l'adresse (`?vue=`).
 
-Code : `lib/group` (purs et en centimes : `combine.ts`, `periods.ts`, `aggregate.ts`, `ownership.ts`, `merge-pages.ts`, `deadline-summary.ts` ; `perimeter.ts` et `members.ts` vérifient les accès et lisent chaque société ; un service par page), pages `app/(company)/[companyId]/group/*`, composants `components/features/group`, menu `components/layout/group-nav-config.ts`. API `GET /api/group/{summary, alerts, view, companies, indicators, evolution, treasury, participations, persons, deadlines, transactions, ledger, export}`.
+| Vue | Question | Onglets |
+| --- | --- | --- |
+| **Pilotage** (`/group`) | Comment se porte le groupe, et chacune de ses sociétés ? | Synthèse (chiffres clés après éliminations, contribution de chaque société avec sa part du chiffre d'affaires et du résultat, puis agrégat, éliminations et groupe ; état de chaque société ; déclarations en retard, transactions à rapprocher, brouillons), N et N-1 (comparaison par société et agrégat, graphique), Évolution (mois par mois), Ratios. Un **filtre société** vaut pour tous les onglets : les chiffres clés deviennent ceux de la société, la comparaison et les ratios ne montrent qu'elle (l'agrégat reste celui du groupe) |
+| **Structure** (`/group/structure`) | Qui détient quoi, qui dirige quoi ? | Organigramme (ci-dessous), Associés et dirigeants (pourcentages direct, indirect et total), Participations (tableau des filiales et participations), Sociétés (forme juridique, SIREN, dirigeants, chiffres clés) |
+| **Trésorerie** (`/group/treasury`) | Où est l'argent du groupe, qui doit quoi à qui, où va la trésorerie ? | Soldes et perspectives (soldes bancaires par société et par devise, trésorerie comptable par mois, comptes courants et prêts entre sociétés et leurs écarts, perspectives), Flux entre sociétés (diagramme de flux et tableaux) |
+| **Fiscalité** (`/group/tax`) | Que doit le groupe en impôt, quand, et une intégration fiscale serait-elle utile ? | Impôt sur les sociétés (chaque société et régime mère-fille), Intégration fiscale (simulation), Échéances (suivi des déclarations de chaque société) |
+| **Opérations** (`/group/operations`) | Qu'y a-t-il derrière un chiffre ? | Transactions (toutes les sociétés, consultation seule), Grand livre combiné, Éliminations (vue combinée et flux trouvés) |
+
+Les anciennes adresses mènent à leur nouvelle place par une redirection permanente (`LEGACY_GROUP_PAGES`, `components/layout/group-nav-config.ts`) : `/companies` vers Structure, Sociétés ; `/persons` vers Structure, Associés et dirigeants ; `/participations` vers Structure, Participations ; `/comparison`, `/evolution`, `/ratios` vers les onglets de Pilotage ; `/deadlines` vers Fiscalité, Échéances ; `/eliminations`, `/transactions`, `/ledger` vers les onglets d'Opérations.
+
+La rémunération des dirigeants et la valorisation ne font pas partie de l'espace groupe.
+
+Code : `lib/group` (purs et en centimes : `combine.ts`, `periods.ts`, `aggregate.ts`, `ownership.ts`, `structure.ts`, `tax-integration.ts`, `flows.ts`, `simple-home.ts`, `merge-pages.ts`, `deadline-summary.ts` ; `perimeter.ts` et `members.ts` vérifient les accès et lisent chaque société ; un service par rapport), vues `app/(company)/[companyId]/group/*` et `components/features/group` (`view-frame.tsx` pour l'en-tête et les onglets, un fichier par vue, les sections réutilisées par les vues), menu `components/layout/group-nav-config.ts`. API `GET /api/group/{summary, alerts, view, companies, indicators, evolution, treasury, participations, persons, structure, tax, deadlines, transactions, ledger, simple-home, export}`.
+
+## Organigramme
+
+Onglet Organigramme de Structure (`GET /api/group/structure`, `lib/group/structure.ts`, `get-group-structure.service.ts`), comme le schéma de l'ancienne application, réécrit :
+
+- **nœuds** : les personnes et les sociétés qui détiennent des parts (photo d'une personne, à défaut ses initiales), la holding, ses filiales (logo, forme juridique, premier dirigeant), et une filiale non lue sous la forme « Société non accessible » ;
+- **flèches** : du détenteur vers la société détenue, avec le pourcentage enregistré parmi les actionnaires de la société détenue ; entre deux sociétés, la catégorie : plus de 50 %, filiale (Code de commerce, art. L233-1), de 10 à 50 %, participation (art. L233-2) ;
+- **niveaux** : les détenteurs hors du groupe en haut, la holding, puis chaque société un niveau sous la société du groupe la plus profonde qui la détient. Une chaîne ne passe jamais deux fois par la même société et compte au plus six sociétés : un cycle (deux sociétés qui se détiennent) ne boucle pas ;
+- chaque société du groupe porte la détention de la holding, **directe et indirecte** (le produit des pourcentages le long de chaque chaîne de sociétés du groupe, additionné sur les chaînes, `ownership.ts`) ; le bouton « i » d'une carte montre qui la détient, directement et par le groupe, et ses dirigeants ;
+- un clic sur une société ouvre ses propres pages ; boutons de zoom et « Ajuster à la largeur », défilement dans le cadre sur téléphone (le cadre s'ajuste à la largeur à l'ouverture) ; « Lire l'organigramme en texte » donne une phrase par détention pour les lecteurs d'écran ;
+- HTML et SVG dessinés par Kledg, sans bibliothèque de graphes (la disposition est une fonction pure testée, `layoutStructure`).
+
+Une filiale non lue n'a ni nom (sauf pour un membre dont le rôle ne permet pas de lire les états), ni identifiant (clé opaque `hidden-1`), ni pourcentage (il est dans son propre registre des associés, non lu) ; ses propres détentions dans des sociétés lues apparaissent, puisqu'elles sont inscrites dans les registres de ces sociétés. Les personnes et les sociétés hors du groupe ont des clés de position : une clé interne porte un email ou un identifiant.
+
+## Trésorerie : flux entre sociétés et perspectives
+
+- **Flux entre sociétés** (`lib/group/flows.ts`) : les flux que la vue combinée trouve, dans le sens de l'argent. Frais de gestion et factures : de l'acheteur vers le vendeur ; dividendes : de la société qui distribue vers celle qui reçoit ; prêts et avances en compte courant : du prêteur vers l'emprunteur ; factures non réglées : ce que la société cliente doit encore. Le montant est le plus grand des deux livres, l'écart entre eux est montré. Un diagramme de flux (Sankey, Recharts, déjà présent) a deux colonnes, qui paie et qui reçoit : une société qui paie et reçoit y figure une fois de chaque côté, sans cycle. Une seule couleur pour tous les flux : la nature est écrite dans l'info-bulle et le tableau ;
+- **Perspectives** (`treasuryOutlook`) : le rythme moyen des trois derniers mois de la trésorerie comptable du groupe, les montants des échéances non réglées des 90 prochains jours enregistrés dans le suivi des déclarations, et la trésorerie dans trois mois au même rythme après ces échéances. Une projection simple, la page le dit, pas une prévision.
+
+## Fiscalité
+
+### Impôt sur les sociétés de chaque société
+
+Chaque société lue est calculée comme sur sa propre page Impôt sur les sociétés ([impôt sur les sociétés](impot-societes.md), `buildCorporateTax`), sur son exercice qui correspond à celui de la holding, avec les droits de l'utilisateur pour les dividendes de ses filiales : résultat fiscal, impôt, taux réduit appliqué ou non, contribution sociale, solde du relevé 2572-SD et sa date, nombre de contrôles à revoir. Le lien mène à sa page.
+
+**Régime mère-fille** : pour chaque détention entre deux sociétés lues, le pourcentage, le seuil de 5 % du capital (CGI, art. 145), les dividendes reçus et s'ils sont déduits dans l'impôt de la mère (quote-part de frais et charges de 5 %, art. 216). La forme nominative des titres et leur conservation deux ans restent à vérifier.
+
+### Simulation d'intégration fiscale
+
+Onglet Intégration fiscale (`lib/group/tax-integration.ts`, outil MCP `simulate_tax_integration`). **Simulation indicative pour un exercice, à faire vérifier par un expert-comptable** : Kledg n'exerce pas l'option et ne dépose rien. Les règles, chacune avec sa source dans la page :
+
+| Règle | Ce que fait la simulation | Source |
+| --- | --- | --- |
+| Société mère | Soumise à l'impôt sur les sociétés ; pas elle-même détenue à 95 % ou plus par une société soumise à l'IS (sinon c'est cette société qui serait tête de groupe) ; exercice de douze mois | CGI, art. 223 A ; BOI-IS-GPE-10-20-10 |
+| Membres | Détenus à 95 % au moins par la mère, directement ou indirectement par des sociétés membres : les pourcentages successifs se multiplient et seules les chaînes par des membres comptent (calcul pas à pas jusqu'à ce que le périmètre ne change plus, `integrationInterests`) ; soumis à l'IS ; exercice de douze mois aux mêmes dates que la mère | CGI, art. 223 A ; BOI-IS-GPE-10-20-10 ; BOI-IS-GPE-10-30 |
+| À confirmer | Résidence fiscale en France ; option notifiée par la mère avec l'accord de chaque filiale au plus tard à la date limite de dépôt de la déclaration de résultat de l'exercice précédent, pour cinq exercices | CGI, art. 223 A |
+| Résultat d'ensemble | Somme des résultats fiscaux des membres, chacun tel que sa page le calcule (avant déficits) | CGI, art. 223 B |
+| Dividendes entre membres | Éligibles au régime mère-fille : quote-part de frais et charges de 1 % au lieu de 5 %, donc 4 % des dividendes en moins ; hors régime mère-fille : déduits à 99 % | CGI, art. 216, I et 223 B ; BOI-IS-GPE-20-20-20-20 |
+| Frais de gestion entre membres | Produit chez l'une, charge chez l'autre : neutres dans la somme, sans retraitement ; un écart entre les deux livres est signalé | CGI, art. 223 B |
+| Retraitements à saisir | Provisions sur un autre membre, cessions d'immobilisations entre membres (art. 223 F), abandons de créances et subventions, limitation des charges financières du groupe (art. 223 B bis), autres : listés « Non calculé », comptés seulement quand l'utilisateur saisit le montant (positif ajouté au résultat, négatif déduit) | CGI, art. 223 A à 223 U |
+| Déficits antérieurs | Chaque membre impute ses déficits d'avant le groupe sur son seul bénéfice ; la limite de 1 000 000 € majorés de 50 % s'applique au résultat d'ensemble (simplification : une fois sur le total) ; une perte du groupe se reporte au niveau du groupe | CGI, art. 223 I, 223 C, 209, I |
+| Impôt du groupe | Taux réduit de 15 % **une seule fois**, sur 42 500 € du résultat d'ensemble, quand la somme des chiffres d'affaires des membres ne dépasse pas 10 000 000 € et que le capital de la mère remplit les conditions (libéré, 75 % de personnes physiques, réponses de sa page Impôt sur les sociétés) ; sinon 25 % ; une question sans réponse calcule au taux normal et indique le montant au taux réduit | CGI, art. 219, I, b |
+| Contribution sociale | Une fois pour le groupe, 3,3 % de l'impôt au-delà de 763 000 € ; exonérée dans les conditions de la mère | CGI, art. 235 ter ZC |
+| Comparaison | Somme des impôts et contributions des membres imposés séparément, face à l'impôt du groupe : l'économie, ou le surcoût (deux petits bénéfices au taux réduit chacun coûtent plus ensemble) | |
+
+Le Conseil d'État (13 mars 2025, n° 481538) apprécie le chiffre d'affaires d'une société d'un groupe, intégré ou non, au niveau de tout le groupe : les chiffres séparés de chaque société viennent de ses propres réponses et peuvent devoir être revus. Une filiale non lue n'est pas dans la simulation, qui le dit. Les retraitements saisis dans la page sont recalculés dans le navigateur avec la même fonction pure (et passés à l'export) ; l'API les prend en centimes (`?provisions=`, `asset_sales`, `waivers`, `financial_charges`, `other`), l'outil MCP en euros.
+
+Exemple (test `lib/group/__tests__/tax-integration.test.ts`) : H (résultat fiscal 12 500 €, après déduction des 50 000 € de dividendes de A et réintégration de la quote-part de 5 %, impôt 1 875 €), A détenue à 100 % (200 000 €, impôt 45 750 €), B détenue à 96 % (perte de 80 000 €). Résultat d'ensemble : 132 500 € moins 2 000 € (quote-part de 1 % au lieu de 5 %) = 130 500 € ; impôt du groupe 6 375 € (15 % sur 42 500 €) + 22 000 € (25 % sur 88 000 €) = 28 375 € ; séparément 47 625 € ; économie 19 250 €.
+
+## Mode simple
+
+En mode simple ([mode simple](mode-simple.md)), le menu du groupe devient quatre pages en mots simples, sans numéro de compte ni terme comptable (`SIMPLE_MODE_JARGON`, vérifié par les tests sur les pages rendues) ; `/group` ouvre l'accueil simple du groupe, sauf un lien qui nomme un onglet. Le sélecteur Simple / Expert de la barre du haut ouvre, depuis une page du groupe, l'accueil du groupe du mode choisi.
+
+| Page | Contenu | Source |
+| --- | --- | --- |
+| Accueil du groupe (`/group/simple`) | L'argent sur les comptes du groupe, ce que gagne le groupe depuis le début de l'année (« Bénéfice depuis janvier »), qui doit quoi à qui (« Atelier Lumen doit 25 000,00 € à Lumen Holding »), impôts et déclarations des six prochaines semaines et en retard, et « À faire » par société avec un lien vers ses pages simples | Soldes bancaires en euros de Trésorerie ; résultat après éliminations de Pilotage ; soldes entre sociétés ; suivi des déclarations ; alertes |
+| Mes sociétés (`/group/simple/societes`) | Une carte par société : argent sur les comptes, ventes, bénéfice et prochaine déclaration, la part détenue par la holding | Les mêmes rapports |
+| Qui possède quoi (`/group/simple/qui-possede-quoi`) | L'organigramme simplifié : les pourcentages, sans catégorie juridique ; une société ouvre ses pages simples | Structure |
+| Argent entre mes sociétés (`/group/simple/argent-entre-societes`) | Les flux en phrases : « Lumen Holding facture 18 000,00 € à Atelier Lumen pour la gestion, soit 1 500,00 € par mois en moyenne », dividendes, prêts, avances | Flux entre sociétés |
+
+`GET /api/group/simple-home` lit les mêmes rapports que les vues expertes (`getGroupView`, `getGroupTreasury`, `getGroupDeadlines`, `getGroupAlerts`) et ne calcule rien d'autre (`lib/group/simple-home.ts`) ; les tests comparent chaque chiffre aux rapports experts, au centime.
 
 ## Éliminations : une vue combinée indicative, pas des comptes consolidés
 
@@ -120,7 +181,7 @@ L'écart de 2 000 sur les frais de gestion de B est signalé. Cet exemple est le
 
 ## Filiales et participations
 
-Page **Participations**, pour le tableau des filiales et participations des formulaires 2059-G-SD (régime réel normal) et 2033-G-SD (régime simplifié) et de l'annexe :
+Onglet **Participations** de Structure, pour le tableau des filiales et participations des formulaires 2059-G-SD (régime réel normal) et 2033-G-SD (régime simplifié) et de l'annexe :
 
 - **catégorie** : plus de 50 % du capital, filiale (Code de commerce, art. L233-1) ; de 10 à 50 %, participation (art. L233-2) ;
 - détention et nombre de titres, tels qu'enregistrés parmi les actionnaires de la filiale ;
@@ -152,15 +213,15 @@ Exemple : Claire détient 60 % de la holding H ; H détient 80 % de A et 40 % de
 
 Une chaîne qui passe par une filiale non lue manque : la page le signale. Une société qui en détient une autre qui la détient (cycle) ne compte qu'une fois par chaîne.
 
-## Impôts et échéances, transactions
+## Échéances, transactions
 
-Impôts et échéances lit le calendrier et le [suivi des déclarations](echeances.md) de chaque société pour son exercice qui correspond à celui de la holding : le même statut que sur la page Échéances de la société (dépôts de TVA, liasse et acomptes d'IS, approbation, statuts enregistrés). Rien ne s'enregistre depuis l'espace groupe.
+L'onglet Échéances de Fiscalité lit le calendrier et le [suivi des déclarations](echeances.md) de chaque société pour son exercice qui correspond à celui de la holding : le même statut que sur la page Échéances de la société (dépôts de TVA, liasse et acomptes d'IS, approbation, statuts enregistrés). Rien ne s'enregistre depuis l'espace groupe.
 
 Transactions fusionne les transactions des sociétés page par page (`merge-pages.ts`) : chaque société donne ses lignes après le curseur dans le même ordre (date puis identifiant, des plus récentes aux plus anciennes), la page garde les premières, et le curseur suivant est la dernière gardée ; aucune ligne n'est perdue ni répétée. Un filtre sur une société qui n'est pas lue répond « Société introuvable dans ce groupe. », qu'elle existe ou non.
 
 ## Exports et outils MCP
 
-Chaque page a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/export?report=`) : `combined`, `participations`, `companies`, `indicators`, `evolution`, `treasury`, `persons`, `deadlines`, `transactions` (les 5 000 plus récentes, avec les filtres de la page), `ledger`. Droit `reports:export` dans la holding, `reports:read` dans chaque filiale lue ; cellules protégées contre les formules (`lib/reports/csv-safe.ts`).
+Chaque tableau a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/export?report=`) : `combined`, `participations`, `companies`, `indicators`, `evolution`, `treasury`, `persons`, `deadlines`, `transactions` (les 5 000 plus récentes, avec les filtres de la page), `ledger`, `structure` (nœuds et détentions de l'organigramme), `tax` (impôt par société, régime mère-fille, périmètre et simulation d'intégration avec les retraitements saisis, sources). Droit `reports:export` dans la holding, `reports:read` dans chaque filiale lue ; cellules protégées contre les formules (`lib/reports/csv-safe.ts`).
 
 | Outil | Rôle |
 | --- | --- |
@@ -175,9 +236,11 @@ Chaque page a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/expo
 | `get_group_alerts` | Déclarations en retard, transactions à rapprocher, brouillons |
 | `list_group_transactions` | Transactions du groupe page par page |
 | `get_group_ledger` | Grand livre combiné et lignes d'un compte |
+| `get_group_structure` | Organigramme : nœuds, détentions et leur catégorie, détention directe, indirecte et totale, dirigeants |
+| `simulate_tax_integration` | Impôt de chaque société, régime mère-fille, simulation d'intégration fiscale avec ses conditions, retraitements et sources |
 
 Tous en lecture seule, avec `reports:read` dans la holding et dans chaque filiale lue. Un assistant n'atteint que les filiales de son autorisation : les autres sont comptées, ni lues ni nommées ([serveur MCP](mcp.md)).
 
 ## Ce que l'ancienne application faisait autrement
 
-L'ancienne application multipliait les soldes de chaque société par le pourcentage de détention et appelait le résultat « consolidation » ; son bilan « consolidé » additionnait les totaux mais renvoyait les lignes de la première société, et ignorait sans le dire une société aux dates d'exercice différentes. Ses éliminations étaient seulement détectées et affichées, jamais appliquées. Trois définitions de la holding s'y contredisaient (une case à cocher, un type de société, les actionnaires), et le périmètre comprenait toute société détenue à plus de 1 %, lue sans être membre. Sa page Entreprises du groupe listait toutes les sociétés de la base ; la liste des personnes du groupe et les statistiques du groupe ne vérifiaient pas l'accès à la holding ; la page des impôts du groupe parcourait toutes les sociétés de la base et écrivait des déclarations lors d'une simple lecture. Kledg garde une définition, vérifie chaque société, n'écrit rien depuis l'espace groupe et appelle chaque chiffre ce qu'il est : combiné, agrégé, indicatif.
+L'ancienne application multipliait les soldes de chaque société par le pourcentage de détention et appelait le résultat « consolidation » ; son bilan « consolidé » additionnait les totaux mais renvoyait les lignes de la première société, et ignorait sans le dire une société aux dates d'exercice différentes. Ses éliminations étaient seulement détectées et affichées, jamais appliquées. Trois définitions de la holding s'y contredisaient (une case à cocher, un type de société, les actionnaires), et le périmètre comprenait toute société détenue à plus de 1 %, lue sans être membre. Sa page Entreprises du groupe listait toutes les sociétés de la base ; la liste des personnes du groupe et les statistiques du groupe ne vérifiaient pas l'accès à la holding ; la page des impôts du groupe parcourait toutes les sociétés de la base et écrivait des déclarations lors d'une simple lecture. Son schéma de la structure du capital (trois rangées, associés, holding, filiales, déplaçables à la souris) est repris dans l'organigramme de Structure, avec les niveaux de détention indirecte, les catégories, les dirigeants et les filiales non accessibles. Kledg garde une définition, vérifie chaque société, n'écrit rien depuis l'espace groupe et appelle chaque chiffre ce qu'il est : combiné, agrégé, indicatif.
