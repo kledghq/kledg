@@ -17,7 +17,8 @@ import { resolveDashboardFiscalYear } from '@/lib/reports/dashboard'
 import { sumLedgerTotals } from '@/lib/reports/ledger/aggregate'
 import { loadStatementAccounts } from '@/lib/reports/statements/load'
 import { calendarDayOf, todayUtc, utcDaysInclusive } from '@/lib/utils/date'
-import { computeFinancialIndicators, vatFlowsOf, type FinancialIndicators } from './indicators'
+import type { AccountTotals } from '@/lib/reports/statements/allocation'
+import { computeFinancialIndicators, vatFlowsOf, type FinancialIndicators, type VatFlows } from './indicators'
 
 export const FISCAL_YEAR_NOT_FOUND = 'Exercice introuvable pour cette société.'
 export const NO_FISCAL_YEAR = "Aucun exercice pour cette société : créez d'abord un exercice."
@@ -45,17 +46,17 @@ export interface FinancialIndicatorsReport {
   previous: { fiscalYear: IndicatorsFiscalYear; indicators: FinancialIndicators } | null
 }
 
-type YearRow = Pick<FiscalYear, 'id' | 'year' | 'startDate' | 'endDate' | 'isClosed'>
+export type YearRow = Pick<FiscalYear, 'id' | 'year' | 'startDate' | 'endDate' | 'isClosed'>
 
 /** Today within the fiscal year: its first day before it starts, its last day once over. */
-function referenceDay(fy: YearRow, now: Date): Date {
+export function referenceDay(fy: Pick<YearRow, 'startDate' | 'endDate'>, now: Date): Date {
   const today = todayUtc(now)
   if (today < fy.startDate) return todayUtc(fy.startDate)
   if (today > fy.endDate) return todayUtc(fy.endDate)
   return today
 }
 
-function refOf(fy: YearRow, asOf: Date): IndicatorsFiscalYear {
+export function refOf(fy: YearRow, asOf: Date): IndicatorsFiscalYear {
   return {
     id: fy.id,
     year: fy.year,
@@ -67,11 +68,11 @@ function refOf(fy: YearRow, asOf: Date): IndicatorsFiscalYear {
 }
 
 /**
- * The indicators of one fiscal year: its account totals, the VAT recorded on
- * its flows (movements of the year without the opening entry) and the days
- * from its first day to `asOf`.
+ * What the indicators of one fiscal year are computed from: its account
+ * totals and the VAT recorded on its flows (movements of the year without
+ * the opening entry). The group space adds these up across companies.
  */
-export async function computeFiscalYearIndicators(companyId: string, fy: YearRow, asOf: Date): Promise<FinancialIndicators> {
+export async function loadIndicatorInputs(companyId: string, fy: Pick<YearRow, 'id' | 'startDate' | 'endDate'>): Promise<{ accounts: AccountTotals[]; vat: VatFlows }> {
   const [accounts, movements] = await Promise.all([
     loadStatementAccounts(companyId, fy),
     sumLedgerTotals({ companyId, fiscalYearId: fy.id, periodStart: fy.startDate, periodEnd: fy.endDate }),
@@ -83,7 +84,22 @@ export async function computeFiscalYearIndicators(companyId: string, fy: YearRow
       return code ? [{ code, debitCents: m.debitCents, creditCents: m.creditCents }] : []
     }),
   )
-  return computeFinancialIndicators({ accounts, vat, days: Math.max(1, utcDaysInclusive(fy.startDate, asOf)) })
+  return { accounts, vat }
+}
+
+/** Days from the first day of the fiscal year to `asOf` (at least one): the period the delays cover. */
+export function indicatorDays(fy: Pick<YearRow, 'startDate'>, asOf: Date): number {
+  return Math.max(1, utcDaysInclusive(fy.startDate, asOf))
+}
+
+/**
+ * The indicators of one fiscal year: its account totals, the VAT recorded on
+ * its flows (movements of the year without the opening entry) and the days
+ * from its first day to `asOf`.
+ */
+export async function computeFiscalYearIndicators(companyId: string, fy: YearRow, asOf: Date): Promise<FinancialIndicators> {
+  const { accounts, vat } = await loadIndicatorInputs(companyId, fy)
+  return computeFinancialIndicators({ accounts, vat, days: indicatorDays(fy, asOf) })
 }
 
 async function resolveFiscalYear(companyId: string, fiscalYearId: string | undefined): Promise<FiscalYear> {

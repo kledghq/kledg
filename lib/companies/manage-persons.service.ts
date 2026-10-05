@@ -28,6 +28,7 @@ import { CreateAddressSchema, createCompanyAddress, deleteAddressesIfUnused } fr
 import { optionalCalendarDay, optionalText as nullableText } from '@/lib/api/zod-fields'
 import { dayToDate } from '@/lib/accounting/entry-date'
 import { calendarDayOf } from '@/lib/utils/date'
+import { logoError } from './logo'
 
 /** A photo is a data URL kept in the row (like company logos): bounded well under the 1 MB body cap. */
 const MAX_PHOTO_LENGTH = 700_000
@@ -52,7 +53,8 @@ export const CreatePersonSchema = z.object({
   photo: z
     .string()
     .max(MAX_PHOTO_LENGTH, 'La photo est trop lourde')
-    .refine((value) => value === '' || /^data:image\/(png|jpe?g|webp);base64,/.test(value), 'Format de photo non pris en charge')
+    // Same check as a company logo (lib/companies/logo.ts), inline images only: never an address to fetch.
+    .refine((value) => value === '' || (value.startsWith('data:') && logoError(value) === null), 'Format de photo non pris en charge (PNG, JPEG, GIF ou WebP).')
     .optional()
     .transform((value) => (value ? value : null)),
   address: CreateAddressSchema.nullable().optional(),

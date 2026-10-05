@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { useParams } from "next/navigation"
+import { useParams, usePathname } from "next/navigation"
 
 import type { DisplayMode } from "@/lib/appearance/display-mode"
 import { navGroupsFor, type NavCountKey } from "@/components/layout/nav-config"
 import { NavMain } from "@/components/layout/nav-main"
+import { GroupNav, useGroupSummary } from "@/components/layout/group-nav"
+import { groupRelativePath } from "@/components/layout/group-nav-config"
 import { NavUser } from "@/components/layout/nav-user"
 import { TeamSwitcher, type SwitcherCompany } from "@/components/layout/team-switcher"
 import {
@@ -49,6 +51,12 @@ function useSimpleCounts(companyId: string | undefined, enabled: boolean) {
   return enabled && loaded && loaded.companyId === companyId ? loaded.counts : {}
 }
 
+/**
+ * The sidebar of the company pages. In the group space (/<holding>/group/...)
+ * it becomes the group's: the switcher shows the group as the current
+ * selection and the menu lists only the group pages (docs/vue-groupe.md);
+ * choosing a company in the switcher brings its own navigation back.
+ */
 export function AppSidebar({
   companies,
   holdingRefs,
@@ -57,14 +65,17 @@ export function AppSidebar({
 }: React.ComponentProps<typeof Sidebar> & { companies?: SwitcherCompany[]; holdingRefs?: string[]; mode?: DisplayMode }) {
   const params = useParams()
   const companyId = params?.companyId as string | undefined
-  const counts = useSimpleCounts(companyId, mode === "simple")
+  const pathname = usePathname() ?? ""
+  const inGroup = companyId !== undefined && groupRelativePath(pathname.slice(companyId.length + 1)) !== null
+  const counts = useSimpleCounts(companyId, mode === "simple" && !inGroup)
+  const group = useGroupSummary(companyId, inGroup)
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher initialCompanies={companies} holdingRefs={holdingRefs} />
+        <TeamSwitcher initialCompanies={companies} holdingRefs={holdingRefs} group={inGroup ? { summary: group } : undefined} />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} counts={counts} />
+        {inGroup ? <GroupNav /> : <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} counts={counts} />}
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

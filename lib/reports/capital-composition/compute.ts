@@ -52,6 +52,8 @@ export interface ShareholderInput {
   id: string
   kind: 'PHYSICAL' | 'LEGAL'
   name: string
+  /** Photo of a natural person (Person.photo, an image data URL), shown next to the name. */
+  photo?: string | null
   /** SIREN of a legal person (company of the instance or SIRET entered). */
   siren: string | null
   shares: number | null

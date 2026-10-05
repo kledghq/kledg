@@ -108,6 +108,7 @@ describe('get_bank_sync_status', () => {
         ],
       },
     ] as never)
+    db.integration.findMany.mockResolvedValue([])
     db.bankTransaction.groupBy.mockResolvedValue([{ bankAccountId: 'ba-1', _count: { _all: 4 }, _min: { date: new Date('2026-09-02T00:00:00Z') } }] as never)
     const result = await tool('get_bank_sync_status')({ companyId: 'c1' })
     const data = parse(result)

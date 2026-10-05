@@ -24,11 +24,12 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
   companyGuard: () => guard,
 }))
 vi.mock('@/lib/expense-reports/actor', () => ({ expenseActorOf: vi.fn(async () => ({ userId: 'u1', canManage: false })) }))
-vi.mock('@/lib/expense-reports/manage-expense-reports.service', () => ({ listExpenseReports: vi.fn(), getExpenseReport: vi.fn(), createExpenseReport: vi.fn() }))
-vi.mock('@/lib/expense-reports/manage-category-rules.service', () => ({
+vi.mock('@/lib/expense-reports/manage-expense-reports.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/expense-reports/manage-expense-reports.service')>()), listExpenseReports: vi.fn(), getExpenseReport: vi.fn(), createExpenseReport: vi.fn() }))
+vi.mock('@/lib/expense-reports/manage-category-rules.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/expense-reports/manage-category-rules.service')>()),
   listCategoryRules: vi.fn(async () => ({ rules: [{ id: 'r1', keyword: 'sncf', category: 'TRANSPORT', accountCode: null, priority: 0 }] })),
 }))
-vi.mock('@/lib/expense-reports/manage-expense-claimants.service', () => ({ listClaimants: vi.fn() }))
+vi.mock('@/lib/expense-reports/manage-expense-claimants.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/expense-reports/manage-expense-claimants.service')>()), listClaimants: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { expenseActorOf } from '@/lib/expense-reports/actor'

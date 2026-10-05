@@ -14,6 +14,10 @@ import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
 import type { GroupAccess } from '@/lib/management-fees/access'
+import { listBillings } from '@/lib/management-fees/bill-management-fees.service'
+import { listSubsidiaryCandidates } from '@/lib/management-fees/holding'
+import { forAssistant } from '@/lib/mcp/euros'
+import { ValidationError } from '@/lib/accounting/errors'
 import { computeConventionFees } from '@/lib/management-fees/compute-management-fees.service'
 import { listConventions } from '@/lib/management-fees/manage-conventions.service'
 import { fromCents } from '@/lib/utils/money'
@@ -34,19 +38,28 @@ export function registerManagementFeeTools(server: McpServer, access: McpAccess,
       title: 'Conventions de frais de gestion',
       description: describeTool({
         summary:
-          'Lists the management fee conventions (conventions de prestations de services) of a holding with its subsidiaries: pricing (cost plus a mark-up, or a fixed amount), mark-up, share of the costs charged, allocation key (equal, revenue, custom percentages), VAT rate, accounts and subsidiaries. Subsidiaries the connection cannot read are listed without their name.',
+          'Lists the management fee conventions (conventions de prestations de services) of a holding with its subsidiaries: pricing (cost plus a mark-up, or a fixed amount), mark-up, share of the costs charged, allocation key (equal, revenue, custom percentages), VAT rate, accounts and subsidiaries. Subsidiaries the connection cannot read are listed without their name. View billings (with conventionId) gives the periods invoiced and the state of each invoice on both sides; view subsidiaries the companies that record the holding as a shareholder and that the connection may read (candidates for a convention).',
         access: 'read',
         permission: { reports: ['read'] },
         amounts: 'euros',
         units: 'Percentages in percent.',
         never: 'names a subsidiary outside the connection’s grant or changes anything (read only).',
       }),
-      inputSchema: z.object({ companyId }),
+      inputSchema: z.object({
+        companyId,
+        view: z.enum(['conventions', 'billings', 'subsidiaries']).default('conventions'),
+        conventionId: z.string().max(64).optional().describe('View billings: the convention.'),
+      }),
       annotations: readOnly,
     },
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { reports: ['read'] })
+        if (args.view === 'billings') {
+          if (!args.conventionId) throw new ValidationError('conventionId est requis pour la vue billings.')
+          return json({ billings: forAssistant(await listBillings(args.companyId, args.conventionId, group)) })
+        }
+        if (args.view === 'subsidiaries') return json({ subsidiaries: forAssistant(await listSubsidiaryCandidates(args.companyId, access.user, group)) })
         const conventions = await listConventions(args.companyId, group)
         return json({
           conventions: conventions.map((c) => ({

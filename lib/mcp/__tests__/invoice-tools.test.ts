@@ -22,8 +22,8 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/company-access')>()),
   companyGuard: () => guard,
 }))
-vi.mock('@/lib/tiers/manage-tiers.service', () => ({ listTiers: vi.fn() }))
-vi.mock('@/lib/invoices/manage-invoices.service', () => ({ listInvoices: vi.fn(), getInvoice: vi.fn(), createInvoice: vi.fn() }))
+vi.mock('@/lib/tiers/manage-tiers.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/tiers/manage-tiers.service')>()), listTiers: vi.fn() }))
+vi.mock('@/lib/invoices/manage-invoices.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/invoices/manage-invoices.service')>()), listInvoices: vi.fn(), getInvoice: vi.fn(), createInvoice: vi.fn() }))
 vi.mock('@/lib/invoices/post-invoice.service', () => ({ postInvoice: vi.fn() }))
 vi.mock('@/lib/mcp/full-control/pending-actions', () => ({
   createPendingAction: vi.fn(async () => ({ id: 'action-1', approvalUrl: 'http://kledg.test/ai-actions/action-1', expiresAt: new Date('2026-10-05T00:00:00Z') })),

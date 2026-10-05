@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Amount, EmptyState, HelpTip, PageHeader, StatCard, StatusBadge, formatDisplayDate } from '@/components/shared'
+import { Amount, EmptyState, HelpTip, PageHeader, PersonAvatar, StatCard, StatusBadge, formatDisplayDate } from '@/components/shared'
 import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { docsUrl } from '@/lib/docs-links'
 import { plural } from '@/lib/utils/plural'
@@ -106,7 +106,10 @@ export function CapitalCompositionPage({ companyId }: { companyId: string }) {
               <ul className="divide-y rounded-md border @min-[56rem]/list:hidden" aria-label="Associés">
                 {data.rows.map((r) => (
                   <li key={r.id} className="space-y-1 px-3 py-3">
-                    <p className="text-sm font-medium">{r.name}</p>
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      {r.kind === 'PHYSICAL' ? <PersonAvatar name={r.name} photo={r.photo} size="sm" /> : null}
+                      {r.name}
+                    </p>
                     <p className="text-muted-foreground text-xs">
                       {r.kind === 'PHYSICAL' ? 'Personne physique' : `Personne morale${r.siren ? `, SIREN ${r.siren}` : ''}`}
                     </p>
@@ -144,7 +147,12 @@ export function CapitalCompositionPage({ companyId }: { companyId: string }) {
                   <TableBody>
                     {data.rows.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell className="font-medium">{r.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-2">
+                            {r.kind === 'PHYSICAL' ? <PersonAvatar name={r.name} photo={r.photo} size="sm" /> : null}
+                            {r.name}
+                          </span>
+                        </TableCell>
                         <TableCell>
                           {r.kind === 'PHYSICAL' ? 'Personne physique' : 'Personne morale'}
                           {r.siren ? <span className="text-muted-foreground ml-2 font-mono text-xs">{r.siren}</span> : null}

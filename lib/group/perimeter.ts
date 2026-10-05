@@ -29,6 +29,8 @@ import { readStake, type Stake } from './read-member'
 export const GROUP_READ = { reports: ['read'] } as const
 
 export interface GroupMemberRef extends GroupCompanyRef {
+  /** The company's slug, for links into its own pages. */
+  slug: string
   role: 'holding' | 'subsidiary'
   /** The holding's stake, for a subsidiary. */
   stake: Stake | null
@@ -71,7 +73,7 @@ export async function readIfAllowed<T>(
 /** The holding (already authorized by the route or tool) and its subsidiaries, each checked. */
 export async function resolveGroup(holdingId: string, access: GroupAccess): Promise<GroupPerimeter> {
   const [holding, ids] = await Promise.all([
-    prisma.company.findUnique({ where: { id: holdingId }, select: { id: true, name: true, siren: true } }),
+    prisma.company.findUnique({ where: { id: holdingId }, select: { id: true, name: true, siren: true, slug: true } }),
     listSubsidiaryIds(holdingId),
   ])
   if (!holding) throw new NotFoundError(COMPANY_NOT_FOUND_MESSAGE)
@@ -81,7 +83,7 @@ export async function resolveGroup(holdingId: string, access: GroupAccess): Prom
   for (const id of ids.slice(0, MAX_GROUP_SUBSIDIARIES)) {
     const read = await readIfAllowed(access, id, async () => {
       const [company, stake] = await Promise.all([
-        prisma.company.findUnique({ where: { id }, select: { id: true, name: true, siren: true } }),
+        prisma.company.findUnique({ where: { id }, select: { id: true, name: true, siren: true, slug: true } }),
         readStake(id, holdingId),
       ])
       return company ? { ...company, stake } : null

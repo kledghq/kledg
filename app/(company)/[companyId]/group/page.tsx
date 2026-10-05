@@ -1,9 +1,5 @@
-'use client'
+import { GroupOverviewPage } from '@/components/features/group/overview-page'
 
-import { useParams } from 'next/navigation'
-import { GroupViewPage } from '@/components/features/group/group-view-page'
-
-export default function GroupRoute() {
-  const params = useParams()
-  return <GroupViewPage companyId={params.companyId as string} />
+export default function Page() {
+  return <GroupOverviewPage />
 }

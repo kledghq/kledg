@@ -71,6 +71,8 @@ export interface ToolDescription {
   access: AccessLevel
   /** Right(s) checked in the company, like the matching API route; 'membership' when being a member is enough. */
   permission: Permission | readonly Permission[] | 'membership'
+  /** Tools with an `action` input: the rights each action needs besides `permission`, like each matching route. */
+  actions?: ActionPermissions
   /** 'euros' when the tool takes or returns amounts. */
   amounts: 'euros' | 'none'
   /** Extra unit notes (rates, ratios, days). */
@@ -79,12 +81,25 @@ export interface ToolDescription {
   never: string
 }
 
+/** Rights per value of a tool's `action` input (checked besides the tool's own permission). */
+export type ActionPermissions = Readonly<Record<string, Permission | readonly Permission[]>>
+
+/** The rights an action needs, as a list (none when the action has no entry). */
+export function permissionsOfAction(actions: ActionPermissions | undefined, action: unknown): readonly Permission[] {
+  const rights = typeof action === 'string' && actions && Object.hasOwn(actions, action) ? actions[action] : undefined
+  if (!rights) return []
+  return Array.isArray(rights) ? rights : [rights as Permission]
+}
+
 /** The description of a tool, in the order the guard test checks. */
 export function describeTool(d: ToolDescription): string {
   const units = [d.amounts === 'euros' ? AMOUNTS_IN_EUROS : NO_AMOUNTS, d.units].filter(Boolean).join(' ')
   const label = d.permission === 'membership' ? '' : permissionLabel(d.permission)
-  const right = d.permission === 'membership' ? 'membership of the company' : `the ${label} right${label.includes(' and ') ? 's' : ''} in the company`
-  return `${d.summary} ${units} Access: ${LEVELS[d.access]} and ${right}. Never ${d.never}`
+  const right = d.permission === 'membership' || !label ? 'membership of the company' : `the ${label} right${label.includes(' and ') ? 's' : ''} in the company`
+  const perAction = d.actions
+    ? `, plus per action the rights in the company: ${Object.entries(d.actions).map(([action, rights]) => `${action} (${permissionLabel(rights)})`).join(', ')}`
+    : ''
+  return `${d.summary} ${units} Access: ${LEVELS[d.access]} and ${right}${perAction}. Never ${d.never}`
 }
 
 /** Link to a page of a company in Kledg (the id is redirected to the company's slug). */

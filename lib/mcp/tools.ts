@@ -48,6 +48,9 @@ import { registerLocalTaxReadTools } from '@/lib/mcp/local-tax-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
+import { registerLedgerReadTools } from '@/lib/mcp/ledger-read-tools'
+import { registerCompanySettingsTools } from '@/lib/mcp/company-settings-tools'
+import { registerTransactionReadTools } from '@/lib/mcp/transaction-read-tools'
 import { READ_ONLY, describeTool, kledgPageUrl, writeAnnotations } from '@/lib/mcp/tool-meta'
 
 const MAX_ROWS = 200
@@ -725,6 +728,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerLocalTaxReadTools(server, guard)
   registerBankingReadTools(server, guard)
   registerThirdPartyReadTools(server, guard)
+  registerLedgerReadTools(server, guard)
+  registerCompanySettingsTools(server, guard)
+  registerTransactionReadTools(server, guard)
 
   // Full control (kledg:admin): validate, reconcile, import, close... Never
   // registered without it; each tool checks it again through the guard.

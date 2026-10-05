@@ -65,7 +65,7 @@ export const UpdateShareholderSchema = z.object({
 export type CreateShareholderInput = z.infer<typeof CreateShareholderSchema>
 export type UpdateShareholderInput = z.infer<typeof UpdateShareholderSchema>
 
-const PERSON_SELECT = { id: true, firstName: true, name: true, email: true, phone: true, address: true } as const
+const PERSON_SELECT = { id: true, firstName: true, name: true, email: true, phone: true, address: true, photo: true } as const
 const COMPANY_SHAREHOLDER_SELECT = { id: true, name: true, siren: true, legalType: true } as const
 
 type Actor = Pick<CurrentUser, 'id' | 'role'>

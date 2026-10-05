@@ -25,7 +25,7 @@ export function registerBankingReadTools(server: McpServer, guard: CompanyGuard)
       title: 'État des synchronisations bancaires',
       description: describeTool({
         summary:
-          'State of the bank feeds of a company: each connection (Qonto, Revolut, Ponto, or MANUAL for statement files) with its status, last successful synchronization, last attempt and its error, expiry of the bank consent; each account with its name, whether it is synced, last synchronization and error, balance reported by the bank, and the number of transactions not yet reconciled with the date of the oldest. Use it to check that the books are fed up to date before a closing.',
+          'State of the bank feeds of a company: each connection (Qonto, Revolut, Ponto, or MANUAL for statement files) with its status, last successful synchronization, last attempt and its error, expiry of the bank consent; each account with its name, whether it is synced, last synchronization and error, balance reported by the bank, and the number of transactions not yet reconciled with the date of the oldest. Also the bank integrations (Qonto, Ponto) with their id for sync_bank_data, status, last synchronization and enabled features. Use it to check that the books are fed up to date before a closing.',
         access: 'read',
         permission: { banking: ['read'] },
         amounts: 'euros',
@@ -38,13 +38,19 @@ export function registerBankingReadTools(server: McpServer, guard: CompanyGuard)
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { banking: ['read'] })
-        const [connections, open] = await Promise.all([
+        const [connections, open, integrations] = await Promise.all([
           listBankConnections(args.companyId),
           prisma.bankTransaction.groupBy({
             by: ['bankAccountId'],
             where: { bankAccount: { bankConnection: { companyId: args.companyId } }, reconciled: false },
             _count: { _all: true },
             _min: { date: true },
+          }),
+          // Integrations (sync_bank_data): their state only, never credentials nor provider data.
+          prisma.integration.findMany({
+            where: { companyId: args.companyId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, provider: true, type: true, name: true, status: true, lastSyncAt: true, featureConfigs: { where: { enabled: true }, select: { feature: true } } },
           }),
         ])
         const unreconciled = new Map(open.map((row) => [row.bankAccountId, row]))
@@ -75,6 +81,15 @@ export function registerBankingReadTools(server: McpServer, guard: CompanyGuard)
                   oldestUnreconciled: pending?._min.date ? day(pending._min.date) : null,
                 }
               }),
+          })),
+          integrations: integrations.map((i) => ({
+            id: i.id,
+            provider: i.provider,
+            type: i.type,
+            name: i.name,
+            status: i.status,
+            lastSyncAt: iso(i.lastSyncAt),
+            features: i.featureConfigs.map((f) => f.feature),
           })),
         })
       }),

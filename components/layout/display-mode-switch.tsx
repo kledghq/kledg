@@ -6,11 +6,20 @@ import { toast } from "sonner"
 
 import { companyHomePath, DISPLAY_MODE_LABELS, DISPLAY_MODES, type DisplayMode } from "@/lib/appearance/display-mode"
 import { accountApi } from "@/components/features/account/account-api"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Eye } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 /**
- * Simple / Expert switch in the header of company pages
- * (docs/mode-simple.md). Saves the user's display mode, then opens the home
+ * Display mode menu in the header of company pages (docs/mode-simple.md):
+ * an eye icon opening the Simple / Expert choice, like the theme menu. Saves the user's display mode, then opens the home
  * of the chosen mode in the current company. The same choice is on
  * Paramètres, Apparence.
  */
@@ -39,25 +48,22 @@ export function DisplayModeSwitch({ mode }: { mode: DisplayMode }) {
   }
 
   return (
-    <div className="flex items-center">
-      <span id="display-mode-label" className="sr-only">
-        Affichage
-      </span>
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        value={current}
-        onValueChange={(value) => value && void choose(value as DisplayMode)}
-        aria-labelledby="display-mode-label"
-        className="grid grid-cols-2"
-      >
-        {DISPLAY_MODES.map((value) => (
-          <ToggleGroupItem key={value} value={value} disabled={saving} className="px-3 text-xs sm:text-sm">
-            {DISPLAY_MODE_LABELS[value]}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={saving}>
+        <Button variant="ghost" size="icon-sm" aria-label={`Affichage\u00a0: ${DISPLAY_MODE_LABELS[current]}`}>
+          <Eye aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-36">
+        <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">Affichage</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={current} onValueChange={(value) => void choose(value as DisplayMode)}>
+          {DISPLAY_MODES.map((value) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              {DISPLAY_MODE_LABELS[value]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

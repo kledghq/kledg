@@ -166,6 +166,15 @@ Factures, Banque, Justificatifs, Mon comptable) and its footer has the
 Simple / Expert switch; simple-mode pages take their wording from
 `lib/simple/vocabulary.ts` (no account numbers, no accounting jargon).
 
+The group space of a holding (`/<holding>/group/...`, [vue-groupe.md](vue-groupe.md))
+replaces the company navigation with its own (`components/layout/group-nav-config.ts`):
+the switcher shows the group as the current selection (the main
+shareholder's photo or the holding's logo, "Groupe <holding>", the number
+of companies), the menu lists only the group pages, the breadcrumb reads
+"Groupe <holding> / Page", and choosing a company in the switcher opens its
+own pages. A natural person is shown with `PersonAvatar` (their photo, or
+their initials), never a coloured tile.
+
 Pages outside a company (Mes sociétés, account and instance settings) use
 the same frame (`components/layout/app-shell.tsx`) with a settings sidebar
 (`components/layout/settings-nav-config.ts`): a link back to the last
