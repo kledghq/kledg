@@ -11,7 +11,8 @@
 
 <p align="center">
   <a href="https://www.kledg.com">Site</a> ·
-  <a href="https://www.kledg.com/auto-hebergement">Auto-hébergement</a> ·
+  <a href="https://demo.kledg.com">Démo</a> ·
+  <a href="https://www.kledg.com/fr/deploy">Déployer</a> ·
   <a href="docs/README.md">Documentation</a> ·
   <a href="CONTRIBUTING.md">Contribuer</a>
 </p>
@@ -23,6 +24,8 @@ Kledg tient la comptabilité générale des petites sociétés françaises (SASU
 Et votre assistant IA peut y travailler : chaque instance expose un **serveur MCP** pour connecter Claude ou ChatGPT à votre comptabilité ([docs/mcp.md](docs/mcp.md)).
 
 ## Déployer en un clic
+
+Le plus simple : [le déploiement guidé de kledg.com](https://www.kledg.com/fr/deploy). Il prépare le compte Vercel, génère le secret dans votre navigateur, vous accompagne écran par écran et donne à la fin le lien qui crée le compte administrateur. Le bouton ci-dessous fait la même chose, sans guide :
 
 [![Déployer sur Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fkledghq%2Fkledg&project-name=kledg&repository-name=kledg&env=BETTER_AUTH_SECRET%2CADMIN_EMAIL&envDescription=BETTER_AUTH_SECRET%20%3A%20un%20secret%20al%C3%A9atoire%20%28bouton%20G%C3%A9n%C3%A9rer%20sur%20la%20page%20li%C3%A9e%29.%20ADMIN_EMAIL%20%3A%20votre%20email%2C%20qui%20recevra%20le%20lien%20de%20cr%C3%A9ation%20du%20compte%20administrateur.&envLink=https%3A%2F%2Fwww.kledg.com%2Ffr%2Fdocs%2Finstaller-kledg%23d%C3%A9ployer-sur-vercel&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%2C%22protocol%22%3A%22storage%22%7D%5D&demo-title=Kledg&demo-description=La%20comptabilit%C3%A9%20fran%C3%A7aise%20open%20source%20de%20votre%20soci%C3%A9t%C3%A9%2C%20avec%20un%20serveur%20MCP%20pour%20Claude%20et%20ChatGPT.&demo-url=https%3A%2F%2Fdemo.kledg.com&demo-image=https%3A%2F%2Fwww.kledg.com%2Ffr%2Fopengraph-image&redirect-url=https%3A%2F%2Fwww.kledg.com%2Ffr%2Fwelcome)
 
