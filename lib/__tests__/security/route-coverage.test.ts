@@ -55,6 +55,7 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'app/api/health/route.ts': 'Liveness probe, intentionally public',
   'app/api/cron/sync-banks/route.ts': 'Cron; authenticated by CRON_SECRET header',
   'app/api/cron/sync-qonto/route.ts': 'Cron; authenticated by CRON_SECRET header',
+  'app/api/cron/period-locks/route.ts': 'Cron; authenticated by CRON_SECRET header when set, otherwise does only what the schedule does (counts only)',
   'app/auth/signout/route.ts': 'Sign-out; same-origin guarded (app/api/__tests__/signout.test.ts)',
   'app/api/banking/revolut/callback/route.ts': 'Revolut OAuth callback; state-cookie bound, no session yet',
 }
