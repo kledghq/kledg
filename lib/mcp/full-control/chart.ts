@@ -18,6 +18,8 @@ import { deleteJournal, listJournals, updateJournal } from '@/lib/accounting/man
 import { ensureDefaultJournals } from '@/lib/accounting/default-journals'
 import { createFiscalYear, updateFiscalYearDates } from '@/lib/accounting/manage-fiscal-years.service'
 import { deleteFiscalYear } from '@/lib/accounting/delete-fiscal-year.service'
+import { lockPeriod } from '@/lib/accounting/period-lock/lock-period.service'
+import { calendarDayOf } from '@/lib/utils/date'
 import { importAccountingFile, previewImportFiscalYears } from '@/lib/import/import-file.service'
 import { MAX_UPLOAD_BYTES } from '@/lib/api/files'
 import { enforceRateLimit } from '@/lib/rate-limit'
@@ -155,29 +157,39 @@ const manageJournalsTool = fullControlTool({
 const manageFiscalYearsTool = fullControlTool({
   name: 'manage_fiscal_years',
   title: 'Gérer les exercices',
-  description: `Creates or changes the fiscal years of the company: action create opens a fiscal year with its PCG chart (409 when the year exists); action update_dates changes the dates of an open fiscal year (409 when closed, 400 when they overlap another open year); action delete deletes an open fiscal year without entries (409 when closed or holding entries). Closing is close_fiscal_year. ${ACTS_AS_USER} Action delete is high impact: ${TWO_STEP}`,
+  description: `Creates or changes the fiscal years of the company: action create opens a fiscal year with its PCG chart (409 when the year exists); action update_dates changes the dates of an open fiscal year (409 when closed, 400 when they overlap another open year); action delete deletes an open fiscal year without entries (409 when closed or holding entries); action lock_period closes the periods of an open fiscal year up to the day \`through\` (PCG art. 1031-4): no entry dated on or before it can be created or validated any more, the lock only moves forward, stops before the last day of the year and is refused while drafts are dated in the period. Closing the year is close_fiscal_year. ${ACTS_AS_USER} Actions delete and lock_period are high impact: ${TWO_STEP}`,
   input: {
-    action: z.enum(['create', 'update_dates', 'delete']),
-    fiscalYearId: z.string().max(64).optional().describe('update_dates and delete: from list_fiscal_years.'),
+    action: z.enum(['create', 'update_dates', 'delete', 'lock_period']),
+    fiscalYearId: z.string().max(64).optional().describe('update_dates, delete and lock_period: from list_fiscal_years.'),
+    through: isoDate.optional().describe('lock_period: the last day of the period to close (included).'),
     year: z.number().int().min(1900).max(2200).optional().describe('create: the year of the fiscal year (usually the year of its end).'),
     startDate: isoDate.optional().describe('create and update_dates.'),
     endDate: isoDate.optional().describe('create and update_dates.'),
   },
   permission: { ledger: ['manage'] },
+  // Like POST .../fiscal-years/[fiscalYearId]/period-lock
+  actions: { lock_period: { closing: ['execute'] } },
   amounts: 'none',
   units: 'Dates as yyyy-mm-dd.',
-  never: 'changes or deletes a closed fiscal year, or deletes a fiscal year holding entries.',
+  never: 'changes or deletes a closed fiscal year, deletes a fiscal year holding entries, or reopens a closed period.',
   confirmation: true,
-  highImpactActions: ['delete'],
+  highImpactActions: ['delete', 'lock_period'],
   destructive: true,
-  async preview({ companyId, action, fiscalYearId }) {
+  async preview({ companyId, action, fiscalYearId, through }) {
+    if (action === 'lock_period') {
+      if (!fiscalYearId || !through) throw new ValidationError('fiscalYearId et through sont requis pour cette action.')
+      const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
+      const current = await prisma.fiscalYear.findFirst({ where: { id: fiscalYear.id, companyId }, select: { periodLockedThrough: true } })
+      const drafts = await prisma.accountingEntry.count({ where: { companyId, fiscalYearId: fiscalYear.id, status: 'draft', date: { lte: new Date(`${through}T00:00:00.000Z`) } } })
+      return { action, fiscalYear: { id: fiscalYear.id, year: fiscalYear.year }, lockedThrough: calendarDayOf(current?.periodLockedThrough ?? null), through, draftsInPeriod: drafts }
+    }
     if (action !== 'delete') return { action }
     if (!fiscalYearId) throw new ValidationError('fiscalYearId est requis pour cette action.')
     const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
     const entries = await prisma.accountingEntry.count({ where: { companyId, fiscalYearId: fiscalYear.id } })
     return { action, fiscalYear: { id: fiscalYear.id, year: fiscalYear.year }, entries }
   },
-  async execute({ companyId, action, fiscalYearId, year, startDate, endDate }) {
+  async execute({ companyId, action, fiscalYearId, year, startDate, endDate, through }, ctx) {
     if (action === 'create') {
       if (year === undefined || !startDate || !endDate) throw new ValidationError("L'année, la date de début et la date de fin sont requises.")
       return { action, fiscalYear: forAssistant(await createFiscalYear(companyId, { year, startDate, endDate })) }
@@ -187,10 +199,14 @@ const manageFiscalYearsTool = fullControlTool({
       await deleteFiscalYear(companyId, fiscalYearId)
       return { action, deleted: fiscalYearId }
     }
+    if (action === 'lock_period') {
+      if (!through) throw new ValidationError('through est requis pour cette action.')
+      return { action, ...(await lockPeriod(companyId, fiscalYearId, through, ctx.access.user.id)) }
+    }
     if (!startDate || !endDate) throw new ValidationError('La date de début et la date de fin sont requises.')
     return { action, fiscalYear: forAssistant(await updateFiscalYearDates(companyId, fiscalYearId, { startDate, endDate })) }
   },
-  audit: ({ action, fiscalYearId, year }) => ({ action, fiscalYearId: fiscalYearId ?? null, year: year ?? null }),
+  audit: ({ action, fiscalYearId, year, through }) => ({ action, fiscalYearId: fiscalYearId ?? null, year: year ?? null, through: through ?? null }),
 })
 
 /** Accounting files sent through MCP: base64 in the JSON call. */

@@ -826,6 +826,86 @@ describe.skipIf(!available)('MCP tools covering the API', () => {
     })
   })
 
+  describe('period closing and rights of the persons', () => {
+    it('closes a period through manage_fiscal_years: high impact, approved in Kledg, then entries in it refused', async () => {
+      const key = await apiKey('admin', { mode: 'validation' })
+      const args = { companyId: ids.aCompany, action: 'lock_period', fiscalYearId: ids.aFy, through: '2025-03-31' }
+      const dry = await call(key, 'manage_fiscal_years', args)
+      expect(dry.ok, dry.text).toBe(true)
+      expect(dry.data).toMatchObject({ dryRun: true, preview: { action: 'lock_period', lockedThrough: null, through: '2025-03-31', draftsInPeriod: 0 } })
+      expect((await prisma.fiscalYear.findUniqueOrThrow({ where: { id: ids.aFy } })).periodLockedThrough).toBeNull()
+      await approve(dry.data.actionId)
+      const done = await call(key, 'manage_fiscal_years', { ...args, actionId: dry.data.actionId })
+      expect(done.data).toEqual({ executed: true, result: { action: 'lock_period', fiscalYearId: ids.aFy, periodLockedThrough: '2025-03-31', firstOpenDay: '2025-04-01' } })
+      expect((await prisma.fiscalYear.findUniqueOrThrow({ where: { id: ids.aFy } })).periodLockedThrough?.toISOString()).toBe('2025-03-31T00:00:00.000Z')
+
+      // The same checks as the route: never backwards, never the last day, entries in the period refused
+      const automatic = await apiKey('admin')
+      const back = await call(automatic, 'manage_fiscal_years', { ...args, through: '2025-02-28' })
+      expect(back.text).toContain('ne se rouvre pas')
+      const lastDay = await call(automatic, 'manage_fiscal_years', { ...args, through: '2025-12-31' })
+      expect(lastDay.text).toContain('dernier jour')
+      await expect(draftEntry('a', '2025-03-15', '606100', '512000', '10')).rejects.toThrow(/clôturée jusqu'au 31\/03\/2025/)
+      expect((await ok(automatic, 'manage_fiscal_years', { ...args, through: '2025-04-30' })).periodLockedThrough).toBe('2025-04-30')
+    })
+
+    it('needs closing:execute for lock_period, full control and the grant', async () => {
+      const viewer = await call(await apiKey('admin', { user: VIEWER }), 'manage_fiscal_years', { companyId: ids.aCompany, action: 'lock_period', fiscalYearId: ids.aFy, through: '2025-03-31' })
+      expect(viewer.text).toMatch(/^Action non autorisée/)
+      expect(await toolNames(await apiKey('write'))).not.toContain('manage_fiscal_years')
+      const readOnly = await call(await apiKey('read'), 'manage_fiscal_years', { companyId: ids.aCompany, action: 'lock_period', fiscalYearId: ids.aFy, through: '2025-03-31' })
+      expect(readOnly.ok).toBe(false)
+      const onlyA = await apiKey('admin', { access: { allCompanies: false, companyIds: [ids.aCompany] } })
+      const outside = await call(onlyA, 'manage_fiscal_years', { companyId: ids.bCompany, action: 'lock_period', fiscalYearId: ids.bFy, through: '2025-03-31' })
+      expect(outside.text).toBe('Société introuvable')
+      expect(await prisma.fiscalYear.count({ where: { periodLockedThrough: { not: null } } })).toBe(0)
+    })
+
+    it('reads, corrects and erases a person (RGPD art. 15 to 17), erasure being high impact', async () => {
+      const person = await prisma.person.create({ data: { companyId: ids.aCompany, firstName: 'Claire', name: 'Martin', email: 'claire@example.fr', birthCity: 'Lyon' } })
+      await prisma.expenseClaimant.create({ data: { companyId: ids.aCompany, kind: 'EMPLOYEE', name: 'Claire Martin', personId: person.id, auxiliaryAccountNumber: 'S00001' } })
+
+      const reader = await apiKey('read')
+      const exported = await ok(reader, 'get_company_settings', { companyId: ids.aCompany, section: 'person', personId: person.id })
+      expect(exported).toMatchObject({
+        person: { id: person.id, email: 'claire@example.fr', birthCity: 'Lyon', hasPhoto: false },
+        expenseClaimants: [{ name: 'Claire Martin', auxiliaryAccountNumber: 'S00001' }],
+        retention: expect.stringContaining('L123-22'),
+      })
+      expect((await call(reader, 'get_company_settings', { companyId: ids.aCompany, section: 'person' })).text).toBe('personId est requis pour cette section.')
+      expect((await call(reader, 'manage_company_records', { companyId: ids.aCompany, action: 'erase_person', personId: person.id })).ok).toBe(false)
+
+      const corrected = await ok(await apiKey('admin'), 'manage_company_records', { companyId: ids.aCompany, action: 'update_person', personId: person.id, person: { email: 'claire.martin@example.fr', birthCity: '' } })
+      expect(corrected).toMatchObject({ id: person.id, email: 'claire.martin@example.fr' })
+      expect(await prisma.person.findUniqueOrThrow({ where: { id: person.id } })).toMatchObject({ email: 'claire.martin@example.fr', birthCity: null })
+
+      const key = await apiKey('admin', { mode: 'validation' })
+      const args = { companyId: ids.aCompany, action: 'erase_person', personId: person.id }
+      const dry = await call(key, 'manage_company_records', args)
+      expect(dry.data).toMatchObject({ dryRun: true, preview: { action: 'erase_person', ids: { personId: person.id } } })
+      expect(await prisma.person.count({ where: { id: person.id } })).toBe(1)
+      await approve(dry.data.actionId)
+      const done = await call(key, 'manage_company_records', { ...args, actionId: dry.data.actionId })
+      expect(done.data).toMatchObject({ executed: true, result: { erased: true, kept: [expect.stringContaining('note de frais')] } })
+      expect(await prisma.person.count({ where: { id: person.id } })).toBe(0)
+      expect(await prisma.expenseClaimant.findFirstOrThrow({ where: { companyId: ids.aCompany } })).toMatchObject({ personId: null, name: 'Claire Martin' })
+    })
+
+    it('refuses to erase an associate, a person of another company, and a viewer', async () => {
+      const admin = await apiKey('admin')
+      const associate = await prisma.person.create({ data: { companyId: ids.aCompany, firstName: 'Paul', name: 'Durand' } })
+      await prisma.shareholder.create({ data: { companyId: ids.aCompany, type: 'PHYSICAL', personId: associate.id, sharePercentage: 60 } })
+      const refused = await call(admin, 'manage_company_records', { companyId: ids.aCompany, action: 'erase_person', personId: associate.id })
+      expect(refused.text).toContain('associée de la société')
+      const foreign = await prisma.person.create({ data: { companyId: ids.bCompany, firstName: 'Ines', name: 'Roux' } })
+      expect((await call(admin, 'manage_company_records', { companyId: ids.aCompany, action: 'erase_person', personId: foreign.id })).text).toBe('Personne introuvable')
+      expect((await call(await apiKey('read'), 'get_company_settings', { companyId: ids.aCompany, section: 'person', personId: foreign.id })).text).toBe('Personne introuvable')
+      const viewer = await call(await apiKey('admin', { user: VIEWER }), 'manage_company_records', { companyId: ids.aCompany, action: 'erase_person', personId: associate.id })
+      expect(viewer.text).toMatch(/^Action non autorisée/)
+      expect(await prisma.person.count({ where: { id: { in: [associate.id, foreign.id] } } })).toBe(2)
+    })
+  })
+
   describe('budgets, expense reports and conventions', () => {
     it('deletes a budget line and a budget', async () => {
       const writer = await apiKey('write')

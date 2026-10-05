@@ -20,7 +20,7 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { getCompanyById } from '@/lib/companies/manage-company.service'
 import { listOrInitializeEstablishments } from '@/lib/companies/manage-establishments.service'
 import { listMembers } from '@/lib/rbac/manage-members.service'
-import { listCompanyPersons } from '@/lib/companies/manage-persons.service'
+import { exportCompanyPerson, listCompanyPersons } from '@/lib/companies/manage-persons.service'
 import { listShareholders } from '@/lib/companies/manage-shareholders.service'
 import { getPaymentTerms } from '@/lib/companies/payment-terms.service'
 import { getVatSettings } from '@/lib/companies/vat-settings.service'
@@ -50,7 +50,7 @@ function withoutImages(value: unknown): unknown {
   return out
 }
 
-const SECTIONS = ['company', 'establishments', 'members', 'persons', 'shareholders', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'tax_regimes', 'addresses'] as const
+const SECTIONS = ['company', 'establishments', 'members', 'persons', 'person', 'shareholders', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'tax_regimes', 'addresses'] as const
 
 export function registerCompanySettingsTools(server: McpServer, guard: CompanyGuard) {
   server.registerTool(
@@ -59,7 +59,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
       title: 'Paramètres de la société',
       description: describeTool({
         summary:
-          'Returns one section of the company settings: company (identity, SIREN, legal form, closing date, regimes, capital, fiscal years), establishments (SIRET, addresses, the main one first), members (users and roles), persons (who may be a shareholder), shareholders (capital table), payment_terms (used by the aged balance), vat_settings (VAT on debits, franchise), simple_mode (whether simple mode entries wait for the accountant), deadline_settings (deadline calendar options), tax_regimes (VAT and corporate tax regime history, regimeType to narrow), addresses (search with at least 2 characters, or one addressId).',
+          'Returns one section of the company settings: company (identity, SIREN, legal form, closing date, regimes, capital, fiscal years), establishments (SIRET, addresses, the main one first), members (users and roles), persons (who may be a shareholder), person (with personId: every data held on one person and its links, shareholdings and expense claimants, RGPD art. 15 and 20), shareholders (capital table), payment_terms (used by the aged balance), vat_settings (VAT on debits, franchise), simple_mode (whether simple mode entries wait for the accountant), deadline_settings (deadline calendar options), tax_regimes (VAT and corporate tax regime history, regimeType to narrow), addresses (search with at least 2 characters, or one addressId).',
         access: 'read',
         permission: { settings: ['read'] },
         amounts: 'euros',
@@ -72,6 +72,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
         regimeType: z.enum(['vat', 'corporateTax']).optional().describe('tax_regimes: one type only.'),
         search: z.string().max(200).optional().describe('addresses: postal code, city or street.'),
         addressId: z.string().max(64).optional().describe('addresses: one address of the company.'),
+        personId: z.string().max(64).optional().describe('person: from section persons.'),
       }),
       annotations: READ_ONLY,
     },
@@ -84,6 +85,10 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
           establishments: () => listOrInitializeEstablishments(id),
           members: () => listMembers(id),
           persons: () => listCompanyPersons(id),
+          person: () => {
+            if (!args.personId) throw new ValidationError('personId est requis pour cette section.')
+            return exportCompanyPerson(id, args.personId)
+          },
           shareholders: () => listShareholders(id),
           payment_terms: () => getPaymentTerms(id),
           vat_settings: () => getVatSettings(id),

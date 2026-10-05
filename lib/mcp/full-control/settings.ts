@@ -26,7 +26,7 @@ import {
   deactivateEstablishment,
   updateEstablishment,
 } from '@/lib/companies/manage-establishments.service'
-import { CreatePersonSchema, createCompanyPerson } from '@/lib/companies/manage-persons.service'
+import { CreatePersonSchema, UpdatePersonSchema, createCompanyPerson, eraseCompanyPerson, updateCompanyPerson } from '@/lib/companies/manage-persons.service'
 import { CreateShareholderSchema, UpdateShareholderSchema, createShareholder, deleteShareholder, updateShareholder } from '@/lib/companies/manage-shareholders.service'
 import { AddTaxRegimeSchema, UpdateTaxRegimeSchema, addTaxRegime, deleteTaxRegime, updateTaxRegime } from '@/lib/companies/tax-regimes'
 import { CreateAddressSchema, createCompanyAddress } from '@/lib/addresses/manage-addresses.service'
@@ -125,6 +125,8 @@ const RECORD_ACTIONS = [
   'update_establishment',
   'deactivate_establishment',
   'create_person',
+  'update_person',
+  'erase_person',
   'create_shareholder',
   'update_shareholder',
   'delete_shareholder',
@@ -137,12 +139,13 @@ const RECORD_ACTIONS = [
 const manageCompanyRecordsTool = fullControlTool({
   name: 'manage_company_records',
   title: 'Établissements, associés et régimes fiscaux',
-  description: `Changes the records of the company settings: establishments (create with a unique SIRET, update, deactivate), persons who may be shareholders (create, with their address), shareholders (create, update, delete; percentages stay within 100 %), tax regimes (add a VAT or corporate tax regime from a date, which closes the open one the day before; update; delete), addresses (create, or reuse an identical one: its id). Ids come from get_company_settings. ${ACTS_AS_USER} ${TWO_STEP}`,
+  description: `Changes the records of the company settings: establishments (create with a unique SIRET, update, deactivate), persons who may be shareholders (create, with their address; update_person corrects the fields given, RGPD art. 16; erase_person erases a person of the company, RGPD art. 17, refused while the person is an associate, the names carried by entries and expense reports being kept 10 years), shareholders (create, update, delete; percentages stay within 100 %), tax regimes (add a VAT or corporate tax regime from a date, which closes the open one the day before; update; delete), addresses (create, or reuse an identical one: its id). Ids come from get_company_settings. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: {
     action: z.enum(RECORD_ACTIONS),
     establishmentId: z.string().max(64).optional(),
     establishment: assistantInput(CreateEstablishmentSchema.partial().extend(UpdateEstablishmentSchema.shape)).optional().describe('create_establishment (siret required) and update_establishment: the fields.'),
-    person: assistantInput(CreatePersonSchema).optional(),
+    person: assistantInput(CreatePersonSchema.partial().extend(UpdatePersonSchema.shape)).optional().describe('create_person (firstName and name required) and update_person: the fields.'),
+    personId: z.string().max(64).optional().describe('update_person and erase_person: from get_company_settings section persons.'),
     shareholderId: z.string().max(64).optional(),
     shareholder: assistantInput(CreateShareholderSchema.partial().extend(UpdateShareholderSchema.shape)).optional().describe('create_shareholder (type and sharePercentage required) and update_shareholder: the fields.'),
     taxRegimeId: z.string().max(64).optional(),
@@ -156,7 +159,7 @@ const manageCompanyRecordsTool = fullControlTool({
   confirmation: true,
   destructive: true,
   async preview(args) {
-    return { action: args.action, ids: { establishmentId: args.establishmentId, shareholderId: args.shareholderId, taxRegimeId: args.taxRegimeId }, requested: args.establishment ?? args.person ?? args.shareholder ?? args.taxRegime ?? args.address ?? null }
+    return { action: args.action, ids: { establishmentId: args.establishmentId, shareholderId: args.shareholderId, taxRegimeId: args.taxRegimeId, personId: args.personId }, requested: args.establishment ?? args.person ?? args.shareholder ?? args.taxRegime ?? args.address ?? null }
   },
   async execute(args, ctx) {
     const { companyId } = args
@@ -176,6 +179,12 @@ const manageCompanyRecordsTool = fullControlTool({
         const { photo, ...person } = (await createCompanyPerson(companyId, routeBody(CreatePersonSchema, args.person ?? {}))) as Record<string, unknown>
         return forAssistant({ ...person, hasPhoto: Boolean(photo) })
       }
+      case 'update_person': {
+        const { photo, ...person } = (await updateCompanyPerson(companyId, need(args.personId, 'personId'), routeBody(UpdatePersonSchema, args.person ?? {}))) as Record<string, unknown>
+        return forAssistant({ ...person, hasPhoto: Boolean(photo) })
+      }
+      case 'erase_person':
+        return forAssistant(await eraseCompanyPerson(companyId, need(args.personId, 'personId')))
       case 'create_shareholder':
         return forAssistant(await createShareholder(companyId, routeBody(CreateShareholderSchema, args.shareholder ?? {}), ctx.access.user))
       case 'update_shareholder':
@@ -196,7 +205,7 @@ const manageCompanyRecordsTool = fullControlTool({
         return forAssistant(await createCompanyAddress(companyId, routeBody(CreateAddressSchema, args.address ?? {})))
     }
   },
-  audit: ({ action, establishmentId, shareholderId, taxRegimeId }) => ({ action, establishmentId: establishmentId ?? null, shareholderId: shareholderId ?? null, taxRegimeId: taxRegimeId ?? null }),
+  audit: ({ action, establishmentId, shareholderId, taxRegimeId, personId }) => ({ action, establishmentId: establishmentId ?? null, shareholderId: shareholderId ?? null, taxRegimeId: taxRegimeId ?? null, personId: personId ?? null }),
 })
 
 const LAYOUT_ACTIONS = ['reset_default', 'create_default', 'create_line', 'update_line', 'delete_line', 'snapshot_line', 'restore_line', 'save_template', 'apply_template'] as const

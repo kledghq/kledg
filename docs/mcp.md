@@ -153,7 +153,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_ledger_report` | Grand livre (par compte, solde d'ouverture, lignes avec solde progressif, solde de clôture ; filtre par début de compte) ou journal (écritures par journal avec totaux) d'une période, 1 000 lignes au plus ; droit `reports:read` |
 | `list_fixed_assets` | Immobilisations avec comptes, valeurs, plan d'amortissement et totaux ; une immobilisation avec ses amortissements, l'état de ses dotations par exercice, les écritures auxquelles lier un amortissement ; droit `entries:read` |
 | `list_expense_category_rules` | Règles de mots-clés qui donnent la catégorie (et le compte) des lignes de notes de frais ; droit `entries:read` |
-| `get_company_settings` | Une section des paramètres de la société : fiche, établissements, membres, personnes, associés, délai de paiement, options de TVA, mode simple, calendrier des échéances, régimes fiscaux, adresses ; logos et photos remplacés par leur présence ; droit `settings:read` |
+| `get_company_settings` | Une section des paramètres de la société : fiche, établissements, membres, personnes, une personne (toutes ses données et ses liens, RGPD art. 15 et 20), associés, délai de paiement, options de TVA, mode simple, calendrier des échéances, régimes fiscaux, adresses ; logos et photos remplacés par leur présence ; droit `settings:read` |
 | `get_statement_layout` | Mise en page du bilan ou du compte de résultat (lignes, comptes, sens, ordre), une ligne, l'historique d'une ligne du bilan, les modèles du bilan ; droit `settings:read` |
 | `get_transaction_details` | Ce qu'il faut pour traiter une transaction bancaire : ligne de banque, exercices, contreparties proposées, règles qui la reconnaissent, règle qu'elle suggère ; droit `banking:read` |
 | `simulate_rule` | L'écriture qu'une règle d'affectation (enregistrée ou en cours d'écriture) passerait pour une transaction d'exemple, sans rien écrire ; droit `banking:read` |
@@ -231,10 +231,10 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `create_draft_invoice` | Enregistrer une facture d'achat ou de vente en brouillon (lignes, plusieurs taux, totaux calculés par Kledg) et, sur demande, son écriture en brouillon dans l'exercice de sa date | `entries:create` | Oui |
 | `manage_accounts` | Plan comptable : modifier un compte, supprimer un compte et ses sous-comptes, compléter le plan du PCG, semer le PCG, supprimer les comptes hors PCG | `ledger:manage` | Oui (suppressions) |
 | `manage_journals` | Modifier ou supprimer un journal sans écriture, rétablir les journaux par défaut | `ledger:manage` | Oui (suppression) |
-| `manage_fiscal_years` | Créer un exercice, changer les dates d'un exercice ouvert, supprimer un exercice ouvert sans écriture | `ledger:manage` | Oui (suppression) |
+| `manage_fiscal_years` | Créer un exercice, changer les dates d'un exercice ouvert, supprimer un exercice ouvert sans écriture, clôturer les périodes jusqu'à un jour (PCG art. 1031-4) | `ledger:manage`, plus `closing:execute` pour la clôture des périodes | Oui (suppression, clôture des périodes) |
 | `import_accounting_file` | Importer un FEC, un CSV ou un Excel d'écritures (base64, 5 Mo au plus) ; l'aperçu donne les exercices du FEC | `entries:create` et `ledger:manage` | Oui |
 | `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances | `settings:update` | Oui |
-| `manage_company_records` | Établissements, personnes, associés, régimes fiscaux, adresses | `settings:update` | Oui |
+| `manage_company_records` | Établissements, personnes (création, rectification, effacement dans les limites de la conservation légale, RGPD art. 16 et 17), associés, régimes fiscaux, adresses | `settings:update` | Oui |
 | `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles) | `settings:update` | Oui |
 | `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
 | `manage_bank_accounts` | Nom, compte 512 et synchronisation d'un compte bancaire, compte par défaut, comptes synchronisés d'une connexion, déconnexion d'une banque (identifiants supprimés, opérations gardées) | `banking:manage` | Oui (comptes synchronisés, déconnexion) |
@@ -502,6 +502,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/companies/[id]/fiscal-years/[fiscalYearId]` | entries:read | `list_fiscal_years` (L) |
 | `PATCH /api/companies/[id]/fiscal-years/[fiscalYearId]` | ledger:manage | `manage_fiscal_years` (CT) |
 | `DELETE /api/companies/[id]/fiscal-years/[fiscalYearId]` | ledger:manage | `manage_fiscal_years` (CT) |
+| `POST /api/companies/[id]/fiscal-years/[fiscalYearId]/period-lock` | closing:execute | `manage_fiscal_years` (CT) |
 | `GET /api/companies/[id]/fiscal-years` | entries:read | `list_fiscal_years` (L) |
 | `POST /api/companies/[id]/fiscal-years` | ledger:manage | `manage_fiscal_years` (CT) |
 | `POST /api/companies/[id]/income-statement/config/default` | settings:update | `manage_statement_layout` (CT) |
@@ -530,6 +531,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `PUT /api/companies/[id]/payment-terms` | settings:update | `update_company_settings` (CT) |
 | `GET /api/companies/[id]/persons` | settings:read | `get_company_settings` (L) |
 | `POST /api/companies/[id]/persons` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]/persons/[personId]` | settings:read | `get_company_settings` (L) |
+| `PATCH /api/companies/[id]/persons/[personId]` | settings:update | `manage_company_records` (CT) |
+| `DELETE /api/companies/[id]/persons/[personId]` | settings:update | `manage_company_records` (CT) |
 | `GET /api/companies/[id]` | settings:read | `get_company_settings` (L) |
 | `PATCH /api/companies/[id]` | settings:update | `update_company_settings` (CT) |
 | `DELETE /api/companies/[id]` | administrateur de l’instance | Exclu : cycle de vie des sociétés |

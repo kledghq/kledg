@@ -166,7 +166,7 @@ export const UpdatePersonSchema = z.object({
   photo: z
     .union([z.literal(''), z.null(), z.string().max(MAX_PHOTO_LENGTH, 'La photo est trop lourde')])
     .optional()
-    .refine((value) => !value || /^data:image\/(png|jpe?g|webp);base64,/.test(value), 'Format de photo non pris en charge')
+    .refine((value) => !value || (value.startsWith('data:') && logoError(value) === null), 'Format de photo non pris en charge (PNG, JPEG, GIF ou WebP).')
     .transform((value) => (value === undefined ? undefined : value ? value : null)),
   birthDate: optionalCalendarDay('Date de naissance invalide'),
   birthDepartment: nullableText(3),
