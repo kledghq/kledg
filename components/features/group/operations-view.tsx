@@ -10,16 +10,16 @@ import { GroupViewFrame } from './view-frame'
  * bank transactions of every company, the combined general ledger and the
  * detail of the eliminations.
  */
-export function GroupOperationsView() {
+export function GroupOperationsView({ page }: { page?: string } = {}) {
   return (
     <GroupViewFrame
-      title="Opérations"
-      description="Le détail derrière les chiffres : les transactions bancaires de toutes les sociétés, le grand livre combiné et les éliminations des flux entre sociétés."
-      tabs={[
-        { id: 'transactions', label: 'Transactions', content: <GroupTransactionsSection /> },
-        { id: 'grand-livre', label: 'Grand livre combiné', content: <GroupLedgerSection /> },
-        { id: 'eliminations', label: 'Éliminations', content: <GroupEliminationsSection /> },
-      ]}
+      view="operations"
+      page={page}
+      sections={{
+        transactions: <GroupTransactionsSection />,
+        'grand-livre': <GroupLedgerSection />,
+        eliminations: <GroupEliminationsSection />,
+      }}
     />
   )
 }

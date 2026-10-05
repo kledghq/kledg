@@ -3,33 +3,33 @@
 Une holding a son **espace groupe** (`/<holding>/group`), ouvert depuis le sélecteur de société (section **Groupes**) ou l'entrée **États, Vue groupe** de la holding. Il remplace le menu de la société par celui du groupe, comme si le groupe était une société :
 
 - le sélecteur affiche le groupe comme sélection courante : les **associés de la holding** en pile d'avatars (photo, à défaut les initiales ; une société avec son logo, à défaut ses initiales, en carré), du plus gros pourcentage au plus petit, trois au plus puis « +N », chacun nommé pour les lecteurs d'écran et dans son info-bulle (« Claire Vasseur, 60 % ») ; à défaut d'associé, le logo de la holding ; puis « Groupe <holding> » et le nombre de sociétés. Un associé sans nom, ou une société actionnaire que l'utilisateur ne lit pas, n'est pas montré ;
-- l'en-tête de chaque vue répète cette pile, le nom du groupe et le nombre de sociétés ;
-- le menu ne liste que les vues du groupe, aucune page de société ; choisir une société dans le sélecteur ramène à ses propres pages ;
-- le fil d'Ariane lit « Groupe <holding> > vue », l'onglet « Vue · Groupe <holding> · Kledg » ;
+- l'en-tête de chaque page répète cette pile, le nom du groupe et le nombre de sociétés ;
+- le menu ne liste que les pages du groupe, regroupées par vue, aucune page de société ; choisir une société dans le sélecteur ramène à ses propres pages ;
+- le fil d'Ariane lit « Groupe <holding> > vue > page », l'onglet du navigateur « Page · Groupe <holding> · Kledg » ;
 - sur téléphone, le même tiroir que pour une société, refermé après chaque choix ;
-- l'exercice de la holding choisi dans une vue reste choisi dans les autres.
+- l'exercice de la holding choisi dans une page reste choisi dans les autres.
 
 ## Cinq vues, chacune répond à une question
 
-Le premier espace groupe avait douze pages, une par tableau. Elles sont regroupées en cinq vues, chacune pour une question qu'un dirigeant de groupe ou son expert-comptable se pose ; un onglet de la vue est dans l'adresse (`?vue=`).
+Le premier espace groupe avait douze pages, une par tableau. Elles sont regroupées en cinq vues, chacune pour une question qu'un dirigeant de groupe ou son expert-comptable se pose. Une vue est un groupe du menu et chacune de ses pages une entrée, avec sa propre adresse (`GROUP_VIEWS`, `components/layout/group-nav-config.ts`) : pas d'onglets dans les pages.
 
-| Vue | Question | Onglets |
+| Vue | Question | Pages |
 | --- | --- | --- |
-| **Pilotage** (`/group`) | Comment se porte le groupe, et chacune de ses sociétés ? | Synthèse (chiffres clés après éliminations, contribution de chaque société avec sa part du chiffre d'affaires et du résultat, puis agrégat, éliminations et groupe ; état de chaque société ; déclarations en retard, transactions à rapprocher, brouillons), N et N-1 (comparaison par société et agrégat, graphique), Évolution (mois par mois), Ratios. Un **filtre société** vaut pour tous les onglets : les chiffres clés deviennent ceux de la société, la comparaison et les ratios ne montrent qu'elle (l'agrégat reste celui du groupe) |
-| **Structure** (`/group/structure`) | Qui détient quoi, qui dirige quoi ? | Organigramme (ci-dessous), Associés et dirigeants (pourcentages direct, indirect et total), Participations (tableau des filiales et participations), Sociétés (forme juridique, SIREN, dirigeants, chiffres clés) |
-| **Trésorerie** (`/group/treasury`) | Où est l'argent du groupe, qui doit quoi à qui, où va la trésorerie ? | Soldes et perspectives (soldes bancaires par société et par devise, trésorerie comptable par mois, comptes courants et prêts entre sociétés et leurs écarts, perspectives), Flux entre sociétés (diagramme de flux et tableaux) |
-| **Fiscalité** (`/group/tax`) | Que doit le groupe en impôt, quand, et une intégration fiscale serait-elle utile ? | Impôt sur les sociétés (chaque société et régime mère-fille), Intégration fiscale (simulation), Échéances (suivi des déclarations de chaque société) |
-| **Opérations** (`/group/operations`) | Qu'y a-t-il derrière un chiffre ? | Transactions (toutes les sociétés, consultation seule), Grand livre combiné, Éliminations (vue combinée et flux trouvés) |
+| **Pilotage** (`/group`, `/group/{comparison, evolution, ratios}`) | Comment se porte le groupe, et chacune de ses sociétés ? | Synthèse (chiffres clés après éliminations, contribution de chaque société avec sa part du chiffre d'affaires et du résultat, puis agrégat, éliminations et groupe ; état de chaque société ; déclarations en retard, transactions à rapprocher, brouillons), N et N-1 (comparaison par société et agrégat, graphique), Évolution (mois par mois), Ratios. Un **filtre société** vaut pour toutes les pages de Pilotage : les chiffres clés deviennent ceux de la société, la comparaison et les ratios ne montrent qu'elle (l'agrégat reste celui du groupe) |
+| **Structure** (`/group/structure`, `/group/structure/{persons, participations, companies}`) | Qui détient quoi, qui dirige quoi ? | Organigramme (ci-dessous), Associés et dirigeants (pourcentages direct, indirect et total), Participations (tableau des filiales et participations), Sociétés (forme juridique, SIREN, dirigeants, chiffres clés) |
+| **Trésorerie** (`/group/treasury`, `/group/treasury/flows`) | Où est l'argent du groupe, qui doit quoi à qui, où va la trésorerie ? | Soldes et perspectives (soldes bancaires par société et par devise, trésorerie comptable par mois, comptes courants et prêts entre sociétés et leurs écarts, perspectives), Flux entre sociétés (diagramme de flux et tableaux) |
+| **Fiscalité** (`/group/tax`, `/group/tax/{integration, deadlines}`) | Que doit le groupe en impôt, quand, et une intégration fiscale serait-elle utile ? | Impôt sur les sociétés (chaque société et régime mère-fille), Intégration fiscale (simulation), Échéances (suivi des déclarations de chaque société) |
+| **Opérations** (`/group/operations`, `/group/operations/{ledger, eliminations}`) | Qu'y a-t-il derrière un chiffre ? | Transactions (toutes les sociétés, consultation seule), Grand livre combiné, Éliminations (vue combinée et flux trouvés) |
 
-Les anciennes adresses mènent à leur nouvelle place par une redirection permanente (`LEGACY_GROUP_PAGES`, `components/layout/group-nav-config.ts`) : `/companies` vers Structure, Sociétés ; `/persons` vers Structure, Associés et dirigeants ; `/participations` vers Structure, Participations ; `/comparison`, `/evolution`, `/ratios` vers les onglets de Pilotage ; `/deadlines` vers Fiscalité, Échéances ; `/eliminations`, `/transactions`, `/ledger` vers les onglets d'Opérations.
+Les anciennes adresses mènent à leur page par une redirection permanente (`LEGACY_GROUP_PAGES`) : `/companies`, `/persons` et `/participations` vers les pages de Structure ; `/deadlines` vers Fiscalité, Échéances ; `/transactions`, `/ledger` et `/eliminations` vers les pages d'Opérations. `/comparison`, `/evolution` et `/ratios` sont à nouveau des pages, de Pilotage. Un lien vers un ancien onglet d'une vue (`?vue=`) ouvre sa page (`groupTabUrl`).
 
 La rémunération des dirigeants et la valorisation ne font pas partie de l'espace groupe.
 
-Code : `lib/group` (purs et en centimes : `combine.ts`, `periods.ts`, `aggregate.ts`, `ownership.ts`, `structure.ts`, `tax-integration.ts`, `flows.ts`, `simple-home.ts`, `merge-pages.ts`, `deadline-summary.ts` ; `perimeter.ts` et `members.ts` vérifient les accès et lisent chaque société ; un service par rapport), vues `app/(company)/[companyId]/group/*` et `components/features/group` (`view-frame.tsx` pour l'en-tête et les onglets, un fichier par vue, les sections réutilisées par les vues), menu `components/layout/group-nav-config.ts`. API `GET /api/group/{summary, alerts, view, companies, indicators, evolution, treasury, participations, persons, structure, tax, deadlines, transactions, ledger, simple-home, export}`.
+Code : `lib/group` (purs et en centimes : `combine.ts`, `periods.ts`, `aggregate.ts`, `ownership.ts`, `structure.ts`, `tax-integration.ts`, `flows.ts`, `simple-home.ts`, `merge-pages.ts`, `deadline-summary.ts` ; `perimeter.ts` et `members.ts` vérifient les accès et lisent chaque société ; un service par rapport), vues `app/(company)/[companyId]/group/*` et `components/features/group` (`view-frame.tsx` pour l'en-tête des pages, un fichier par vue, les sections réutilisées par les vues), menu `components/layout/group-nav-config.ts`. API `GET /api/group/{summary, alerts, view, companies, indicators, evolution, treasury, participations, persons, structure, tax, deadlines, transactions, ledger, simple-home, export}`.
 
 ## Organigramme
 
-Onglet Organigramme de Structure (`GET /api/group/structure`, `lib/group/structure.ts`, `get-group-structure.service.ts`), comme le schéma de l'ancienne application, réécrit :
+Page Organigramme de Structure (`GET /api/group/structure`, `lib/group/structure.ts`, `get-group-structure.service.ts`), comme le schéma de l'ancienne application, réécrit :
 
 - **nœuds** : les personnes et les sociétés qui détiennent des parts (photo d'une personne, à défaut ses initiales), la holding, ses filiales (logo, forme juridique, premier dirigeant), et une filiale non lue sous la forme « Société non accessible » ;
 - **flèches** : du détenteur vers la société détenue, avec le pourcentage enregistré parmi les actionnaires de la société détenue ; entre deux sociétés, la catégorie : plus de 50 %, filiale (Code de commerce, art. L233-1), de 10 à 50 %, participation (art. L233-2) ;
@@ -55,7 +55,7 @@ Chaque société lue est calculée comme sur sa propre page Impôt sur les soci�
 
 ### Simulation d'intégration fiscale
 
-Onglet Intégration fiscale (`lib/group/tax-integration.ts`, outil MCP `simulate_tax_integration`). **Simulation indicative pour un exercice, à faire vérifier par un expert-comptable** : Kledg n'exerce pas l'option et ne dépose rien. Les règles, chacune avec sa source dans la page :
+Page Intégration fiscale de Fiscalité (`lib/group/tax-integration.ts`, outil MCP `simulate_tax_integration`). **Simulation indicative pour un exercice, à faire vérifier par un expert-comptable** : Kledg n'exerce pas l'option et ne dépose rien. Les règles, chacune avec sa source dans la page :
 
 | Règle | Ce que fait la simulation | Source |
 | --- | --- | --- |
@@ -77,7 +77,7 @@ Exemple (test `lib/group/__tests__/tax-integration.test.ts`) : H (résultat fisc
 
 ## Mode simple
 
-En mode simple ([mode simple](mode-simple.md)), le menu du groupe devient quatre pages en mots simples, sans numéro de compte ni terme comptable (`SIMPLE_MODE_JARGON`, vérifié par les tests sur les pages rendues) ; `/group` ouvre l'accueil simple du groupe, sauf un lien qui nomme un onglet. Le sélecteur Simple / Expert de la barre du haut ouvre, depuis une page du groupe, l'accueil du groupe du mode choisi.
+En mode simple ([mode simple](mode-simple.md)), le menu du groupe devient quatre pages en mots simples, sans numéro de compte ni terme comptable (`SIMPLE_MODE_JARGON`, vérifié par les tests sur les pages rendues) ; `/group` ouvre l'accueil simple du groupe, sauf un lien qui nomme une page (`?vue=`). Le sélecteur Simple / Expert de la barre du haut ouvre, depuis une page du groupe, l'accueil du groupe du mode choisi.
 
 | Page | Contenu | Source |
 | --- | --- | --- |
@@ -181,7 +181,7 @@ L'écart de 2 000 sur les frais de gestion de B est signalé. Cet exemple est le
 
 ## Filiales et participations
 
-Onglet **Participations** de Structure, pour le tableau des filiales et participations des formulaires 2059-G-SD (régime réel normal) et 2033-G-SD (régime simplifié) et de l'annexe :
+Page **Participations** de Structure, pour le tableau des filiales et participations des formulaires 2059-G-SD (régime réel normal) et 2033-G-SD (régime simplifié) et de l'annexe :
 
 - **catégorie** : plus de 50 % du capital, filiale (Code de commerce, art. L233-1) ; de 10 à 50 %, participation (art. L233-2) ;
 - détention et nombre de titres, tels qu'enregistrés parmi les actionnaires de la filiale ;
@@ -215,7 +215,7 @@ Une chaîne qui passe par une filiale non lue manque : la page le signale. Une s
 
 ## Échéances, transactions
 
-L'onglet Échéances de Fiscalité lit le calendrier et le [suivi des déclarations](echeances.md) de chaque société pour son exercice qui correspond à celui de la holding : le même statut que sur la page Échéances de la société (dépôts de TVA, liasse et acomptes d'IS, approbation, statuts enregistrés). Rien ne s'enregistre depuis l'espace groupe.
+La page Échéances de Fiscalité lit le calendrier et le [suivi des déclarations](echeances.md) de chaque société pour son exercice qui correspond à celui de la holding : le même statut que sur la page Échéances de la société (dépôts de TVA, liasse et acomptes d'IS, approbation, statuts enregistrés). Rien ne s'enregistre depuis l'espace groupe.
 
 Transactions fusionne les transactions des sociétés page par page (`merge-pages.ts`) : chaque société donne ses lignes après le curseur dans le même ordre (date puis identifiant, des plus récentes aux plus anciennes), la page garde les premières, et le curseur suivant est la dernière gardée ; aucune ligne n'est perdue ni répétée. Un filtre sur une société qui n'est pas lue répond « Société introuvable dans ce groupe. », qu'elle existe ou non.
 

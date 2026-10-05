@@ -399,16 +399,16 @@ function TableSkeletonBlock() {
   return <div className="bg-muted h-24 animate-pulse rounded-md" />
 }
 
-export function GroupTaxView() {
+export function GroupTaxView({ page }: { page?: string } = {}) {
   return (
     <GroupViewFrame
-      title="Fiscalité"
-      description="Ce que le groupe doit en impôt sur les sociétés, le régime mère-fille entre ses sociétés, les échéances de chacune et une simulation d'intégration fiscale."
-      tabs={[
-        { id: 'impot', label: 'Impôt sur les sociétés', content: <GroupCorporateTaxSection /> },
-        { id: 'integration', label: 'Intégration fiscale', content: <GroupTaxIntegrationSection /> },
-        { id: 'echeances', label: 'Échéances', content: <GroupDeadlinesSection /> },
-      ]}
+      view="tax"
+      page={page}
+      sections={{
+        impot: <GroupCorporateTaxSection />,
+        integration: <GroupTaxIntegrationSection />,
+        echeances: <GroupDeadlinesSection />,
+      }}
     />
   )
 }

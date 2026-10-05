@@ -11,15 +11,15 @@ import { GroupViewFrame } from './view-frame'
  * between the companies, hints from the pace and the known deadlines, and
  * the flows between the companies.
  */
-export function GroupTreasuryView() {
+export function GroupTreasuryView({ page }: { page?: string } = {}) {
   return (
     <GroupViewFrame
-      title="Trésorerie"
-      description="Où est l'argent du groupe, qui doit quoi à qui entre les sociétés, et où va la trésorerie : soldes par société, comptes courants, perspectives et flux entre sociétés."
-      tabs={[
-        { id: 'soldes', label: 'Soldes et perspectives', content: <GroupTreasurySection /> },
-        { id: 'flux', label: 'Flux entre sociétés', content: <GroupFlowsSection /> },
-      ]}
+      view="treasury"
+      page={page}
+      sections={{
+        soldes: <GroupTreasurySection />,
+        flux: <GroupFlowsSection />,
+      }}
     />
   )
 }

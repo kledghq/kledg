@@ -343,19 +343,19 @@ function CompanyFilter() {
  * it? Combined KPIs, the contribution of each company, N against N-1, month
  * by month and the ratios, with one company filter for every tab.
  */
-export function GroupPilotageView() {
+export function GroupPilotageView({ page }: { page?: string } = {}) {
   return (
     <GroupViewFrame
-      title="Pilotage"
-      description="Comment se porte le groupe et chacune de ses sociétés : chiffres combinés, contribution de chaque société, comparaison avec l'exercice précédent et évolution mois par mois."
+      view="pilotage"
+      page={page}
       controls={<CompanyFilter />}
       hint="Écritures validées de chaque société pour l'exercice de la holding. Chaque filiale est lue avec vos droits dans cette filiale."
-      tabs={[
-        { id: 'synthese', label: 'Synthèse', content: <GroupSynthesisSection /> },
-        { id: 'comparaison', label: 'N et N-1', content: <GroupComparisonSection /> },
-        { id: 'evolution', label: 'Évolution', content: <GroupEvolutionSection /> },
-        { id: 'ratios', label: 'Ratios', content: <GroupRatiosSection /> },
-      ]}
+      sections={{
+        synthese: <GroupSynthesisSection />,
+        comparaison: <GroupComparisonSection />,
+        evolution: <GroupEvolutionSection />,
+        ratios: <GroupRatiosSection />,
+      }}
     />
   )
 }

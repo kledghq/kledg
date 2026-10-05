@@ -48,7 +48,7 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
   }, [companyId])
 
   const relativePath = companyId ? pathname.replace(`/${companyId}`, '') || '/' : '/'
-  // The group space: "Groupe <holding> > <page>", its own navigation.
+  // The group space: "Groupe <holding> > <view> > <page>", its own navigation.
   const groupPath = companyId ? groupRelativePath(relativePath) : null
   const groupEntry = groupPath ? findGroupNavEntry(groupPath) : null
   const groupName = companyName ? `Groupe ${companyName}` : null
@@ -59,7 +59,7 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
   const isHome = relativePath === homePath
   // Pages reached from another page (Connecter une banque, Configuration du bilan) have their own title.
   const subPage = isEntryPage || isHome ? null : findSubPageTitle(relativePath)
-  const pageTitle = groupPath ? (groupEntry?.title ?? 'Pilotage') : isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
+  const pageTitle = groupPath ? (groupEntry?.title ?? 'Synthèse') : isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
 
   // Tab titles name the page and the company: "Journaux · Atelier Lumen · Kledg" ("Trésorerie · Groupe Atelier Lumen · Kledg").
   useEffect(() => {
@@ -104,6 +104,14 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
           </BreadcrumbItem>
           {!isOverview && groupEntry ? (
             <>
+              {groupEntry.group ? (
+                <>
+                  <BreadcrumbSeparator className="hidden md:block" />
+                  <BreadcrumbItem className="hidden min-w-0 md:inline-flex">
+                    <span className="truncate">{groupEntry.group}</span>
+                  </BreadcrumbItem>
+                </>
+              ) : null}
               <BreadcrumbSeparator className="hidden md:block" />
               <BreadcrumbItem className="min-w-0">
                 <BreadcrumbPage className="truncate">{groupEntry.title}</BreadcrumbPage>

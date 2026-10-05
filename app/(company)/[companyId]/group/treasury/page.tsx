@@ -1,5 +1,18 @@
-import { GroupTreasuryView } from '@/components/features/group/treasury-view'
+import { redirect } from 'next/navigation'
 
-export default function Page() {
+import { GroupTreasuryView } from '@/components/features/group/treasury-view'
+import { groupTabUrl } from '@/components/layout/group-nav-config'
+
+/** Trésorerie, Soldes et perspectives (docs/vue-groupe.md). A link to a former tab of the view (?vue=) opens its page. */
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ companyId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const { companyId } = await params
+  const target = groupTabUrl(companyId, 'treasury', (await searchParams).vue)
+  if (target) redirect(target)
   return <GroupTreasuryView />
 }

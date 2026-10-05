@@ -23,7 +23,7 @@ import type { GroupSummary } from '@/lib/group/get-group-summary.service'
 import { AppSidebar } from '../app-sidebar'
 import { DashboardBreadcrumb } from '../dashboard-breadcrumb'
 import { GroupNav } from '../group-nav'
-import { findGroupNavEntry, groupHomePath, groupNavGroups, groupRelativePath, LEGACY_GROUP_PAGES, legacyGroupUrl, simpleGroupNavGroups } from '../group-nav-config'
+import { findGroupNavEntry, groupHomePath, groupNavGroups, groupRelativePath, groupTabUrl, LEGACY_GROUP_PAGES, legacyGroupUrl, simpleGroupNavGroups } from '../group-nav-config'
 
 const PHOTO = 'data:image/png;base64,iVBORw0KGgo='
 const companies = [
@@ -65,15 +65,23 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-const GROUP_PAGES = ['Pilotage', 'Structure', 'Trésorerie', 'Fiscalité', 'Opérations']
+const GROUP_VIEWS_TITLES = ['Pilotage', 'Structure', 'Trésorerie', 'Fiscalité', 'Opérations']
+const GROUP_PAGES = [
+  'Synthèse', 'N et N-1', 'Évolution', 'Ratios',
+  'Organigramme', 'Associés et dirigeants', 'Participations', 'Sociétés',
+  'Soldes et perspectives', 'Flux entre sociétés',
+  'Impôt sur les sociétés', 'Intégration fiscale', 'Échéances',
+  'Transactions', 'Grand livre combiné', 'Éliminations',
+]
 const SIMPLE_GROUP_PAGES = ['Accueil du groupe', 'Mes sociétés', 'Qui possède quoi', 'Argent entre mes sociétés']
 
 describe('group navigation', () => {
-  it('lists the five views in expert mode and the four plain pages in simple mode, each with its own URL and icon', () => {
+  it('groups the pages of the five views in expert mode and lists the four plain pages in simple mode, each with its own URL and icon', () => {
+    expect(groupNavGroups.map((g) => g.label)).toEqual(GROUP_VIEWS_TITLES)
     const items = groupNavGroups.flatMap((g) => g.items)
     expect(items.map((i) => i.title)).toEqual(GROUP_PAGES)
-    expect(new Set(items.map((i) => i.url)).size).toBe(5)
-    expect(new Set(items.map((i) => i.icon)).size).toBe(5)
+    expect(new Set(items.map((i) => i.url)).size).toBe(GROUP_PAGES.length)
+    expect(new Set(items.map((i) => i.icon)).size).toBe(GROUP_PAGES.length)
     const simple = simpleGroupNavGroups.flatMap((g) => g.items)
     expect(simple.map((i) => i.title)).toEqual(SIMPLE_GROUP_PAGES)
     expect(simple.every((i) => i.url.startsWith('/simple'))).toBe(true)
@@ -81,13 +89,27 @@ describe('group navigation', () => {
     expect(groupHomePath('alpha', 'simple')).toBe('/alpha/group/simple')
   })
 
-  it('sends every page of the first group space to the view and tab that now hold it', () => {
-    expect(Object.keys(LEGACY_GROUP_PAGES).sort()).toEqual(['/companies', '/comparison', '/deadlines', '/eliminations', '/evolution', '/ledger', '/participations', '/persons', '/ratios', '/transactions'])
-    expect(legacyGroupUrl('alpha', '/companies')).toBe('/alpha/group/structure?vue=societes')
-    expect(legacyGroupUrl('alpha', '/comparison')).toBe('/alpha/group?vue=comparaison')
-    expect(legacyGroupUrl('alpha', '/deadlines')).toBe('/alpha/group/tax?vue=echeances')
-    expect(legacyGroupUrl('alpha', '/ledger')).toBe('/alpha/group/operations?vue=grand-livre')
+  it('sends every page of the first group space that moved to its page now', () => {
+    expect(Object.keys(LEGACY_GROUP_PAGES).sort()).toEqual(['/companies', '/deadlines', '/eliminations', '/ledger', '/participations', '/persons', '/transactions'])
+    expect(legacyGroupUrl('alpha', '/companies')).toBe('/alpha/group/structure/companies')
+    expect(legacyGroupUrl('alpha', '/deadlines')).toBe('/alpha/group/tax/deadlines')
+    expect(legacyGroupUrl('alpha', '/ledger')).toBe('/alpha/group/operations/ledger')
+    expect(legacyGroupUrl('alpha', '/transactions')).toBe('/alpha/group/operations')
     expect(legacyGroupUrl('alpha', '/unknown')).toBe('/alpha/group')
+    // Every target is a page of the sidebar.
+    const urls = groupNavGroups.flatMap((g) => g.items.map((i) => i.url))
+    for (const target of Object.values(LEGACY_GROUP_PAGES)) expect(urls).toContain(target)
+  })
+
+  it('sends a link to a former tab of a view (?vue=) to its page', () => {
+    expect(groupTabUrl('alpha', 'pilotage', 'ratios')).toBe('/alpha/group/ratios')
+    expect(groupTabUrl('alpha', 'structure', 'societes')).toBe('/alpha/group/structure/companies')
+    expect(groupTabUrl('alpha', 'tax', 'integration')).toBe('/alpha/group/tax/integration')
+    expect(groupTabUrl('alpha', 'operations', 'grand-livre')).toBe('/alpha/group/operations/ledger')
+    // The first page is the view itself; an unknown or missing tab stays there.
+    expect(groupTabUrl('alpha', 'treasury', 'soldes')).toBeNull()
+    expect(groupTabUrl('alpha', 'treasury', 'nope')).toBeNull()
+    expect(groupTabUrl('alpha', 'treasury', undefined)).toBeNull()
   })
 
   it('knows the group space paths', () => {
@@ -95,8 +117,10 @@ describe('group navigation', () => {
     expect(groupRelativePath('/group/treasury')).toBe('/treasury')
     expect(groupRelativePath('/groupe')).toBeNull()
     expect(groupRelativePath('/entries')).toBeNull()
-    expect(findGroupNavEntry('/operations')?.title).toBe('Opérations')
-    expect(findGroupNavEntry('/')?.title).toBe('Pilotage')
+    expect(findGroupNavEntry('/operations')).toMatchObject({ group: 'Opérations', title: 'Transactions' })
+    expect(findGroupNavEntry('/operations/ledger')).toMatchObject({ group: 'Opérations', title: 'Grand livre combiné' })
+    expect(findGroupNavEntry('/')).toMatchObject({ group: 'Pilotage', title: 'Synthèse' })
+    expect(findGroupNavEntry('/ratios')?.title).toBe('Ratios')
     expect(findGroupNavEntry('/simple')?.title).toBe('Accueil du groupe')
     expect(findGroupNavEntry('/simple/societes')?.title).toBe('Mes sociétés')
   })
@@ -111,9 +135,12 @@ describe('AppSidebar in the group space', () => {
     )
     const menu = screen.getByRole('navigation', { name: 'Navigation du groupe' })
     expect(within(menu).getAllByRole('link').map((l) => l.textContent)).toEqual(GROUP_PAGES)
-    expect(within(menu).getByRole('link', { name: 'Trésorerie' })).toHaveAttribute('aria-current', 'page')
-    expect(within(menu).getByRole('link', { name: 'Pilotage' })).toHaveAttribute('href', '/alpha/group')
-    expect(within(menu).getByRole('link', { name: 'Opérations' })).toHaveAttribute('href', '/alpha/group/operations')
+    for (const title of GROUP_VIEWS_TITLES) expect(within(menu).getByText(title)).toBeInTheDocument()
+    // One entry is active: the view's first page, not the pages nested under it.
+    expect(within(menu).getByRole('link', { name: 'Soldes et perspectives' })).toHaveAttribute('aria-current', 'page')
+    expect(within(menu).getByRole('link', { name: 'Flux entre sociétés' })).not.toHaveAttribute('aria-current')
+    expect(within(menu).getByRole('link', { name: 'Synthèse' })).toHaveAttribute('href', '/alpha/group')
+    expect(within(menu).getByRole('link', { name: 'Grand livre combiné' })).toHaveAttribute('href', '/alpha/group/operations/ledger')
     // No company page: neither Banque, Saisie nor États.
     for (const name of ['Tableau de bord', 'Comptes bancaires', 'Écritures', 'Bilan', 'Informations']) expect(screen.queryByRole('link', { name })).toBeNull()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/group/summary?companyId=alpha', { cache: 'no-store' }))
@@ -130,7 +157,7 @@ describe('AppSidebar in the group space', () => {
     expect(within(menu).getAllByRole('link').map((l) => l.textContent)).toEqual(SIMPLE_GROUP_PAGES)
     expect(within(menu).getByRole('link', { name: 'Mes sociétés' })).toHaveAttribute('aria-current', 'page')
     expect(within(menu).getByRole('link', { name: 'Accueil du groupe' })).toHaveAttribute('href', '/alpha/group/simple')
-    expect(within(menu).queryByRole('link', { name: 'Opérations' })).toBeNull()
+    expect(within(menu).queryByRole('link', { name: 'Transactions' })).toBeNull()
   })
 
   it("shows the group as the current selection of the switcher, with the holding's shareholders", async () => {
@@ -210,17 +237,19 @@ describe('group navigation on phones', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Menu fermé' }))
     expect(screen.getByRole('button', { name: 'Menu ouvert' })).toBeInTheDocument()
-    await user.click(screen.getByRole('link', { name: 'Fiscalité' }))
+    await user.click(screen.getByRole('link', { name: 'Échéances' }))
     expect(screen.getByRole('button', { name: 'Menu fermé' })).toBeInTheDocument()
   })
 })
 
 describe('breadcrumb of the group space', () => {
-  it('reads Groupe <holding> > <page> and names the tab after it', async () => {
+  it('reads Groupe <holding> > <view> > <page> and names the tab after the page', async () => {
+    nav.pathname = '/alpha/group/treasury/flows'
     render(<DashboardBreadcrumb />)
     expect(await screen.findByRole('link', { name: 'Groupe Alpha Holding' })).toHaveAttribute('href', '/alpha/group')
     expect(screen.getByText('Trésorerie')).toBeInTheDocument()
-    await waitFor(() => expect(document.title).toBe('Trésorerie · Groupe Alpha Holding · Kledg'))
+    expect(screen.getByText('Flux entre sociétés')).toHaveAttribute('aria-current', 'page')
+    await waitFor(() => expect(document.title).toBe('Flux entre sociétés · Groupe Alpha Holding · Kledg'))
   })
 
   it('names the simple pages and links the group to its simple home', async () => {

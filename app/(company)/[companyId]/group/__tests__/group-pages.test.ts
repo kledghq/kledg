@@ -1,8 +1,8 @@
 /**
  * The group's home per display mode (docs/vue-groupe.md): Pilotage in
  * expert mode, the simple group home in simple mode (except a link that
- * names a tab), and the pages of the first group space redirecting to the
- * view and tab that now hold them.
+ * names a page), links to the former tabs of a view (?vue=) opening their
+ * page, and the pages of the first group space redirecting to their page.
  */
 
 import { isValidElement } from 'react'
@@ -21,6 +21,8 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 vi.mock('@/components/features/group/pilotage-view', () => ({ GroupPilotageView: () => null }))
+vi.mock('@/components/features/group/structure-view', () => ({ GroupStructureView: () => null }))
+vi.mock('@/components/features/group/tax-view', () => ({ GroupTaxView: () => null }))
 
 import { prisma } from '@/lib/prisma'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
@@ -28,6 +30,8 @@ import GroupHome from '../page'
 import CompaniesPage from '../companies/page'
 import DeadlinesPage from '../deadlines/page'
 import TransactionsPage from '../transactions/page'
+import StructurePage from '../structure/page'
+import TaxPage from '../tax/page'
 
 const db = asPrismaMock(prisma)
 const params = Promise.resolve({ companyId: 'lumen-holding' })
@@ -45,17 +49,26 @@ describe('group home', () => {
     expect(isValidElement(await GroupHome({ params, searchParams: Promise.resolve({}) }))).toBe(true)
   })
 
-  it('opens the simple group home in simple mode, unless a tab is named', async () => {
+  it('opens the simple group home in simple mode, unless a page is named', async () => {
     state.mode = 'simple'
     await expect(GroupHome({ params, searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_REDIRECT /lumen-holding/group/simple')
-    expect(isValidElement(await GroupHome({ params, searchParams: Promise.resolve({ vue: 'ratios' }) }))).toBe(true)
+    await expect(GroupHome({ params, searchParams: Promise.resolve({ vue: 'ratios' }) })).rejects.toThrow('NEXT_REDIRECT /lumen-holding/group/ratios')
+  })
+
+  it('opens the page of a former tab of a view (?vue=)', async () => {
+    state.mode = 'expert'
+    await expect(GroupHome({ params, searchParams: Promise.resolve({ vue: 'comparaison' }) })).rejects.toThrow('NEXT_REDIRECT /lumen-holding/group/comparison')
+    await expect(StructurePage({ params, searchParams: Promise.resolve({ vue: 'societes' }) })).rejects.toThrow('NEXT_REDIRECT /lumen-holding/group/structure/companies')
+    await expect(TaxPage({ params, searchParams: Promise.resolve({ vue: 'echeances' }) })).rejects.toThrow('NEXT_REDIRECT /lumen-holding/group/tax/deadlines')
+    expect(isValidElement(await StructurePage({ params, searchParams: Promise.resolve({}) }))).toBe(true)
+    expect(isValidElement(await TaxPage({ params, searchParams: Promise.resolve({ vue: 'impot' }) }))).toBe(true)
   })
 })
 
 describe('pages of the first group space', () => {
-  it('redirect permanently to their view and tab', async () => {
-    await expect(CompaniesPage({ params })).rejects.toThrow('NEXT_PERMANENT_REDIRECT /lumen-holding/group/structure?vue=societes')
-    await expect(DeadlinesPage({ params })).rejects.toThrow('NEXT_PERMANENT_REDIRECT /lumen-holding/group/tax?vue=echeances')
-    await expect(TransactionsPage({ params })).rejects.toThrow('NEXT_PERMANENT_REDIRECT /lumen-holding/group/operations?vue=transactions')
+  it('redirect permanently to their page', async () => {
+    await expect(CompaniesPage({ params })).rejects.toThrow('NEXT_PERMANENT_REDIRECT /lumen-holding/group/structure/companies')
+    await expect(DeadlinesPage({ params })).rejects.toThrow('NEXT_PERMANENT_REDIRECT /lumen-holding/group/tax/deadlines')
+    await expect(TransactionsPage({ params })).rejects.toThrow('NEXT_PERMANENT_REDIRECT /lumen-holding/group/operations')
   })
 })

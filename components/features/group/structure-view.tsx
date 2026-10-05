@@ -33,17 +33,17 @@ export function GroupOrganigramSection({ simple = false }: { simple?: boolean })
  * organigramme, the cap table with direct and indirect percentages, the
  * table of filiales et participations and the companies' legal details.
  */
-export function GroupStructureView() {
+export function GroupStructureView({ page }: { page?: string } = {}) {
   return (
     <GroupViewFrame
-      title="Structure"
-      description="Qui détient quoi et qui dirige quoi : l'organigramme du groupe, les associés avec leurs pourcentages direct et indirect, les filiales et participations, et chaque société."
-      tabs={[
-        { id: 'organigramme', label: 'Organigramme', content: <GroupOrganigramSection /> },
-        { id: 'associes', label: 'Associés et dirigeants', content: <GroupPersonsSection /> },
-        { id: 'participations', label: 'Participations', content: <GroupParticipationsSection /> },
-        { id: 'societes', label: 'Sociétés', content: <GroupCompaniesSection /> },
-      ]}
+      view="structure"
+      page={page}
+      sections={{
+        organigramme: <GroupOrganigramSection />,
+        associes: <GroupPersonsSection />,
+        participations: <GroupParticipationsSection />,
+        societes: <GroupCompaniesSection />,
+      }}
     />
   )
 }

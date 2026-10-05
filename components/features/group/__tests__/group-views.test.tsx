@@ -149,11 +149,12 @@ const inSpace = (ui: React.ReactNode) => render(<GroupSpaceProvider companyId="l
 describe('Pilotage', () => {
   it('shows who the group is, the combined KPIs and the contribution of each company', async () => {
     inSpace(<GroupPilotageView />)
-    expect(screen.getByRole('heading', { level: 1, name: 'Pilotage' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Synthèse' })).toBeInTheDocument()
     const identity = await screen.findByText('Groupe Lumen Holding')
     expect(identity.closest('[data-slot="group-identity"]')).toHaveTextContent('4 sociétés')
     expect(screen.getByRole('img', { name: 'Claire Vasseur, 60 %' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Synthèse' })).toHaveAttribute('aria-selected', 'true')
+    // A page of the sidebar, no tabs.
+    expect(screen.queryByRole('tab')).toBeNull()
     const table = await screen.findByRole('table')
     const atelier = within(table).getByRole('row', { name: /Atelier Lumen/ })
     // 400 000 € of the 518 000 € aggregated: 77,2 %.
@@ -162,7 +163,7 @@ describe('Pilotage', () => {
     expect(plain(within(table).getByRole('row', { name: /Groupe après éliminations/ }).textContent)).toContain('63 000,00 €')
   })
 
-  it('filters every tab on one company', async () => {
+  it('filters every page on one company', async () => {
     const user = userEvent.setup()
     inSpace(<GroupPilotageView />)
     await screen.findByRole('row', { name: /Groupe après éliminations/ })
@@ -173,13 +174,10 @@ describe('Pilotage', () => {
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Atelier Lumen'])
   })
 
-  it('opens the tab named in the address', async () => {
-    nav.search = 'vue=ratios'
-    inSpace(<GroupPilotageView />)
-    expect(screen.getByRole('tab', { name: 'Ratios' })).toHaveAttribute('aria-selected', 'true')
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: 'Évolution' }))
-    expect(nav.replace).toHaveBeenCalledWith('/lumen-holding/group?vue=evolution', { scroll: false })
+  it('shows the page it is given, with its title', async () => {
+    inSpace(<GroupPilotageView page="ratios" />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Ratios' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Synthèse' })).toBeNull()
   })
 })
 
@@ -220,9 +218,8 @@ describe('Structure', () => {
 
 describe('Fiscalité', () => {
   it('simulates the intégration fiscale with its conditions and sources, and counts a typed retraitement', async () => {
-    nav.search = 'vue=integration'
     const user = userEvent.setup()
-    inSpace(<GroupTaxView />)
+    inSpace(<GroupTaxView page="integration" />)
     const conditions = (await screen.findByRole('heading', { name: 'Conditions' })).closest('[data-slot="card"]') as HTMLElement
     expect(await within(conditions).findByText('Hors du groupe')).toBeInTheDocument()
     expect(conditions).toHaveTextContent('Détention par la holding et les membres du groupe : 80 %.')
@@ -248,8 +245,7 @@ describe('Fiscalité', () => {
 
 describe('Trésorerie', () => {
   it('shows the flows between the companies and who owes whom', async () => {
-    nav.search = 'vue=flux'
-    inSpace(<GroupTreasuryView />)
+    inSpace(<GroupTreasuryView page="flux" />)
     const owes = (await screen.findByRole('heading', { name: 'Soldes entre sociétés' })).closest('[data-slot="card"]') as HTMLElement
     const row = await within(owes).findByRole('row', { name: /Avances en compte courant/ })
     expect(plain(row.textContent)).toContain('Lumen HoldingStudio Lumen')
