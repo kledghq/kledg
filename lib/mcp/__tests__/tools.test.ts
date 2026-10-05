@@ -88,6 +88,8 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   bulk_reconcile: true,
   delete_bank_transactions: true,
   duplicate_rule: false,
+  add_rule_from_template: false,
+  copy_rules_from_company: false,
   sync_bank_data: false,
   upload_receipt: false,
   manage_invoice: true,
@@ -298,7 +300,7 @@ describe('full control tools', () => {
   // through registerFullControlTool (define.ts), which checks
   // guard.requireFullControl before any preview or action.
   const dir = path.resolve(__dirname, '../full-control')
-  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts', 'chart.ts', 'settings.ts', 'bank-admin.ts', 'records.ts', 'companies.ts']
+  const toolFiles = ['entries.ts', 'banking.ts', 'ledger.ts', 'year-end.ts', 'lettering.ts', 'invoices.ts', 'chart.ts', 'settings.ts', 'bank-admin.ts', 'records.ts', 'companies.ts', 'rules-library.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks full control first, in the single registration path', () => {

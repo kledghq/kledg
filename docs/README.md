@@ -10,6 +10,7 @@
 - [Connexions bancaires](connexions-bancaires.md) : Qonto et Revolut Business en direct, Ponto pour les autres banques, import de fichiers
 - [Importer un relevé bancaire](importer-un-releve-bancaire.md) : CSV, Excel, OFX et camt.053 pour les banques sans synchronisation
 - [Règles d'affectation](regles-d-affectation.md) : quand une règle crée l'écriture d'une transaction
+- [Bibliothèque de règles](bibliotheque-de-regles.md) : règles prêtes à l'emploi pour les fournisseurs et paiements courants, avec leur TVA et ses sources, suggestions d'après les transactions, copie depuis une autre société ; format d'un modèle et contribution
 - [Lettrage et tiers](lettrage-et-tiers.md) : lettrage des comptes de tiers, balance auxiliaire, balance âgée, justificatifs manquants
 - [Factures et tiers](factures-et-tiers.md) : clients et fournisseurs, factures d'achat et de vente, comptabilisation, TVA sur les encaissements, règlements, import Qonto, facturation électronique
 - [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, validation, comptabilisation et remboursement

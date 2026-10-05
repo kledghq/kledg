@@ -1,6 +1,6 @@
 # Règles d'affectation
 
-Une règle d'affectation dit à Kledg quelle écriture passer pour les transactions bancaires qui se ressemblent : même fournisseur, même libellé, même sens. Elle se crée depuis la page **Règles d'affectation** (**Nouvelle règle**) ou depuis une transaction (**Créer une règle à partir de cette transaction** dans la fenêtre « Traiter la transaction »), qui préremplit les conditions et un nom tiré de la contrepartie ou du libellé nettoyé (« CB Billet de train 12/03 » devient « Billet de train »). Le nom reste modifiable.
+Une règle d'affectation dit à Kledg quelle écriture passer pour les transactions bancaires qui se ressemblent : même fournisseur, même libellé, même sens. Elle se crée depuis la page **Règles d'affectation** (**Nouvelle règle**), depuis la [bibliothèque de règles](bibliotheque-de-regles.md) (modèles prêts à l'emploi, ou copie depuis une autre société) ou depuis une transaction (**Créer une règle à partir de cette transaction** dans la fenêtre « Traiter la transaction »), qui préremplit les conditions et un nom tiré de la contrepartie ou du libellé nettoyé (« CB Billet de train 12/03 » devient « Billet de train »). Le nom reste modifiable.
 
 ## La page d'une règle
 

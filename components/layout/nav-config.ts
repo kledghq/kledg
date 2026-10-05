@@ -30,6 +30,7 @@ import {
   Landmark,
   Calculator,
   LayoutDashboard,
+  Library,
   LineChart,
   Link2,
   ListChecks,
@@ -94,6 +95,7 @@ export const navGroups: NavGroup[] = [
       { title: "Justificatifs manquants", url: "/banking/missing-receipts", icon: Receipt },
       { title: "Abonnements", url: "/subscriptions", icon: Repeat },
       { title: "Règles d'affectation", url: "/rules", icon: Workflow },
+      { title: "Bibliothèque de règles", url: "/rules/library", icon: Library },
     ],
   },
   {
