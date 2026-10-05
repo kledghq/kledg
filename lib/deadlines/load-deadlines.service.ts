@@ -83,6 +83,14 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
     }),
   ])
   if (!company) throw new NotFoundError('Société non trouvée')
+  const turnover = await prisma.$queryRaw<Array<{ year: number; cents: bigint }>>`
+    SELECT extract(year FROM e."date")::int AS year, round(sum(l."credit" - l."debit") * 100)::bigint AS cents
+    FROM "entry_lines" l
+    JOIN "accounting_entries" e ON e."id" = l."accountingEntryId"
+    JOIN "accounts" a ON a."id" = l."accountId"
+    WHERE e."companyId" = ${companyId} AND e."status" = 'validated' AND a."code" LIKE '70%'
+    GROUP BY 1
+  `
   const local = localTaxes.map((row) => ({ year: row.year, cfeTotalCents: row.cfeTotal === null ? null : parseCents(row.cfeTotal), cfeAcompteCents: row.cfeAcompte === null ? null : parseCents(row.cfeAcompte) }))
   return {
     company: {
@@ -99,6 +107,8 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
         isVatExempt: r.isVatExempt,
         establishmentId: r.establishmentId,
       })),
+      // Chiffre d'affaires per calendar year: the threshold of the quarterly CA3 from 2027
+      turnoverCentsByYear: Object.fromEntries(turnover.map((row) => [row.year, Number(row.cents)])),
     },
     fiscalYears: fiscalYears.map((fy) => ({ id: fy.id, year: fy.year, startDate: day(fy.startDate), endDate: day(fy.endDate), isClosed: fy.isClosed })),
     settings: parseDeadlineSettings(company.deadlineSettings),

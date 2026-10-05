@@ -195,6 +195,24 @@ describe.skipIf(!available)('deadline routes', () => {
     expect(data.deadlines.map((d) => d.id)).toContain('approbation:2025-12-31')
   })
 
+  it('reads the turnover of each calendar year from the validated entries (quarterly CA3 threshold from 2027)', async () => {
+    const { loadDeadlineContext } = await import('../load-deadlines.service')
+    const journal = await prisma.journal.create({ data: { companyId: ids.other, code: 'VE', label: 'Ventes' } })
+    const sales = await prisma.account.create({ data: { companyId: ids.other, fiscalYearId: ids.otherFy, code: '706000', label: 'Prestations' } })
+    const bank = await prisma.account.create({ data: { companyId: ids.other, fiscalYearId: ids.otherFy, code: '512000', label: 'Banque' } })
+    for (const [n, status, amount] of [['1', 'validated', 700_000], ['2', 'validated', 400_000.5], ['3', 'draft', 999]] as const) {
+      const entry = await prisma.accountingEntry.create({
+        data: {
+          companyId: ids.other, journalId: journal.id, fiscalYearId: ids.otherFy, entryNumber: `BR-${n}`, date: day('2026-03-31'),
+          lines: { create: [{ accountId: bank.id, accountFiscalYearId: ids.otherFy, debit: amount }, { accountId: sales.id, accountFiscalYearId: ids.otherFy, credit: amount }] },
+        },
+      })
+      if (status === 'validated') await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status, entryNumber: n } })
+    }
+    const context = await loadDeadlineContext(ids.other)
+    expect(context.company.turnoverCentsByYear).toEqual({ 2026: 110_000_050 })
+  })
+
   it('answers 404 to a member of another company and 401 to an anonymous request', async () => {
     expect((await call('outsider', deadlinesRoute.GET, 'GET', `/api/deadlines?companyId=${ids.company}`)).status).toBe(404)
     expect((await call('outsider', settingsRoute.PUT, 'PUT', `/api/companies/${ids.company}/deadline-settings`, { id: ids.company }, SETTINGS)).status).toBe(404)

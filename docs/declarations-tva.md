@@ -23,7 +23,7 @@ calendrier (`vatFilingAt`, `lib/deadlines/engine.ts`) :
 | --- | --- | --- | --- |
 | Réel normal (et mini réel) | 3310-CA3-SD | Le mois ; le trimestre quand la TVA annuelle est inférieure à 4 000 € (option « trimestrielle » des paramètres des échéances) | CGI art. 287, 2 ; BOI-TVA-DECLA-20-20-10-10 |
 | Réel simplifié, jusqu'en 2026 | 3517-S-SD CA12 | L'année civile, avec deux acomptes en juillet (55 %) et en décembre (40 %) | CGI art. 287, 3 ; BOI-TVA-DECLA-20-20-30-10 |
-| Réel simplifié, à partir de 2027 | 3310-CA3-SD | Le trimestre par défaut, le mois sur demande : le régime simplifié de TVA est supprimé au 1er janvier 2027 | loi n° 2025-127, art. 38 ; impots.gouv.fr |
+| Réel simplifié, à partir de 2027 | 3310-CA3-SD | Le trimestre par défaut, le mois sur demande : le régime simplifié de TVA est supprimé au 1er janvier 2027. Le trimestre suppose un chiffre d'affaires (comptes 70 des écritures validées) d'au plus 1 000 000 € l'année civile précédente et 1 100 000 € l'année en cours : au-delà de 1 000 000 € l'année précédente, Kledg passe au mois ; au-delà de 1 100 000 € dans l'année, l'échéance l'indique (mois d'office dès le dépassement) | loi n° 2025-127, art. 38 ; impots.gouv.fr |
 | Franchise en base, exonération | Aucune | La page indique qu'il n'y a rien à déposer | CGI art. 293 B ; BOI-TVA-DECLA-40 |
 | Inconnu | Aucune | La page demande de renseigner le régime | |
 

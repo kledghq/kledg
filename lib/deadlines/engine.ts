@@ -50,6 +50,33 @@ export interface DeadlineCompany {
   foundationDate: string | null
   /** TaxRegimeHistory rows: they win over the company fields for the periods they cover. */
   regimeHistory: RegimePeriod[]
+  /**
+   * Chiffre d'affaires (accounts 70 of the validated entries) per calendar
+   * year, in cents: the threshold of the quarterly CA3 from 2027. Unknown
+   * years count as under it.
+   */
+  turnoverCentsByYear?: Record<number, number>
+}
+
+/**
+ * Quarterly CA3 from 2027, after the abolition of the réel simplifié (loi
+ * n° 2025-127, art. 38; impots.gouv.fr, "Le régime simplifié d'imposition à
+ * la TVA est supprimé à compter du 1er janvier 2027"): the returns are
+ * quarterly when the chiffre d'affaires did not exceed 1 000 000 € in the
+ * previous calendar year and does not exceed 1 100 000 € in the current
+ * year; above, the company files monthly ("relèveront d'office du régime
+ * réel normal mensuel"), and may opt for monthly returns.
+ */
+export const QUARTERLY_CA3_PREVIOUS_YEAR_CENTS = 100_000_000
+export const QUARTERLY_CA3_CURRENT_YEAR_CENTS = 110_000_000
+
+/** Whether the turnover of `year` or of the year before exceeds the quarterly CA3 thresholds. */
+export function exceedsQuarterlyCa3Threshold(company: DeadlineCompany, year: number): { previous: boolean; current: boolean } {
+  const turnover = company.turnoverCentsByYear ?? {}
+  return {
+    previous: (turnover[year - 1] ?? 0) > QUARTERLY_CA3_PREVIOUS_YEAR_CENTS,
+    current: (turnover[year] ?? 0) > QUARTERLY_CA3_CURRENT_YEAR_CENTS,
+  }
 }
 
 export interface DeadlineFiscalYear {
@@ -185,7 +212,10 @@ export function vatRegimeAt(company: DeadlineCompany, day: string): VatRegime | 
  *   default, monthly on request;
  * - franchise or exemption: no return ('none'); unknown regime: null.
  */
-export type VatFiling = { form: 'CA3'; quarterly: boolean; afterSimplified: boolean } | { form: 'CA12' } | { form: 'none' }
+export type VatFiling =
+  | { form: 'CA3'; quarterly: boolean; afterSimplified: boolean; overThreshold?: 'previous' | 'current' }
+  | { form: 'CA12' }
+  | { form: 'none' }
 
 export function vatFilingAt(company: DeadlineCompany, settings: Pick<DeadlineSettings, 'vatCa3Frequency'>, monthStart: string): VatFiling | null {
   const regime = vatRegimeAt(company, monthStart)
@@ -193,8 +223,16 @@ export function vatFilingAt(company: DeadlineCompany, settings: Pick<DeadlineSet
   if (regime === 'none') return { form: 'none' }
   const afterSimplified = regime === 'simplified' && yearOf(monthStart) > SIMPLIFIED_VAT_LAST_YEAR
   if (regime === 'normal' || afterSimplified) {
-    const quarterly = afterSimplified ? settings.vatCa3Frequency !== 'monthly' : settings.vatCa3Frequency === 'quarterly'
-    return { form: 'CA3', quarterly, afterSimplified }
+    if (afterSimplified) {
+      // Monthly when the previous year's turnover exceeded the threshold;
+      // the current year's is a warning (the switch applies from the month
+      // it is crossed, the books tell it only afterwards).
+      const over = exceedsQuarterlyCa3Threshold(company, yearOf(monthStart))
+      if (over.previous) return { form: 'CA3', quarterly: false, afterSimplified, overThreshold: 'previous' }
+      const quarterly = settings.vatCa3Frequency !== 'monthly'
+      return { form: 'CA3', quarterly, afterSimplified, ...(quarterly && over.current ? { overThreshold: 'current' as const } : {}) }
+    }
+    return { form: 'CA3', quarterly: settings.vatCa3Frequency === 'quarterly', afterSimplified }
   }
   return { form: 'CA12' }
 }
@@ -304,11 +342,17 @@ function vatDeadlines(input: DeadlineInput): Candidate[] {
       const [ny, nm] = shiftMonth(y, m, 1)
       const due = isoOf(ny, nm, day)
       if (filing.form === 'CA3') {
-        const { quarterly, afterSimplified } = filing
+        const { quarterly, afterSimplified, overThreshold } = filing
         const transition = afterSimplified
           ? 'Le régime simplifié de TVA est supprimé au 1er janvier 2027 : déclaration CA3 trimestrielle par défaut, mensuelle sur demande.'
           : undefined
-        const note = transition
+        const threshold =
+          overThreshold === 'previous'
+            ? `Chiffre d'affaires ${y - 1} supérieur à 1 000 000 € : déclaration CA3 mensuelle.`
+            : overThreshold === 'current'
+              ? `Chiffre d'affaires ${y} supérieur à 1 100 000 € : la déclaration devient mensuelle d'office dès le mois du dépassement (la première déclaration mensuelle reprend les opérations depuis le début du trimestre).`
+              : undefined
+        const note = [transition, threshold].filter(Boolean).join(' ') || undefined
         if (!quarterly) {
           out.push({ key: `${y}-${pad(m)}`, ruleId: 'tva-ca3', legalDate: due, postpone: true, label: `Déclaration et paiement de la TVA de ${MONTHS[m - 1]} ${y}`, estimated, note })
         } else if (m % 3 === 0) {

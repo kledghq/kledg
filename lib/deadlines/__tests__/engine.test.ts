@@ -173,6 +173,19 @@ describe('TVA, réel simplifié (CA12 and acomptes)', () => {
     expect(ofRule(monthly, 'tva-ca3')).toHaveLength(11)
   })
 
+  it('files monthly from 2027 above 1 000 000 € of turnover the year before, and warns above 1 100 000 € in the year (loi n° 2025-127, art. 38)', () => {
+    const years = [...CALENDAR_YEARS, fy('2027-01-01', '2027-12-31')]
+    const big = { ...simplified, turnoverCentsByYear: { 2026: 100_000_001 } }
+    const monthly = run({ company: big, from: '2027-01-01', to: '2027-12-31', fiscalYears: years })
+    expect(ofRule(monthly, 'tva-ca3')).toHaveLength(11)
+    expect(ofRule(monthly, 'tva-ca3')[0].note).toMatch(/2026 supérieur à 1 000 000 €.: déclaration CA3 mensuelle/)
+    // Exactly the threshold stays quarterly ("n'excède pas")
+    const atThreshold = run({ company: { ...simplified, turnoverCentsByYear: { 2026: 100_000_000 } }, from: '2027-01-01', to: '2027-12-31', fiscalYears: years })
+    expect(ofRule(atThreshold, 'tva-ca3').map((d) => d.id)).toEqual(['tva-ca3:2027-T1', 'tva-ca3:2027-T2', 'tva-ca3:2027-T3'])
+    const crossing = run({ company: { ...simplified, turnoverCentsByYear: { 2026: 90_000_000, 2027: 110_000_001 } }, from: '2027-01-01', to: '2027-12-31', fiscalYears: years })
+    expect(ofRule(crossing, 'tva-ca3')[0].note).toMatch(/mensuelle d'office dès le mois du dépassement/)
+  })
+
   it('drops the acomptes when the company says last year VAT was under 1 000 €', () => {
     expect(ofRule(run({ company: simplified, settings: { vatSimplifiedAcomptes: false } }), 'tva-acompte')).toEqual([])
   })
