@@ -196,23 +196,8 @@ export default function FiscalYearsPage() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    })
-  }
-
-  const formatDateShort = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    })
-  }
+  // Periods read "Du 01/01/2026 au 31/12/2026", in UTC so a day never shifts (docs/design-system.md)
+  const formatDateShort = (dateString: string) => formatDisplayDate(dateString)
 
   const handleCloseFiscalYear = async () => {
     if (!closingFiscalYearId || !companyId) return
