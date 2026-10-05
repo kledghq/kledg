@@ -29,6 +29,8 @@ import { optionalCalendarDay, optionalText as nullableText } from '@/lib/api/zod
 import { dayToDate } from '@/lib/accounting/entry-date'
 import { calendarDayOf } from '@/lib/utils/date'
 import { logoError } from './logo'
+import { ApprovalDetailsSchema } from '@/lib/approval/schemas'
+import { namesOfPerson, pseudonymiseApprovalDetails } from '@/lib/approval/pseudonymise'
 
 /** A photo is a data URL kept in the row (like company logos): bounded well under the 1 MB body cap. */
 const MAX_PHOTO_LENGTH = 700_000
@@ -98,7 +100,10 @@ export const PERSON_RETENTION_NOTICE =
   "Les écritures comptables et leurs pièces justificatives sont conservées 10 ans (Code de commerce, art. L123-22) : le nom porté par les écritures et les notes de frais n'est pas effacé (RGPD, art. 17, 3, b)."
 
 async function ownedPerson(companyId: string, personId: string) {
-  const person = await prisma.person.findFirst({ where: { id: personId, companyId }, select: { id: true, addressId: true } })
+  const person = await prisma.person.findFirst({
+    where: { id: personId, companyId },
+    select: { id: true, addressId: true, firstName: true, name: true, usualName: true },
+  })
   if (!person) throw new NotFoundError(PERSON_NOT_FOUND)
   return person
 }
@@ -192,7 +197,10 @@ export async function updateCompanyPerson(companyId: string, personId: string, i
  * person is an associate of a company: remove the shareholding first. The
  * expense claimants it was keep their name and auxiliary account (the
  * entries carry them, art. 17, 3, b); its address goes when nothing else
- * uses it.
+ * uses it. In the approvals of the accounts (lib/approval/pseudonymise.ts),
+ * the name is replaced while the accounts are not approved; the minutes of
+ * approved accounts are company-law records kept as they are (C. com.
+ * R221-3, R223-24, R225-106, L123-22; RGPD art. 17, 3, b and e).
  */
 export async function eraseCompanyPerson(companyId: string, personId: string): Promise<{ erased: true; kept: string[] }> {
   const person = await ownedPerson(companyId, personId)
@@ -204,9 +212,30 @@ export async function eraseCompanyPerson(companyId: string, personId: string): P
       )
     }
     const claimants = await tx.expenseClaimant.count({ where: { personId: person.id } })
+    const kept = claimants > 0 ? [`Nom et compte auxiliaire du bénéficiaire de note de frais, portés par les écritures. ${PERSON_RETENTION_NOTICE}`] : []
+
+    // Approvals of the accounts: drafts pseudonymised, approved minutes kept
+    const names = namesOfPerson(person)
+    const approvals = await tx.accountsApproval.findMany({
+      where: { companyId },
+      select: { id: true, approvedOn: true, details: true, fiscalYear: { select: { year: true } } },
+    })
+    for (const approval of approvals) {
+      const parsed = ApprovalDetailsSchema.safeParse(approval.details ?? {})
+      if (!parsed.success) continue
+      const { details, changed } = pseudonymiseApprovalDetails(parsed.data, names)
+      if (!changed) continue
+      if (approval.approvedOn) {
+        kept.push(
+          `Nom porté par le procès-verbal d'approbation des comptes de l'exercice ${approval.fiscalYear.year}, approuvés\u00a0: les décisions des associés sont conservées avec les registres de la société (Code de commerce, art. R221-3, R223-24, R225-106\u00a0; RGPD, art. 17, 3, b et e).`,
+        )
+      } else {
+        await tx.accountsApproval.update({ where: { id: approval.id }, data: { details: details as object } })
+      }
+    }
+
     await tx.person.delete({ where: { id: person.id } })
     await deleteAddressesIfUnused(tx, companyId, [person.addressId])
-    const kept = claimants > 0 ? [`Nom et compte auxiliaire du bénéficiaire de note de frais, portés par les écritures. ${PERSON_RETENTION_NOTICE}`] : []
     return { erased: true as const, kept }
   })
 }

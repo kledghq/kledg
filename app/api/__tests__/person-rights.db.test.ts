@@ -134,6 +134,28 @@ describe.skipIf(!available)('rights of a person (RGPD art. 15 to 17)', () => {
     expect(claimant).toMatchObject({ personId: null, name: 'Claire Martin', auxiliaryAccountNumber: 'S00001' })
   })
 
+  it('pseudonymises the person in the approval drafts and keeps the approved minutes (C. com. R223-24, R225-106; RGPD art. 17, 3, b and e)', async () => {
+    const fy2025 = await prisma.fiscalYear.create({ data: { companyId: ids.company, year: 2025, startDate: new Date('2025-01-01T00:00:00Z'), endDate: new Date('2025-12-31T00:00:00Z') } })
+    const fy2026 = await prisma.fiscalYear.create({ data: { companyId: ids.company, year: 2026, startDate: new Date('2026-01-01T00:00:00Z'), endDate: new Date('2026-12-31T00:00:00Z') } })
+    const approved = await prisma.accountsApproval.create({
+      data: { companyId: ids.company, fiscalYearId: fy2025.id, approvedOn: new Date('2026-05-20T00:00:00Z'), details: { chair: { name: 'Claire Martin', title: 'Présidente' }, secretary: 'Paul Durand' } },
+    })
+    const draft = await prisma.accountsApproval.create({
+      data: { companyId: ids.company, fiscalYearId: fy2026.id, details: { secretary: 'claire  martin', officers: [{ name: 'Martin Claire', title: 'Directrice générale' }, { name: 'Paul Durand', title: 'Président' }] } },
+    })
+
+    const response = await call('DELETE', ids.claimant)
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { kept: string[] }
+    expect(body.kept).toEqual([expect.stringContaining('note de frais'), expect.stringContaining("l'exercice 2025")])
+
+    const kept = await prisma.accountsApproval.findUniqueOrThrow({ where: { id: approved.id } })
+    expect(kept.details).toMatchObject({ chair: { name: 'Claire Martin' } })
+    const changed = (await prisma.accountsApproval.findUniqueOrThrow({ where: { id: draft.id } })).details as { secretary: string; officers: Array<{ name: string; title: string }> }
+    expect(changed.secretary).toBe('Personne effacée')
+    expect(changed.officers).toEqual([{ name: 'Personne effacée', title: 'Directrice générale' }, { name: 'Paul Durand', title: 'Président' }])
+  })
+
   it('refuses to erase a current associate until the shareholding is removed', async () => {
     const response = await call('DELETE', ids.associate)
     expect(response.status).toBe(409)
