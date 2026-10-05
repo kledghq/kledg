@@ -33,6 +33,7 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 vi.mock('@/components/features/companies/company-access', () => ({ CompanyAccessProvider: () => null }))
+vi.mock('@/lib/ai-access/company-assistants.service', () => ({ companyAssistants: vi.fn(async () => []) }))
 
 import { prisma } from '@/lib/prisma'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
@@ -85,7 +86,10 @@ describe('company layout', () => {
 
   it('hands the page what the role may do', async () => {
     const props = await providerProps('atelier-lumen')
-    expect(props.children).toBe('page')
+    // The page sits inside the provider of the assistants for "Proposer avec l'IA" (none here)
+    const assist = props.children as unknown as ReactElement<{ children: unknown; value: { apps: unknown[] } }>
+    expect(assist.props.children).toBe('page')
+    expect(assist.props.value.apps).toEqual([])
     expect(props.value.roleLabel).toBe('Comptable')
     expect(props.value.granted.entries).toEqual(['read', 'create', 'update', 'delete', 'validate'])
     expect(props.value.granted.settings).toEqual(['read'])

@@ -7,6 +7,7 @@ import { PATH_HEADER } from '@/lib/request-path'
 import { grantedPermissions, roleLabelOf } from '@/lib/rbac/granted-permissions'
 import { CompanyAccessProvider } from '@/components/features/companies/company-access'
 import { AiAssistProvider } from '@/components/features/ai-assist/ai-assist-context'
+import { logger } from '@/lib/logger'
 import { companyAssistants } from '@/lib/ai-access/company-assistants.service'
 
 /**
@@ -50,8 +51,11 @@ export default async function CompanyLayout({
     permanentRedirect(target)
   }
 
-  // The assistants the user connected to this company, for "Proposer avec l'IA" (none: no button)
-  const assistants = await companyAssistants(user.id, company.id)
+  // The assistants the user connected to this company, for "Proposer avec l'IA" (none, or the lookup failing: no button, the page still loads)
+  const assistants = await companyAssistants(user.id, company.id).catch((error: unknown) => {
+    logger.warn('[ai-assist] assistants of the company not read', error)
+    return []
+  })
 
   // What the role may do, for the pages to disable what it cannot (the API still checks every request)
   return (
