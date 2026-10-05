@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, CalendarCheck, CircleCheck, Info, ListFilter, Settings2 } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, CalendarCheck, CircleCheck, Info, ListFilter, Settings2 } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -151,7 +151,7 @@ function DeadlineItem({
             className="text-link inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline pointer-coarse:-my-3 pointer-coarse:py-3"
           >
             Voir les impôts locaux
-            <ArrowUpRight aria-hidden className="size-3.5" />
+            <ArrowRight aria-hidden className="size-3.5" />
           </Link>
         ) : null}
         {vatPeriod ? (
@@ -160,7 +160,7 @@ function DeadlineItem({
             className="text-link inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline pointer-coarse:-my-3 pointer-coarse:py-3"
           >
             {deadline.ruleId === 'tva-acompte' ? 'Voir le calcul de l’acompte' : 'Préparer la déclaration'}
-            <ArrowUpRight aria-hidden className="size-3.5" />
+            <ArrowRight aria-hidden className="size-3.5" />
           </Link>
         ) : null}
         {corporateTaxPage ? (
@@ -169,7 +169,7 @@ function DeadlineItem({
             className="text-link inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline pointer-coarse:-my-3 pointer-coarse:py-3"
           >
             {deadline.ruleId === 'is-acompte' ? 'Voir le calcul de l’acompte' : deadline.ruleId === 'is-solde' ? 'Préparer le relevé de solde' : 'Préparer le résultat fiscal'}
-            <ArrowUpRight aria-hidden className="size-3.5" />
+            <ArrowRight aria-hidden className="size-3.5" />
           </Link>
         ) : null}
       </div>

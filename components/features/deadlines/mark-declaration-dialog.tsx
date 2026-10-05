@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 
 import { AmountInput } from '@/components/ui/amount-input'
 import { Button } from '@/components/ui/button'
@@ -125,7 +125,7 @@ export function MarkDeclarationDialog({
   const sourceLink = status.sourcePage ? (
     <Link href={`/${companyId}/${status.sourcePage.page}`} className="text-link inline-flex items-center gap-1 underline-offset-4 hover:underline">
       {status.sourcePage.label}
-      <ArrowUpRight aria-hidden className="size-3.5" />
+      <ArrowRight aria-hidden className="size-3.5" />
     </Link>
   ) : null
 
