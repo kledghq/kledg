@@ -8,6 +8,9 @@
  * carries the balance of each account. An opening line without auxiliary
  * account is one tiers named after its account, aged from the first day of
  * the year: detail the opening entry per auxiliary account for exact ages.
+ *
+ * Also the flows of a year with the customers and suppliers (Tiers page,
+ * tiers-flows.ts for the rule): billing entries only, opening excluded.
  */
 
 import { z } from 'zod'
@@ -20,6 +23,7 @@ import { calendarDayOf, endOfDay, formatIsoDateFr, isoDateToUtc, todayUtc } from
 import { parseCents } from '@/lib/utils/money'
 import { getPaymentTerms } from '@/lib/companies/payment-terms.service'
 import type { PaymentTerms } from './payment-terms'
+import { buildTiersFlows, type FlowEntry, type TiersFlows } from './tiers-flows'
 import {
   buildAgedBalance,
   buildAuxiliaryBalance,
@@ -47,7 +51,13 @@ export const AuxiliaryBalanceQuerySchema = z.object({
 })
 export type AuxiliaryBalanceQuery = z.infer<typeof AuxiliaryBalanceQuerySchema>
 
-interface FiscalYearRef {
+/** ?fiscalYearId= (flows of the year with the customers and suppliers, Tiers page). */
+export const TiersFlowsQuerySchema = z.object({
+  fiscalYearId: z.string().max(64).optional(),
+})
+export type TiersFlowsQuery = z.infer<typeof TiersFlowsQuerySchema>
+
+export interface FiscalYearRef {
   id: string
   year: number
   startDate: string
@@ -188,4 +198,53 @@ export async function getAuxiliaryBalance(companyId: string, query: AuxiliaryBal
   if (endDate < startDate) throw new ValidationError('La date de fin précède la date de début.')
   const [lines, directory] = await Promise.all([loadThirdPartyLines(companyId, fiscalYear.id, endDate), loadTiersDirectory(companyId)])
   return { fiscalYear, period: { startDate, endDate }, ...buildAuxiliaryBalance(lines, startDate, endDate, directory) }
+}
+
+const TIERS_ACCOUNTS = { OR: [{ code: { startsWith: '401' } }, { code: { startsWith: '411' } }] }
+
+/**
+ * Validated entries of a fiscal year with a line on a 401 or 411 account,
+ * with all their lines (tiers-flows.ts tells billings from payments by the
+ * other accounts of the entry).
+ */
+async function loadFlowEntries(companyId: string, fiscalYearId: string): Promise<FlowEntry[]> {
+  const rows = await prisma.accountingEntry.findMany({
+    where: {
+      companyId,
+      fiscalYearId,
+      status: 'validated',
+      journal: { code: { not: OPENING_JOURNAL.code } },
+      lines: { some: { account: TIERS_ACCOUNTS } },
+    },
+    select: {
+      journal: { select: { code: true } },
+      lines: { select: { debit: true, credit: true, auxiliaryAccountNumber: true, auxiliaryAccountLabel: true, account: { select: { code: true } } } },
+    },
+  })
+  return rows.map((row) => ({
+    opening: row.journal.code === OPENING_JOURNAL.code,
+    lines: row.lines.map((line) => ({
+      accountCode: line.account.code,
+      auxiliaryAccountNumber: line.auxiliaryAccountNumber,
+      auxiliaryAccountLabel: line.auxiliaryAccountLabel,
+      debitCents: parseCents(line.debit) ?? 0,
+      creditCents: parseCents(line.credit) ?? 0,
+    })),
+  }))
+}
+
+export interface TiersFlowsReport extends TiersFlows {
+  fiscalYear: FiscalYearRef
+  company: { name: string }
+}
+
+/** What each customer was billed and each supplier billed over a fiscal year (the current one by default), TTC. */
+export async function getTiersFlows(companyId: string, query: TiersFlowsQuery, now = new Date()): Promise<TiersFlowsReport> {
+  const fiscalYear = await resolveFiscalYear(companyId, query.fiscalYearId, calendarDayOf(todayUtc(now)) as string)
+  const [company, entries, directory] = await Promise.all([
+    prisma.company.findUnique({ where: { id: companyId }, select: { name: true } }),
+    loadFlowEntries(companyId, fiscalYear.id),
+    loadTiersDirectory(companyId),
+  ])
+  return { fiscalYear, company: { name: company?.name ?? 'La société' }, ...buildTiersFlows(entries, directory) }
 }

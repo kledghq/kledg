@@ -1,8 +1,9 @@
 /**
  * MCP read tools added for the closing workflows: list_tax_deadlines
  * (reports:read, dates and sources only), get_bank_sync_status
- * (banking:read, state only, no IBAN or provider data), get_auxiliary_balance
- * and list_doubtful_receivables (reports:read, amounts in euros). Present
+ * (banking:read, state only, no IBAN or provider data), get_auxiliary_balance,
+ * get_tiers_flows and list_doubtful_receivables (reports:read, amounts in
+ * euros). Present
  * at every level, read only; services mocked.
  */
 
@@ -25,6 +26,7 @@ vi.mock('@/lib/banking/list-bank-connections.service', () => ({ listBankConnecti
 vi.mock('@/lib/reports/third-parties/get-third-party-reports.service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/reports/third-parties/get-third-party-reports.service')>()),
   getAuxiliaryBalance: vi.fn(),
+  getTiersFlows: vi.fn(),
 }))
 vi.mock('@/lib/provisions/doubtful-receivables.service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/provisions/doubtful-receivables.service')>()),
@@ -34,7 +36,8 @@ vi.mock('@/lib/provisions/doubtful-receivables.service', async (importOriginal) 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { loadDeadlinesView } from '@/lib/deadlines/load-deadlines.service'
 import { listBankConnections } from '@/lib/banking/list-bank-connections.service'
-import { getAuxiliaryBalance } from '@/lib/reports/third-parties/get-third-party-reports.service'
+import { getAuxiliaryBalance, getTiersFlows } from '@/lib/reports/third-parties/get-third-party-reports.service'
+import { buildTiersFlows } from '@/lib/reports/third-parties/tiers-flows'
 import { listDoubtfulReceivables } from '@/lib/provisions/doubtful-receivables.service'
 import { prisma } from '@/lib/prisma'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
@@ -150,6 +153,43 @@ describe('get_auxiliary_balance', () => {
     const bad = await tool('get_auxiliary_balance')({ companyId: 'c1', startDate: '01/01/2026', kind: 'all' })
     expect(bad.isError).toBe(true)
     expect(bad.content[0].text).toMatch(/Date de début invalide/)
+  })
+})
+
+describe('get_tiers_flows', () => {
+  it('checks reports:read and answers what each tiers billed in euros, with its share', async () => {
+    const line = (accountCode: string, debitCents: number, creditCents: number, aux: string | null = null, label: string | null = null) => ({
+      accountCode,
+      debitCents,
+      creditCents,
+      auxiliaryAccountNumber: aux,
+      auxiliaryAccountLabel: label,
+    })
+    vi.mocked(getTiersFlows).mockResolvedValue({
+      fiscalYear: { id: 'fy', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31', isClosed: false },
+      company: { name: 'Atelier' },
+      ...buildTiersFlows([
+        { opening: false, lines: [line('411000', 150_000, 0, 'C001', 'Martin SA'), line('706000', 0, 150_000)] },
+        { opening: false, lines: [line('411000', 50_000, 0), line('706000', 0, 50_000)] },
+        { opening: false, lines: [line('606100', 12_345, 0), line('401000', 0, 12_345, 'F001', 'Papeterie')] },
+      ]),
+    })
+    const data = parse(await tool('get_tiers_flows')({ companyId: 'c1', fiscalYearId: 'fy', kind: 'all' }))
+    expect(guard.require).toHaveBeenCalledWith('c1', { reports: ['read'] })
+    expect(getTiersFlows).toHaveBeenCalledWith('c1', { fiscalYearId: 'fy' })
+    expect(data.customers).toEqual({
+      total: 2000,
+      count: 2,
+      tiers: [
+        { tiers: 'C001', name: 'Martin SA', amount: 1500, sharePercent: 75 },
+        { tiers: null, name: 'Sans compte auxiliaire', amount: 500, sharePercent: 25 },
+      ],
+      truncated: false,
+    })
+    expect(data.suppliers.tiers).toEqual([{ tiers: 'F001', name: 'Papeterie', amount: 123.45, sharePercent: 100 }])
+    const onlySuppliers = parse(await tool('get_tiers_flows')({ companyId: 'c1', kind: 'suppliers' }))
+    expect(onlySuppliers).not.toHaveProperty('customers')
+    expect(getTiersFlows).toHaveBeenLastCalledWith('c1', {})
   })
 })
 

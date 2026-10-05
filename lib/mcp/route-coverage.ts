@@ -357,6 +357,7 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'GET /api/reports/grand-livre': { tools: ['get_ledger_report'] },
   'GET /api/reports/journal/export-excel': { excluded: 'fileExport' },
   'GET /api/reports/journal': { tools: ['get_ledger_report'] },
+  'GET /api/reports/tiers-flows': { tools: ['get_tiers_flows'] },
   'GET /api/reports/trial-balance': { tools: ['get_trial_balance'] },
   'GET /api/simple/entries': { tools: ['list_entries'] },
   'POST /api/simple/expenses/[id]/confirm': { tools: ['accept_expense_suggestion', 'validate_entries'], note: 'Brouillon, puis validation (entries:validate) quand la société ne demande pas la revue du comptable.' },

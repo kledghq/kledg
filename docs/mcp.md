@@ -142,6 +142,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `list_budgets` | Budgets de la société, par exercice : nombre de lignes, charges, produits et résultat prévus ; droit `reports:read` |
 | `get_budget` | Budget d'un exercice avec chaque ligne (identifiant pour `update_budget_line`, montants par mois, éléments récurrents, prévu par mois) ; droit `reports:read` |
 | `get_auxiliary_balance` | Balance auxiliaire d'une période : par client et fournisseur, solde d'ouverture, débits, crédits, solde de clôture et part non lettrée ; droit `reports:read` |
+| `get_tiers_flows` | Flux d'un exercice avec les clients et les fournisseurs (diagramme de la page Tiers) : montant TTC facturé à chaque client et par chaque fournisseur, avoirs déduits, écritures validées seulement, hors règlements et à-nouveaux, total et part de chacun ; droit `reports:read` |
 | `list_doubtful_receivables` | Clients en retard à la clôture au-delà de 30, 60 ou 90 jours, candidats à une dépréciation, avec la dépréciation déjà suivie ; droit `reports:read` |
 | `list_tax_deadlines` | Échéances fiscales et juridiques d'un exercice (TVA, IS, liasse, CFE, CVAE, approbation et dépôt), jours restants, règle et sources officielles ; dates seulement, les statuts sont dans `list_declarations_status` ; droit `reports:read` |
 | `get_vat_return` | Déclaration de TVA préparée d'une période (CA3 ou CA12, la prochaine due par défaut) : chaque ligne avec son numéro et sa case, montants des comptes et euros à saisir, lignes calculées ou à remplir à la main, montant dû ou crédit, échéance, contrôles et fiabilité des chiffres, écriture de liquidation, dépôt enregistré, sources ([déclarations de TVA](declarations-tva.md)) ; ne dépose rien ; droit `reports:read` |
@@ -338,7 +339,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Abonnements détectés ([abonnements](abonnements.md)) | `list_detected_subscriptions` | `classify_subscription`, `add_subscription_to_budget` | `create_rule` (règle depuis un abonnement) | |
 | Frais de gestion ([frais de gestion](frais-de-gestion.md)) | `list_management_fee_conventions` (conventions, périodes facturées, filiales), `preview_management_fees` | | `manage_management_fee_convention` | Génération des factures (décision documentée ci-dessus) |
 | Notes de frais ([notes de frais](notes-de-frais.md)) | `list_expense_reports`, `get_expense_report`, `list_expense_claimants`, `list_expense_category_rules` | `create_draft_expense_report`, `update_draft_expense_report` | `manage_expense_report` (soumettre, renvoyer, valider, rouvrir, comptabiliser, rembourser, supprimer), `manage_expense_settings` (bénéficiaires et mots-clés) | |
-| Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `list_invoices`, `get_invoice` | `manage_tiers`, `update_draft_invoice` | `create_draft_invoice`, `manage_invoice`, `delete_tiers`, `import_qonto_invoices` | |
+| Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `get_tiers_flows`, `list_invoices`, `get_invoice` | `manage_tiers`, `update_draft_invoice` | `create_draft_invoice`, `manage_invoice`, `delete_tiers`, `import_qonto_invoices` | |
 | Lettrage ([lettrage et tiers](lettrage-et-tiers.md)) | | | `list_unlettered_lines`, `letter_entry_lines`, `unletter_entry_lines`, `auto_letter_account` | |
 | Balance âgée et balance auxiliaire | `get_aged_balance`, `get_auxiliary_balance` | | | Exports Excel |
 | Mode simple, dépenses et recettes à vérifier ([catégories simples](categories-simples.md)) | `list_expenses_to_review` | `accept_expense_suggestion`, `accept_all_expense_suggestions` (brouillons) | `validate_entries`, `upload_receipt`, `update_company_settings` (réglage de validation) | |
@@ -711,6 +712,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/reports/grand-livre` | reports:read | `get_ledger_report` (L) |
 | `GET /api/reports/journal/export-excel` | reports:export | Exclu : exports de fichiers |
 | `GET /api/reports/journal` | reports:read | `get_ledger_report` (L) |
+| `GET /api/reports/tiers-flows` | reports:read | `get_tiers_flows` (L) |
 | `GET /api/reports/trial-balance` | reports:read | `get_trial_balance` (L) |
 | `GET /api/simple/entries` | entries:read | `list_entries` (L) |
 | `POST /api/simple/expenses/[id]/confirm` | banking:reconcile | `accept_expense_suggestion` (B), `validate_entries` (CT) ; Brouillon, puis validation (entries:validate) quand la société ne demande pas la revue du comptable. |

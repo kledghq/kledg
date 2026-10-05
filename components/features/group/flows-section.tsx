@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { Layer, Rectangle, ResponsiveContainer, Sankey, Tooltip } from 'recharts'
+import { ResponsiveContainer, Sankey, Tooltip } from 'recharts'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
 import { formatAmount, StatusBadge } from '@/components/shared'
+import { FlowLegend, FlowLinkPath, FlowNodeShape, FlowTooltipShell, type SankeyLinkProps, type SankeyNodeProps } from '@/components/shared/flow-sankey'
 import { flowDiagram, moneyFlows, MONEY_FLOW_LABELS, type MoneyFlow } from '@/lib/group/flows'
 import type { GroupView } from '@/lib/group/get-group-view.service'
 import { Cents, ExportButtons, LoadError, Notice, PerimeterNotes, SectionIntro, useGroupReport, useReportUrl } from './space'
@@ -19,6 +20,8 @@ import { Cents, ExportButtons, LoadError, Notice, PerimeterNotes, SectionIntro, 
  * the vue combinée found (lib/group/flows.ts). Each kind of flow has its
  * own colour (--chart-flow-*), named in the legend; the tooltip and the
  * table also write the kind, so colour is never the only way to read it.
+ * The node, link, tooltip and legend are shared with the Tiers page
+ * (components/shared/flow-sankey.tsx).
  */
 
 const FLOW_COLORS: Record<MoneyFlow['kind'], string> = {
@@ -30,69 +33,28 @@ const FLOW_COLORS: Record<MoneyFlow['kind'], string> = {
   trade: 'var(--chart-flow-trade)',
 }
 
-interface LinkProps {
-  sourceX: number
-  targetX: number
-  sourceY: number
-  targetY: number
-  sourceControlX: number
-  targetControlX: number
-  linkWidth: number
-  payload: { kind?: MoneyFlow['kind'] }
+type LinkProps = SankeyLinkProps<{ kind?: MoneyFlow['kind'] }>
+
+function FlowLink({ payload, ...props }: LinkProps) {
+  return <FlowLinkPath {...props} color={payload.kind ? FLOW_COLORS[payload.kind] : 'var(--chart-breakdown)'} kind={payload.kind} />
 }
 
-function FlowLink({ sourceX, targetX, sourceY, targetY, sourceControlX, targetControlX, linkWidth, payload }: LinkProps) {
-  return (
-    <path
-      d={`M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
-      fill="none"
-      stroke={payload.kind ? FLOW_COLORS[payload.kind] : 'var(--chart-breakdown)'}
-      strokeWidth={linkWidth}
-      strokeOpacity={0.6}
-      data-kind={payload.kind}
-    />
-  )
-}
-
-function FlowLegend({ flows }: { flows: readonly MoneyFlow[] }) {
+function GroupFlowLegend({ flows }: { flows: readonly MoneyFlow[] }) {
   const kinds = (Object.keys(MONEY_FLOW_LABELS) as MoneyFlow['kind'][]).filter((kind) => flows.some((f) => f.kind === kind))
-  return (
-    <ul className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="Légende des flux">
-      {kinds.map((kind) => (
-        <li key={kind} className="flex items-center gap-1.5">
-          <span aria-hidden className="size-2.5 shrink-0 rounded-sm" style={{ background: FLOW_COLORS[kind] }} />
-          {MONEY_FLOW_LABELS[kind]}
-        </li>
-      ))}
-    </ul>
-  )
+  return <FlowLegend items={kinds.map((kind) => ({ key: kind, label: MONEY_FLOW_LABELS[kind], color: FLOW_COLORS[kind] }))} />
 }
 
-interface NodeProps {
-  x: number
-  y: number
-  width: number
-  height: number
-  payload: { name: string; side: 'from' | 'to' }
-}
+type NodeProps = SankeyNodeProps<{ name: string; side: 'from' | 'to' }>
 
-function FlowNode({ x, y, width, height, payload }: NodeProps) {
-  const left = payload.side === 'from'
-  return (
-    <Layer>
-      <Rectangle x={x} y={y} width={width} height={height} className="fill-foreground" />
-      <text x={left ? x + width + 6 : x - 6} y={y + height / 2} textAnchor={left ? 'start' : 'end'} dominantBaseline="central" className="fill-foreground text-xs">
-        {payload.name}
-      </text>
-    </Layer>
-  )
+function FlowNode({ payload, ...props }: NodeProps) {
+  return <FlowNodeShape {...props} name={payload.name} label={payload.side === 'from' ? 'start' : 'end'} />
 }
 
 function FlowTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { source?: { name: string }; target?: { name: string }; value?: number; kind?: MoneyFlow['kind']; name?: string } }> }) {
   const item = payload?.[0]?.payload
   if (!active || !item) return null
   return (
-    <div className="bg-popover text-popover-foreground rounded-md border px-3 py-2 text-xs shadow-md">
+    <FlowTooltipShell>
       {item.source && item.target ? (
         <>
           <p className="font-medium">
@@ -104,7 +66,7 @@ function FlowTooltip({ active, payload }: { active?: boolean; payload?: Array<{ 
         <p className="font-medium">{item.name}</p>
       )}
       <p className="num">{formatAmount(item.value ?? 0)}</p>
-    </div>
+    </FlowTooltipShell>
   )
 }
 
@@ -128,7 +90,7 @@ export function FlowChart({ flows, names }: { flows: readonly MoneyFlow[]; names
           </Sankey>
         </ResponsiveContainer>
       </div>
-      <FlowLegend flows={flows} />
+      <GroupFlowLegend flows={flows} />
     </div>
   )
 }
