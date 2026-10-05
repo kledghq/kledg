@@ -133,4 +133,12 @@ describe('members page', () => {
     })
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("chloe@atelier.fr ajouté·e, un email d'accès a été envoyé"))
   })
+
+  it('tells an instance administrator why a company they opened has no member, and what to do', async () => {
+    session.role = 'admin'
+    replies['GET /api/companies/c1/members'] = { body: [] }
+    render(<CompanyMembersPage />)
+    expect(await screen.findByText(/vous ouvrez cette société sans en être membre/)).toBeInTheDocument()
+    expect(screen.getByText(/ajoutez votre expert-comptable ou un associé/)).toBeInTheDocument()
+  })
 })

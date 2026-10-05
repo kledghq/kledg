@@ -41,9 +41,11 @@ import { registerSimpleModeReadTools } from '@/lib/mcp/simple-mode-tools'
 import { registerFinancialIndicatorTools } from '@/lib/mcp/financial-indicator-tools'
 import { registerYearEndReadTools } from '@/lib/mcp/year-end-tools'
 import { registerApprovalReadTools } from '@/lib/mcp/approval-tools'
+import { registerAnnexeReadTools } from '@/lib/mcp/annexe-tools'
 import { registerDeadlineReadTools } from '@/lib/mcp/deadline-tools'
 import { registerVatReturnReadTools } from '@/lib/mcp/vat-return-tools'
 import { registerCorporateTaxReadTools } from '@/lib/mcp/corporate-tax-tools'
+import { registerRemunerationReadTools } from '@/lib/mcp/remuneration-tools'
 import { registerLocalTaxReadTools } from '@/lib/mcp/local-tax-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
@@ -722,9 +724,11 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerFinancialIndicatorTools(server, guard)
   registerYearEndReadTools(server, guard)
   registerApprovalReadTools(server, guard)
+  registerAnnexeReadTools(server, access, guard)
   registerDeadlineReadTools(server, guard)
   registerVatReturnReadTools(server, guard)
   registerCorporateTaxReadTools(server, access, guard)
+  registerRemunerationReadTools(server, guard)
   registerLocalTaxReadTools(server, guard)
   registerBankingReadTools(server, guard)
   registerThirdPartyReadTools(server, guard)

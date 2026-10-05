@@ -62,9 +62,13 @@ export const COMPANY_TABLES: readonly string[] = [
   'investment_grants',
   'investment_grant_transfers',
   'accounts_approvals',
+  'accounting_methods',
+  'accounting_changes',
+  'annexe_notes',
   'simple_mode_entries',
   'vat_return_filings',
   'corporate_tax_returns',
+  'remuneration_scenarios',
   'local_taxes',
   'declaration_statuses',
 ]

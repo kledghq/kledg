@@ -124,6 +124,8 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_year_end_inventory` | Travaux de clôture d'un exercice : provisions et dépréciations (solde d'ouverture, montant requis, mouvement passé et à passer, comptes de dotation et de reprise, statut), subventions d'investissement (quote-part de l'exercice, reste en capitaux propres), totaux à comptabiliser ([provisions et subventions](provisions-et-subventions.md)) ; droit `reports:read` |
 | `get_capital_composition` | Composition du capital : associés, titres, pourcentages, valeur nominale, seuil de 10 % des formulaires 2033-F et 2059-F, capital au compte 101 et contrôles, sans donnée personnelle ; droit `reports:read` |
 | `get_year_end_formalities` | Approbation des comptes d'un exercice selon la forme juridique : qui décide et le titre du dirigeant, règle de majorité, délais d'approbation, de convocation et de dépôt, affectation du résultat proposée, résolutions et leur résultat, catégorie de taille, rapport de gestion, options de confidentialité, documents et données manquantes, liste du dépôt au greffe, sources ; droit `reports:read` |
+| `get_annexe` | Annexe des comptes annuels d'un exercice selon la catégorie de taille (micro : informations à la suite du bilan ; petite au régime simplifié ; petite ; moyenne et grande) : notes avec leur source PCG et leurs tableaux, informations manquantes, avertissements, registre des méthodes comptables et changements de l'exercice ([annexe](annexe-et-2054.md)) ; droit `reports:read` |
+| `get_fixed_asset_movements` | Immobilisations et amortissements d'un exercice ligne par ligne des formulaires 2054-SD, 2055-SD et 2033-C-SD avec leurs cases, totaux par rubrique, contrôles avec le bilan et le registre des immobilisations ; droit `reports:read` |
 | `list_management_fee_conventions` | Conventions de frais de gestion d'une holding avec ses filiales : prix, marge, clé de répartition, TVA ([frais de gestion](frais-de-gestion.md)) ; droit `reports:read` |
 | `preview_management_fees` | Calcul des frais de gestion d'une période, montant HT, TVA et TTC de chaque filiale, sans rien facturer ; droit `reports:read` dans la holding et dans chaque filiale |
 | `get_group_view` | Vue combinée d'une holding et de ses filiales pour un exercice : chiffre d'affaires, EBE, résultat, trésorerie, capitaux propres, endettement et total du bilan par société, agrégés et après élimination des flux intragroupe (frais de gestion, factures, comptes courants, prêts, dividendes), écarts, trésorerie par mois ; vue indicative, pas des comptes consolidés ([vue groupe](vue-groupe.md)) ; droit `reports:read` dans la holding et dans chaque filiale lue, les filiales hors de l'autorisation de l'assistant sont comptées, ni lues ni nommées |
@@ -147,6 +149,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `list_tax_deadlines` | Échéances fiscales et juridiques d'un exercice (TVA, IS, liasse, CFE, CVAE, approbation et dépôt), jours restants, règle et sources officielles ; dates seulement, les statuts sont dans `list_declarations_status` ; droit `reports:read` |
 | `get_vat_return` | Déclaration de TVA préparée d'une période (CA3 ou CA12, la prochaine due par défaut) : chaque ligne avec son numéro et sa case, montants des comptes et euros à saisir, lignes calculées ou à remplir à la main, montant dû ou crédit, échéance, contrôles et fiabilité des chiffres, écriture de liquidation, dépôt enregistré, sources ([déclarations de TVA](declarations-tva.md)) ; ne dépose rien ; droit `reports:read` |
 | `get_corporate_tax` | Impôt sur les sociétés préparé d'un exercice (celui dont le solde est dû par défaut, ou celui d'une échéance du calendrier) : résultat fiscal ligne par ligne avec la ligne de la 2033-B ou de la 2058-A (réintégrations lues dans les comptes, dividendes de filiales, lignes à la main), déficits et leur historique, taux de 15 % et 25 % avec les conditions du taux réduit, contribution sociale, crédits, solde du relevé 2572 et sa date, acomptes 2571 de l'exercice suivant, contrôles, sources ([impôt sur les sociétés](impot-societes.md)) ; ne dépose rien ; droit `reports:read` |
+| `simulate_remuneration` | Simulation indicative, jamais un conseil, de la rémunération et des dividendes du dirigeant associé d'une société à l'IS pour un exercice : résultat avant rémunération lu dans les comptes (à ce jour, projeté ou dernier exercice clos, 644 et 646 réintégrés) ou donné, statut d'après la forme juridique (assimilé salarié, gérant majoritaire non salarié), quatre scénarios côte à côte (tout en rémunération, tout en dividendes, mixte, optimum qui maximise le revenu net dans le bénéfice distribuable) avec coût pour la société, IS, réserve légale, cotisations approchées, prélèvements sociaux ou cotisations au-delà de 10 % du capital, impôt sur le revenu (PFU ou barème), net en poche, scénarios enregistrés, dividendes proposés à l'approbation, sources ([rémunération et dividendes](remuneration-dividendes.md)) ; droit `reports:read` |
 | `get_local_taxes` | Impôts locaux d'une année ([impôts locaux](impots-locaux.md)) : CFE d'après l'avis saisi (situation de l'année de création, acompte du 15 juin et solde, charge prévue au 63511 par mois, cotisation minimum), CVAE calculée sur la valeur ajoutée des comptes et les ajustements (statut de l'année, taux maximal, seuils de 152 500 € et 500 000 €, taux effectif, dégrèvement, franchise, contribution complémentaire de 2025, acomptes), estimation du plafonnement, échéances avec leur statut, sources ; droit `reports:read` |
 | `list_declarations_status` | Échéances d'un exercice avec leur statut (à faire, déposée, payée, en retard, non due), ce qu'elles demandent, les dates et montants enregistrés, d'où ils viennent (suivi, déclarations de TVA, impôt sur les sociétés, approbation) et les champs verrouillés ; filtres par catégorie et statut ([échéances](echeances.md)) ; droit `reports:read` |
 | `get_bank_sync_status` | État des flux bancaires : connexions, dernière synchronisation, erreur, consentement, et par compte les opérations non rapprochées et la plus ancienne, sans IBAN ni identifiant ; droit `banking:read` |
@@ -181,8 +184,12 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `prepare_year_end_entries` | Préparer dotations, reprises et quotes-parts de subventions en **brouillons** au journal OD ; une seconde fois ne crée rien | `entries:create` | Oui (brouillons périmés) | Oui |
 | `create_draft_expense_report` | Note de frais en **brouillon** pour l'utilisateur ou, s'il valide les notes, un autre bénéficiaire ; `dryRun` pour un aperçu | `expenses:submit` | Non | Non |
 | `update_year_end_formalities` | Renseigner l'approbation des comptes (dates, taille, mode de décision, votes, affectation proposée, dépôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
+| `manage_accounting_methods` | Registre des méthodes comptables (créer, modifier, supprimer) ; une méthode de référence le reste (PCG art. 121-5) | `entries:create`, `entries:delete` pour supprimer | Oui | Non |
+| `manage_accounting_changes` | Changements de méthode, de réglementation ou d'estimation et corrections d'erreurs (PCG art. 122-1 à 122-6) ; `prepare_entry` prépare l'écriture de rattrapage en **brouillon** (110 / 119 ou 678 / 778) | `entries:create`, `entries:delete` pour supprimer | Oui (brouillon périmé) | Non |
+| `update_annexe_notes` | Renseigner l'annexe (engagements, événements postérieurs, dirigeants, échéances, effectif, crédits d'impôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
 | `prepare_vat_settlement` | Préparer l'écriture de liquidation de la TVA d'une période en **brouillon** au journal OD (comptes de TVA soldés, 44551 ou 44567, arrondi au 658 ou 758) ; inchangée si le brouillon correspond, remplacée s'il est périmé, jamais si elle est validée ; ne dépose pas la déclaration | `entries:create` | Oui (brouillon périmé) | Oui |
 | `prepare_corporate_tax_entry` | Préparer en **brouillon** la charge d'impôt de l'exercice (695 / 444, journal OD, dernier jour) ou le paiement d'un acompte de l'exercice suivant (444 / 512, journal BQ, à son échéance) ; inchangé si le brouillon correspond, remplacé s'il est périmé, jamais si l'écriture est validée ; ne dépose ni ne paie | `entries:create` | Oui (brouillon périmé) | Oui |
+| `save_remuneration_scenario` | Enregistrer un scénario nommé du simulateur de rémunération et dividendes d'un exercice (les hypothèses non données viennent des comptes), le supprimer, ou proposer ses dividendes dans l'approbation des comptes de son exercice ; ne comptabilise pas l'affectation et ne vote rien | `closing:execute` | Oui | Oui |
 | `mark_declaration` | Enregistrer qu'une échéance est déposée et/ou payée (dates, montant en euros, référence de la pièce, note) ou non due, ou retirer l'enregistrement ; refuse ce qu'une autre page enregistre (TVA, liasse, acomptes d'IS, approbation) ; ne dépose ni ne paie | `entries:create` | Non | Oui |
 | `accept_expense_suggestion` | Confirmer une dépense ou une recette à vérifier : la proposition, une catégorie du catalogue (avec la réponse à sa question), une règle ou la facture de vente payée (`invoiceId`, règlement enregistré sur la facture à la validation) ; écriture en **brouillon** rapprochée avec la transaction, quel que soit le réglage de validation, sans créer de règle | `banking:reconcile` et `entries:create` | Non | Non |
 | `accept_all_expense_suggestions` | « Tout confirmer » du mode simple : les dépenses sûres (confiance haute, sans question) parmi celles données, chacune en **brouillon** rapproché ; les autres reviennent avec leur raison | `banking:reconcile` et `entries:create` | Non | Oui |
@@ -347,6 +354,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Échéances fiscales et juridiques | `list_tax_deadlines` | | `update_company_settings` (réglages du calendrier) | |
 | Déclarations de TVA ([déclarations de TVA](declarations-tva.md)) | `get_vat_return` | `prepare_vat_settlement` (brouillon), `record_tax_filing` (dépôt enregistré) | `validate_entries` | Déposer et payer (sur impots.gouv.fr), exports PDF et CSV |
 | Impôt sur les sociétés ([impôt sur les sociétés](impot-societes.md)) | `get_corporate_tax` | `prepare_corporate_tax_entry` (brouillon), `save_corporate_tax_inputs` (taux réduit, déficits, lignes à la main, acomptes versés), `record_tax_filing` | `validate_entries` | Déclarer et payer (sur impots.gouv.fr), exports PDF et CSV |
+| Rémunération et dividendes ([rémunération et dividendes](remuneration-dividendes.md)) | `simulate_remuneration` | `save_remuneration_scenario` (enregistrer, supprimer, proposer les dividendes à l'approbation) | | Exports PDF et CSV |
 | Impôts locaux ([impôts locaux](impots-locaux.md)) | `get_local_taxes` | `save_local_taxes`, `prepare_cfe_entry` (brouillon) | | Exports PDF et CSV, payer (sur impots.gouv.fr) |
 | Suivi des déclarations ([échéances](echeances.md)) | `list_declarations_status` | `mark_declaration` | | Joindre une pièce Qonto |
 | Indicateurs financiers, SIG et ratios ([indicateurs](indicateurs-financiers.md)) | `get_sig`, `get_financial_ratios` | | | Exports CSV et Excel, widgets |
@@ -355,6 +363,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Travaux de clôture | `get_year_end_inventory` | `prepare_year_end_entries` (brouillons) | `validate_entries`, `generate_depreciation`, `close_fiscal_year`, `allocate_result` | |
 | Composition du capital | `get_capital_composition`, `get_company_settings` | | `manage_company_records` (associés, personnes) | |
 | Approbation des comptes ([approbation](approbation-des-comptes.md)) | `get_year_end_formalities` (statut et données manquantes) | `update_year_end_formalities` | | Générer, signer et déposer les documents |
+| Annexe et formulaires 2054, 2055, 2033-C ([annexe](annexe-et-2054.md)) | `get_annexe`, `get_fixed_asset_movements` | `manage_accounting_methods`, `manage_accounting_changes` (écritures en brouillon), `update_annexe_notes` | `validate_entries` | Générer l'annexe (PDF, Markdown), exports PDF et CSV des formulaires |
 | Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status`, `get_transaction_details`, `simulate_rule` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `sync_bank_data`, `import_statement`, `reconcile_transaction`, `bulk_reconcile`, `run_rules`, `manage_bank_accounts`, `delete_bank_transactions`, `duplicate_rule`... | Connecter une banque |
 | Écritures, plan comptable, journaux, exercices | `list_entries`, `get_entry`, `get_ledger_report`, `search_accounts`, `list_journals`, `list_fiscal_years` | `create_draft_entry`, `duplicate_entry`, `prepare_opening_balances` | `update_draft_entry`, `validate_entries`, `reverse_entry`, `delete_draft_entry`, `create_account`, `manage_accounts`, `create_journal`, `manage_journals`, `manage_fiscal_years`, `import_accounting_file` | Exports Excel du journal |
 | Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `generate_depreciation` | |
@@ -368,9 +377,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 201 | 157 | 44 |
-| Lectures (GET) | 147 | 103 | 44 |
-| Total | 348 | 260 | 88 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 215 | 171 | 44 |
+| Lectures (GET) | 167 | 119 | 48 |
+| Total | 382 | 290 | 92 |
 
 ### Exclusions
 
@@ -386,7 +395,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Administration de l'instance | Administration de l'instance (utilisateurs, mises à jour, messagerie), hors de toute société ; reste dans les pages d'administration. | 13 (9) |
 | Cycle de vie des sociétés | Création, archivage, restauration ou suppression d'une société : hors du périmètre d'une connexion (définie société par société), soumis à la politique de l'instance et à la conservation des livres (10 ans). | 4 (4) |
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
-| Exports de fichiers | Export d'un fichier (PDF, Excel, CSV) ; l'assistant lit les mêmes données avec l'outil de lecture correspondant. | 12 (0) |
+| Exports de fichiers | Export d'un fichier (PDF, Excel, CSV) ; l'assistant lit les mêmes données avec l'outil de lecture correspondant. | 14 (0) |
 | Téléchargements | Téléchargement d'un fichier (pièce jointe, justificatif) du prestataire ou de Kledg. | 3 (0) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
@@ -409,6 +418,14 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/account/sessions/[id]` | session | Exclu : compte personnel |
 | `GET /api/account/sessions` | session | Exclu : compte personnel |
 | `DELETE /api/account/sessions` | session | Exclu : compte personnel |
+| `POST /api/accounting-changes` | entries:create | `manage_accounting_changes` (B) |
+| `PATCH /api/accounting-changes/[id]` | entries:create | `manage_accounting_changes` (B) |
+| `DELETE /api/accounting-changes/[id]` | entries:delete | `manage_accounting_changes` (B) |
+| `POST /api/accounting-changes/[id]/entry` | entries:create | `manage_accounting_changes` (B) |
+| `GET /api/accounting-methods` | reports:read | `get_annexe` (L) |
+| `POST /api/accounting-methods` | entries:create | `manage_accounting_methods` (B) |
+| `PATCH /api/accounting-methods/[id]` | entries:create | `manage_accounting_methods` (B) |
+| `DELETE /api/accounting-methods/[id]` | entries:delete | `manage_accounting_methods` (B) |
 | `GET /api/accounts/[id]/balance-evolution` | entries:read | `get_ledger_report` (L) |
 | `GET /api/accounts/[id]/entries` | entries:read | `list_entries` (L) |
 | `GET /api/accounts/[id]` | entries:read | `search_accounts` (L) |
@@ -429,6 +446,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/ai-access/grants` | session | Exclu : accès des assistants |
 | `POST /api/ai-actions/[id]` | session | Exclu : approbation des actions ia |
 | `GET /api/ai-actions` | session | Exclu : approbation des actions ia |
+| `GET /api/annexe/export` | reports:export | Exclu : exports de fichiers |
+| `GET /api/annexe` | reports:read | `get_annexe` (L) |
+| `PUT /api/annexe` | closing:execute | `update_annexe_notes` (B) |
 | `GET /api/auth/[...all]` | aucun (voir exclusion) | Exclu : authentification |
 | `POST /api/auth/[...all]` | aucun (voir exclusion) | Exclu : authentification |
 | `PUT /api/banking/accounts/[id]` | banking:manage | `manage_bank_accounts` (CT) |
@@ -485,6 +505,11 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/companies/[id]/corporate-tax/filing` | entries:create | `record_tax_filing` (B) |
 | `PUT /api/companies/[id]/corporate-tax/inputs` | entries:create | `save_corporate_tax_inputs` (B) |
 | `GET /api/companies/[id]/corporate-tax` | reports:read | `get_corporate_tax` (L) |
+| `GET /api/companies/[id]/remuneration` | reports:read | `simulate_remuneration` (L) |
+| `GET /api/companies/[id]/remuneration/export` | reports:export | Exclu : exports de fichiers |
+| `PUT /api/companies/[id]/remuneration/scenarios` | closing:execute | `save_remuneration_scenario` (B) |
+| `DELETE /api/companies/[id]/remuneration/scenarios` | closing:execute | `save_remuneration_scenario` (B) |
+| `POST /api/companies/[id]/remuneration/propose-dividends` | closing:execute | `save_remuneration_scenario` (B), `update_year_end_formalities` (B) |
 | `GET /api/companies/[id]/deadline-settings` | settings:read | `get_company_settings` (L) |
 | `PUT /api/companies/[id]/deadline-settings` | settings:update | `update_company_settings` (CT) |
 | `PUT /api/companies/[id]/declarations/status` | entries:create | `mark_declaration` (B) |
@@ -707,6 +732,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/reports/auxiliary-balance` | reports:read | `get_auxiliary_balance` (L) |
 | `GET /api/reports/capital-composition` | reports:read | `get_capital_composition` (L) |
 | `GET /api/reports/depreciation` | reports:read | `list_fixed_assets` (L) |
+| `GET /api/reports/fixed-asset-movements/export` | reports:export | Exclu : exports de fichiers |
+| `GET /api/reports/fixed-asset-movements` | reports:read | `get_fixed_asset_movements` (L) |
 | `GET /api/reports/financial-indicators/export` | reports:export | Exclu : exports de fichiers |
 | `GET /api/reports/financial-indicators` | reports:read | `get_sig` (L), `get_financial_ratios` (L) |
 | `GET /api/reports/grand-livre` | reports:read | `get_ledger_report` (L) |

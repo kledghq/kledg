@@ -42,6 +42,7 @@ import {
   formatAmount,
 } from "@/components/shared";
 import { initials } from "@/components/layout/initials";
+import { RemunerationSimpleCard } from "@/components/features/remuneration/remuneration-simple-card";
 import { cn } from "@/lib/utils";
 
 const euros = (cents: number) => cents / 100;
@@ -103,8 +104,9 @@ function todoItems(home: SimpleHomeData, base: string): TodoItem[] {
       icon: FileText,
       title: missingReceiptsLabel(missingReceipts),
       hint: MISSING_RECEIPTS_HINT,
-      href: `${base}/banking/missing-receipts`,
-      action: "Ajouter",
+      // The count covers payments and money received: open the list on both
+      href: `${base}/banking/missing-receipts?side=all`,
+      action: "Voir",
     });
   }
   for (const customer of customersToChase ?? []) {
@@ -368,6 +370,8 @@ export function SimpleHome({
           </Card>
         ) : null}
       </div>
+
+      {profit ? <RemunerationSimpleCard companyId={companySlug} /> : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * "Dépenses à vérifier" (simple mode): the suggested category and its
- * reason per line, "OK" sending the suggestion, a question answered in one
+ * reason per line, "Confirmer" sending the suggestion, a question answered in one
  * click, the meal note sent with the confirmation, "Tout confirmer" with
  * the sure lines only, the accountant named under the list, and nothing to
  * click for a read-only member.
@@ -85,7 +85,7 @@ describe('ExpensesReview', () => {
     const user = userEvent.setup()
     renderAs(['companyAdmin'])
     const free = (await screen.findByText('FREE PRO')).closest('li')!
-    await user.click(within(free).getByRole('button', { name: 'OK' }))
+    await user.click(within(free).getByRole('button', { name: 'Confirmer' }))
     await waitFor(() => expect(screen.queryByText('FREE PRO')).toBeNull())
     const [url, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/free/confirm'))!
     expect(url).toBe('/api/simple/expenses/free/confirm')
@@ -99,7 +99,7 @@ describe('ExpensesReview', () => {
 
     const bistrot = screen.getByText('LE PETIT BISTROT').closest('li')!
     await user.type(within(bistrot).getByLabelText('Note pour votre comptable'), 'Avec Studio Nord')
-    await user.click(within(bistrot).getByRole('button', { name: 'OK' }))
+    await user.click(within(bistrot).getByRole('button', { name: 'Confirmer' }))
     const mealCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/bistrot/confirm'))!
     expect(JSON.parse(String(mealCall[1].body))).toEqual({ categoryId: 'repas-affaires', answers: { 'meal-guests': 'guests' }, note: 'Avec Studio Nord' })
   })
@@ -117,7 +117,7 @@ describe('ExpensesReview', () => {
   it('leaves nothing to click for a read-only member', async () => {
     renderAs(['viewer'])
     const free = (await screen.findByText('FREE PRO')).closest('li')!
-    expect((within(free).getByRole('button', { name: 'OK' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((within(free).getByRole('button', { name: 'Confirmer' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Tout confirmer (2)' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByRole('note')).toBeTruthy()
   })
@@ -186,7 +186,7 @@ describe('ExpensesReview, money in (Recettes à vérifier)', () => {
     window.addEventListener('simple:counts-refresh', refreshed)
     renderIncome()
     const nord = (await screen.findByText('STUDIO NORD F-2026-012')).closest('li')!
-    await user.click(within(nord).getByRole('button', { name: 'OK' }))
+    await user.click(within(nord).getByRole('button', { name: 'Confirmer' }))
     await waitFor(() => expect(screen.queryByText('STUDIO NORD F-2026-012')).toBeNull())
     const [url, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/nord/confirm'))!
     expect(url).toBe('/api/simple/expenses/nord/confirm')
@@ -194,5 +194,16 @@ describe('ExpensesReview, money in (Recettes à vérifier)', () => {
     expect(toast.success).toHaveBeenCalledWith('Facture n° F-2026-012 payée.')
     expect(refreshed).toHaveBeenCalled()
     window.removeEventListener('simple:counts-refresh', refreshed)
+  })
+
+  it('makes choosing the category the action of a payment Kledg could not classify, with no empty bulk button', async () => {
+    const unknown = line('unknown', 'CB LIBRAIRIE DU CENTRE', 2_390)
+    const list: ExpensesToReview = { ...LIST, items: [unknown], count: 1, bulkConfirmableIds: [] }
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify(list), { status: 200 }))
+    renderAs(['companyAdmin'])
+    const row = (await screen.findByText('LIBRAIRIE DU CENTRE')).closest('li')!
+    expect(within(row).getByRole('button', { name: 'Choisir la catégorie' })).toBeTruthy()
+    expect(within(row).queryByRole('button', { name: 'Confirmer' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Tout confirmer/ })).toBeNull()
   })
 })

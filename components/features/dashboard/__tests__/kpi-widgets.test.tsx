@@ -135,6 +135,14 @@ describe('ledger KPI tiles', () => {
     expect(screen.getByText('Perte').closest('[data-slot="status-badge"]')).toHaveAttribute('data-tone', 'danger')
   })
 
+  it('calls a zero result neither a profit nor a loss', async () => {
+    serve(ledger({}, { resultatCents: 0 }))
+    renderKpi(ResultatKpi, 'kpi-resultat')
+    await waitFor(() => expect(value().textContent).toMatch(eur('^0,00 €$')))
+    expect(screen.queryByText('Bénéfice')).toBeNull()
+    expect(screen.queryByText('Perte')).toBeNull()
+  })
+
   it('shows the ledger cash and the balance the banks report', async () => {
     serve(ledger())
     const { unmount } = renderKpi(TresorerieKpi, 'kpi-tresorerie')

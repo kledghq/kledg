@@ -16,6 +16,7 @@ import { openCredentials, sealCredentials } from '@/lib/banking/credentials'
 import { createBankProvider, isBankProvider } from '@/lib/banking/providers'
 import { PONTO_REFRESH_INTERVAL_MS, refreshRetryAfter } from '@/lib/banking/sync-rules'
 import { compactIban, isValidIban } from '@/lib/banking/iban'
+import { MANUAL_ACCOUNT_ID_PREFIX } from '@/lib/banking/import/importer'
 import { BankAuthorizationError, errorReason, QONTO_CREDENTIALS_REFUSED } from '@/lib/banking/errors'
 import { syncIntegration } from '@/lib/integrations/sync'
 import { IntegrationFeature, type SyncResult } from '@/lib/integrations/types'
@@ -172,7 +173,7 @@ export async function createManualAccount(companyId: string, input: ManualAccoun
     return tx.bankAccount.create({
       data: {
         bankConnectionId: connection.id,
-        externalAccountId: `manual:${randomUUID()}`,
+        externalAccountId: `${MANUAL_ACCOUNT_ID_PREFIX}${randomUUID()}`,
         name: input.name,
         iban,
         currency: input.currency ?? 'EUR',

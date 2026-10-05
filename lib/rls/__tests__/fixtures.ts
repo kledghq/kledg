@@ -396,6 +396,15 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('accounts_approvals'), companyId, fiscalYearId: id('fiscal_years'), details: {}, approvedOn: day('2026-06-15') },
       })
       record('accounts_approvals', p, id('accounts_approvals'))
+      // Annexe: register of methods, a change of method, the answers of the annexe (lib/annexe)
+      await prisma.accountingMethod.create({ data: { id: id('accounting_methods'), companyId, topic: 'depreciation', label: 'Linéaire', description: "Sur la durée d'utilisation" } })
+      record('accounting_methods', p, id('accounting_methods'))
+      await prisma.accountingChange.create({
+        data: { id: id('accounting_changes'), companyId, fiscalYearId: id('fiscal_years'), kind: 'METHOD_CHANGE', treatment: 'PROSPECTIVE', methodId: id('accounting_methods'), label: 'Durée', description: 'Allongée' },
+      })
+      record('accounting_changes', p, id('accounting_changes'))
+      await prisma.annexeNote.create({ data: { id: id('annexe_notes'), companyId, fiscalYearId: id('fiscal_years'), details: {} } })
+      record('annexe_notes', p, id('annexe_notes'))
       // A VAT return recorded as filed (lib/vat-returns)
       await prisma.vatReturnFiling.create({
         data: { id: id('vat_return_filings'), companyId, form: 'CA3', periodKey: '2026-09', periodStart: day('2026-09-01'), periodEnd: day('2026-09-30'), filedOn: day('2026-10-15'), amountDue: 120, creditAmount: 0 },
@@ -417,6 +426,11 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         },
       })
       record('corporate_tax_returns', p, id('corporate_tax_returns'))
+      // A saved remuneration and dividends scenario of the fiscal year (lib/remuneration)
+      await prisma.remunerationScenario.create({
+        data: { id: id('remuneration_scenarios'), companyId, fiscalYearId: id('fiscal_years'), name: 'Optimum', inputs: {}, rulesYear: 2026, remunerationCost: 0, dividends: 30_000, netIncome: 20_000 },
+      })
+      record('remuneration_scenarios', p, id('remuneration_scenarios'))
       // The CFE avis of a year and a deadline marked paid (lib/local-taxes, lib/declarations)
       await prisma.localTaxYear.create({ data: { id: id('local_taxes'), companyId, year: 2026, cfeTotal: 1_200 } })
       record('local_taxes', p, id('local_taxes'))

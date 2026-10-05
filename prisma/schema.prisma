@@ -162,8 +162,12 @@ model Company {
   simpleModeEntries          SimpleModeEntry[]
   vatReturnFilings           VatReturnFiling[]
   corporateTaxReturns        CorporateTaxReturn[]
+  remunerationScenarios      RemunerationScenario[]
   localTaxYears              LocalTaxYear[]
   declarationStatuses        DeclarationStatus[]
+  accountingMethods          AccountingMethod[]
+  accountingChanges          AccountingChange[]
+  annexeNotes                AnnexeNote[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -263,6 +267,9 @@ model FiscalYear {
   investmentGrantTransfers InvestmentGrantTransfer[]
   accountsApproval         AccountsApproval?
   corporateTaxReturn       CorporateTaxReturn?
+  remunerationScenarios    RemunerationScenario[]
+  accountingChanges        AccountingChange[]
+  annexeNote               AnnexeNote?
 
   @@unique([companyId, year])
   /// Target of composite foreign keys that keep a child row in the company of its fiscal year (budgets).
@@ -349,6 +356,7 @@ model AccountingEntry {
   fixedAssetDepreciations FixedAssetDepreciation[] @relation("FixedAssetDepreciationEntry")
   acquiredFixedAssets     FixedAsset[]             @relation("FixedAssetAcquisitionEntry")
   provisionAssessment     ProvisionAssessment?     @relation("ProvisionAssessmentEntry")
+  accountingChange        AccountingChange?        @relation("AccountingChangeEntry")
   investmentGrantTransfer InvestmentGrantTransfer? @relation("InvestmentGrantTransferEntry")
   reversalOf              AccountingEntry?         @relation("EntryReversal", fields: [reversalOfId], references: [id], onDelete: NoAction)
   reversedBy              AccountingEntry?         @relation("EntryReversal")
@@ -2577,6 +2585,40 @@ model CorporateTaxReturn {
   @@map("corporate_tax_returns")
 }
 
+/// Saved simulations of the "Rémunération et dividendes" simulator of a
+/// fiscal year (docs/remuneration-dividendes.md, lib/remuneration): an
+/// indicative comparison of pay and dividends for the director-shareholder
+/// of a company at the IS, never advice. The inputs are kept; the figures are
+/// those of the scenario when it was saved, with the rules version used.
+model RemunerationScenario {
+  id               String   @id @default(cuid())
+  companyId        String
+  fiscalYearId     String
+  /// Name given by the user, unique in the fiscal year ("Mix 40 %").
+  name             String
+  /// Inputs of the simulation, JSON validated by RemunerationInputsSchema (lib/remuneration/schemas.ts).
+  inputs           Json
+  /// Year of the rates used (lib/remuneration/rules.ts, RULES_YEAR).
+  rulesYear        Int
+  /// Cost of the remuneration for the company (gross pay and contributions).
+  remunerationCost Decimal  @db.Decimal(15, 2)
+  /// Dividends distributed by the company (all shareholders).
+  dividends        Decimal  @db.Decimal(15, 2)
+  /// Net income of the director after social contributions and income tax.
+  netIncome        Decimal  @db.Decimal(15, 2)
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// On (fiscalYearId, companyId): the fiscal year is always one of the row's company.
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([fiscalYearId, companyId, name])
+  @@index([companyId])
+  @@map("remuneration_scenarios")
+}
+
 /// Local taxes of a calendar year (docs/impots-locaux.md, lib/local-taxes):
 /// the CFE avis d'imposition as the user reads it in the professional space
 /// of impots.gouv.fr (Kledg cannot compute the rental value of CGI art. 1467
@@ -2643,4 +2685,105 @@ model DeclarationStatus {
   @@index([companyId])
   @@index([attachmentId])
   @@map("declaration_statuses")
+}
+
+enum AccountingChangeKind {
+  REGULATION_CHANGE // Changement de réglementation comptable (PCG art. 122-1)
+  METHOD_CHANGE // Changement de méthode à l'initiative de l'entité (PCG art. 122-2, 122-3)
+  ESTIMATE_CHANGE // Changement d'estimation, prospectif (PCG art. 122-5)
+  ERROR_CORRECTION // Correction d'erreur (PCG art. 122-6)
+}
+
+enum AccountingChangeTreatment {
+  EQUITY // Impact in report à nouveau (110 / 119) at the opening (PCG art. 122-3, 122-6)
+  RESULT // Impact in the result of the year, exceptional (678 / 778) (PCG art. 122-3, 122-6, 821-2)
+  PROSPECTIVE // No catch-up entry: the change only affects this year and the next ones (PCG art. 122-3, 122-5)
+}
+
+/// One accounting method the company applies (PCG art. 121-5 and 831-1, 3°):
+/// the register of the main methods where the PCG leaves a choice (valuation
+/// of stocks, depreciation, revenue recognition, development costs...),
+/// listed in the annexe (lib/annexe, docs/annexe-et-2054.md).
+model AccountingMethod {
+  id              String    @id @default(cuid())
+  companyId       String
+  /// Topic of the method (lib/annexe/methods/rules.ts METHOD_TOPICS).
+  topic           String
+  /// The method retained, in a few words ("Premier entré, premier sorti").
+  label           String
+  /// How it is applied, as written in the annexe.
+  description     String
+  /// Day the company adopted it; null when it always applied.
+  adoptedOn       DateTime?
+  /// A reference method of the PCG (art. 121-5): its adoption is irreversible.
+  referenceMethod Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  changes AccountingChange[]
+
+  @@index([companyId])
+  @@map("accounting_methods")
+}
+
+/// A change of accounting method or regulation, a change of estimate or the
+/// correction of an error recognised in a fiscal year (PCG art. 122-1 to
+/// 122-6), with its impact and treatment, mentioned in the annexe (PCG art.
+/// 831-2). The catch-up entry, when there is one, is prepared as a DRAFT the
+/// user validates (entryId).
+model AccountingChange {
+  id           String                    @id @default(cuid())
+  companyId    String
+  fiscalYearId String
+  kind         AccountingChangeKind
+  treatment    AccountingChangeTreatment
+  methodId     String?
+  label        String
+  /// Nature of the change or of the error, and its justification (PCG art. 122-2, 831-2).
+  description  String
+  /// Impact before tax, signed: positive increases equity or the result.
+  impact       Decimal                   @default(0) @db.Decimal(15, 2)
+  /// Tax on that impact, positive; the impact after tax is impact less it, in the same direction (PCG art. 122-3).
+  taxEffect    Decimal                   @default(0) @db.Decimal(15, 2)
+  /// Balance sheet account the change adjusts (stocks 31, provisions 15...), counterpart of the catch-up entry.
+  accountCode  String?
+  /// Day of the catch-up entry; default the opening (equity) or the closing (result).
+  entryDate    DateTime?
+  /// Draft (then validated) catch-up entry prepared by Kledg.
+  entryId      String?                   @unique
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// On (fiscalYearId, companyId): the fiscal year is always one of the company's.
+  fiscalYear FiscalYear        @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+  method     AccountingMethod? @relation(fields: [methodId], references: [id], onDelete: SetNull)
+  entry      AccountingEntry?  @relation("AccountingChangeEntry", fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([fiscalYearId])
+  @@index([methodId])
+  @@map("accounting_changes")
+}
+
+/// What only the user knows for the annexe of a fiscal year (commitments,
+/// events after the closing, director remuneration, maturities of loans...),
+/// validated by AnnexeDetailsSchema (lib/annexe/schemas.ts) on every write.
+/// The figures come from the books; nothing here is a figure Kledg can read.
+model AnnexeNote {
+  id           String   @id @default(cuid())
+  companyId    String
+  fiscalYearId String
+  details      Json
+  updatedById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([fiscalYearId, companyId])
+  @@index([companyId])
+  @@map("annexe_notes")
 }

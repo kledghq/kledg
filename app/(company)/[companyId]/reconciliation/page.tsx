@@ -410,7 +410,7 @@ export default function ReconciliationPage() {
           </>
         }
       >
-        <FiscalYearSelector companyId={companyId} value={selectedFiscalYearId} onValueChange={setSelectedFiscalYearId} />
+        <FiscalYearSelector companyId={companyId} value={selectedFiscalYearId} onValueChange={setSelectedFiscalYearId} className="w-full sm:w-72" />
       </PageHeader>
 
       {!canReconcile ? <AccessNotice>{denied('rapprocher les transactions ni de créer leurs écritures')}</AccessNotice> : null}

@@ -16,6 +16,8 @@ interface Account {
 
 interface AccountComboboxProps {
   accounts: Account[]
+  /** Accessible name of the field ("Compte, ligne 2"). */
+  label?: string
   value?: string
   onValueChange?: (value: string) => void
   placeholder?: string
@@ -104,6 +106,7 @@ function sortAccountsHierarchically(accounts: Account[]): Account[] {
 
 export function AccountCombobox({
   accounts,
+  label,
   value,
   onValueChange,
   placeholder = 'Sélectionner un compte...',
@@ -182,6 +185,7 @@ export function AccountCombobox({
   return (
     <Autocomplete
       id={id}
+      label={label}
       className={className}
       selectedLabel={selectedLabel}
       placeholder={placeholder}

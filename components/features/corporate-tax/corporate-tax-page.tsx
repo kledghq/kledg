@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowUpRight, CalendarClock, Download, FilePlus2, FileText, Info, Plus, Scale, Trash2 } from 'lucide-react'
+import { ArrowRight, CalendarClock, Download, FilePlus2, FileText, Info, Plus, Scale, Trash2 } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AmountInput } from '@/components/ui/amount-input'
@@ -842,7 +842,7 @@ export function CorporateTaxPage({ companyId }: { companyId: string }) {
                       {check.link ? (
                         <Link href={`/${companyId}/${check.link.page}`} className="text-link inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline">
                           {check.link.label}
-                          <ArrowUpRight aria-hidden className="size-3.5" />
+                          <ArrowRight aria-hidden className="size-3.5" />
                         </Link>
                       ) : null}
                     </div>

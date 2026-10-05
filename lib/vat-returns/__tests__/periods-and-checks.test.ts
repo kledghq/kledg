@@ -99,7 +99,7 @@ describe('consistency checks', () => {
     expect(isReliable(checks)).toBe(false)
     expect(checks.find((c) => c.id === 'drafts')).toMatchObject({ severity: 'blocking', title: '2 écritures en brouillon sur la période', items: ['BR-1', 'BR-2'] })
     expect(checks.find((c) => c.id === 'bank')).toMatchObject({ severity: 'blocking', title: '1 opération bancaire non rapprochée sur la période' })
-    expect(checks.find((c) => c.id === 'bank')?.detail).toContain('120,00 €')
+    expect(checks.find((c) => c.id === 'bank')?.detail).toMatch(/^Pour 120,00\s€\s:\s/)
   })
 
   it('warns when the VAT accounts carry an earlier, unsettled return', () => {

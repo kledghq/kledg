@@ -158,8 +158,25 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
               title={sale ? 'Aucune facture de vente' : 'Aucune facture d’achat'}
               description={
                 sale
-                  ? 'Enregistrez les factures que vous émettez, ou importez celles de Qonto. Créez d’abord vos clients dans Tiers.'
+                  ? 'Enregistrez les factures que vous émettez, ou importez celles de Qonto. Une facture s’adresse à un client\u00a0: ajoutez-le d’abord s’il n’existe pas encore.'
                   : 'Enregistrez les factures de vos fournisseurs, ou importez celles déposées dans Qonto.'
+              }
+              action={
+                mayCreate ? (
+                  <Button size="sm" asChild>
+                    <Link href={`${base}/new?direction=${direction}`}>
+                      <Plus aria-hidden />
+                      Nouvelle facture
+                    </Link>
+                  </Button>
+                ) : undefined
+              }
+              secondaryAction={
+                sale ? (
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/${companyId}/tiers/new`}>Ajouter un client</Link>
+                  </Button>
+                ) : undefined
               }
             />
           ) : (

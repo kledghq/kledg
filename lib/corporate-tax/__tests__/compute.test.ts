@@ -332,6 +332,7 @@ describe('checks', () => {
     const checks = corporateTaxChecks({ ...base, drafts: { count: 2, numbers: ['BR-1', 'BR-2'] }, unreconciled: { count: 1, totalCents: 1_200 }, unanswered: ['Le capital est-il entièrement libéré ?'], deficitsKnown: false })
     expect(checks.filter((c) => c.severity === 'blocking').map((c) => c.id)).toEqual(['drafts', 'bank'])
     expect(checks.find((c) => c.id === 'drafts')?.title).toBe('2 écritures en brouillon sur l’exercice')
+    expect(checks.find((c) => c.id === 'bank')?.detail).toMatch(/^Pour 12,00\s€\s:\s/)
     expect(checks.find((c) => c.id === 'reduced-rate')?.severity).toBe('warning')
     expect(checks.find((c) => c.id === 'deficits')?.severity).toBe('warning')
     expect(isReliable(checks)).toBe(false)
