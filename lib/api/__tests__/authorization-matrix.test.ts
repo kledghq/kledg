@@ -310,6 +310,20 @@ async function seed() {
   await prisma.corporateTaxReturn.create({
     data: { companyId: ids.aCompany, fiscalYearId: ids.aFy, filedOn: new Date('2027-01-15T00:00:00Z'), resultBeforeDeficits: 0, deficitsImputed: 0, corporateTax: 0, reducedRate: false },
   })
+  // A saved remuneration scenario, so deleting it or proposing its dividends is allowed by role (not a 404)
+  await prisma.remunerationScenario.create({
+    data: {
+      id: 'rem-scenario-a',
+      companyId: ids.aCompany,
+      fiscalYearId: ids.aFy,
+      name: 'Optimum',
+      inputs: { resultBeforePayCents: 5_000_000, status: 'assimile', reducedRate: true, reducedRateCeilingCents: 4_250_000, legalReserveRequired: true, capitalCents: 100_000, legalReserveCents: 0, priorLossesCents: 0, shareBp: 10_000, premiumsCents: 0, currentAccountCents: 0, householdParts: 1, otherIncomeCents: 0, dividendTaxation: 'best', distributionBp: 10_000, mixBp: 5_000 },
+      rulesYear: 2026,
+      remunerationCost: 0,
+      dividends: 30_000,
+      netIncome: 20_000,
+    },
+  })
   // A deadline marked in the tracker, so removing the mark is allowed by role (not a 404)
   await prisma.declarationStatus.create({ data: { companyId: ids.aCompany, deadlineId: 'cfe:2025', note: 'CFE 2025 réglée par prélèvement' } })
   const members: Array<[string, string, string]> = [
@@ -382,6 +396,10 @@ const ROUTE_MODULES = {
   corporateTaxInputs: () => import('@/app/api/companies/[id]/corporate-tax/inputs/route'),
   corporateTaxFiling: () => import('@/app/api/companies/[id]/corporate-tax/filing/route'),
   corporateTaxEntries: () => import('@/app/api/companies/[id]/corporate-tax/entries/route'),
+  remuneration: () => import('@/app/api/companies/[id]/remuneration/route'),
+  remunerationExport: () => import('@/app/api/companies/[id]/remuneration/export/route'),
+  remunerationScenarios: () => import('@/app/api/companies/[id]/remuneration/scenarios/route'),
+  remunerationPropose: () => import('@/app/api/companies/[id]/remuneration/propose-dividends/route'),
   localTaxes: () => import('@/app/api/companies/[id]/local-taxes/route'),
   localTaxesExport: () => import('@/app/api/companies/[id]/local-taxes/export/route'),
   localTaxesEntries: () => import('@/app/api/companies/[id]/local-taxes/entries/route'),
@@ -619,6 +637,10 @@ const WRITES: Call[] = [
   { label: 'record corporate tax filing', route: 'corporateTaxFiling', method: 'PUT', path: () => `/api/companies/${A()}/corporate-tax/filing`, params: p({ id: A }), body: () => ({ fiscalYearId: ids.aFy, filedOn: '2027-01-15', resultBeforeDeficitsCents: 0, deficitsImputedCents: 0, corporateTaxCents: 0, reducedRate: false }) },
   { label: 'delete corporate tax filing', route: 'corporateTaxFiling', method: 'DELETE', path: () => `/api/companies/${A()}/corporate-tax/filing?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
   { label: 'prepare corporate tax entry', route: 'corporateTaxEntries', method: 'POST', path: () => `/api/companies/${A()}/corporate-tax/entries`, params: p({ id: A }), body: () => ({ kind: 'charge', fiscalYearId: ids.aFy }) },
+  { label: 'export remuneration simulation', route: 'remunerationExport', method: 'GET', path: () => `/api/companies/${A()}/remuneration/export?fiscalYearId=${ids.aFy}&format=csv`, params: p({ id: A }) },
+  { label: 'save remuneration scenario', route: 'remunerationScenarios', method: 'PUT', path: () => `/api/companies/${A()}/remuneration/scenarios`, params: p({ id: A }), body: () => ({ fiscalYearId: ids.aFy, name: 'Mixte', pick: 'mix', inputs: { resultBeforePayCents: 5_000_000, status: 'assimile', reducedRate: true, reducedRateCeilingCents: 4_250_000, legalReserveRequired: true, capitalCents: 100_000, legalReserveCents: 0, priorLossesCents: 0, shareBp: 10_000, premiumsCents: 0, currentAccountCents: 0, householdParts: 1, otherIncomeCents: 0, dividendTaxation: 'best', distributionBp: 10_000, mixBp: 5_000 } }) },
+  { label: 'delete remuneration scenario', route: 'remunerationScenarios', method: 'DELETE', path: () => `/api/companies/${A()}/remuneration/scenarios?scenarioId=rem-scenario-a`, params: p({ id: A }) },
+  { label: 'propose scenario dividends', route: 'remunerationPropose', method: 'POST', path: () => `/api/companies/${A()}/remuneration/propose-dividends`, params: p({ id: A }), body: () => ({ scenarioId: 'rem-scenario-a' }) },
   { label: 'export local taxes', route: 'localTaxesExport', method: 'GET', path: () => `/api/companies/${A()}/local-taxes/export?year=2026&format=csv`, params: p({ id: A }) },
   { label: 'save local taxes', route: 'localTaxes', method: 'PUT', path: () => `/api/companies/${A()}/local-taxes`, params: p({ id: A }), body: () => ({ year: 2026, cfe: { totalCents: 100_000 } }) },
   { label: 'prepare CFE entry', route: 'localTaxesEntries', method: 'POST', path: () => `/api/companies/${A()}/local-taxes/entries`, params: p({ id: A }), body: () => ({ year: 2026, kind: 'solde' }) },
@@ -798,6 +820,7 @@ const READS: Call[] = [
   { label: 'deadlines of a fiscal year', route: 'deadlines', method: 'GET', path: () => `/api/deadlines?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'VAT return worksheet', route: 'vatReturns', method: 'GET', path: () => `/api/companies/${A()}/vat-returns`, params: p({ id: A }) },
   { label: 'corporate tax worksheet', route: 'corporateTax', method: 'GET', path: () => `/api/companies/${A()}/corporate-tax?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
+  { label: 'remuneration simulation', route: 'remuneration', method: 'GET', path: () => `/api/companies/${A()}/remuneration?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
   { label: 'local taxes', route: 'localTaxes', method: 'GET', path: () => `/api/companies/${A()}/local-taxes?year=2026`, params: p({ id: A }) },
   { label: 'deadline settings', route: 'deadlineSettings', method: 'GET', path: () => `/api/companies/${A()}/deadline-settings`, params: p({ id: A }) },
   { label: 'dashboard deadlines widget', route: 'dashboardWidgets', method: 'GET', path: () => `/api/dashboard/widgets?companyId=${A()}&source=deadlines` },

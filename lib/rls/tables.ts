@@ -65,6 +65,7 @@ export const COMPANY_TABLES: readonly string[] = [
   'simple_mode_entries',
   'vat_return_filings',
   'corporate_tax_returns',
+  'remuneration_scenarios',
   'local_taxes',
   'declaration_statuses',
 ]

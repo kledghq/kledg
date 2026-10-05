@@ -417,6 +417,11 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         },
       })
       record('corporate_tax_returns', p, id('corporate_tax_returns'))
+      // A saved remuneration and dividends scenario of the fiscal year (lib/remuneration)
+      await prisma.remunerationScenario.create({
+        data: { id: id('remuneration_scenarios'), companyId, fiscalYearId: id('fiscal_years'), name: 'Optimum', inputs: {}, rulesYear: 2026, remunerationCost: 0, dividends: 30_000, netIncome: 20_000 },
+      })
+      record('remuneration_scenarios', p, id('remuneration_scenarios'))
       // The CFE avis of a year and a deadline marked paid (lib/local-taxes, lib/declarations)
       await prisma.localTaxYear.create({ data: { id: id('local_taxes'), companyId, year: 2026, cfeTotal: 1_200 } })
       record('local_taxes', p, id('local_taxes'))
