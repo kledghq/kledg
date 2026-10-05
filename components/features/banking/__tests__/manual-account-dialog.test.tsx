@@ -25,19 +25,21 @@ function mockFetch(ledger: Row[]) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('ManualAccountDialog', () => {
-  it('chooses the only 512 account of a new company, so a name is enough to add the account', async () => {
+  it('chooses the euro bank account of a new company (5121, not the parent 512), so a name is enough', async () => {
     const calls = mockFetch([
       { id: 'a1', code: '512', label: 'Banques' },
-      { id: 'a2', code: '601', label: 'Achats' },
+      { id: 'a2', code: '5121', label: 'Comptes en euros' },
+      { id: 'a3', code: '5124', label: 'Comptes en devises' },
+      { id: 'a4', code: '601', label: 'Achats' },
     ])
     const user = userEvent.setup()
     render(<ManualAccountDialog companyId="co-1" />)
     await user.click(screen.getByRole('button', { name: 'Ajouter un compte bancaire' }))
-    await waitFor(() => expect(screen.getByRole('combobox')).toHaveTextContent('512 Banques'))
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveTextContent('5121 Comptes en euros'))
     await user.type(screen.getByLabelText(/Nom du compte/), 'Compte courant')
     await user.click(screen.getByRole('button', { name: 'Ajouter le compte' }))
     await waitFor(() => expect(calls.some((c) => c.url === '/api/banking/manual-accounts')).toBe(true))
-    expect(calls.find((c) => c.url === '/api/banking/manual-accounts')?.body).toMatchObject({ name: 'Compte courant', ledgerAccountCode: '512' })
+    expect(calls.find((c) => c.url === '/api/banking/manual-accounts')?.body).toMatchObject({ name: 'Compte courant', ledgerAccountCode: '5121' })
   })
 
   it('lets the user choose when the company has several 512 accounts', async () => {

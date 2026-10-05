@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Field } from '@/components/shared'
 import { isValidIban } from '@/lib/banking/iban'
+import { pickLedgerCodeForBankAccount } from '@/lib/banking/ledger-code'
 import { useLedgerBankAccounts } from './use-ledger-bank-accounts'
 import { responseError } from './types'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
@@ -60,11 +61,12 @@ export function ManualAccountDialog({ companyId, onCreated, variant = 'outline',
   })
   const { errors, isSubmitting } = form.formState
 
-  // A new company has a single bank ledger account (512): choose it rather than ask
+  // A new company has one fitting bank ledger account (5121, the parent 512 holds no entry):
+  // choose it as a sync would, rather than ask
   useEffect(() => {
-    if (ledgerAccounts.length === 1 && !form.getValues('ledgerAccountCode')) {
-      form.setValue('ledgerAccountCode', ledgerAccounts[0].code, { shouldDirty: true })
-    }
+    if (form.getValues('ledgerAccountCode')) return
+    const code = pickLedgerCodeForBankAccount(ledgerAccounts.map((account) => account.code), null, 'EUR')
+    if (code) form.setValue('ledgerAccountCode', code, { shouldDirty: true })
   }, [ledgerAccounts, form])
 
   const submit = form.handleSubmit(async (values) => {
