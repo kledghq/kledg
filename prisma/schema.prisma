@@ -246,6 +246,10 @@ model FiscalYear {
   isClosed     Boolean   @default(false) // Indique si l'exercice est clôturé
   closedAt     DateTime? // Date de la clôture (null tant que l'exercice est ouvert)
   closedById   String? // Utilisateur qui a clôturé l'exercice
+  /// Last day of the closed periods (clôture des périodes, PCG art. 1031-4): no entry dated on or before it can be created or validated. Only moves forward (trigger of migration 20261108090000_period_lock).
+  periodLockedThrough DateTime?
+  periodLockedAt      DateTime?
+  periodLockedById    String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

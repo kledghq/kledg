@@ -55,6 +55,7 @@ import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 import { Amount, ConfirmDeleteDialog, EmptyState, PageHeader, formatAmount, formatDisplayDate } from '@/components/shared'
 import { OpeningBalanceNotice } from '@/components/features/accounting/opening-balance-notice'
+import { PeriodLockCard } from '@/components/features/accounting/period-lock-card'
 import { plural, pluralWord } from '@/lib/utils/plural'
 import { docsUrl } from '@/lib/docs-links'
 import { defaultFiscalYearDates } from '@/lib/accounting/default-fiscal-year-dates'
@@ -67,6 +68,7 @@ interface FiscalYear {
   startDate: string
   endDate: string
   isClosed: boolean
+  periodLockedThrough?: string | null
 }
 
 const fiscalYearSchema = z.object({
@@ -557,6 +559,7 @@ export default function FiscalYearsPage() {
           onAllocate={(fiscalYear) => setAllocationYear(fiscalYear)}
           formatDateShort={formatDateShort}
         />
+        <PeriodLockCard companyId={companyId} fiscalYears={fiscalYears} onLocked={loadFiscalYears} />
         </>
       )}
 

@@ -134,12 +134,8 @@ export function isClosedFiscalYearDbError(error: unknown): boolean {
   return visit(error, 0)
 }
 
-/**
- * Message of the database refusing to rename a journal or an account the
- * books use (triggers of migration 20261107090000_ledger_references_lock:
- * "KLEDG_LEDGER_REFERENCE: <French text>"), or null.
- */
-export function ledgerReferenceMessage(error: unknown): string | null {
+/** French text after a trigger marker ("KLEDG_<MARKER>: <French text>") in a database error, or null. */
+function triggerText(error: unknown, marker: string): string | null {
   const sources: string[] = []
   if (error instanceof Error) sources.push(error.message)
   if (error && typeof error === 'object') {
@@ -148,14 +144,35 @@ export function ledgerReferenceMessage(error: unknown): string | null {
     const cause = (error as { cause?: unknown }).cause
     if (cause instanceof Error) sources.push(cause.message)
   }
+  const pattern = new RegExp(`${marker}: ([^\\n"]+)`)
   for (const source of sources) {
-    const match = /KLEDG_LEDGER_REFERENCE: ([^\n"]+)/.exec(source)
+    const match = pattern.exec(source)
     if (match) {
       const text = match[1].trim()
-      return `${text.charAt(0).toUpperCase()}${text.slice(1)} (PCG art. 1031-3 et 1031-4).`
+      return `${text.charAt(0).toUpperCase()}${text.slice(1)}`
     }
   }
   return null
+}
+
+/**
+ * Message of the database refusing to rename a journal or an account the
+ * books use (triggers of migration 20261107090000_ledger_references_lock:
+ * "KLEDG_LEDGER_REFERENCE: <French text>"), or null.
+ */
+export function ledgerReferenceMessage(error: unknown): string | null {
+  const text = triggerText(error, 'KLEDG_LEDGER_REFERENCE')
+  return text ? `${text} (PCG art. 1031-3 et 1031-4).` : null
+}
+
+/**
+ * Message of the database refusing an entry in a closed period, or a period
+ * lock it cannot take (triggers of migration 20261108090000_period_lock:
+ * "KLEDG_PERIOD_LOCKED: <French text>"), or null.
+ */
+export function periodLockedMessage(error: unknown): string | null {
+  const text = triggerText(error, 'KLEDG_PERIOD_LOCKED')
+  return text ? `${text} (PCG art. 1031-4).` : null
 }
 
 /** Shown for every unexpected (500) error: details go to the server log only. */
@@ -186,7 +203,7 @@ export function handleError(error: unknown): { message: string; statusCode: numb
     return { message: COMPANY_HAS_BOOKS_MESSAGE, statusCode: 409 }
   }
 
-  const reference = ledgerReferenceMessage(error)
+  const reference = ledgerReferenceMessage(error) ?? periodLockedMessage(error)
   if (reference) return { message: reference, statusCode: 409 }
 
   // Database guards on accounting entries (validated entries are definitive)

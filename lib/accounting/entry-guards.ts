@@ -14,11 +14,17 @@
  * (assertFiscalYearOpen, assertDateInOpenFiscalYear in lock.ts) use this
  * function, and database triggers refuse any write in a closed year
  * (migration 20261004090000_fiscal_year_closing_lock).
+ *
+ * Inside an open year, the periods up to periodLockedThrough are closed (PCG
+ * art. 1031-4, lib/accounting/period-lock): no entry dated in them may be
+ * created, moved there or validated; the operation is booked on the first
+ * open day with its real date as piece date. Database trigger of migration
+ * 20261108090000_period_lock.
  */
 
 import { ConflictError, NotFoundError, ValidationError } from './errors'
 import { isDayWithin, requireDay, type CalendarDay } from './entry-date'
-import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
+import { addIsoDays, calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 
 export interface GuardedFiscalYear {
   id: string
@@ -28,6 +34,8 @@ export interface GuardedFiscalYear {
   isClosed: boolean
   /** Set by the closing; a year with a closing date is closed even if the flag was not loaded. */
   closedAt?: Date | null
+  /** Last day of the closed periods of the year (PCG art. 1031-4). */
+  periodLockedThrough?: Date | null
 }
 
 /** Select clause loading what the guard needs. */
@@ -38,6 +46,7 @@ export const GUARDED_FISCAL_YEAR_SELECT = {
   endDate: true,
   isClosed: true,
   closedAt: true,
+  periodLockedThrough: true,
 } as const
 
 /** Whether no entry may be written in this fiscal year any more. */
@@ -87,6 +96,15 @@ export function assertEntryWritableInFiscalYear(
       `La date du ${formatIsoDateFr(day)} est hors de l'exercice ${fiscalYear.year} (du ${formatIsoDateFr(start)} au ${formatIsoDateFr(end)}).`,
     )
   }
+  const lockedThrough = calendarDayOf(fiscalYear.periodLockedThrough ?? null)
+  if (action !== 'delete' && lockedThrough && day <= lockedThrough) {
+    throw new ConflictError(closedPeriodMessage(lockedThrough))
+  }
+}
+
+/** Refusal of an entry dated in a closed period: where to book it instead (PCG art. 1031-4). */
+export function closedPeriodMessage(lockedThrough: CalendarDay): string {
+  return `La période est clôturée jusqu'au ${formatIsoDateFr(lockedThrough)} (PCG art. 1031-4) : datez l'écriture du ${formatIsoDateFr(addIsoDays(lockedThrough, 1))} au plus tôt et indiquez sa date réelle en date de pièce.`
 }
 
 /** The fiscal year (among `fiscalYears`) whose days contain `day`. */
