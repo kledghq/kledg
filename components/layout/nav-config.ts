@@ -61,7 +61,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react"
-import type { DisplayMode } from "@/lib/appearance/display-mode"
+import { vocabularyOf, type DisplayMode } from "@/lib/appearance/display-mode"
 import type { NavFeature } from "@/lib/companies/nav-features"
 
 export interface NavItem {
@@ -84,6 +84,12 @@ export interface NavItem {
 export type NavCountKey = "expensesToCheck" | "incomeToCheck"
 
 export interface NavGroup {
+  /**
+   * Stable id of the group, stored when a user hides it from their menu
+   * (lib/navigation/sidebar-preferences.ts). Never a label: labels may be
+   * reworded, a stored id must keep its meaning.
+   */
+  id: string
   /** Group heading. Omitted for the top group (dashboard). */
   label?: string
   items: NavItem[]
@@ -94,9 +100,11 @@ export interface NavGroup {
 // first, then bookkeeping, statements, and the company settings last.
 export const navGroups: NavGroup[] = [
   {
+    id: "accueil",
     items: [{ title: "Tableau de bord", url: "/", icon: LayoutDashboard }],
   },
   {
+    id: "banque",
     label: "Banque",
     items: [
       { title: "Comptes bancaires", url: "/banking", icon: Landmark },
@@ -111,6 +119,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    id: "factures",
     label: "Factures",
     items: [
       { title: "Factures d'achat", url: "/invoices/purchases", icon: FileInput },
@@ -122,6 +131,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    id: "saisie",
     label: "Saisie",
     items: [
       { title: "Écritures", url: "/entries", icon: FileText },
@@ -139,6 +149,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    id: "etats",
     label: "États",
     items: [
       { title: "Bilan", url: "/reports/balance-sheet", icon: Scale },
@@ -167,6 +178,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    id: "societe",
     label: "Société",
     items: [
       { title: "Informations", url: "/informations", icon: Info },
@@ -191,6 +203,7 @@ export const navGroups: NavGroup[] = [
  */
 export const simpleNavGroups: NavGroup[] = [
   {
+    id: "simple",
     items: [
       { title: "Accueil", url: "/simple", icon: House },
       { title: "Dépenses", url: "/simple/depenses", icon: ArrowUpRight, count: "expensesToCheck" },
@@ -203,10 +216,58 @@ export const simpleNavGroups: NavGroup[] = [
   },
 ]
 
-/** The navigation of a display mode. */
+/**
+ * Pages the Standard mode lists (docs/modes-et-menu.md): the day-to-day
+ * pages of the expert navigation, by URL. The Standard sidebar keeps the
+ * expert entries whose URL is here, in the expert order, so a page added to
+ * the expert navigation stays out of Standard until it is added here. The
+ * other pages are only not listed: their URL, the links to them and their
+ * breadcrumb title stay (the breadcrumb looks titles up in the expert nav).
+ * "Mes notes de frais" follows the expert nav (shown to every member there).
+ */
+export const STANDARD_NAV_URLS: ReadonlySet<string> = new Set([
+  "/",
+  "/banking",
+  "/transactions",
+  "/reconciliation",
+  "/banking/missing-receipts",
+  "/invoices/purchases",
+  "/invoices/sales",
+  "/tiers",
+  "/expense-reports",
+  "/expense-reports/mine",
+  "/entries",
+  "/reports/balance-sheet",
+  "/reports/income-statement",
+  "/echeances",
+  "/declarations-tva",
+  "/impot-societes",
+  "/informations",
+  "/members",
+])
+
+/** The Standard navigation: the expert groups reduced to STANDARD_NAV_URLS, empty groups left out. */
+export const standardNavGroups: NavGroup[] = navGroups
+  .map((group) => ({ ...group, items: group.items.filter((item) => STANDARD_NAV_URLS.has(item.url)) }))
+  .filter((group) => group.items.length > 0)
+
+/** The sidebar of a display mode. */
 export function navGroupsFor(mode: DisplayMode): NavGroup[] {
-  return mode === "simple" ? simpleNavGroups : navGroups
+  if (mode === "simple") return simpleNavGroups
+  return mode === "standard" ? standardNavGroups : navGroups
 }
+
+/**
+ * The navigation that names the pages of a mode (breadcrumb, tab title,
+ * which entry a page belongs to): the expert one for Standard too, so a page
+ * Standard does not list keeps its title and section.
+ */
+export function titleNavGroupsFor(mode: DisplayMode): NavGroup[] {
+  return vocabularyOf(mode) === "simple" ? simpleNavGroups : navGroups
+}
+
+/** Company-relative URL of the home entry of each vocabulary: never hidden from the menu. */
+export const HOME_URLS: ReadonlySet<string> = new Set(["/", "/simple"])
 
 /**
  * Pages reached from another page rather than from the sidebar. Without a

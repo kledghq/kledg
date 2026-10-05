@@ -22,11 +22,16 @@ afterEach(() => {
 })
 
 describe('DisplayModeStep', () => {
-  it('shows the two cards of the mockup, simple chosen and recommended', () => {
+  it('shows the three modes, each with its one-line description, simple chosen and recommended', () => {
     render(<DisplayModeStep companySlug="atelier-lumen" />)
     expect(screen.getByRole('radiogroup', { name: "Mode d'affichage" })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Simple/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /Standard/ })).not.toBeChecked()
     expect(screen.getByRole('radio', { name: /Expert/ })).not.toBeChecked()
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByText('Sans jargon comptable')).toBeInTheDocument()
+    expect(screen.getByText('Les pages du quotidien')).toBeInTheDocument()
+    expect(screen.getByText('Toutes les pages')).toBeInTheDocument()
     expect(screen.getByText('Recommandé si vous débutez')).toBeInTheDocument()
     expect(screen.getByText('Vos dépenses classées automatiquement')).toBeInTheDocument()
     expect(screen.getByText('Clôture, bilan, liasse et FEC')).toBeInTheDocument()
@@ -42,6 +47,16 @@ describe('DisplayModeStep', () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/atelier-lumen'))
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({ mode: 'expert' })
     expect(router.refresh).toHaveBeenCalled()
+  })
+
+  it('saves the standard mode and opens the dashboard, like expert', async () => {
+    fetchMock.mockResolvedValue(Response.json({ mode: 'standard', chosen: true }))
+    const user = userEvent.setup()
+    render(<DisplayModeStep companySlug="atelier-lumen" />)
+    await user.click(screen.getByRole('radio', { name: /Standard/ }))
+    await user.click(screen.getByRole('button', { name: 'Ouvrir la société' }))
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/atelier-lumen'))
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({ mode: 'standard' })
   })
 
   it('stays on the step with the error when saving fails', async () => {

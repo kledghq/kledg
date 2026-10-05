@@ -2,7 +2,7 @@
 
 import { Check } from 'lucide-react'
 
-import { DISPLAY_MODE_LABELS, type DisplayMode } from '@/lib/appearance/display-mode'
+import { DISPLAY_MODE_DESCRIPTIONS, DISPLAY_MODE_LABELS, DISPLAY_MODES, type DisplayMode } from '@/lib/appearance/display-mode'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -19,17 +19,25 @@ const MODE_DETAILS: Record<DisplayMode, { pitch: string; points: string[]; badge
     ],
     badge: 'Recommandé si vous débutez',
   },
+  standard: {
+    pitch: 'Je tiens les comptes au quotidien. Je veux les pages utiles sans un menu chargé.',
+    points: [
+      'Banque, rapprochement et justificatifs',
+      'Factures d’achat et de vente, tiers, notes de frais',
+      'Écritures, bilan et compte de résultat',
+      'TVA, impôt sur les sociétés et échéances',
+    ],
+  },
   expert: {
     pitch: 'Je connais la comptabilité, ou je suis expert-comptable. Je veux tout voir et tout contrôler.',
     points: ['Écritures, journaux et plan comptable', 'Grand livre, balance, lettrage', 'Clôture, bilan, liasse et FEC', 'Validation des saisies du mode simple'],
   },
 }
 
-const ORDER: DisplayMode[] = ['simple', 'expert']
-
 /**
- * The two cards "Simple" and "Expert" (docs/mode-simple.md): the onboarding
- * step of the company wizard and the Apparence settings share them.
+ * The three cards "Simple", "Standard" and "Expert" (docs/modes-et-menu.md),
+ * each with its one-line description: the onboarding step of the company
+ * wizard and the Apparence settings share them.
  */
 export function DisplayModeChoice({
   value,
@@ -48,9 +56,9 @@ export function DisplayModeChoice({
       value={value}
       onValueChange={(next) => onChange(next as DisplayMode)}
       disabled={disabled}
-      className="grid gap-3 sm:grid-cols-2"
+      className="grid gap-3 lg:grid-cols-3"
     >
-      {ORDER.map((mode) => {
+      {DISPLAY_MODES.map((mode) => {
         const details = MODE_DETAILS[mode]
         const id = `${idPrefix}-${mode}`
         return (
@@ -68,6 +76,7 @@ export function DisplayModeChoice({
                 </Badge>
               ) : null}
             </span>
+            <span className="text-muted-foreground -mt-2 text-sm">{DISPLAY_MODE_DESCRIPTIONS[mode]}</span>
             <span className="text-sm leading-snug">{details.pitch}</span>
             <span className="space-y-1.5">
               {details.points.map((point) => (

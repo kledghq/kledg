@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useParams, usePathname, useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { companyHomePath, DISPLAY_MODE_LABELS, DISPLAY_MODES, type DisplayMode } from "@/lib/appearance/display-mode"
+import { companyHomePath, DISPLAY_MODE_DESCRIPTIONS, DISPLAY_MODE_LABELS, DISPLAY_MODES, type DisplayMode } from "@/lib/appearance/display-mode"
 import { accountApi } from "@/components/features/account/account-api"
 import { groupHomePath, groupRelativePath } from "@/components/layout/group-nav-config"
 import { Eye } from "lucide-react"
@@ -20,7 +20,8 @@ import {
 
 /**
  * Display mode menu in the header of company pages (docs/mode-simple.md):
- * an eye icon opening the Simple / Expert choice, like the theme menu. Saves the user's display mode, then opens the home
+ * an eye icon opening the Simple / Standard / Expert choice (docs/modes-et-menu.md),
+ * each with its one-line description, like the theme menu. Saves the user's display mode, then opens the home
  * of the chosen mode in the current company. The same choice is on
  * Paramètres, Apparence. In the group space it opens the group's home of
  * the chosen mode.
@@ -59,12 +60,17 @@ export function DisplayModeSwitch({ mode }: { mode: DisplayMode }) {
           <Eye aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-36">
+      <DropdownMenuContent align="end" className="min-w-52">
         <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">Affichage</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={current} onValueChange={(value) => void choose(value as DisplayMode)}>
           {DISPLAY_MODES.map((value) => (
-            <DropdownMenuRadioItem key={value} value={value}>
-              {DISPLAY_MODE_LABELS[value]}
+            <DropdownMenuRadioItem key={value} value={value} aria-label={DISPLAY_MODE_LABELS[value]} aria-describedby={`display-mode-${value}`}>
+              <span className="flex flex-col">
+                <span>{DISPLAY_MODE_LABELS[value]}</span>
+                <span id={`display-mode-${value}`} className="text-muted-foreground text-xs">
+                  {DISPLAY_MODE_DESCRIPTIONS[value]}
+                </span>
+              </span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

@@ -247,6 +247,8 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
       record('company_onboarding', p, companyId)
       await prisma.dashboardLayout.create({ data: { id: id('dashboard_layouts'), userId: owner, companyId, layout: {} } })
       record('dashboard_layouts', p, id('dashboard_layouts'))
+      await prisma.sidebarPreference.create({ data: { id: id('sidebar_preferences'), userId: owner, companyId, hiddenItems: ['/journals'], hiddenGroups: ['saisie'] } })
+      record('sidebar_preferences', p, id('sidebar_preferences'))
       await prisma.mcpConfirmation.create({
         data: { id: id('mcp_confirmations'), tokenHash: `hash-${p}`, userId: owner, caller: 'apiKey:k', tool: 't', companyId, argsHash: 'h', expiresAt: day('2030-01-01') },
       })

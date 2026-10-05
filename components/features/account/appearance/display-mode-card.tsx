@@ -11,6 +11,7 @@ import { accountApi } from '../account-api'
 
 const SAVED: Record<DisplayMode, string> = {
   simple: 'Mode simple activé',
+  standard: 'Mode standard activé',
   expert: 'Mode expert activé',
 }
 

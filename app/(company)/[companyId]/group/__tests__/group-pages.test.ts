@@ -49,6 +49,11 @@ describe('group home', () => {
     expect(isValidElement(await GroupHome({ params, searchParams: Promise.resolve({}) }))).toBe(true)
   })
 
+  it('shows Pilotage in standard mode, like expert', async () => {
+    state.mode = 'standard'
+    expect(isValidElement(await GroupHome({ params, searchParams: Promise.resolve({}) }))).toBe(true)
+  })
+
   it('opens the simple group home in simple mode, unless a page is named', async () => {
     state.mode = 'simple'
     await expect(GroupHome({ params, searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_REDIRECT /lumen-holding/group/simple')

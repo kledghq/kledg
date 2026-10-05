@@ -31,6 +31,7 @@
 - [Échéances et suivi des déclarations](echeances.md) : calendrier fiscal et juridique avec ses sources, statut de chaque échéance (à faire, déposée, payée, en retard, non due), enregistrement des dépôts et paiements sans double saisie
 - [Déclarations de TVA](declarations-tva.md) : préparation de la CA3 et de la CA12 depuis les écritures validées, lignes et cases du formulaire, contrôles, écriture de liquidation en brouillon, dépôt enregistré ; la déclaration se dépose sur impots.gouv.fr
 - [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
-- [Mode simple](mode-simple.md) : affichage simple ou expert par utilisateur, navigation et accueil du mode simple, vocabulaire sans jargon
+- [Mode simple](mode-simple.md) : affichage simple, standard ou expert par utilisateur, navigation et accueil du mode simple, vocabulaire sans jargon
+- [Modes d'affichage et menu personnalisé](modes-et-menu.md) : mode Standard (pages expertes, menu du quotidien), entrées et groupes du menu masqués par utilisateur et par société
 
 La documentation utilisateur (prise en main, import FEC, banque, clôture) est publiée sur [kledg.com](https://www.kledg.com).

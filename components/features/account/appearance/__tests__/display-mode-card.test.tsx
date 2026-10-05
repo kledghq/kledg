@@ -32,6 +32,18 @@ describe('DisplayModeCard (Paramètres, Apparence)', () => {
     expect(screen.getByRole('radio', { name: /Simple/ })).toBeChecked()
   })
 
+  it('offers the three modes and saves the standard one', async () => {
+    fetchMock.mockResolvedValue(Response.json({ mode: 'standard', chosen: true }))
+    const user = userEvent.setup()
+    render(<DisplayModeCard initial="expert" />)
+    expect(screen.getAllByRole('radio').map((radio) => radio.id)).toEqual(['settings-mode-simple', 'settings-mode-standard', 'settings-mode-expert'])
+    expect(screen.getByText('Les pages du quotidien')).toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: /Standard/ }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Mode standard activé'))
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({ mode: 'standard' })
+    expect(screen.getByRole('radio', { name: /Standard/ })).toBeChecked()
+  })
+
   it('goes back to the saved mode when saving fails', async () => {
     fetchMock.mockResolvedValue(Response.json({ error: 'Requête refusée.' }, { status: 403 }))
     const user = userEvent.setup()

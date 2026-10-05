@@ -11,9 +11,9 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { findNavEntry, findSubPageTitle, navGroupsFor } from '@/components/layout/nav-config'
+import { findNavEntry, findSubPageTitle, titleNavGroupsFor } from '@/components/layout/nav-config'
 import { findGroupNavEntry, groupHomePath, groupRelativePath, isSimpleGroupPath } from '@/components/layout/group-nav-config'
-import { SIMPLE_HOME_PATH, type DisplayMode } from '@/lib/appearance/display-mode'
+import { SIMPLE_HOME_PATH, vocabularyOf, type DisplayMode } from '@/lib/appearance/display-mode'
 import { logger } from '@/lib/logger'
 import { displayCompanyName } from '@/lib/companies/legal-forms'
 import { LegalFormTag } from '@/components/features/companies/legal-form-tag'
@@ -21,7 +21,9 @@ import { LegalFormTag } from '@/components/features/companies/legal-form-tag'
 /**
  * Header trail: Société / Section / Page. On phones only the current page is
  * shown (the company is in the menu), so the trail never wraps. Sections
- * and titles come from the navigation of the user's display mode.
+ * and titles come from the navigation of the user's display mode; Standard
+ * uses the expert titles, so a page its shorter menu does not list, or a page
+ * the user hid from the menu, keeps its section and title.
  */
 export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } = {}) {
   const pathname = usePathname()
@@ -52,14 +54,15 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
   const groupPath = companyId ? groupRelativePath(relativePath) : null
   const groupEntry = groupPath ? findGroupNavEntry(groupPath) : null
   const groupName = companyName ? `Groupe ${companyName}` : null
-  const entry = findNavEntry(relativePath, navGroupsFor(mode))
+  const simple = vocabularyOf(mode) === 'simple'
+  const entry = findNavEntry(relativePath, titleNavGroupsFor(mode))
   const isEntryPage = entry && relativePath === entry.url
   // The company's home: the dashboard, or the simple home in simple mode
-  const homePath = mode === 'simple' ? SIMPLE_HOME_PATH : '/'
+  const homePath = simple ? SIMPLE_HOME_PATH : '/'
   const isHome = relativePath === homePath
   // Pages reached from another page (Connecter une banque, Configuration du bilan) have their own title.
   const subPage = isEntryPage || isHome ? null : findSubPageTitle(relativePath)
-  const pageTitle = groupPath ? (groupEntry?.title ?? 'Synthèse') : isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
+  const pageTitle = groupPath ? (groupEntry?.title ?? 'Synthèse') : isHome ? (simple ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
 
   // Tab titles name the page and the company: "Journaux · Atelier Lumen · Kledg" ("Trésorerie · Groupe Atelier Lumen · Kledg").
   useEffect(() => {

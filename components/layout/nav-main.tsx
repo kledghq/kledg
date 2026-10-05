@@ -3,8 +3,12 @@
 import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
 
+import { EyeOff } from "lucide-react"
+
 import { findNavEntry, type NavCountKey, type NavGroup } from "@/components/layout/nav-config"
+import { applySidebarHidden } from "@/components/layout/sidebar-menu"
 import type { NavFeatureRefs } from "@/lib/companies/nav-features"
+import { NOTHING_HIDDEN, type SidebarHidden } from "@/lib/navigation/sidebar-preferences"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -16,23 +20,52 @@ import {
 } from "@/components/ui/sidebar"
 
 /**
+ * The groups of a company menu its company shows: entries marked holdingOnly
+ * only when the company is in `holdingRefs` (ids and slugs), entries with a
+ * `feature` when it is in that feature's `featureRefs`. The sidebar and its
+ * editor (sidebar-menu-editor.tsx) list the same entries.
+ */
+export function companyNavGroups(
+  groups: readonly NavGroup[],
+  companyId: string | undefined,
+  holdingRefs: readonly string[] = [],
+  featureRefs: Partial<NavFeatureRefs> = {},
+): NavGroup[] {
+  const isHolding = companyId !== undefined && holdingRefs.includes(companyId)
+  const hasFeature = (feature: keyof NavFeatureRefs) => companyId !== undefined && (featureRefs[feature] ?? []).includes(companyId)
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => (!item.holdingOnly || isHolding) && (!item.feature || hasFeature(item.feature))),
+  }))
+}
+
+/**
  * Company navigation. One item is active at a time: the entry whose URL is
  * the longest prefix of the current path, so detail pages (an account, an
- * entry) keep their section highlighted. Entries marked holdingOnly appear
- * only when the current company is in `holdingRefs` (ids and slugs), entries
- * with a `feature` when it is in that feature's `featureRefs`. An
- * entry with a `count` shows it when `counts` has a positive value for it.
+ * entry) keep their section highlighted. The entry is looked up in
+ * `titleGroups` (the expert navigation in Standard mode), so a page the menu
+ * does not list highlights nothing rather than a shorter neighbour. Entries
+ * are filtered by company (companyNavGroups), then by what the user hid
+ * (`hidden`, docs/modes-et-menu.md); on a page the user hid, the menu says
+ * "Page masquée du menu" with a "Réafficher" link (`onReveal`). An entry
+ * with a `count` shows it when `counts` has a positive value for it.
  */
 export function NavMain({
   groups,
+  titleGroups = groups,
   holdingRefs = [],
   featureRefs = {},
   counts = {},
+  hidden = NOTHING_HIDDEN,
+  onReveal,
 }: {
   groups: NavGroup[]
+  titleGroups?: readonly NavGroup[]
   holdingRefs?: readonly string[]
   featureRefs?: Partial<NavFeatureRefs>
   counts?: Partial<Record<NavCountKey, number>>
+  hidden?: SidebarHidden
+  onReveal?: (url: string) => void
 }) {
   const pathname = usePathname() ?? ""
   const params = useParams()
@@ -41,15 +74,15 @@ export function NavMain({
 
   const base = companyId ? `/${companyId}` : ""
   const relativePath = companyId ? pathname.slice(base.length) || "/" : pathname
-  const activeUrl = findNavEntry(relativePath, groups)?.url
+  const current = findNavEntry(relativePath, titleGroups)
 
   const href = (url: string) => (url === "/" ? base || "/" : `${base}${url}`)
-  const isHolding = companyId !== undefined && holdingRefs.includes(companyId)
-  const hasFeature = (feature: keyof NavFeatureRefs) => companyId !== undefined && (featureRefs[feature] ?? []).includes(companyId)
-  const visibleGroups = groups.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => (!item.holdingOnly || isHolding) && (!item.feature || hasFeature(item.feature))),
-  }))
+  const companyGroups = companyNavGroups(groups, companyId, holdingRefs, featureRefs)
+  const visibleGroups = applySidebarHidden(companyGroups, hidden)
+  const listed = (list: readonly NavGroup[], url: string | undefined) => url !== undefined && list.some((group) => group.items.some((item) => item.url === url))
+  const activeUrl = listed(visibleGroups, current?.url) ? current?.url : undefined
+  // The current page is an entry of this menu that the user hid: say so, with a way back.
+  const hiddenCurrent = current && !activeUrl && listed(companyGroups, current.url) ? current : null
 
   return (
     <>
@@ -87,6 +120,19 @@ export function NavMain({
           </SidebarMenu>
         </SidebarGroup>
       ))}
+      {hiddenCurrent ? (
+        <SidebarGroup className="py-1 group-data-[collapsible=icon]:hidden">
+          <p className="text-muted-foreground flex items-center gap-2 px-2 text-xs" role="status">
+            <EyeOff aria-hidden className="size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1">Page masquée du menu</span>
+            {onReveal ? (
+              <button type="button" className="text-link shrink-0 underline-offset-4 hover:underline" onClick={() => onReveal(hiddenCurrent.url)}>
+                Réafficher
+              </button>
+            ) : null}
+          </p>
+        </SidebarGroup>
+      ) : null}
     </>
   )
 }

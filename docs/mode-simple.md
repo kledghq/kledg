@@ -1,11 +1,17 @@
 # Mode simple
 
-Kledg propose deux façons d'afficher les mêmes livres :
+Kledg propose trois façons d'afficher les mêmes livres :
 
 - **Simple**, pour les personnes qui ne sont pas comptables : leur argent,
   leurs dépenses, ce qu'on leur doit et ce qu'elles doivent, sans jargon ;
+- **Standard**, les pages et les mots du mode expert avec un menu réduit aux
+  pages du quotidien ([modes-et-menu.md](modes-et-menu.md)) ;
 - **Expert**, l'interface complète : écritures, journaux, plan comptable,
   grand livre, balance, lettrage, clôture, bilan, liasse et FEC.
+
+Chacun peut aussi masquer des entrées de son menu, société par société
+([modes-et-menu.md](modes-et-menu.md#menu-personnalisé)). Cette page décrit
+le mode simple.
 
 Le mode est une **préférence d'affichage de l'utilisateur**, pas de la
 société : deux membres d'une même société peuvent travailler l'un en mode
@@ -18,8 +24,8 @@ chacun peut faire dépend toujours de son rôle dans la société
 
 | Où | Comment |
 |---|---|
-| Premier lancement | Dernière étape de l'assistant de création de société, « Comment voulez-vous utiliser Kledg ? », avec les deux cartes Simple et Expert. Proposée à un utilisateur qui n'a encore choisi aucun mode et n'est membre d'aucune société (`shouldAskDisplayMode`) : l'administrateur d'une nouvelle instance après `/welcome`, un utilisateur inscrit sur une instance qui le laisse créer sa société. La société existe déjà à cette étape : la note sur l'expert-comptable mène à la page Membres pour l'inviter. |
-| Barre du haut | L'icône en forme d'œil de la barre du haut des pages d'une société ouvre le menu « Affichage » (Simple ou Expert) ; le choix ouvre l'accueil du mode choisi. |
+| Premier lancement | Dernière étape de l'assistant de création de société, « Comment voulez-vous utiliser Kledg ? », avec les trois cartes Simple, Standard et Expert. Proposée à un utilisateur qui n'a encore choisi aucun mode et n'est membre d'aucune société (`shouldAskDisplayMode`) : l'administrateur d'une nouvelle instance après `/welcome`, un utilisateur inscrit sur une instance qui le laisse créer sa société. La société existe déjà à cette étape : la note sur l'expert-comptable mène à la page Membres pour l'inviter. |
+| Barre du haut | L'icône en forme d'œil de la barre du haut des pages d'une société ouvre le menu « Affichage » (Simple, Standard ou Expert) ; le choix ouvre l'accueil du mode choisi. |
 | Paramètres, Apparence | La carte « Mode d'affichage », enregistrée tout de suite comme le thème. |
 
 Un utilisateur qui n'a jamais choisi est en mode **expert** : les
@@ -99,7 +105,7 @@ vocabulaire et du rendu de l'accueil.
 
 Colonne `displayMode` de `user_preferences` (migration
 `20261031090000_user_display_mode`), à côté des couleurs des graphiques :
-`'simple'`, `'expert'` (contrainte `user_preferences_displayMode_check`), ou
+`'simple'`, `'standard'`, `'expert'` (contrainte `user_preferences_displayMode_check`, élargie à `'standard'` par la migration `20261118090000_sidebar_preferences`), ou
 `NULL` tant que l'utilisateur n'a pas choisi, lu comme `'expert'`. La
 colonne `appearance` devient facultative : une ligne qui ne porte que le
 mode se lit avec les couleurs par défaut. Les politiques de sécurité au
@@ -109,7 +115,7 @@ qui agit, [rls.md](rls.md)) couvrent la nouvelle colonne.
 | Route | Effet |
 |---|---|
 | `GET /api/account/display-mode` | `{ mode, chosen }` de l'utilisateur connecté |
-| `PUT /api/account/display-mode` | `{ mode: 'simple' \| 'expert' }`, même origine, limite `account-appearance` |
+| `PUT /api/account/display-mode` | `{ mode: 'simple' \| 'standard' \| 'expert' }`, même origine, limite `account-appearance` |
 | `GET /api/companies/[id]/simple/counts` | `{ expensesToCheck, incomeToCheck }`, droit `banking:read` |
 
 ## Tests

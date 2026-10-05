@@ -10,6 +10,8 @@ import { listCompaniesForUser } from '@/lib/companies/manage-company.service'
 import { listHoldingRefs } from '@/lib/management-fees/holding'
 import { listNavFeatureRefs } from '@/lib/companies/nav-features'
 import { displayModeForUser } from '@/lib/appearance/display-mode.service'
+import { listSidebarPreferences } from '@/lib/navigation/sidebar-preferences.service'
+import { sanitizeSidebarHidden } from '@/components/layout/sidebar-menu'
 
 export default async function DashboardLayout({
   children,
@@ -29,12 +31,16 @@ export default async function DashboardLayout({
   const holdingRefs = await listHoldingRefs(user, companies.map((company) => company.id))
   // Training organisations and companies deducting VAT by a coefficient show their pages (lib/companies/nav-features.ts)
   const featureRefs = await listNavFeatureRefs(user, companies.map((company) => company.id))
-  // Simple or expert navigation: a display preference of the user (docs/mode-simple.md), never a permission
+  // Simple, standard or expert navigation: a display preference of the user (docs/modes-et-menu.md), never a permission
   const { mode } = await displayModeForUser(user.id)
+  // What the user hid from their menu in each company, so the sidebar renders without a flash (unknown ids ignored)
+  const sidebarPreferences = Object.fromEntries(
+    Object.entries(await listSidebarPreferences(user, companies)).map(([ref, hidden]) => [ref, sanitizeSidebarHidden(hidden)]),
+  )
 
   return (
     <AppShell
-      sidebar={<AppSidebar companies={companies} holdingRefs={holdingRefs} featureRefs={featureRefs} mode={mode} />}
+      sidebar={<AppSidebar companies={companies} holdingRefs={holdingRefs} featureRefs={featureRefs} mode={mode} sidebarPreferences={sidebarPreferences} />}
       breadcrumb={<DashboardBreadcrumb mode={mode} />}
       user={user}
       isAdmin={isGlobalAdmin(user)}

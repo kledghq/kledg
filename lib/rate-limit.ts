@@ -62,6 +62,12 @@ export const RATE_LIMITS = {
     max: 30,
     message: 'Trop de modifications du tableau de bord en une minute. Patientez une minute.',
   },
+  /** Hiding or showing entries of one's sidebar menu (one save per click), per user. */
+  'sidebar-preferences': {
+    window: 60,
+    max: 60,
+    message: 'Trop de modifications du menu en une minute. Patientez une minute.',
+  },
   /** MCP full control calls (dry runs and reads included), per user. */
   'mcp-full-control': {
     window: 60,

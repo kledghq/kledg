@@ -31,6 +31,8 @@ import type { DisplayMode } from "@/lib/appearance/display-mode"
  * cash, what are the taxes, what is behind a figure). Each view is a group
  * of the sidebar and each of its pages an entry, with its own address.
  * Simple mode: four plain pages under /simple (docs/mode-simple.md).
+ * Standard mode: the expert pages, with a sidebar of the five pages a group
+ * owner opens most (docs/modes-et-menu.md); the others stay reachable.
  */
 
 export type GroupViewId = "pilotage" | "structure" | "treasury" | "tax" | "operations"
@@ -106,12 +108,14 @@ export function groupPage(viewId: GroupViewId, pageId?: string): GroupPage {
 }
 
 export const groupNavGroups: NavGroup[] = GROUP_VIEWS.map((view) => ({
+  id: view.id,
   label: view.title,
   items: view.pages.map(({ title, url, icon }) => ({ title, url, icon })),
 }))
 
 export const simpleGroupNavGroups: NavGroup[] = [
   {
+    id: "simple",
     items: [
       { title: "Accueil du groupe", url: "/simple", icon: Home },
       { title: "Mes sociétés", url: "/simple/societes", icon: Building2 },
@@ -121,17 +125,25 @@ export const simpleGroupNavGroups: NavGroup[] = [
   },
 ]
 
+/** Group pages the Standard sidebar lists (URLs relative to /<holding>/group), in the expert order. */
+export const STANDARD_GROUP_NAV_URLS: ReadonlySet<string> = new Set(["/", "/structure", "/treasury", "/tax", "/tax/deadlines"])
+
+export const standardGroupNavGroups: NavGroup[] = groupNavGroups
+  .map((group) => ({ ...group, items: group.items.filter((item) => STANDARD_GROUP_NAV_URLS.has(item.url)) }))
+  .filter((group) => group.items.length > 0)
+
 export function groupNavGroupsFor(mode: DisplayMode): NavGroup[] {
-  return mode === "simple" ? simpleGroupNavGroups : groupNavGroups
+  if (mode === "simple") return simpleGroupNavGroups
+  return mode === "standard" ? standardGroupNavGroups : groupNavGroups
 }
 
 /** The group space segment of a company path. */
 export const GROUP_SPACE = "/group"
 
 /** The home of the group space in a mode, relative to /<holding>/group. */
-export const GROUP_HOME: Record<DisplayMode, string> = { expert: "/", simple: "/simple" }
+export const GROUP_HOME: Record<DisplayMode, string> = { expert: "/", standard: "/", simple: "/simple" }
 
-/** Where the group of a holding opens in a mode: /<holding>/group or /<holding>/group/simple. */
+/** Where the group of a holding opens in a mode: /<holding>/group (standard, expert) or /<holding>/group/simple. */
 export function groupHomePath(holdingRef: string, mode: DisplayMode): string {
   return mode === "simple" ? `/${holdingRef}${GROUP_SPACE}/simple` : `/${holdingRef}${GROUP_SPACE}`
 }

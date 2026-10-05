@@ -408,9 +408,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 226 | 186 | 40 |
-| Lectures (GET) | 179 | 153 | 26 |
-| Total | 405 | 339 | 66 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 227 | 186 | 41 |
+| Lectures (GET) | 180 | 153 | 27 |
+| Total | 407 | 339 | 68 |
 
 ### Exclusions
 
@@ -428,7 +428,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
-| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 8 (3) |
+| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 10 (4) |
 
 ### Table des routes
 
@@ -611,6 +611,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/companies/[id]/shareholders/[shareholderId]` | settings:update | `manage_company_records` (CT) |
 | `GET /api/companies/[id]/shareholders` | settings:read | `get_company_settings` (L) |
 | `POST /api/companies/[id]/shareholders` | settings:update | `manage_company_records` (CT) |
+| `GET /api/companies/[id]/sidebar-preferences` | settings:read | Exclu : aides de l'interface |
+| `PUT /api/companies/[id]/sidebar-preferences` | settings:read | Exclu : aides de l'interface |
 | `GET /api/companies/[id]/simple-mode-settings` | settings:read | `get_company_settings` (L) |
 | `PUT /api/companies/[id]/simple-mode-settings` | settings:update | `update_company_settings` (CT) |
 | `GET /api/companies/[id]/simple/counts` | banking:read | `list_expenses_to_review` (L) |

@@ -54,6 +54,7 @@ const OTHER_TABLES = [
   'balance_sheet_config_templates',
   'income_statement_config_templates',
   'dashboard_layouts',
+  'sidebar_preferences',
   'mcp_confirmations',
   'mcp_pending_actions',
   'ai_access_grants',
@@ -194,6 +195,21 @@ describe.skipIf(!available)('row level security: tenant isolation', () => {
       client.query(`UPDATE "entry_lines" SET "accountingEntryId" = $1 WHERE "id" = $2`, [keys.accounting_entries.b, keys.entry_lines.a]),
     )
     await expect(attempt).rejects.toMatchObject({ code: expect.stringMatching(/^(42501|23503)$/) })
+  })
+
+  it.each(['dashboard_layouts', 'sidebar_preferences'])('%s: another member of the same company never reads nor changes the row', async (table) => {
+    // u-ac is a member of company a, like u-a who owns the row.
+    const other: RlsContext = { access: 'user', userId: USER_AC }
+    expect(await visibleKeys(other, table)).not.toContain(keys[table].a)
+    await asRaw(other, async (client) => {
+      const updated = await client.query(`UPDATE "${table}" SET "updatedAt" = now() WHERE "id" = $1`, [keys[table].a])
+      expect(updated.rowCount).toBe(0)
+    })
+    // Nor create a row in another user's name.
+    const attempt = asRaw(other, (client) =>
+      client.query(`INSERT INTO "${table}" ("id", "userId", "companyId", "updatedAt") VALUES ('forged', $1, $2, now())`, [USER_A, COMPANY.a]),
+    )
+    await expect(attempt).rejects.toMatchObject({ code: expect.stringMatching(/^(42501|23502)$/) })
   })
 
   it('narrows a user to the scope, never beyond their memberships', async () => {

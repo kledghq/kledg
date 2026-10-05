@@ -5,6 +5,7 @@
  * - the choice persists in the user's preferences row, next to the chart
  *   colours, without touching them (and colours saved later keep the mode);
  * - a row holding only the mode reads as the default colours;
+ * - 'standard' persists like the others (the check constraint accepts it);
  * - the database refuses any other value;
  * - the onboarding step is asked on the first run only.
  *
@@ -106,6 +107,18 @@ describe.skipIf(!available)('display mode preference', () => {
     expect(row?.displayMode).toBe('expert')
     expect(row?.appearance).toMatchObject({ palette: 'contraste' })
     expect(await readMode('marc')).toEqual({ mode: 'expert', chosen: true })
+  })
+
+  it('persists the standard mode, which the database accepts, and leaves stored values as they were', async () => {
+    const response = await call('marc', modeRoute.PUT, 'PUT', '/api/account/display-mode', { mode: 'standard' })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ mode: 'standard', chosen: true })
+    expect(await readMode('marc')).toEqual({ mode: 'standard', chosen: true })
+    expect((await prisma.userPreference.findUnique({ where: { userId: 'u-marc' } }))?.displayMode).toBe('standard')
+    // Claire's earlier choice is untouched
+    expect(await readMode('claire')).toEqual({ mode: 'simple', chosen: true })
+    await queryAsOwner('display_mode', `UPDATE "user_preferences" SET "displayMode" = 'standard' WHERE "userId" = 'u-marc'`)
+    expect((await setMode('marc', 'expert')).status).toBe(200)
   })
 
   it('refuses another value in the API and in the database', async () => {

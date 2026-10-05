@@ -122,6 +122,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/mcp/full-control/define.ts': /enforceRateLimit\('mcp-full-control'/,
   'app/api/ai-actions/[id]/route.ts': /enforceRateLimit\('ai-action-approval'/,
   'lib/dashboard/dashboard-layout.service.ts': /enforceRateLimit\('dashboard-layout'/,
+  'lib/navigation/sidebar-preferences.service.ts': /enforceRateLimit\('sidebar-preferences'/,
   'app/api/users/route.ts': /createInstanceUser\(/,
   'lib/mcp/api-key.ts': /enforceRateLimit\('mcp-api-key'/,
   'app/(auth)/setup/actions.ts': /withinRateLimit\('setup'/,

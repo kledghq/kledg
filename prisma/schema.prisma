@@ -165,6 +165,7 @@ model Company {
   mcpPendingActions          McpPendingAction[]
   onboarding                 CompanyOnboarding?
   dashboardLayouts           DashboardLayout[]
+  sidebarPreferences         SidebarPreference[]
   tiers                      Tiers[]
   invoices                   Invoice[]
   invoiceNumberCounters      InvoiceNumberCounter[]
@@ -1215,6 +1216,7 @@ model User {
   mcpConfirmations  McpConfirmation[]
   mcpPendingActions McpPendingAction[]
   dashboardLayouts  DashboardLayout[]
+  sidebarPreferences SidebarPreference[]
   preference        UserPreference?
   expenseClaimants  ExpenseClaimant[]
 
@@ -1710,6 +1712,31 @@ model DashboardLayout {
   @@map("dashboard_layouts")
 }
 
+/// Sidebar of one user in one company: the entries and groups they hid
+/// from their menu, on top of their display mode (docs/modes-et-menu.md).
+/// Personal: nobody reads or writes another user's. Ids are validated on
+/// write and unknown ones ignored on read (components/layout/sidebar-menu.ts),
+/// so pages come and go without a migration. Without a row the whole menu
+/// of the mode shows.
+model SidebarPreference {
+  id           String   @id @default(cuid())
+  userId       String
+  companyId    String
+  /// Company-relative URLs of the hidden entries: ["/banking/statements"]
+  hiddenItems  String[] @default([])
+  /// Stable ids of the hidden groups (NavGroup.id): ["saisie"]
+  hiddenGroups String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@map("sidebar_preferences")
+}
+
 /// Personal preferences of one user, following them across devices
 /// (lib/appearance). `appearance` holds the chart colours, validated by zod
 /// on read and write (lib/appearance/schema.ts); a row that no longer parses
@@ -1720,7 +1747,7 @@ model UserPreference {
   /// { "version": 1, "palette": "custom", "base": "sobre", "custom": { "light": { "revenue": "#0072b2" }, "dark": {} } }
   /// Null when the user never saved colours (they only chose a display mode): the default colours.
   appearance  Json?
-  /// 'simple' or 'expert' (lib/appearance/display-mode.ts, check constraint); null until chosen, read as 'expert'.
+  /// 'simple', 'standard' or 'expert' (lib/appearance/display-mode.ts, check constraint); null until chosen, read as 'expert'.
   displayMode String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

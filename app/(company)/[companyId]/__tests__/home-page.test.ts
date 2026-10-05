@@ -2,7 +2,9 @@
  * The company's home per display mode (docs/mode-simple.md): the dashboard
  * in expert mode (and for users who never chose), the simple home in simple
  * mode, except for links with parameters that target the dashboard (the
- * getting started guide).
+ * getting started guide). The standard mode opens the dashboard like the
+ * expert mode (docs/modes-et-menu.md), and reads the expert words of the
+ * cash forecast.
  */
 
 import { isValidElement, type ReactElement } from 'react'
@@ -18,10 +20,12 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 vi.mock('@/components/features/dashboard/dashboard', () => ({ Dashboard: () => null }))
+vi.mock('@/components/features/cash-forecast/cash-forecast-page', () => ({ CashForecastPage: () => null }))
 
 import { prisma } from '@/lib/prisma'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
 import HomePage from '../page'
+import CashForecastRoute from '../prevision-tresorerie/page'
 
 const db = asPrismaMock(prisma)
 
@@ -48,6 +52,13 @@ describe('company home', () => {
     expect(isValidElement(await home())).toBe(true)
   })
 
+  it('shows the dashboard in standard mode, never the simple home', async () => {
+    state.mode = 'standard'
+    const element = (await home()) as ReactElement<{ companyId: string }>
+    expect(isValidElement(element)).toBe(true)
+    expect(element.props.companyId).toBe('atelier-lumen')
+  })
+
   it('opens the simple home in simple mode', async () => {
     state.mode = 'simple'
     await expect(home()).rejects.toThrow('NEXT_REDIRECT /atelier-lumen/simple')
@@ -56,5 +67,19 @@ describe('company home', () => {
   it('keeps the dashboard for a link with parameters, in simple mode too', async () => {
     state.mode = 'simple'
     expect(isValidElement(await home({ guide: '1' }))).toBe(true)
+  })
+})
+
+describe('cash forecast words per mode', () => {
+  const forecast = async () =>
+    ((await CashForecastRoute({ params: Promise.resolve({ companyId: 'atelier-lumen' }) })) as ReactElement<{ mode: string }>).props.mode
+
+  it('uses the expert words in standard and expert mode, the plain words in simple mode only', async () => {
+    state.mode = 'standard'
+    expect(await forecast()).toBe('expert')
+    state.mode = 'expert'
+    expect(await forecast()).toBe('expert')
+    state.mode = 'simple'
+    expect(await forecast()).toBe('simple')
   })
 })

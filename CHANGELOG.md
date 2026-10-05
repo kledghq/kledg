@@ -4,6 +4,11 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- **Mode d'affichage Standard**, entre Simple et Expert ([documentation](docs/modes-et-menu.md)) : les pages, les mots et le tableau de bord du mode expert, avec un menu réduit aux pages du quotidien (Tableau de bord ; Banque : comptes bancaires, transactions, rapprochement, justificatifs ; Factures : achat, vente, tiers, notes de frais ; Saisie : écritures ; États : bilan, compte de résultat, échéances, déclarations de TVA, impôt sur les sociétés ; Société : informations, membres). Les autres pages restent accessibles par leur adresse, par les liens et gardent leur titre dans le fil d'Ariane. Dans l'espace groupe, un menu réduit à la Synthèse, l'Organigramme, les Soldes, l'Impôt sur les sociétés et les Échéances. Le menu « Affichage » de la barre du haut, l'assistant de création de société et Paramètres, Apparence proposent les trois modes, chacun avec sa ligne de description ; les modes déjà choisis ne changent pas.
+- **Menu personnalisé** : « Personnaliser le menu », en bas du menu latéral (aussi sur téléphone), masque des entrées ou des groupes entiers, pour soi seul et pour la société ouverte, par-dessus le mode choisi. Les changements s'appliquent aussitôt ; « Afficher tout » rétablit le menu. Le tableau de bord (ou l'accueil du mode simple) et l'entrée de personnalisation restent toujours affichés. Sur une page masquée, le menu affiche « Page masquée du menu » avec un lien « Réafficher ». API `GET|PUT /api/companies/[id]/sidebar-preferences` (tout rôle, son propre menu seulement), préférence de l'interface exclue du serveur MCP.
+
 ## [0.3.0] - 2026-10-05
 
 ### Ajouté

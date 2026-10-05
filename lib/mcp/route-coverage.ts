@@ -32,7 +32,7 @@ export const EXCLUSIONS = {
   bankConnect: 'Connexion d\'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l\'interface.',
   approvalDocuments: 'Documents de l\'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »).',
   managementFeeInvoices: 'Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »).',
-  ui: 'Préférence ou aide de l\'interface (tableau de bord, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu\'un autre outil ne donne pas.',
+  ui: 'Préférence ou aide de l\'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu\'un autre outil ne donne pas.',
 } as const
 
 export type ExclusionReason = keyof typeof EXCLUSIONS
@@ -216,6 +216,8 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'DELETE /api/companies/[id]/shareholders/[shareholderId]': { tools: ['manage_company_records'] },
   'GET /api/companies/[id]/shareholders': { tools: ['get_company_settings'] },
   'POST /api/companies/[id]/shareholders': { tools: ['manage_company_records'] },
+  'GET /api/companies/[id]/sidebar-preferences': { excluded: 'ui' },
+  'PUT /api/companies/[id]/sidebar-preferences': { excluded: 'ui' },
   'GET /api/companies/[id]/simple-mode-settings': { tools: ['get_company_settings'] },
   'PUT /api/companies/[id]/simple-mode-settings': { tools: ['update_company_settings'] },
   'GET /api/companies/[id]/simple/counts': { tools: ['list_expenses_to_review'] },

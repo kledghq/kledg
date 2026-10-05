@@ -391,6 +391,7 @@ const ROUTE_MODULES = {
   appearance: () => import('@/app/api/account/appearance/route'),
   displayMode: () => import('@/app/api/account/display-mode/route'),
   simpleCounts: () => import('@/app/api/companies/[id]/simple/counts/route'),
+  sidebarPreferences: () => import('@/app/api/companies/[id]/sidebar-preferences/route'),
   importFile: () => import('@/app/api/import/route'),
   importPreview: () => import('@/app/api/import/preview-fiscal-years/route'),
   establishment: () => import('@/app/api/companies/[id]/establishments/[establishmentId]/route'),
@@ -876,6 +877,7 @@ const READS: Call[] = [
   { label: 'dashboard widget data', route: 'dashboardWidgets', method: 'GET', path: () => `/api/dashboard/widgets?companyId=${A()}&source=ledger&fiscalYearId=${ids.aFy}` },
   { label: 'dashboard bank accounts widget', route: 'dashboardWidgets', method: 'GET', path: () => `/api/dashboard/widgets?companyId=${A()}&source=bank-accounts` },
   { label: 'own dashboard layout', route: 'dashboardLayout', method: 'GET', path: () => `/api/dashboard/layout?companyId=${A()}` },
+  { label: 'own sidebar menu', route: 'sidebarPreferences', method: 'GET', path: () => `/api/companies/${A()}/sidebar-preferences`, params: p({ id: A }) },
   { label: 'preview FEC fiscal years', route: 'importPreview', method: 'POST', path: () => '/api/import/preview-fiscal-years', body: () => ({ companyId: A(), content: `${FEC_HEADER}\n` }) },
   { label: 'export person', route: 'person', method: 'GET', path: () => `/api/companies/${A()}/persons/${ids.aPerson}`, params: p({ id: A, personId: () => ids.aPerson }) },
   { label: 'list persons', route: 'persons', method: 'GET', path: () => `/api/companies/${A()}/persons`, params: p({ id: A }) },
@@ -1303,6 +1305,44 @@ describe.skipIf(!available)('authorization matrix', () => {
     it('cannot write for another user', async () => {
       expect((await call('accountant', displayMode('PUT', { mode: 'expert', userId: 'u-viewer' }))).status).toBe(400)
       expect((await read('viewer')).mode).toBe('simple')
+    })
+  })
+
+  describe('own sidebar menu (any role, per company)', () => {
+    beforeAll(reseed)
+    const menu = (method: 'GET' | 'PUT', body?: unknown): Call => ({
+      label: `sidebar menu ${method}`,
+      route: 'sidebarPreferences',
+      method,
+      path: () => `/api/companies/${A()}/sidebar-preferences`,
+      params: p({ id: A }),
+      ...(body === undefined ? {} : { body: () => body }),
+    })
+    const read = async (who: Who) => (await (await call(who, menu('GET'))).json()) as { hiddenItems: string[]; hiddenGroups: string[] }
+
+    it('anonymous: 401, member of B: 404 on read and write', async () => {
+      expect((await call('anonymous', menu('GET'))).status).toBe(401)
+      expect((await call('anonymous', menu('PUT', { hiddenItems: [], hiddenGroups: [] }))).status).toBe(401)
+      expect((await call('memberB', menu('GET'))).status).toBe(404)
+      expect((await call('memberB', menu('PUT', { hiddenItems: ['/journals'], hiddenGroups: [] }))).status).toBe(404)
+      expect(await prisma.sidebarPreference.count()).toBe(0)
+    })
+
+    it('every role of A saves its own menu, a viewer included (a preference, it grants nothing)', async () => {
+      const choices = { viewer: '/journals', accountant: '/budget', companyAdmin: '/tiers', admin: '/fiscal-years' } as const
+      for (const [who, url] of Object.entries(choices) as [keyof typeof choices, string][]) {
+        expect((await call(who, menu('PUT', { hiddenItems: [url], hiddenGroups: ['saisie'] }))).status, who).toBe(200)
+      }
+      for (const [who, url] of Object.entries(choices) as [keyof typeof choices, string][]) {
+        expect(await read(who), who).toEqual({ hiddenItems: [url], hiddenGroups: ['saisie'] })
+      }
+      // A viewer with a menu is still refused every write
+      for (const c of WRITES) expect((await call('viewer', c)).status, c.label).toBe(403)
+    })
+
+    it('cannot write for another user', async () => {
+      expect((await call('accountant', menu('PUT', { hiddenItems: [], hiddenGroups: [], userId: 'u-viewer' }))).status).toBe(400)
+      expect((await read('viewer')).hiddenItems).toEqual(['/journals'])
     })
   })
 
