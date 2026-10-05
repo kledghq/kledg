@@ -432,6 +432,7 @@ export function EntryForm({ companyId, journals, accounts: initialAccounts, entr
                           render={({ field: fieldController }) => (
                             <AccountCombobox
                               id={`line-${index}-account`}
+                              label={`Compte, ligne ${n}`}
                               accounts={accounts}
                               value={fieldController.value || 'none'}
                               onValueChange={(value) => fieldController.onChange(value === 'none' ? '' : value)}

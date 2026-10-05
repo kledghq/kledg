@@ -531,6 +531,7 @@ export function EntryFormReconciliation({
                     )}
                   >
                     <AccountCombobox
+                      label={`Compte de la ligne ${index + 1}`}
                       accounts={accounts ?? []}
                       value={byCode.get(code)?.id ?? ''}
                       onValueChange={(id) =>
@@ -664,7 +665,8 @@ export function EntryFormReconciliation({
           </span>
         )}
         {errorsHidden && (
-          <Button type="button" variant="link" size="sm" className="mr-auto text-muted-foreground" onClick={() => setAttempted(true)}>
+          // Own row: next to the three buttons it pushed "Enregistrer et suivant" to a line of its own
+          <Button type="button" variant="link" size="sm" className="text-muted-foreground basis-full justify-start whitespace-normal text-left" onClick={() => setAttempted(true)}>
             Choisissez un compte et un montant sur chaque ligne pour enregistrer&nbsp;: afficher les erreurs
           </Button>
         )}

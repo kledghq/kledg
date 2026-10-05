@@ -13,6 +13,11 @@ interface AutocompleteProps {
   /** Text shown in the field when it is closed (the current selection). */
   selectedLabel?: string
   placeholder?: string
+  /**
+   * Accessible name of the field. cmdk labels its input with its own (empty)
+   * label element, which wins over a <label htmlFor>: pass the name here.
+   */
+  label?: string
   /** Controlled search text, for server-side search. Uncontrolled by default. */
   query?: string
   onQueryChange?: (query: string) => void
@@ -36,6 +41,7 @@ interface AutocompleteProps {
 export function Autocomplete({
   selectedLabel,
   placeholder,
+  label,
   query,
   onQueryChange,
   shouldFilter = true,
@@ -72,7 +78,7 @@ export function Autocomplete({
 
   return (
     <AutocompleteContext.Provider value={{ close }}>
-      <CommandPrimitive shouldFilter={shouldFilter} loop className={cn('w-full', className)}>
+      <CommandPrimitive label={label} shouldFilter={shouldFilter} loop className={cn('w-full', className)}>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverAnchor asChild>
             <div ref={anchorRef} className="relative">
