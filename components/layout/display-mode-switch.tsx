@@ -9,10 +9,10 @@ import { accountApi } from "@/components/features/account/account-api"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 /**
- * Simple / Expert switch at the bottom of the company sidebar
+ * Simple / Expert switch in the header of company pages
  * (docs/mode-simple.md). Saves the user's display mode, then opens the home
- * of the chosen mode in the current company. Hidden when the sidebar is
- * collapsed to icons; the same choice is on Paramètres, Apparence.
+ * of the chosen mode in the current company. The same choice is on
+ * Paramètres, Apparence.
  */
 export function DisplayModeSwitch({ mode }: { mode: DisplayMode }) {
   const router = useRouter()
@@ -39,10 +39,10 @@ export function DisplayModeSwitch({ mode }: { mode: DisplayMode }) {
   }
 
   return (
-    <div className="space-y-1.5 px-2 pt-1 group-data-[collapsible=icon]:hidden">
-      <p id="display-mode-label" className="text-muted-foreground text-xs">
+    <div className="flex items-center">
+      <span id="display-mode-label" className="sr-only">
         Affichage
-      </p>
+      </span>
       <ToggleGroup
         type="single"
         variant="outline"
@@ -50,10 +50,10 @@ export function DisplayModeSwitch({ mode }: { mode: DisplayMode }) {
         value={current}
         onValueChange={(value) => value && void choose(value as DisplayMode)}
         aria-labelledby="display-mode-label"
-        className="grid w-full grid-cols-2"
+        className="grid grid-cols-2"
       >
         {DISPLAY_MODES.map((value) => (
-          <ToggleGroupItem key={value} value={value} disabled={saving} className="w-full">
+          <ToggleGroupItem key={value} value={value} disabled={saving} className="px-3 text-xs sm:text-sm">
             {DISPLAY_MODE_LABELS[value]}
           </ToggleGroupItem>
         ))}

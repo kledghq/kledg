@@ -25,6 +25,7 @@ export async function AppShell({
   isAdmin,
   children,
   after,
+  headerActions,
 }: {
   sidebar: React.ReactNode
   breadcrumb: React.ReactNode
@@ -33,6 +34,8 @@ export async function AppShell({
   children: React.ReactNode
   /** Rendered after the main content (the company overlay slot of company pages). */
   after?: React.ReactNode
+  /** Header controls of the area, before the help menu (the display mode switch of company pages). */
+  headerActions?: React.ReactNode
 }) {
   // "Actions IA à approuver" is listed only while one of the user's AI
   // connections runs in validation mode or an action still waits for them.
@@ -66,6 +69,7 @@ export async function AppShell({
             {breadcrumb}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {headerActions}
             <HelpMenu onboardingEnabled={onboardingEnabled} />
             {isAdmin && <UpdateIndicator />}
             <TasksIndicator />

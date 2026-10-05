@@ -194,14 +194,18 @@ export function SimpleHome({
             label={profitTitle(profit.beforeTaxCents, fiscalYear.startDate)}
             value={<Amount value={euros(Math.abs(profit.beforeTaxCents))} />}
             valueClassName={cn(profit.beforeTaxCents < 0 && "text-destructive")}
-            hint={PROFIT_HINT}
-          />
-        ) : null}
-        {corporateTax && fiscalYear ? (
-          <StatCard
-            label={CORPORATE_TAX_TITLE}
-            value={<Amount value={euros(corporateTax.estimateCents)} />}
-            hint={corporateTaxHint(fiscalYear.startDate)}
+            hint={
+              corporateTax ? (
+                <span className="flex flex-col gap-0.5">
+                  <span>{PROFIT_HINT}</span>
+                  <span title={corporateTaxHint(fiscalYear.startDate)}>
+                    {CORPORATE_TAX_TITLE}{"\u00a0"}: {formatAmount(euros(corporateTax.estimateCents))}
+                  </span>
+                </span>
+              ) : (
+                PROFIT_HINT
+              )
+            }
           />
         ) : null}
       </section>

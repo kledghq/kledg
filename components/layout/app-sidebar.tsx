@@ -7,7 +7,6 @@ import type { DisplayMode } from "@/lib/appearance/display-mode"
 import { navGroupsFor, type NavCountKey } from "@/components/layout/nav-config"
 import { NavMain } from "@/components/layout/nav-main"
 import { NavUser } from "@/components/layout/nav-user"
-import { DisplayModeSwitch } from "@/components/layout/display-mode-switch"
 import { TeamSwitcher, type SwitcherCompany } from "@/components/layout/team-switcher"
 import {
   Sidebar,
@@ -68,7 +67,6 @@ export function AppSidebar({
         <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} counts={counts} />
       </SidebarContent>
       <SidebarFooter>
-        <DisplayModeSwitch key={mode} mode={mode} />
         <NavUser />
       </SidebarFooter>
       <SidebarRail />

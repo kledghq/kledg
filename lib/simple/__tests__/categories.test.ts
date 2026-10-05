@@ -163,6 +163,17 @@ describe('simple mode catalogue', () => {
     expect(categoryOfAccount('706000')?.id).toBe('ventes-prestations')
     expect(categoryOfAccount('471000')).toBeNull()
   })
+
+  it('picks among the categories sharing an account by the name of the rule or the bank label, never by guess', () => {
+    // 6061 books both energy and fuel.
+    expect(categoryOfAccount('606100', 'Carburant du véhicule')?.id).toBe('carburant')
+    expect(categoryOfAccount('606100', 'CB STATION-SERVICE RELAIS DU PONT')?.id).toBe('carburant')
+    expect(categoryOfAccount('606100', 'PRLV EDF Electricité')?.id).toBe('energie')
+    // A hint naming neither (or both): no category, the rule is shown by its name.
+    expect(categoryOfAccount('606100', 'Règle 12')).toBeNull()
+    // Without a hint, the first category of the catalogue (the order of the catalogue decides).
+    expect(categoryOfAccount('606100')?.id).toBe('energie')
+  })
 })
 
 describe('questions, one test per branch', () => {

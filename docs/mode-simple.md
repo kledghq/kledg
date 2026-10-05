@@ -19,7 +19,7 @@ chacun peut faire dépend toujours de son rôle dans la société
 | Où | Comment |
 |---|---|
 | Premier lancement | Dernière étape de l'assistant de création de société, « Comment voulez-vous utiliser Kledg ? », avec les deux cartes Simple et Expert. Proposée à un utilisateur qui n'a encore choisi aucun mode et n'est membre d'aucune société (`shouldAskDisplayMode`) : l'administrateur d'une nouvelle instance après `/welcome`, un utilisateur inscrit sur une instance qui le laisse créer sa société. La société existe déjà à cette étape : la note sur l'expert-comptable mène à la page Membres pour l'inviter. |
-| Barre latérale | Le sélecteur « Affichage » Simple / Expert, en bas de la barre latérale d'une société ; il ouvre l'accueil du mode choisi. Masqué quand la barre est réduite aux icônes. |
+| Barre du haut | Le sélecteur « Affichage » Simple / Expert, dans la barre du haut des pages d'une société ; il ouvre l'accueil du mode choisi. |
 | Paramètres, Apparence | La carte « Mode d'affichage », enregistrée tout de suite comme le thème. |
 
 Un utilisateur qui n'a jamais choisi est en mode **expert** : les
