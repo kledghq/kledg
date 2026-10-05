@@ -20,6 +20,7 @@ import { registerCorporateTaxDraftTools } from './corporate-tax'
 import { registerDeclarationDraftTools } from './declarations'
 import { registerRecordDraftTools } from './records'
 import { registerRemunerationDraftTools } from './remuneration'
+import { registerTrainingDraftTools } from './training'
 
 export function registerDraftTools(server: McpServer, access: McpAccess, guard: CompanyGuard): void {
   if (!access.canWrite) return
@@ -35,4 +36,5 @@ export function registerDraftTools(server: McpServer, access: McpAccess, guard: 
   registerDeclarationDraftTools(register)
   registerRecordDraftTools(register)
   registerRemunerationDraftTools(register)
+  registerTrainingDraftTools(register)
 }

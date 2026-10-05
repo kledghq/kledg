@@ -153,6 +153,9 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_vat_return` | Déclaration de TVA préparée d'une période (CA3 ou CA12, la prochaine due par défaut) : chaque ligne avec son numéro et sa case, montants des comptes et euros à saisir, lignes calculées ou à remplir à la main, montant dû ou crédit, échéance, contrôles et fiabilité des chiffres, écriture de liquidation, dépôt enregistré, sources ([déclarations de TVA](declarations-tva.md)) ; ne dépose rien ; droit `reports:read` |
 | `get_corporate_tax` | Impôt sur les sociétés préparé d'un exercice (celui dont le solde est dû par défaut, ou celui d'une échéance du calendrier) : résultat fiscal ligne par ligne avec la ligne de la 2033-B ou de la 2058-A (réintégrations lues dans les comptes, dividendes de filiales, lignes à la main), déficits et leur historique, taux de 15 % et 25 % avec les conditions du taux réduit, contribution sociale, crédits, solde du relevé 2572 et sa date, acomptes 2571 de l'exercice suivant, contrôles, sources ([impôt sur les sociétés](impot-societes.md)) ; ne dépose rien ; droit `reports:read` |
 | `simulate_remuneration` | Simulation indicative, jamais un conseil, de la rémunération et des dividendes du dirigeant associé d'une société à l'IS pour un exercice : résultat avant rémunération lu dans les comptes (à ce jour, projeté ou dernier exercice clos, 644 et 646 réintégrés) ou donné, statut d'après la forme juridique (assimilé salarié, gérant majoritaire non salarié), quatre scénarios côte à côte (tout en rémunération, tout en dividendes, mixte, optimum qui maximise le revenu net dans le bénéfice distribuable) avec coût pour la société, IS, réserve légale, cotisations approchées, prélèvements sociaux ou cotisations au-delà de 10 % du capital, impôt sur le revenu (PFU ou barème), net en poche, scénarios enregistrés, dividendes proposés à l'approbation, sources ([rémunération et dividendes](remuneration-dividendes.md)) ; droit `reports:read` |
+| `get_vat_deduction_coefficient` | Coefficient de déduction de TVA d'une année ([organisme de formation](organisme-de-formation.md)) : recettes par compte (ouvrant droit à déduction, exonérées, à classer, exclues), coefficient de taxation arrondi par excès, coefficients provisoire et définitif, régularisation avant le 25 avril et sa ligne de déclaration ; droit `reports:read` |
+| `get_training_report` | Bilan pédagogique et financier d'un exercice clos (cerfa 10443*17) : cadre C depuis les comptes et les origines affectées, cadre D, cadres saisis, contrôles de la notice, échéance ; droit `reports:read` |
+| `get_payroll_tax` | Taxe sur les salaires d'une année : assujettissement et rapport d'après les recettes de l'année précédente, calcul de la 2502 depuis les bases saisies par salarié, franchise, décote, abattement, fréquence des relevés 2501, échéances ; droit `reports:read` |
 | `get_local_taxes` | Impôts locaux d'une année ([impôts locaux](impots-locaux.md)) : CFE d'après l'avis saisi (situation de l'année de création, acompte du 15 juin et solde, charge prévue au 63511 par mois, cotisation minimum), CVAE calculée sur la valeur ajoutée des comptes et les ajustements (statut de l'année, taux maximal, seuils de 152 500 € et 500 000 €, taux effectif, dégrèvement, franchise, contribution complémentaire de 2025, acomptes), estimation du plafonnement, échéances avec leur statut, sources ; droit `reports:read` |
 | `list_declarations_status` | Échéances d'un exercice avec leur statut (à faire, déposée, payée, en retard, non due), ce qu'elles demandent, les dates et montants enregistrés, d'où ils viennent (suivi, déclarations de TVA, impôt sur les sociétés, approbation) et les champs verrouillés ; filtres par catégorie et statut ([échéances](echeances.md)) ; droit `reports:read` |
 | `get_bank_sync_status` | État des flux bancaires : connexions, dernière synchronisation, erreur, consentement, et par compte les opérations non rapprochées et la plus ancienne, sans IBAN ni identifiant ; droit `banking:read` |
@@ -207,6 +210,12 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `update_provision`, `update_investment_grant` | Remplacer une provision ou une subvention ; figées dès qu'un mouvement est validé | `entries:create` | Oui | Oui |
 | `update_draft_expense_report` | Remplacer la période, le libellé et les lignes d'une note de frais en brouillon (ou soumise, pour un valideur) ; Kledg recalcule montants et TVA | `expenses:submit` | Oui | Oui |
 | `reclassify_doubtful_receivable` | Reclasser une créance de 411 en 416 à la clôture, en **brouillon** | `entries:create` | Non | Non |
+| `save_vat_deduction_settings` | Régler le coefficient de déduction : assujetti partiel, estimation d'une première année, coefficient d'assujettissement, TVA supportée, traitement des comptes de produits | `entries:create` | Oui | Oui |
+| `prepare_vat_coefficient_regularisation` | Préparer la régularisation du coefficient de déduction d'une année terminée en **brouillon** (44566 / 758 ou 658 / 44566) | `entries:create` | Oui (brouillon périmé) | Oui |
+| `save_training_report` | Saisir les cadres du bilan pédagogique et financier d'un exercice (B, D, E, F, G) | `entries:create` | Oui | Oui |
+| `save_training_origins` | Affecter un compte de produits ou un client à une ligne du cadre C du BPF | `entries:create` | Oui | Oui |
+| `save_payroll_tax` | Saisir les bases annuelles par salarié et les réglages de la taxe sur les salaires d'une année | `entries:create` | Oui | Oui |
+| `prepare_payroll_tax_entry` | Préparer l'écriture de taxe sur les salaires (6311 / 447) en **brouillon** | `entries:create` | Oui (brouillon périmé) | Oui |
 | `save_local_taxes` | Saisir l'avis de CFE (total, acompte, date, note) et les ajustements de la valeur ajoutée de la CVAE d'une année | `entries:create` | Oui | Oui |
 | `prepare_cfe_entry` | Préparer l'écriture de CFE (acompte ou solde, 63511 / 512 ou 63511 / 447) en **brouillon** ; inchangée si elle correspond, jamais si elle est validée | `entries:create` | Oui (brouillon périmé) | Oui |
 | `save_corporate_tax_inputs` | Saisir ce que les comptes ne disent pas pour l'impôt sur les sociétés (capital libéré, 75 % de personnes physiques, déficits reportables, lignes à la main, acomptes versés) | `entries:create` | Oui | Oui |
@@ -366,6 +375,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Déclarations de TVA ([déclarations de TVA](declarations-tva.md)) | `get_vat_return`, `export_report` (PDF, CSV) | `prepare_vat_settlement` (brouillon), `record_tax_filing` (dépôt enregistré) | `validate_entries` | Déposer et payer (sur impots.gouv.fr) |
 | Impôt sur les sociétés ([impôt sur les sociétés](impot-societes.md)) | `get_corporate_tax`, `export_report` (PDF, CSV) | `prepare_corporate_tax_entry` (brouillon), `save_corporate_tax_inputs` (taux réduit, déficits, lignes à la main, acomptes versés), `record_tax_filing` | `validate_entries` | Déclarer et payer (sur impots.gouv.fr) |
 | Rémunération et dividendes ([rémunération et dividendes](remuneration-dividendes.md)) | `simulate_remuneration`, `export_report` (PDF, CSV) | `save_remuneration_scenario` (enregistrer, supprimer, proposer les dividendes à l'approbation) | | |
+| Organisme de formation, coefficient de déduction, taxe sur les salaires ([organisme de formation](organisme-de-formation.md)) | `get_vat_deduction_coefficient`, `get_training_report`, `get_payroll_tax`, `export_report` (BPF en CSV) | `save_vat_deduction_settings`, `save_training_report`, `save_training_origins`, `save_payroll_tax`, `prepare_vat_coefficient_regularisation`, `prepare_payroll_tax_entry` (brouillons) | | Déposer le BPF (sur Mon Activité Formation), déclarer et payer (sur impots.gouv.fr) |
 | Impôts locaux ([impôts locaux](impots-locaux.md)) | `get_local_taxes`, `export_report` (PDF, CSV) | `save_local_taxes`, `prepare_cfe_entry` (brouillon) | | Payer (sur impots.gouv.fr) |
 | Suivi des déclarations ([échéances](echeances.md)) | `list_declarations_status` | `mark_declaration` | | Joindre une pièce Qonto |
 | Indicateurs financiers, SIG et ratios ([indicateurs](indicateurs-financiers.md)) | `get_sig`, `get_financial_ratios`, `export_report` (CSV, Excel) | | | Widgets |
@@ -389,9 +399,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 215 | 175 | 40 |
-| Lectures (GET) | 167 | 141 | 26 |
-| Total | 382 | 316 | 66 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 221 | 181 | 40 |
+| Lectures (GET) | 171 | 145 | 26 |
+| Total | 392 | 326 | 66 |
 
 ### Exclusions
 
@@ -555,6 +565,16 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/companies/[id]/local-taxes/export` | reports:export | `export_report` (L) |
 | `GET /api/companies/[id]/local-taxes` | reports:read | `get_local_taxes` (L) |
 | `PUT /api/companies/[id]/local-taxes` | entries:create | `save_local_taxes` (B) |
+| `GET /api/companies/[id]/vat-deduction` | reports:read | `get_vat_deduction_coefficient` (L) |
+| `PUT /api/companies/[id]/vat-deduction` | entries:create | `save_vat_deduction_settings` (B) |
+| `POST /api/companies/[id]/vat-deduction/regularisation` | entries:create | `prepare_vat_coefficient_regularisation` (B) |
+| `GET /api/companies/[id]/training-report` | reports:read | `get_training_report` (L) |
+| `PUT /api/companies/[id]/training-report` | entries:create | `save_training_report` (B) |
+| `PUT /api/companies/[id]/training-report/origins` | entries:create | `save_training_origins` (B) |
+| `GET /api/companies/[id]/training-report/export` | reports:export | `export_report` (L) |
+| `GET /api/companies/[id]/payroll-tax` | reports:read | `get_payroll_tax` (L) |
+| `PUT /api/companies/[id]/payroll-tax` | entries:create | `save_payroll_tax` (B) |
+| `POST /api/companies/[id]/payroll-tax/entries` | entries:create | `prepare_payroll_tax_entry` (B) |
 | `PATCH /api/companies/[id]/members/[memberId]` | administrateur de l’instance | `manage_members` (CT) |
 | `DELETE /api/companies/[id]/members/[memberId]` | administrateur de l’instance | `manage_members` (CT) |
 | `GET /api/companies/[id]/members` | settings:read | `get_company_settings` (L) |

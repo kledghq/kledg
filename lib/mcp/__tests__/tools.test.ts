@@ -111,6 +111,12 @@ const INSTANCE_TOOLS = new Set(['create_company'])
 
 /** Draft-level tools (kledg:write) of lib/mcp/drafts, besides create_draft_entry. */
 const DRAFT_TOOLS = [
+  'save_vat_deduction_settings',
+  'prepare_vat_coefficient_regularisation',
+  'save_training_report',
+  'save_training_origins',
+  'save_payroll_tax',
+  'prepare_payroll_tax_entry',
   'create_budget',
   'create_budget_line',
   'update_budget_line',
@@ -345,7 +351,7 @@ describe('draft tools', () => {
   // checks every right of the tool through the company guard before the
   // service runs.
   const dir = path.resolve(__dirname, '../drafts')
-  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts', 'records.ts', 'remuneration.ts', 'annexe.ts']
+  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts', 'records.ts', 'remuneration.ts', 'annexe.ts', 'training.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks the company guard first, in the single registration path', () => {

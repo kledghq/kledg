@@ -47,6 +47,7 @@ import { registerVatReturnReadTools } from '@/lib/mcp/vat-return-tools'
 import { registerCorporateTaxReadTools } from '@/lib/mcp/corporate-tax-tools'
 import { registerRemunerationReadTools } from '@/lib/mcp/remuneration-tools'
 import { registerLocalTaxReadTools } from '@/lib/mcp/local-tax-tools'
+import { registerTrainingReadTools } from '@/lib/mcp/training-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
@@ -737,6 +738,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerCorporateTaxReadTools(server, access, guard)
   registerRemunerationReadTools(server, guard)
   registerLocalTaxReadTools(server, guard)
+  registerTrainingReadTools(server, guard)
   registerBankingReadTools(server, guard)
   registerThirdPartyReadTools(server, guard)
   registerLedgerReadTools(server, guard)
