@@ -378,8 +378,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
 | Qui modifient des données (POST, PUT, PATCH, DELETE) | 215 | 171 | 44 |
-| Lectures (GET) | 166 | 118 | 48 |
-| Total | 381 | 289 | 92 |
+| Lectures (GET) | 167 | 119 | 48 |
+| Total | 382 | 290 | 92 |
 
 ### Exclusions
 
