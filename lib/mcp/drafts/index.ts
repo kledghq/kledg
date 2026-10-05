@@ -18,6 +18,7 @@ import { registerVatReturnDraftTools } from './vat-returns'
 import { registerCorporateTaxDraftTools } from './corporate-tax'
 import { registerDeclarationDraftTools } from './declarations'
 import { registerRecordDraftTools } from './records'
+import { registerRemunerationDraftTools } from './remuneration'
 
 export function registerDraftTools(server: McpServer, access: McpAccess, guard: CompanyGuard): void {
   if (!access.canWrite) return
@@ -31,4 +32,5 @@ export function registerDraftTools(server: McpServer, access: McpAccess, guard: 
   registerCorporateTaxDraftTools(register)
   registerDeclarationDraftTools(register)
   registerRecordDraftTools(register)
+  registerRemunerationDraftTools(register)
 }

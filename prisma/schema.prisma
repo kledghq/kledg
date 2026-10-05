@@ -162,6 +162,7 @@ model Company {
   simpleModeEntries          SimpleModeEntry[]
   vatReturnFilings           VatReturnFiling[]
   corporateTaxReturns        CorporateTaxReturn[]
+  remunerationScenarios      RemunerationScenario[]
   localTaxYears              LocalTaxYear[]
   declarationStatuses        DeclarationStatus[]
 
@@ -263,6 +264,7 @@ model FiscalYear {
   investmentGrantTransfers InvestmentGrantTransfer[]
   accountsApproval         AccountsApproval?
   corporateTaxReturn       CorporateTaxReturn?
+  remunerationScenarios    RemunerationScenario[]
 
   @@unique([companyId, year])
   /// Target of composite foreign keys that keep a child row in the company of its fiscal year (budgets).
@@ -2575,6 +2577,40 @@ model CorporateTaxReturn {
   @@unique([fiscalYearId, companyId])
   @@index([companyId])
   @@map("corporate_tax_returns")
+}
+
+/// Saved simulations of the "Rémunération et dividendes" simulator of a
+/// fiscal year (docs/remuneration-dividendes.md, lib/remuneration): an
+/// indicative comparison of pay and dividends for the director-shareholder
+/// of a company at the IS, never advice. The inputs are kept; the figures are
+/// those of the scenario when it was saved, with the rules version used.
+model RemunerationScenario {
+  id               String   @id @default(cuid())
+  companyId        String
+  fiscalYearId     String
+  /// Name given by the user, unique in the fiscal year ("Mix 40 %").
+  name             String
+  /// Inputs of the simulation, JSON validated by RemunerationInputsSchema (lib/remuneration/schemas.ts).
+  inputs           Json
+  /// Year of the rates used (lib/remuneration/rules.ts, RULES_YEAR).
+  rulesYear        Int
+  /// Cost of the remuneration for the company (gross pay and contributions).
+  remunerationCost Decimal  @db.Decimal(15, 2)
+  /// Dividends distributed by the company (all shareholders).
+  dividends        Decimal  @db.Decimal(15, 2)
+  /// Net income of the director after social contributions and income tax.
+  netIncome        Decimal  @db.Decimal(15, 2)
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// On (fiscalYearId, companyId): the fiscal year is always one of the row's company.
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  @@unique([fiscalYearId, companyId, name])
+  @@index([companyId])
+  @@map("remuneration_scenarios")
 }
 
 /// Local taxes of a calendar year (docs/impots-locaux.md, lib/local-taxes):
