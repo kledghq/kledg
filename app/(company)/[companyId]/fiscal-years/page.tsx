@@ -33,12 +33,6 @@ import * as z from 'zod'
 import { CalendarPlus, Plus, AlertCircle, Loader2, CheckCircle2, XCircle, AlertTriangle, Info, ExternalLink } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
 import { FiscalYearsTable } from '@/components/features/accounting/fiscal-years-table'
 import { ResultAllocationDialog } from '@/components/features/accounting/result-allocation-dialog'
 import {
