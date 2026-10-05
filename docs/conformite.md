@@ -36,26 +36,27 @@ Kledg est un logiciel de comptabilité. Il n'est ni un logiciel de caisse, ni un
 - **Résultat** : la case du résultat (DI, 136) reçoit le résultat du compte de résultat (HN, 310), plus un résultat antérieur pas encore affecté (comptes 12). Le bilan est équilibré dès que les écritures le sont. Les écritures de clôture (journal CL) sont exclues des états.
 - **Exercice précédent** : la comparaison N-1 utilise la même présentation pour les deux exercices.
 
-Choix faits là où les formulaires et leurs notices ne tranchent pas, à faire valider par votre expert-comptable :
+Là où les formulaires et leurs notices de 2026 n'ont pas de case dédiée, Kledg retient la règle suivante, avec sa source :
 
-| Compte | Système de base | Système simplifié | Pourquoi |
+| Compte | Système de base | Système simplifié | Source de la décision |
 | --- | --- | --- | --- |
-| Droit au bail (206) | Fonds commercial (AH) | Fonds commercial (010) | La notice 2033 l'écrit pour la ligne 010 ; le formulaire 2050 de 2025 portait « dont droit au bail » sur le fonds commercial, celui de 2026 n'a plus de renvoi. |
-| Comptes d'associés créditeurs (45), dépôts du personnel (426) | Emprunts et dettes financières divers (DV) | 173 pour 455, Autres dettes (175) pour les autres comptes 45 ; Dettes fiscales et sociales (172) pour 426 | Liste des comptes du modèle de bilan du PCG ; la 2033-A a une ligne « Comptes courants d'associés ». |
-| Frais d'établissement (201) | AB | Autres immobilisations incorporelles (014) | La 2033-A n'a pas de ligne pour eux. |
-| Primes d'émission (104) | DB | Capital (120) | La 2033-A n'a pas de ligne pour elles. |
-| Capital souscrit non appelé (109) | AA | Autres créances (072) | La 2033-A n'a pas de ligne pour lui. |
-| Fonds non remboursables et avances conditionnées (167), droits du concédant (229) | DM (titres participatifs, 16711), DN, et le total DO pour 229 | Emprunts et dettes assimilées (156) ; Autres dettes (175) pour 229 | La 2033-A n'a pas d'« autres fonds propres ». |
-| Frais d'émission d'emprunt (481), primes de remboursement (169) | CW, CM | Charges constatées d'avance (092) | La 2033-A n'a pas de ligne pour eux. |
-| Écarts de conversion (474, 476 ; 475, 477) | CN ; ED | Autres créances (072) ; Autres dettes (175) | Même raison. |
-| Réserves indisponibles (1062) | Réserves statutaires (DE) | Autres réserves (132) | Aucune des deux lignes ne les vise expressément. |
-| Acomptes sur dividendes (1209) | En moins du résultat (DI) | En moins du résultat (136) | Présentation à confirmer. |
+| Droit au bail (206) | Fonds commercial (AH) | Fonds commercial (010) | Notice 2033-NOT-SD 2026, ligne 010 : « Il comprend notamment le droit au bail » ; formulaire 2050 de 2025 (« dont droit au bail » sur AH) ; liste des comptes du PCG (206 et 207 ensemble). |
+| Comptes d'associés créditeurs (45), dépôts du personnel (426) | Emprunts et dettes financières divers (DV) | 173 pour 455 ; 156 pour 426 ; Autres dettes (175) pour les autres comptes 45 | Liste des comptes du modèle de bilan du PCG (dettes financières diverses) ; ligne 173 « Comptes courants d'associés » de la 2033-A ; tables de correspondance de la pratique (DV : 165, 166, 168, 17, 426, 45). |
+| Réserves indisponibles (1062) | Réserves réglementées (DF) | 130 | Tables de correspondance de la pratique (1062 et 1064 en réserves réglementées). |
+| Acomptes sur dividendes (1209) | En moins du résultat (DI) | En moins du résultat (136) | Les acomptes se déduisent du bénéfice qu'ils anticipent ; aucune case dédiée sur la 2051 ni la 2033-A. |
+| Frais d'établissement (201) | AB | Autres immobilisations incorporelles (014) | Pas de ligne sur la 2033-A ; la ligne 014 reçoit les immobilisations incorporelles autres que le fonds commercial (notice). |
+| Primes d'émission (104) | DB | Capital (120) | Pas de ligne sur la 2033-A ; tables de la pratique (104 en 120). |
+| Capital souscrit non appelé (109) | AA | Autres créances (072) | Pas de ligne sur la 2033-A ; c'est une créance sur les associés (ligne 072 : « associés »). |
+| Fonds non remboursables et avances conditionnées (167), droits du concédant (229) | DM pour les titres participatifs (16711), DN ; 229 dans le total DO | Emprunts et dettes assimilées (156) ; 229 en Autres dettes (175) | Pas d'« autres fonds propres » sur la 2033-A. |
+| Frais d'émission d'emprunt (481), primes de remboursement (169) | CW, CM | Charges constatées d'avance (092) | Pas de ligne sur la 2033-A ; comptes de régularisation de l'actif. |
+| Écarts de conversion (474, 476 ; 475, 477) | CN ; ED | Autres créances (072) ; Autres dettes (175) | Pas de ligne sur la 2033-A. |
 | Instruments financiers à terme et jetons (52) | Autres créances (BZ) en solde débiteur ; D1 en solde créditeur | 072 ; 175 | La 2050 n'a pas de case pour eux à l'actif. |
-| Travaux (704) | Production vendue de biens (FD) | 214 | La notice met en biens les travaux qui fournissent main-d'œuvre et matériaux ; les autres sont des services (FG, 218). |
-| Cessions (657, 757) | G1, F1 | Autres charges (262), Autres produits (230) | La 2033-B n'a pas de ligne pour les cessions. |
-| Quote-part des subventions d'investissement (747) | Subventions d'exploitation (FO) | 226 | Le compte 747 est de classe 74. |
-| Dotations aux dépréciations et aux provisions d'exploitation (6815, 6816, 6817) | GB, GC, GD | 256 | La ligne 256 s'appelle « Dotations aux dépréciations » depuis 2026 ; la ligne 254 ne garde que les amortissements. |
-| Opérations faites en commun (655, 755), participation des salariés (691) | GI, GH, HJ | Lignes à part, sans case | La 2033-B n'a pas de case pour elles. Le résultat d'exploitation (270) reste celui du PCG ; reportez-les selon l'avis de votre expert-comptable. |
+| Travaux (704, 7094) | Services (FG), ou biens (FD) pour une société du secteur « construction » | 218, ou 214 | Notices : FF et 214 visent « les travaux effectués par les entreprises qui fournissent à la fois la main-d'œuvre, les matériaux » ; FI et 218 « les travaux, études et prestations ». Le secteur d'activité de la page Informations décide de la mise en page par défaut ; l'éditeur de mise en page permet de déplacer les comptes. |
+| Cessions (657, 757) | G1, F1 | Autres charges (262), Autres produits (230) | Notice 2033-NOT-SD 2026, cadre de la 2033-E (lignes 115 et 148) : 757 parmi les autres produits de gestion courante (752 à 758), 657 parmi les autres charges (651 à 658). |
+| Quote-part des subventions d'investissement (747) | FO | 226 | Compte de la classe 74 « Subventions d'exploitation ». |
+| Dotations aux dépréciations et provisions d'exploitation (6815, 6816, 6817) | GB, GC, GD | 256 | Ligne 256 « Dotations aux dépréciations » en 2026 ; la ligne 254 ne garde que les amortissements (notice). |
+| Opérations faites en commun (655, 755) | GI, GH | Autres charges (262), Autres produits (230) | La 2033-B n'a pas de ligne pour elles (cadre 2033-E de la notice : 755 et 655 sont des produits et charges de gestion courante, exclus de la seule valeur ajoutée). |
+| Participation des salariés (691) | HJ | Impôt sur les bénéfices (306) | La 2033-B n'a pas de case pour la participation (pas d'équivalent de HJ ni de WU) ; la classe 69 « Participation des salariés, impôts sur les bénéfices » est reportée ensemble, le résultat (310) reste exact. |
 
 ## Fichier des écritures comptables (FEC)
 

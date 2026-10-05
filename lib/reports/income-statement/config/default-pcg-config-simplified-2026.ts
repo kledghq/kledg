@@ -49,13 +49,16 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
       }),
       createConfig('simplified', 'Production vendue - Biens', {
         formCode: '214',
-        accountCodes: ['701', '702', '703', '704', '7091', '7092', '7094'],
+        accountCodes: ['701', '702', '703', '7091', '7092'],
         balanceType: 'credit',
         order: 2,
       }),
       createConfig('simplified', 'Production vendue - Services', {
         formCode: '218',
-        accountCodes: ['705', '706', '708', '7095', '7096', '7098', '70'],
+        // 704 travaux and 7094 with the services by default (notice: "travaux,
+        // études et prestations"); with the goods for a construction company
+        // (works-as-goods.ts: works supplying the materials)
+        accountCodes: ['704', '705', '706', '708', '7094', '7095', '7096', '7098', '70'],
         balanceType: 'credit',
         order: 3,
       }),
@@ -79,12 +82,14 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
         balanceType: 'credit',
         order: 6,
       }),
-      // 75 (757 cessions included) except 755, reprises 78 except 786 and
-      // 787, 79 of the years before 2025
+      // 75 (757 cessions, among the "autres produits de gestion courante" of
+      // comptes 752 to 758 in the 2033-NOT-SD 2026, cadre 2033-E line 115;
+      // 755 quotes-parts too: the 2033-B has no line for opérations faites
+      // en commun, practice puts them in autres produits and autres
+      // charges), reprises 78 except 786 and 787, 79 of the years before 2025
       createConfig('simplified', 'Autres produits', {
         formCode: '230',
         accountCodes: ['75', '781', '78', '79'],
-        excludedAccountCodes: ['755'],
         balanceType: 'credit',
         order: 7,
       }),
@@ -98,17 +103,6 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
     formCode: '270',
     balanceType: 'auto',
     order: 2,
-  }),
-
-  // Opérations faites en commun (755): a 2052 line (GH) without a box on the
-  // 2033-B; kept apart so the résultat d'exploitation (270) stays the PCG's
-  createConfig('simplified', 'Bénéfice attribué ou perte transférée', {
-    section: 'produits',
-    formCode: 'GH',
-    accountCodes: ['755'],
-    balanceType: 'credit',
-    order: 3,
-    notes: 'La 2033-B n’a pas de case pour cette ligne de la 2052 : à reporter selon l’avis de votre expert-comptable.',
   }),
 
   // III - Produits financiers (form 280)
@@ -269,25 +263,15 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
         balanceType: 'debit',
         order: 10,
       }),
-      // 65 (657 cessions included) except 655
+      // 65: comptes 651 to 658 (2033-NOT-SD 2026, 2033-E line 148), 657
+      // cessions and 655 quotes-parts included (no line of their own)
       createConfig('simplified', 'Autres charges', {
         formCode: '262',
         accountCodes: ['65'],
-        excludedAccountCodes: ['655'],
         balanceType: 'debit',
         order: 11,
       }),
     ],
-  }),
-
-  // Opérations faites en commun (655): 2052 line GI, no box on the 2033-B
-  createConfig('simplified', 'Perte supportée ou bénéfice transféré', {
-    section: 'charges',
-    formCode: 'GI',
-    accountCodes: ['655'],
-    balanceType: 'debit',
-    order: 10,
-    notes: 'La 2033-B n’a pas de case pour cette ligne de la 2052 : à reporter selon l’avis de votre expert-comptable.',
   }),
 
   // V - Charges financières (form 294)
@@ -335,21 +319,14 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
     order: 12,
   }),
 
-  // Participation des salariés (691): 2053 line HJ, no box on the 2033-B
-  createConfig('simplified', 'Participation des salariés aux résultats', {
-    section: 'charges',
-    formCode: 'HJ',
-    accountCodes: ['691'],
-    balanceType: 'debit',
-    order: 13,
-    notes: 'La 2033-B n’a pas de case pour cette ligne de la 2052 : à reporter selon l’avis de votre expert-comptable.',
-  }),
-
   // VII - Impôt sur les bénéfices (form 306)
   createConfig('simplified', 'Impôt sur les bénéfices (VII)', {
     section: 'charges',
     formCode: '306',
-    accountCodes: ['695', '696', '698', '699', '69'],
+    // Class 69 "Participation des salariés, impôts sur les bénéfices": the
+    // 2033-B has no participation line (no equivalent of 2053 HJ), 691 goes
+    // with the other class 69 accounts (practice; the result stays exact)
+    accountCodes: ['691', '695', '696', '698', '699', '69'],
     balanceType: 'debit',
     order: 14,
     notes: 'Comptes 6989 et 699 peuvent avoir des soldes créditeurs',

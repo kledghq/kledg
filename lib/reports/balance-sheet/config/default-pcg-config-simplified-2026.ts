@@ -256,14 +256,15 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
       }),
       createConfig('simplified', 'Réserves réglementées', {
         formCode: '130',
-        accountCodes: ['1064'],
+        // 1062 réserves indisponibles with the réserves réglementées, like DF
+        accountCodes: ['1062', '1064'],
         balanceType: 'credit',
         displayType: 'net',
         order: 24,
       }),
       createConfig('simplified', 'Autres réserves', {
         formCode: '132',
-        accountCodes: ['1062', '1063', '1068', '106'],
+        accountCodes: ['1063', '1068', '106'],
         balanceType: 'credit',
         displayType: 'net',
         order: 25,
@@ -340,7 +341,8 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
         formCode: '156',
         // 167 (fonds non remboursables, avances conditionnées): no "autres fonds
         // propres" on the 2033-A
-        accountCodes: ['16', '17', '51'],
+        // 426 (dépôts du personnel): a financial debt like 2051 DV
+        accountCodes: ['16', '17', '51', '426'],
         excludedAccountCodes: ['169'],
         balanceType: 'credit',
         displayType: 'net',

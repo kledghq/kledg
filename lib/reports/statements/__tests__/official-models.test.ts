@@ -34,10 +34,10 @@ import {
   FORM_2050_BRUT,
   FORM_2051,
   FORM_2052_2053,
-  SIMPLIFIED_LINES_WITHOUT_2033B_BOX,
 } from '../official-boxes'
 import { boxesOf } from './statement-boxes'
 import { PCG_ACCOUNT_BOXES } from './fixtures/pcg-account-boxes'
+import { worksSoldAsGoods } from '../../income-statement/config/works-as-goods'
 
 /** Accounts that can carry a balance on the statements: classes 1 to 7, class headers excluded. */
 const CHART = [...new Set(PCG_ACCOUNTS.map((a) => a.code).filter((code) => code.length >= 2 && /^[1-7]/.test(code)))]
@@ -59,7 +59,7 @@ describe('every account of the seeded chart on the official models', () => {
     const complete = new Set<string>([...FORM_2050_BRUT, ...FORM_2050_AMORT, ...FORM_2051])
     const simplified = new Set<string>([...FORM_2033A_BRUT, ...FORM_2033A_AMORT, ...FORM_2033A_PASSIF])
     const income = new Set<string>(FORM_2052_2053)
-    const incomeSimplified = new Set<string>([...FORM_2033B, ...SIMPLIFIED_LINES_WITHOUT_2033B_BOX])
+    const incomeSimplified = new Set<string>(FORM_2033B)
     const problems: string[] = []
     for (const [code, boxes] of Object.entries(PCG_ACCOUNT_BOXES)) {
       if (/^[1-5]/.test(code)) {
@@ -98,6 +98,13 @@ describe('every account of the seeded chart on the official models', () => {
     expect(PCG_ACCOUNT_BOXES['705']).toEqual(['FG', '218']) // études: services (notice FI and 218)
     expect(PCG_ACCOUNT_BOXES['68725']).toEqual(['HH', '300']) // dérogatoire: exceptional (notice 2033-B, 254)
     expect(PCG_ACCOUNT_BOXES['6817']).toEqual(['GC', '256'])
+    // No 2033-B box for opérations faites en commun nor participation: autres produits, autres charges, class 69 (306)
+    expect([PCG_ACCOUNT_BOXES['755'], PCG_ACCOUNT_BOXES['655'], PCG_ACCOUNT_BOXES['691']]).toEqual([['GH', '230'], ['GI', '262'], ['HJ', '306']])
+    // Réserves indisponibles with the réserves réglementées; personnel deposits as financial debts
+    expect(PCG_ACCOUNT_BOXES['1062']).toEqual(['DF (-)', 'DF', '130 (-)', '130'])
+    expect(PCG_ACCOUNT_BOXES['426']).toEqual(['BZ', 'DV', '072', '156'])
+    // Travaux: services by default (FI and 218 name the travaux), goods for a construction company (below)
+    expect(PCG_ACCOUNT_BOXES['704']).toEqual(['FG', '218'])
     expect(Object.keys(PCG_ACCOUNT_BOXES).some((code) => code.startsWith('79'))).toBe(false)
   })
 })
@@ -217,6 +224,26 @@ describe('worked example on 2033-A and 2033-B (régime simplifié)', () => {
     expect([value('254'), value('256'), value('262'), value('264'), value('270')]).toEqual([2_000, 1_500, 3_000, 61_000, 16_400])
     expect([value('280'), value('294'), value('290'), value('300'), value('306'), value('310')]).toEqual([600, 900, 100, 200, 1_500, RESULT])
     expect(is.netResult).toBe(RESULT)
+  })
+})
+
+describe('works (704) of a construction company', () => {
+  it('go with the production vendue de biens (2032-NOT-SD FF, 2033-B 214)', () => {
+    const works: AccountTotals[] = [
+      { code: '704000', debitCents: 0, creditCents: euros(9_000) },
+      { code: '512000', debitCents: euros(9_000), creditCents: 0 },
+    ]
+    for (const [variant, goods, services] of [['complete', 'FD', 'FG'], ['simplified', '214', '218']] as const) {
+      const build = (worksAsGoods: boolean) =>
+        buildIncomeStatement({ companyId: 'c', fiscalYearId: 'fy', reportVariant: variant, rules: defaultIncomeStatementRules(variant, worksAsGoods), accounts: works })
+      const value = (statement: ReturnType<typeof build>, code: string) =>
+        statement.produits.lines.flatMap(function all(l: IncomeStatementLine): IncomeStatementLine[] { return [l, ...(l.children ?? []).flatMap(all)] }).find((l) => l.formCode === code)?.value
+      expect([value(build(false), goods), value(build(false), services)]).toEqual([0, 9_000])
+      expect([value(build(true), goods), value(build(true), services)]).toEqual([9_000, 0])
+    }
+    expect(worksSoldAsGoods('construction')).toBe(true)
+    expect(worksSoldAsGoods('consulting')).toBe(false)
+    expect(worksSoldAsGoods(null)).toBe(false)
   })
 })
 

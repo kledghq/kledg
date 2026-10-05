@@ -626,7 +626,7 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
       // Réserves statutaires ou contractuelles
       createConfig('complete', 'Réserves statutaires ou contractuelles', {
         formCode: 'DE',
-        accountCodes: ['1062', '1063'],
+        accountCodes: ['1063'],
         balanceType: 'credit',
         displayType: 'net',
         order: 52,
@@ -635,7 +635,9 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
       // Réserves réglementées
       createConfig('complete', 'Réserves réglementées', {
         formCode: 'DF',
-        accountCodes: ['1064'],
+        // 1062 réserves indisponibles with the réserves réglementées (practice
+        // of the liasse tables, compta-online "quel compte pour quelle case")
+        accountCodes: ['1062', '1064'],
         balanceType: 'credit',
         displayType: 'net',
         order: 53,

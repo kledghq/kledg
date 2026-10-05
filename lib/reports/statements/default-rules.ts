@@ -15,6 +15,7 @@ import {
   type DefaultIncomeStatementConfigEntry,
 } from '../income-statement/config/default-pcg-config-complete-2026'
 import { SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026 } from '../income-statement/config/default-pcg-config-simplified-2026'
+import { withWorksAsGoods } from '../income-statement/config/works-as-goods'
 import type { BalanceSheetRule } from './balance-sheet'
 import type { IncomeStatementRule } from './income-statement'
 
@@ -62,11 +63,10 @@ export function balanceSheetRulesFrom(entries: DefaultBalanceSheetConfigEntry[],
   return rules
 }
 
-export function defaultIncomeStatementRules(variant: Variant): IncomeStatementRule[] {
-  return incomeStatementRulesFrom(
-    variant === 'complete' ? COMPLETE_INCOME_STATEMENT_CONFIG_2026 : SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026,
-    variant
-  )
+/** The default rules; `worksAsGoods` for a construction company (works-as-goods.ts). */
+export function defaultIncomeStatementRules(variant: Variant, worksAsGoods = false): IncomeStatementRule[] {
+  const base = variant === 'complete' ? COMPLETE_INCOME_STATEMENT_CONFIG_2026 : SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026
+  return incomeStatementRulesFrom(worksAsGoods ? withWorksAsGoods(base) : base, variant)
 }
 
 /** Rules as createDefaultIncomeStatementConfig stores the given entries. */

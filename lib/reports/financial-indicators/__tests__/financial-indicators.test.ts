@@ -173,7 +173,11 @@ describe('consistency with the income statement', () => {
     })
     expect(statement.unmappedAccounts).toEqual([])
     expect(euros(statement.netResult)).toBe(sig.resultatExerciceCents)
-    expect(euros(statement.intermediateResults!.resultatExploitation!)).toBe(sig.resultatExploitationCents)
+    // The 2033-B has no line for the opérations faites en commun: its résultat d'exploitation (270) includes 755 - 655
+    const quotesParts = variant === 'simplified'
+      ? WORKED_EXAMPLE_ACCOUNTS.filter((a) => /^(655|755)/.test(a.code)).reduce((s, a) => s + a.creditCents - a.debitCents, 0)
+      : 0
+    expect(euros(statement.intermediateResults!.resultatExploitation!)).toBe(sig.resultatExploitationCents + quotesParts)
     expect(euros(statement.intermediateResults!.resultatExceptionnel!)).toBe(sig.resultatExceptionnelCents)
   })
 

@@ -185,13 +185,24 @@ describe.skipIf(!available)('income statement layout services', () => {
   })
 
   describe('PCG default layouts', () => {
+    it('puts the works (704) with the goods for a construction company, and keeps that layout a default one', async () => {
+      await prisma.company.update({ where: { id: ids.company }, data: { sector: 'construction' } })
+      await createDefaultIncomeStatementConfig(ids.company, 'simplified')
+      const rows = await prisma.incomeStatementLineConfig.findMany({ where: { companyId: ids.company, reportVariant: 'simplified' } })
+      expect(rows.find((r) => r.formCode === '214')?.accountCodes).toEqual(expect.arrayContaining(['704', '7094']))
+      expect(rows.find((r) => r.formCode === '218')?.accountCodes).not.toContain('704')
+      const { classifyLayout } = await import('@/lib/reports/statements/layout-upgrade')
+      expect(classifyLayout('income-statement', 'simplified', rows)).toBe('default')
+      await prisma.company.update({ where: { id: ids.company }, data: { sector: null } })
+    })
+
     it('creates the complete layout of forms 2052 and 2053 with sections inherited from the roots', async () => {
       const created = await createDefaultIncomeStatementConfig(ids.company)
       expect(created.reportVariant).toBe('complete')
       const rows = await prisma.incomeStatementLineConfig.findMany({ where: { companyId: ids.company, reportVariant: 'complete' } })
       expect(rows).toHaveLength(countEntries(COMPLETE_INCOME_STATEMENT_CONFIG_2026))
       // 2052: FG Production vendue de services (706), FW Autres achats et charges externes.
-      expect(rows.find((r) => r.formCode === 'FG')).toMatchObject({ section: 'produits', balanceType: 'credit', accountCodes: ['705', '706', '708', '7095', '7096', '7098', '70'] })
+      expect(rows.find((r) => r.formCode === 'FG')).toMatchObject({ section: 'produits', balanceType: 'credit', accountCodes: ['704', '705', '706', '708', '7094', '7095', '7096', '7098', '70'] })
       expect(rows.find((r) => r.formCode === 'FW')).toMatchObject({ section: 'charges', balanceType: 'debit' })
       expect(rows.every((r) => r.version === 1 && r.isActive && r.filterValue === null)).toBe(true)
     })

@@ -9,6 +9,7 @@ import { COMPLETE_INCOME_STATEMENT_CONFIG_2026, type DefaultIncomeStatementConfi
 import { buildConfigTree } from '../../config/shared/config-tree'
 import type { IncomeStatementConfig, IncomeStatementLineConfig } from '../types'
 import { LAYOUT_TRANSACTION_OPTIONS, lockLayout } from '../../statements/layout-lock'
+import { withWorksAsGoods, worksSoldAsGoods } from './works-as-goods'
 
 /**
  * Recursively creates income statement line configurations from nested structure
@@ -62,11 +63,11 @@ export async function createDefaultIncomeStatementConfig(
   /** Pass a transaction client to create the layout inside a transaction. */
   client: Pick<Prisma.TransactionClient, 'incomeStatementLineConfig'> = prisma
 ): Promise<IncomeStatementConfig> {
-  // Get the appropriate default config
-  // Use the new 2026 configs with nested structure for complete variant
-  const defaultConfigs = reportVariant === 'complete'
-    ? COMPLETE_INCOME_STATEMENT_CONFIG_2026
-    : SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026
+  // The 2026 default of the variant; the works (704) go with the goods for a
+  // construction company (works-as-goods.ts)
+  const base = reportVariant === 'complete' ? COMPLETE_INCOME_STATEMENT_CONFIG_2026 : SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { sector: true } })
+  const defaultConfigs = worksSoldAsGoods(company?.sector) ? withWorksAsGoods(base) : base
 
   // The default layouts are nested (children arrays): created top down.
   const rootConfigs: IncomeStatementLineConfig[] = []

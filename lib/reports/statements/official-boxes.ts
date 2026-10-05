@@ -21,12 +21,3 @@ export const FORM_2033A_AMORT = ['012', '016', '030', '042', '048', '052', '062'
 export const FORM_2033A_PASSIF = ['120', '124', '126', '130', '131', '132', '134', '136', '137', '140', '142', '154', '156', '164', '166', '169', '172', '173', '175', '174', '176', '180'] as const
 /** 2033-B-SD, A. Résultat comptable. */
 export const FORM_2033B = ['210', '214', '218', '222', '224', '226', '230', '232', '234', '236', '238', '240', '242', '244', '250', '252', '254', '256', '262', '264', '270', '280', '290', '294', '300', '306', '310'] as const
-
-/**
- * Lines of the simplified income statement that have no box on the 2033-B:
- * the 2052 and 2053 lines for opérations faites en commun (GH, GI) and the
- * participation des salariés (HJ). Kept apart so the résultat
- * d'exploitation (270) stays the PCG's; where to report them on the 2033-B
- * is for the company's accountant to decide.
- */
-export const SIMPLIFIED_LINES_WITHOUT_2033B_BOX = ['GH', 'GI', 'HJ'] as const
