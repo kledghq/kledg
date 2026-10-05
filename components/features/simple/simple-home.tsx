@@ -1,11 +1,5 @@
 import Link from "next/link";
-import {
-  ArrowDownLeft,
-  CircleAlert,
-  FileText,
-  HandCoins,
-  UserPlus,
-} from "lucide-react";
+import { ArrowDownLeft, CalendarClock, CircleAlert, FileText, HandCoins, UserPlus } from "lucide-react";
 
 import type { SimpleHome as SimpleHomeData } from "@/lib/simple/load-simple-home.service";
 import {
@@ -22,6 +16,8 @@ import {
   SIMPLE_LABELS,
   VAT_ESTIMATE_HINT,
   chaseLabel,
+  declarationHint,
+  declarationTitle,
   expensesToCheckLabel,
   greeting,
   incomeToCheckLabel,
@@ -62,8 +58,24 @@ interface TodoItem {
 
 function todoItems(home: SimpleHomeData, base: string): TodoItem[] {
   const items: TodoItem[] = [];
-  const { expensesToCheck, incomeToCheck, missingReceipts, customersToChase } =
-    home.todo;
+  const { expensesToCheck, incomeToCheck, missingReceipts, customersToChase, declarations } = home.todo;
+  for (const d of declarations ?? []) {
+    items.push({
+      key: `declaration-${d.id}`,
+      icon: CalendarClock,
+      title: declarationTitle(d.ruleId),
+      hint: declarationHint(
+        d.status,
+        d.date,
+        d.amountCents !== null && d.amountCents > 0
+          ? formatAmount(euros(d.amountCents))
+          : null,
+      ),
+      href: `${base}/echeances`,
+      action: d.status === "overdue" ? "Régulariser" : "Voir",
+      primary: d.status === "overdue",
+    });
+  }
   if (expensesToCheck) {
     items.push({
       key: "expenses",

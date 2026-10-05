@@ -26,10 +26,10 @@ const companies: SwitcherCompany[] = [
 const fetchMock = vi.fn<typeof fetch>()
 let cookies: string[]
 
-function renderSwitcher(initial: SwitcherCompany[] | null = companies) {
+function renderSwitcher(initial: SwitcherCompany[] | null = companies, holdingRefs?: string[]) {
   return render(
     <SidebarProvider>
-      <TeamSwitcher initialCompanies={initial ?? undefined} />
+      <TeamSwitcher initialCompanies={initial ?? undefined} holdingRefs={holdingRefs} />
     </SidebarProvider>,
   )
 }
@@ -138,5 +138,23 @@ describe('TeamSwitcher', () => {
     })
     expect(await screen.findByRole('button', { name: /Alpha Conseil/ })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('lists the holdings under Groupes, each opening its group view, checked there', async () => {
+    const user = userEvent.setup()
+    renderSwitcher(companies, ['c1'])
+    await user.click(screen.getByRole('button', { name: /Alpha/ }))
+    expect(await screen.findByText('Groupes')).toBeInTheDocument()
+    const group = screen.getAllByRole('menuitem').find((i) => i.getAttribute('href') === '/alpha/group')
+    expect(group).toBeDefined()
+    expect(group).toHaveTextContent('Alpha')
+  })
+
+  it('shows no Groupes section without holdings', async () => {
+    const user = userEvent.setup()
+    renderSwitcher(companies, [])
+    await user.click(screen.getByRole('button', { name: /Alpha/ }))
+    await screen.findAllByRole('menuitem')
+    expect(screen.queryByText('Groupes')).toBeNull()
   })
 })

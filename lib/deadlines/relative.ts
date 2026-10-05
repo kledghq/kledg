@@ -15,9 +15,10 @@ export type DeadlineUrgency = 'past' | 'overdue' | 'today' | 'soon' | 'later'
 /** Within this many days a deadline is "soon" (shown with the warning tone). */
 export const SOON_DAYS = 7
 /**
- * A deadline missed this recently is "en retard"; an older one is only
- * "passée": Kledg does not know whether the return was filed, so it does
- * not alarm about last year's deadlines.
+ * Without a status, a deadline missed this recently is "en retard" and an
+ * older one only "passée", so the days alone never alarm about last year's
+ * deadlines. With the tracker (lib/declarations), a deadline nothing was
+ * recorded for stays "En retard" (components/features/deadlines/deadline-status-badge.tsx).
  */
 export const OVERDUE_DAYS = 15
 

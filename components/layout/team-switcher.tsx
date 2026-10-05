@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Building2, Plus, Check, Loader2 } from "lucide-react"
+import { ChevronsUpDown, Building2, Plus, Check, Loader2, Network } from "lucide-react"
 import { useRouter, useParams, usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -56,7 +56,14 @@ const findCompany = (companies: SwitcherCompany[], ref: string | undefined) =>
  * (`initialCompanies`), so it renders the current company at once; the list
  * is fetched again on navigation and on the "companies:refresh" event.
  */
-export function TeamSwitcher({ initialCompanies }: { initialCompanies?: SwitcherCompany[] }) {
+/**
+ * The company switcher of the sidebar. Below the companies, "Groupes" lists
+ * the holdings of the user (one definition: a company recorded among the
+ * shareholders of another, lib/management-fees/holding.ts, passed as
+ * `holdingRefs`, ids or slugs); each opens the group view of its holding
+ * (docs/vue-groupe.md).
+ */
+export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCompanies?: SwitcherCompany[]; holdingRefs?: readonly string[] }) {
   const { isMobile, state } = useSidebar()
   const params = useParams()
   const pathname = usePathname()
@@ -68,6 +75,9 @@ export function TeamSwitcher({ initialCompanies }: { initialCompanies?: Switcher
     findCompany(initialCompanies ?? [], currentCompanyId),
   )
   const [loading, setLoading] = React.useState(!initialCompanies)
+  const groups = companies.filter((c) => holdingRefs.includes(c.id) || holdingRefs.includes(c.slug))
+  const isGroupView = (holding: SwitcherCompany) =>
+    (currentCompanyId === holding.slug || currentCompanyId === holding.id) && /\/group(\/|$)/.test(pathname ?? "")
   const [navigating, setNavigating] = React.useState(false)
   const [pendingCompanyId, setPendingCompanyId] = React.useState<string | null>(null)
   const router = useRouter()
@@ -310,11 +320,30 @@ export function TeamSwitcher({ initialCompanies }: { initialCompanies?: Switcher
                     <span className="num text-xs text-muted-foreground">{comp.siret}</span>
                   )}
                 </div>
-                {(comp.slug === currentCompanyId || comp.id === currentCompanyId) && (
+                {(comp.slug === currentCompanyId || comp.id === currentCompanyId) && !isGroupView(comp) && (
                   <Check className="ml-auto h-4 w-4" />
                 )}
               </DropdownMenuItem>
             ))}
+            {groups.length > 0 ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-muted-foreground text-xs">
+                  Groupes
+                </DropdownMenuLabel>
+                {groups.map((holding) => (
+                  <DropdownMenuItem key={holding.id} className="gap-2 p-2" asChild>
+                    <Link href={`/${holding.slug}/group`}>
+                      <span aria-hidden className="bg-background flex size-6 shrink-0 items-center justify-center rounded-md border">
+                        <Network className="size-3.5" />
+                      </span>
+                      <span className="min-w-0 truncate">{displayCompanyName(holding.name, holding.legalType)}</span>
+                      {isGroupView(holding) && <Check className="ml-auto h-4 w-4" />}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 p-2" asChild>
               <Link href="/companies">

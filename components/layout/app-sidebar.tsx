@@ -61,7 +61,7 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher initialCompanies={companies} />
+        <TeamSwitcher initialCompanies={companies} holdingRefs={holdingRefs} />
       </SidebarHeader>
       <SidebarContent>
         <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} counts={counts} />

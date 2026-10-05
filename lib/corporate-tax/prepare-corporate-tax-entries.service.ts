@@ -59,7 +59,8 @@ export const IS_ACCOUNTS = {
   bank: { code: '512', label: 'Banques' },
 } as const
 
-interface Planned {
+/** A draft entry to write (also used by the CFE drafts, lib/local-taxes). */
+export interface Planned {
   fiscalYearId: string
   journal: { code: string; label: string }
   date: string
@@ -69,7 +70,7 @@ interface Planned {
 }
 
 /** Accounts of the chart for the roots of the plan (695, 444, 512): the root, else the padded code, else the first below it. */
-async function resolveCodes(companyId: string, fiscalYearId: string, lines: SettlementLine[], preferred: string | null): Promise<SettlementLine[]> {
+export async function resolveCodes(companyId: string, fiscalYearId: string, lines: SettlementLine[], preferred: string | null): Promise<SettlementLine[]> {
   const roots = lines.map((l) => l.code)
   const chart = (
     await prisma.account.findMany({ where: { companyId, fiscalYearId, OR: roots.map((root) => ({ code: { startsWith: root } })) }, select: { code: true }, take: 500 })
@@ -80,23 +81,29 @@ async function resolveCodes(companyId: string, fiscalYearId: string, lines: Sett
   })
 }
 
-type Written = { status: 'created' | 'replaced' | 'unchanged' | 'validated'; reference: string; entryId: string; entryNumber: string }
+export type Written = { status: 'created' | 'replaced' | 'unchanged' | 'validated'; reference: string; entryId: string; entryNumber: string }
 
-async function writeDraft(companyId: string, plan: Planned): Promise<Written> {
+/**
+ * Writes the draft of a plan, idempotent (see the module header). `scope`
+ * names the advisory lock (one per company and reference): the CFE drafts
+ * (lib/local-taxes) use their own.
+ */
+export async function writeDraft(companyId: string, plan: Planned, scope = 'corporate-tax-entry'): Promise<Written> {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:corporate-tax-entry:${companyId}:${plan.reference}`}))`
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:${scope}:${companyId}:${plan.reference}`}))`
     const locked = await lockFiscalYearRow(tx, plan.fiscalYearId, companyId)
     if (!locked) throw new NotFoundError('Exercice introuvable')
     if (locked.closed) throw new ClosedFiscalYearError(locked.year)
     const existing = await tx.accountingEntry.findMany({
       where: { companyId, reference: plan.reference },
-      select: { id: true, status: true, entryNumber: true, lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
+      select: { id: true, status: true, entryNumber: true, date: true, lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
       take: 20,
     })
     const validated = existing.find((e) => e.status === 'validated')
     if (validated) return { status: 'validated' as const, reference: plan.reference, entryId: validated.id, entryNumber: validated.entryNumber }
     const asLines = (e: (typeof existing)[number]) => e.lines.map((l) => ({ code: l.account.code, debitCents: parseCents(l.debit) ?? 0, creditCents: parseCents(l.credit) ?? 0 }))
-    if (existing.length === 1 && sameLines(plan.lines, asLines(existing[0]))) {
+    // Same lines on the same day: kept; a draft dated elsewhere (a payment day recorded since) is stale.
+    if (existing.length === 1 && sameLines(plan.lines, asLines(existing[0])) && existing[0].date.toISOString().slice(0, 10) === plan.date) {
       return { status: 'unchanged' as const, reference: plan.reference, entryId: existing[0].id, entryNumber: existing[0].entryNumber }
     }
     for (const draft of existing) await deleteDraftEntryInTx(tx, companyId, draft.id)

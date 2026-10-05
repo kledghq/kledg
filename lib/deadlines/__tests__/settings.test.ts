@@ -19,8 +19,18 @@ describe('deadline settings', () => {
       cfeAcompte: false,
       das2: false,
       cvae: false,
+      cvaeDue: false,
+      cvaeAcomptes: false,
+      cfeChanges: false,
       accountsFiledOnline: false,
     })
+  })
+
+  it('reads the settings added for local taxes as false when a client or a stored value omits them', () => {
+    const body = DeadlineSettingsBody.parse({ ...DEFAULT_DEADLINE_SETTINGS, cvaeDue: undefined, cvaeAcomptes: undefined, cfeChanges: undefined })
+    expect(body).toMatchObject({ cvaeDue: false, cvaeAcomptes: false, cfeChanges: false })
+    expect(parseDeadlineSettings({ cvae: true })).toMatchObject({ cvae: true, cvaeDue: false, cvaeAcomptes: false, cfeChanges: false })
+    expect(parseDeadlineSettings({ cvaeDue: true, cfeChanges: 'yes' })).toMatchObject({ cvaeDue: true, cfeChanges: false })
   })
 
   it('gives the earliest CA3 day of each legal form (art. 39 grid)', () => {

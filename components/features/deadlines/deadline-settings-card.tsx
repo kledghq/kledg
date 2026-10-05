@@ -21,7 +21,7 @@ import {
   type VatCa3Frequency,
 } from '@/lib/deadlines/settings'
 
-type BooleanSetting = 'vatSimplifiedAcomptes' | 'isAcomptes' | 'cfeAcompte' | 'das2' | 'cvae' | 'accountsFiledOnline'
+type BooleanSetting = 'vatSimplifiedAcomptes' | 'isAcomptes' | 'cfeAcompte' | 'cfeChanges' | 'das2' | 'cvae' | 'cvaeDue' | 'cvaeAcomptes' | 'accountsFiledOnline'
 
 const SWITCHES: Array<{ key: BooleanSetting; label: string; hint: string }> = [
   {

@@ -417,6 +417,11 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         },
       })
       record('corporate_tax_returns', p, id('corporate_tax_returns'))
+      // The CFE avis of a year and a deadline marked paid (lib/local-taxes, lib/declarations)
+      await prisma.localTaxYear.create({ data: { id: id('local_taxes'), companyId, year: 2026, cfeTotal: 1_200 } })
+      record('local_taxes', p, id('local_taxes'))
+      await prisma.declarationStatus.create({ data: { id: id('declaration_statuses'), companyId, deadlineId: 'cfe:2026', paidOn: day('2026-12-10'), amount: 1_200 } })
+      record('declaration_statuses', p, id('declaration_statuses'))
     }
     return keys
   })

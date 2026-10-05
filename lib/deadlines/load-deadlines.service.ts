@@ -11,14 +11,18 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { addIsoDays, calendarDayOf, todayUtc } from '@/lib/utils/date'
+import { parseCents } from '@/lib/utils/money'
 import { computeDeadlines, missingVatRegime, type DeadlineApproval, type DeadlineCompany, type DeadlineFiscalYear } from './engine'
 import { OVERDUE_DAYS } from './relative'
 import { RULE_LIST } from './rules'
 import { parseDeadlineSettings, type DeadlineSettings } from './settings'
-import type { Deadline, DeadlineRule } from './types'
+import type { DeadlineRule } from './types'
+import { trackDeadlines } from '@/lib/declarations/load-declaration-statuses.service'
+import type { TrackedDeadline } from '@/lib/declarations/status'
 
 /** Fiscal years and regime rows read at most (a company has a few dozen in a lifetime). */
 const MAX_FISCAL_YEARS = 100
+const MAX_LOCAL_TAX_YEARS = 100
 const MAX_REGIME_ROWS = 200
 
 /** The widget looks this far ahead... */
@@ -41,11 +45,15 @@ export interface CompanyContext {
   settings: DeadlineSettings
   /** Approval and filing days recorded in the approval pack (lib/approval), by fiscal year id. */
   approvals: Record<string, DeadlineApproval>
+  /** CFE avis entered on the local taxes page (lib/local-taxes), by calendar year. */
+  localTaxes: Array<{ year: number; cfeTotalCents: number | null; cfeAcompteCents: number | null }>
+  /** Total CFE by year, for the acompte rule of the engine (CGI art. 1679 quinquies). */
+  cfeAmounts: Record<number, number>
 }
 
 /** What the engine needs for one company; also read by the VAT return worksheet (lib/vat-returns). */
 export async function loadDeadlineContext(companyId: string): Promise<CompanyContext> {
-  const [company, fiscalYears, history, approvals] = await Promise.all([
+  const [company, fiscalYears, history, approvals, localTaxes] = await Promise.all([
     prisma.company.findUnique({
       where: { id: companyId },
       select: { legalType: true, vatRegime: true, isVatExempt: true, corporateTaxRegime: true, foundationDate: true, deadlineSettings: true },
@@ -67,8 +75,15 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
       take: MAX_FISCAL_YEARS,
       select: { fiscalYearId: true, approvedOn: true, filedOn: true, details: true },
     }),
+    prisma.localTaxYear.findMany({
+      where: { companyId },
+      orderBy: { year: 'asc' },
+      take: MAX_LOCAL_TAX_YEARS,
+      select: { year: true, cfeTotal: true, cfeAcompte: true },
+    }),
   ])
   if (!company) throw new NotFoundError('Société non trouvée')
+  const local = localTaxes.map((row) => ({ year: row.year, cfeTotalCents: row.cfeTotal === null ? null : parseCents(row.cfeTotal), cfeAcompteCents: row.cfeAcompte === null ? null : parseCents(row.cfeAcompte) }))
   return {
     company: {
       legalType: company.legalType,
@@ -93,6 +108,8 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
         { approvedOn: a.approvedOn ? day(a.approvedOn) : null, filedOn: a.filedOn ? day(a.filedOn) : null, filedOnline: filedOnlineOf(a.details) },
       ]),
     ),
+    localTaxes: local,
+    cfeAmounts: Object.fromEntries(local.filter((row) => row.cfeTotalCents !== null).map((row) => [row.year, row.cfeTotalCents as number])),
   }
 }
 
@@ -102,8 +119,8 @@ export interface DeadlinesWidgetData {
   today: string
   horizonDays: number
   overdueDays: number
-  /** From WIDGET_OVERDUE_DAYS ago to WIDGET_HORIZON_DAYS ahead, in date order. */
-  deadlines: Deadline[]
+  /** From WIDGET_OVERDUE_DAYS ago to WIDGET_HORIZON_DAYS ahead, in date order, with their status (docs/echeances.md). */
+  deadlines: TrackedDeadline[]
   /** No VAT regime is known: the VAT deadlines cannot be listed. */
   missingRegimes: boolean
 }
@@ -111,11 +128,12 @@ export interface DeadlinesWidgetData {
 export async function loadDeadlinesWidget(companyId: string, now?: Date): Promise<DeadlinesWidgetData> {
   const context = await loadDeadlineContext(companyId)
   const today = day(todayUtc(now))
-  const deadlines = computeDeadlines({
+  const computed = computeDeadlines({
     ...context,
     from: addIsoDays(today, -WIDGET_OVERDUE_DAYS),
     to: addIsoDays(today, WIDGET_HORIZON_DAYS),
   })
+  const deadlines = await trackDeadlines(companyId, context, computed, today)
   return {
     today,
     horizonDays: WIDGET_HORIZON_DAYS,
@@ -136,8 +154,8 @@ export type DeadlinesQuery = z.infer<typeof DeadlinesQuerySchema>
 export interface DeadlinesView {
   today: string
   fiscalYear: { id: string; year: number; startDate: string; endDate: string; isClosed: boolean } | null
-  /** Deadlines dated within the fiscal year, in date order. */
-  deadlines: Deadline[]
+  /** Deadlines dated within the fiscal year, in date order, with their status (filed, paid, late...). */
+  deadlines: TrackedDeadline[]
   /** The rules the deadlines come from, with their official sources. */
   rules: DeadlineRule[]
   settings: DeadlineSettings
@@ -153,7 +171,7 @@ export async function loadDeadlinesView(companyId: string, query: DeadlinesQuery
     years.find((fy) => fy.startDate <= today && fy.endDate >= today) ??
     years[years.length - 1] ??
     null
-  const deadlines = fiscalYear ? computeDeadlines({ ...context, from: fiscalYear.startDate, to: fiscalYear.endDate }) : []
+  const deadlines = fiscalYear ? await trackDeadlines(companyId, context, computeDeadlines({ ...context, from: fiscalYear.startDate, to: fiscalYear.endDate }), today) : []
   const usedRules = new Set(deadlines.map((d) => d.ruleId))
   return {
     today,

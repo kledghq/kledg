@@ -75,10 +75,28 @@ export interface DeadlineInput {
   settings: DeadlineSettings
   /** By fiscal year id: the approval and filing recorded in the approval pack. */
   approvals?: Record<string, DeadlineApproval>
+  /**
+   * CFE of each year from its avis d'imposition (lib/local-taxes), total in
+   * cents by calendar year. A known amount for the year before decides the
+   * acompte of 15 June (CGI art. 1679 quinquies: 3 000 € or more), whatever
+   * the cfeAcompte setting.
+   */
+  cfeAmounts?: Record<number, number>
   /** First and last day of the range, both included (yyyy-mm-dd). */
   from: string
   to: string
 }
+
+/**
+ * The CVAE is abolished from 2030 (loi n° 2025-127 du 14 février 2025,
+ * art. 62, which postponed the phase out of the loi de finances pour 2024 by
+ * three years; the loi de finances pour 2026 kept it): 2029 is the last year
+ * taxed, its 1330-CVAE and 1329-DEF are filed in May 2030.
+ */
+export const CVAE_LAST_YEAR = 2029
+
+/** CFE acompte of 15 June when the CFE of the year before reached 3 000 € (CGI art. 1679 quinquies), in cents. */
+export const CFE_ACOMPTE_THRESHOLD_CENTS = 300_000
 
 /** The VAT regime from 1 January 2027 is réel normal or franchise only (loi n° 2025-127, art. 38). */
 export const SIMPLIFIED_VAT_LAST_YEAR = 2026
@@ -426,33 +444,83 @@ function corporateTaxDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): C
 
 // ------------------------------------------------------------ CVAE and CFE
 
+/**
+ * Whether the CFE of `year` has an acompte of 15 June: from the avis of the
+ * year before when Kledg holds it (3 000 € or more, CGI art. 1679
+ * quinquies), else the company setting. Never in the first two years: no
+ * CFE the year of creation (CGI art. 1478, II), so no acompte the year after.
+ */
+export function cfeAcompteDue(year: number, settings: Pick<DeadlineSettings, 'cfeAcompte'>, foundationYear: number | null, cfeAmounts?: Record<number, number>): { due: boolean; known: boolean } {
+  if (foundationYear !== null && year < foundationYear + 2) return { due: false, known: true }
+  const previous = cfeAmounts?.[year - 1]
+  if (previous !== undefined) return { due: previous >= CFE_ACOMPTE_THRESHOLD_CENTS, known: true }
+  return { due: settings.cfeAcompte, known: false }
+}
+
 function yearlyDeadlines(input: DeadlineInput): Candidate[] {
   const { company, settings } = input
   const out: Candidate[] = []
   const foundationYear = company.foundationDate ? yearOf(company.foundationDate) : null
   for (let y = yearOf(input.from) - 1; y <= yearOf(input.to); y++) {
-    if (settings.cvae) {
+    // CVAE: nothing for the years after its abolition (2030 on).
+    if (settings.cvae && y <= CVAE_LAST_YEAR) {
       const date = secondBusinessDayAfterMayFirst(y + 1)
       out.push({
         key: `${y}`,
         ruleId: 'cvae',
         legalDate: date,
         label: `Déclaration de valeur ajoutée et des effectifs ${y}`,
-        condition: "Chiffre d'affaires supérieur à 152 500 € hors taxes.",
+        condition: "Chiffre d'affaires supérieur à 152 500 € hors taxes.",
         extendedDate: addDays(date, 15),
-        note: ONLINE_EXTENSION_NOTE,
+        note: y === CVAE_LAST_YEAR ? 'Dernière déclaration\u00a0: la CVAE est supprimée à partir de 2030.' : ONLINE_EXTENSION_NOTE,
       })
+    }
+    if (settings.cvaeAcomptes && y <= CVAE_LAST_YEAR) {
+      ;[6, 9].forEach((month, i) =>
+        out.push({
+          key: `${y}:${i + 1}`,
+          ruleId: 'cvae-acompte',
+          legalDate: isoOf(y, month, 15),
+          postpone: true,
+          label: `${ORDINALS[i]} acompte de CVAE ${y}`,
+          condition: "Si la CVAE de l'année précédente dépassait 1 500 €.",
+        }),
+      )
+    }
+    if (settings.cvaeDue && y <= CVAE_LAST_YEAR) {
+      out.push({
+        key: `${y}`,
+        ruleId: 'cvae-solde',
+        legalDate: secondBusinessDayAfterMayFirst(y + 1),
+        label: `Liquidation et solde de la CVAE ${y}`,
+        condition: "Chiffre d'affaires supérieur à 500 000 € hors taxes.",
+      })
+    }
+    // Initial declaration the year an establishment is created (CGI art. 1477, II).
+    if (foundationYear !== null && y === foundationYear) {
+      out.push({ key: `${y}`, ruleId: 'cfe-1447c', legalDate: isoOf(y, 12, 31), label: `Déclaration initiale de CFE de l'année de création ${y}` })
     }
     // No CFE the year of creation (CGI art. 1478, II); no acompte without a CFE the year before.
     if (foundationYear !== null && y <= foundationYear) continue
-    if (settings.cfeAcompte && (foundationYear === null || y >= foundationYear + 2)) {
+    if (settings.cfeChanges) {
+      out.push({
+        key: `${y}`,
+        ruleId: 'cfe-1447m',
+        legalDate: secondBusinessDayAfterMayFirst(y),
+        label: `Déclaration des changements de CFE survenus en ${y - 1}`,
+        condition: 'Seulement si un élément de la CFE a changé (surface des locaux, activité, exonération).',
+      })
+    }
+    const acompte = cfeAcompteDue(y, settings, foundationYear, input.cfeAmounts)
+    if (acompte.due) {
       out.push({
         key: `${y}`,
         ruleId: 'cfe-acompte',
         legalDate: isoOf(y, 6, 15),
         postpone: true,
         label: `Acompte de CFE ${y}`,
-        condition: "Si la CFE de l'année précédente atteignait 3 000 €.",
+        condition: acompte.known ? undefined : "Si la CFE de l'année précédente atteignait 3 000 €.",
+        note: acompte.known ? `La CFE de ${y - 1} atteignait 3 000 €\u00a0: acompte de 50 % de son montant.` : undefined,
       })
     }
     out.push({
@@ -460,7 +528,7 @@ function yearlyDeadlines(input: DeadlineInput): Candidate[] {
       ruleId: 'cfe',
       legalDate: isoOf(y, 12, 15),
       postpone: true,
-      label: settings.cfeAcompte ? `Solde de la CFE ${y}` : `Paiement de la CFE ${y}`,
+      label: acompte.due ? `Solde de la CFE ${y}` : `Paiement de la CFE ${y}`,
     })
   }
   return out
@@ -533,7 +601,7 @@ function legalDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidat
 
 // ------------------------------------------------------------ entry point
 
-const CATEGORY_ORDER = { tva: 0, is: 1, liasse: 2, cfe: 3, juridique: 4 } as const
+const CATEGORY_ORDER = { tva: 0, is: 1, liasse: 2, cfe: 3, cvae: 4, juridique: 5 } as const
 
 /** The deadlines dated from `from` to `to` (both included), in date order. */
 export function computeDeadlines(input: DeadlineInput): Deadline[] {

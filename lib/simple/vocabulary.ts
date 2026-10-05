@@ -201,6 +201,53 @@ export function lateLabel(
     : since;
 }
 
+/**
+ * The deadlines of the calendar in plain words (docs/echeances.md): the
+ * labels of the calendar name the exercice and the forms, the simple home
+ * says what to do.
+ */
+const DECLARATION_TITLES: Record<string, string> = {
+  "tva-ca3": "Déclarer et payer la TVA",
+  "tva-ca12": "Déclarer la TVA de l'année",
+  "tva-acompte": "Payer un acompte de TVA",
+  "is-acompte": "Payer un acompte d'impôt sur les sociétés",
+  "is-solde": "Payer le solde de l'impôt sur les sociétés",
+  liasse: "Déclarer le résultat de l'année aux impôts",
+  das2: "Déclarer les honoraires versés",
+  cvae: "Déclarer la valeur ajoutée (CVAE)",
+  "cvae-acompte": "Payer un acompte de CVAE",
+  "cvae-solde": "Déclarer et payer la CVAE",
+  "cfe-acompte": "Payer l'acompte de CFE",
+  cfe: "Payer la CFE",
+  "cfe-1447c": "Déclarer vos locaux pour la CFE",
+  "cfe-1447m": "Déclarer les changements pour la CFE",
+  approbation: "Faire approuver les comptes de l'année",
+  "depot-comptes": "Déposer les comptes de l'année au greffe",
+};
+
+/** "Payer la CFE", from the rule of a deadline (lib/deadlines/rules.ts). */
+export function declarationTitle(ruleId: string): string {
+  return DECLARATION_TITLES[ruleId] ?? "Déclaration à faire";
+}
+
+/**
+ * "Avant le 15 décembre, 1 234,00 €", "En retard depuis le 15 juin",
+ * "Déclarée, à payer avant le 15 mai". The amount arrives formatted, or null.
+ */
+export function declarationHint(
+  status: "todo" | "filed" | "overdue",
+  day: string,
+  amount: string | null,
+): string {
+  const when =
+    status === "overdue"
+      ? `En retard depuis le ${dayInWords(day)}`
+      : status === "filed"
+        ? `Déclarée, à payer avant le ${dayInWords(day)}`
+        : `Avant le ${dayInWords(day)}`;
+  return amount ? `${when}, ${amount}` : when;
+}
+
 export const NOTHING_TO_DO =
   "Rien à faire pour le moment. Revenez quand de nouvelles dépenses arrivent.";
 

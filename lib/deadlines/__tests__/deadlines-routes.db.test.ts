@@ -172,14 +172,14 @@ describe.skipIf(!available)('deadline routes', () => {
 
     const saved = await call('owner', settingsRoute.PUT, 'PUT', path, { id: ids.company }, SETTINGS)
     expect(saved.status).toBe(200)
-    expect(((await saved.json()) as DeadlineSettingsView)).toEqual({ settings: SETTINGS, isDefault: false })
+    expect(((await saved.json()) as DeadlineSettingsView)).toEqual({ settings: { ...SETTINGS, cvaeDue: false, cvaeAcomptes: false, cfeChanges: false }, isDefault: false })
 
     const data = await view('viewer', `&fiscalYearId=${ids.fy2026}`)
     const byId = new Map(data.deadlines.map((d) => [d.id, d]))
     expect(byId.get('tva-ca3:2026-06')).toMatchObject({ date: '2026-07-21', estimated: false })
     expect(data.deadlines.filter((d) => d.ruleId === 'is-acompte')).toEqual([])
     expect(byId.get('depot-comptes:2025-12-31')?.date).toBe('2026-08-31')
-    expect(data.settings).toEqual(SETTINGS)
+    expect(data.settings).toEqual({ ...SETTINGS, cvaeDue: false, cvaeAcomptes: false, cfeChanges: false })
   })
 
   it('serves the dashboard source: the next 60 days and the deadlines missed in the last 15', async () => {
