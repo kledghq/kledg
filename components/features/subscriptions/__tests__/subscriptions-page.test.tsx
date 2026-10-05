@@ -66,17 +66,17 @@ describe('SubscriptionsPage', () => {
     // Yearly cost of the active subscriptions only (the ignored transfer is left out)
     expect(plain(document.body.textContent)).toMatch(/Coût annuel ?479,88 €/)
 
-    await user.click(screen.getByRole('tab', { name: /Ignorés/ }))
+    await user.click(screen.getByRole('radio', { name: /Ignorés/ }))
     expect(within(screen.getByRole('table')).getByText('Virement Epargne')).toBeInTheDocument()
   })
 
-  it('keeps salaries, social charges and taxes in their own tab, out of the subscriptions to process', async () => {
+  it('keeps salaries, social charges and taxes behind their own filter, out of the subscriptions to process', async () => {
     const user = userEvent.setup()
     render(<SubscriptionsPage companyId="acme" />)
     const table = await screen.findByRole('table')
     expect(within(table).queryByText('URSSAF')).toBeNull()
 
-    await user.click(screen.getByRole('tab', { name: /Charges récurrentes/ }))
+    await user.click(screen.getByRole('radio', { name: /Charges récurrentes/ }))
     const charges = screen.getByRole('table')
     expect(within(charges).getByText('URSSAF')).toBeInTheDocument()
     expect(plain(within(charges).getAllByRole('row')[1].textContent)).toContain('charge récurrente : organismes sociaux (libellé)')

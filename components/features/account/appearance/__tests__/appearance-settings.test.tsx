@@ -133,9 +133,9 @@ describe('AppearanceSettings', () => {
     expect(previewStyle().getPropertyValue('--chart-revenue')).toBe(CHART_PRESET_DEFINITIONS.sobre.colors.light.revenue)
   })
 
-  it('edits the dark colours in their own tab', async () => {
+  it('edits the dark colours after choosing the dark theme', async () => {
     render(<AppearanceSettings initial={view({ palette: 'custom', base: 'sobre', custom: { light: {}, dark: {} } })} />)
-    await userEvent.click(screen.getByRole('tab', { name: 'Thème sombre' }))
+    await userEvent.click(screen.getByRole('radio', { name: 'Thème sombre' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Trésorerie' }), { target: { value: '#ffcc00' } })
     await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())

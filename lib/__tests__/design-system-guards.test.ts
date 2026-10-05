@@ -99,6 +99,16 @@ describe('design system guards', () => {
       .map(rel)
     expect(offenders).toEqual([])
   })
+
+  it('uses no tabs: page sections are pages or stacked, choosers and filters a SegmentedControl or a select', () => {
+    // Files allowed to render tabs (docs/design-system.md, "No tabs"): none. Never add one.
+    const ALLOWED_TABS = new Set<string>([])
+    const offenders = FILES.filter((file) => rel(file) !== 'components/ui/tabs.tsx')
+      .filter((file) => /\bTabsList\b|@\/components\/ui\/tabs['"]/.test(readFileSync(file, 'utf8')))
+      .map(rel)
+      .filter((file) => !ALLOWED_TABS.has(file))
+    expect(offenders).toEqual([])
+  })
 })
 
 describe('navigation', () => {

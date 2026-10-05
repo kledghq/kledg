@@ -71,7 +71,7 @@ Data-driven, one per shape (`lib/mcp/views/html`):
 | --- | --- | --- |
 | `statement` | sections, rows (line, subtotal, group, depth, account code), section totals, totals, 1 to 6 amount columns | `get_balance_sheet` (N and N-1), `get_income_statement` (N and N-1, intermediate results), `get_trial_balance` (debit, credit, balance, by PCG class) |
 | `chart` | `line` / `area` series over months or days with an optional threshold line; `sankey` nodes in columns and links | `get_group_treasury` (512 cash by month), `get_tiers_flows` (customers, company, suppliers), `get_group_view` (money between the companies of the group) |
-| `actions` | columns, items with cells, entry lines, buttons; optional bulk action and refresh | `list_entries` (drafts: validate, delete), `list_bank_transactions` (propose an entry, mark reconciled without entry), `list_missing_receipts` |
+| `actions` | columns, items with cells, entry lines, buttons; optional bulk action and refresh | `list_entries` (drafts: validate, delete), `list_bank_transactions` (reconcile with the unique match, else propose an entry or mark reconciled without entry), `list_missing_receipts` |
 | `document` | parties, facts, tables, totals, status | `get_invoice`, `get_expense_report` |
 | `organigram` | nodes by level, holders, officers, holdings with percentages | `get_group_structure` |
 
@@ -94,6 +94,38 @@ non-breaking spaces (`1 234,56 €`), dates `dd/mm/yyyy`. Tables have
 summary and a "Voir les données" table; the Sankey is laid out at the view's real width, with the first column's labels on the left of their nodes, the last column's on the right and a middle node's above the flows, one slot per label so labels never overlap the flows or each other, and long names cut with an ellipsis (full text in the tooltip); the organigramme also writes each
 holder in words and lists the holdings in a table.
 
+## Rapprocher (unique match)
+
+`list_bank_transactions` computes, server side, the one reconciliation
+Kledg can propose for each unreconciled transaction
+(`lib/reconciliation/unique-match.ts`), only for a connection with full
+control whose user has the right `banking: reconcile` in the company:
+
+1. **Existing entry.** A line of a draft or validated entry on the bank
+   ledger account of the transaction's bank account (its 512 mapping, else
+   the company default, `lib/banking/ledger-account.ts`), of the same amount
+   to the cent on the opposite side, dated within one calendar day
+   (`lib/reconciliation/bank-line-match.ts`, the rule of the auto-reconcile
+   action), whose entry is not linked to a transaction yet. Unique when
+   exactly one line fits the transaction and that line fits no other
+   unreconciled transaction. One candidate or more stops step 2 (a rule
+   never books a second entry for a booked payment).
+2. **Rule.** Else exactly one enabled assignment rule matches and its entry
+   can be computed (`ruleSuggestion` in `lib/reconciliation/prefill.ts`,
+   the suggestion of the reconciliation dialog). Two matching rules, even of
+   different priorities: no match.
+
+The item then carries `match` (kind, `entryId` and `lineId`, or `ruleId`,
+label, signed amount, date) and a "Rapprocher" button that calls
+`reconcile_transaction` with `entryId`, or with the rule's journal, date and
+counterpart lines (the draft entry is created by the tool). The others keep
+"Proposer une écriture" (`ui/message`) and "Pointer sans écriture".
+`reconcile_transaction` is a direct write (`confirmation: false`), so the
+button acts the same in validation and automatic mode: a confirmation click,
+then the call, which the server checks again (grant, role, rate limit,
+audit log; 409 when the transaction was reconciled meanwhile). The view only
+shows what the server returned.
+
 ## Security
 
 - Templates display only what the host passes. They hold no secret, token
@@ -115,7 +147,8 @@ holder in words and lists the holdings in a table.
   in Kledg, the view cannot) then "Exécuter après approbation", which
   calls again with the `actionId`. In automatic mode the view sends
   `dryRun: true` first and executes only on "Confirmer". A direct write
-  (`reconcile_transaction` with `withoutEntry`) needs a second click.
+  (`reconcile_transaction`, "Rapprocher" or "Pointer sans écriture") needs
+  a second click.
   Tool buttons appear only when the connection has full control
   (`executionMode` in the data, null otherwise).
 - The data keeps the tool's access rules: builders read nothing the tool

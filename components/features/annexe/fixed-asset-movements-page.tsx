@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Amount, EmptyState, HelpTip, PageHeader, StatusBadge } from '@/components/shared'
 import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { downloadFile } from '@/components/features/reports/download-file'
@@ -143,30 +142,33 @@ export function FixedAssetMovementsPage({ companyId }: { companyId: string }) {
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="2054">
-            <TabsList>
-              <TabsTrigger value="2054">2054</TabsTrigger>
-              <TabsTrigger value="2055">2055</TabsTrigger>
-              <TabsTrigger value="2033c">2033-C</TabsTrigger>
-            </TabsList>
-            <TabsContent value="2054" className="space-y-4">
-              <p className="text-muted-foreground text-sm">
-                Régime réel normal, formulaire 2054-SD.{' '}
-                <HelpTip term="Virements de poste à poste">Une immobilisation en cours mise en service passe du compte 23 au compte de l&apos;immobilisation&nbsp;: elle sort d&apos;une ligne et entre dans une autre.</HelpTip>
-              </p>
-              <FormTable caption="2054-SD, cadre A" rows={data.form2054} columns={['opening', 'revaluation', 'increase'] as const} labels={COLUMN_LABELS.asset} />
-              <FormTable caption="2054-SD, cadre B" rows={data.form2054} columns={['transferOut', 'disposal', 'closing', 'origin'] as const} labels={COLUMN_LABELS.asset} />
-            </TabsContent>
-            <TabsContent value="2055" className="space-y-4">
-              <p className="text-muted-foreground text-sm">Régime réel normal, formulaire 2055-SD, cadre A. Les amortissements dérogatoires (cadre B) ne sont pas suivis par Kledg.</p>
-              <FormTable caption="2055-SD, cadre A" rows={data.form2055} columns={['opening', 'allowance', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.depreciation} />
-            </TabsContent>
-            <TabsContent value="2033c" className="space-y-4">
-              <p className="text-muted-foreground text-sm">Régime simplifié, formulaire 2033-C-SD, cadres I et II. Le cadre III (plus et moins-values) reste à remplir.</p>
-              <FormTable caption="2033-C-SD, cadre I" rows={data.form2033c.assets} columns={['opening', 'increase', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.simplified} />
-              <FormTable caption="2033-C-SD, cadre II" rows={data.form2033c.depreciation} columns={['opening', 'allowance', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.depreciation} />
-            </TabsContent>
-          </Tabs>
+          {/* The three forms stacked (no tabs): a company files 2054 and 2055 (réel normal) or 2033-C (simplifié) */}
+          <section aria-labelledby="form-2054-title" className="space-y-4">
+            <h2 id="form-2054-title" className="text-base font-semibold">
+              2054, immobilisations
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              Régime réel normal, formulaire 2054-SD.{' '}
+              <HelpTip term="Virements de poste à poste">Une immobilisation en cours mise en service passe du compte 23 au compte de l&apos;immobilisation&nbsp;: elle sort d&apos;une ligne et entre dans une autre.</HelpTip>
+            </p>
+            <FormTable caption="2054-SD, cadre A" rows={data.form2054} columns={['opening', 'revaluation', 'increase'] as const} labels={COLUMN_LABELS.asset} />
+            <FormTable caption="2054-SD, cadre B" rows={data.form2054} columns={['transferOut', 'disposal', 'closing', 'origin'] as const} labels={COLUMN_LABELS.asset} />
+          </section>
+          <section aria-labelledby="form-2055-title" className="space-y-4">
+            <h2 id="form-2055-title" className="text-base font-semibold">
+              2055, amortissements
+            </h2>
+            <p className="text-muted-foreground text-sm">Régime réel normal, formulaire 2055-SD, cadre A. Les amortissements dérogatoires (cadre B) ne sont pas suivis par Kledg.</p>
+            <FormTable caption="2055-SD, cadre A" rows={data.form2055} columns={['opening', 'allowance', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.depreciation} />
+          </section>
+          <section aria-labelledby="form-2033c-title" className="space-y-4">
+            <h2 id="form-2033c-title" className="text-base font-semibold">
+              2033-C, régime simplifié
+            </h2>
+            <p className="text-muted-foreground text-sm">Régime simplifié, formulaire 2033-C-SD, cadres I et II. Le cadre III (plus et moins-values) reste à remplir.</p>
+            <FormTable caption="2033-C-SD, cadre I" rows={data.form2033c.assets} columns={['opening', 'increase', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.simplified} />
+            <FormTable caption="2033-C-SD, cadre II" rows={data.form2033c.depreciation} columns={['opening', 'allowance', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.depreciation} />
+          </section>
         </>
       )}
     </div>

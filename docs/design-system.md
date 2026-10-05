@@ -153,6 +153,22 @@ content      cards, tables
 - No horizontal page scroll at 375px. Grids collapse (`sm:grid-cols-2`, never
   a bare `grid-cols-2` for form fields); wide content scrolls inside its card.
 
+### No tabs
+
+Kledg uses no tabs, on pages or in dialogs (`components/ui/tabs` stays
+unused; `lib/__tests__/design-system-guards.test.ts` fails on `TabsList`
+outside an empty allowlist):
+
+- Sections of a page become separate pages with their sidebar entries
+  (grouped in `nav-config.ts`), or stack on one page with an `h2` per
+  section, everything visible (Budget: Suivi then Saisie; Immobilisations
+  et amortissements: 2054, 2055, 2033-C). A section that was reachable by
+  URL keeps its address with a redirect.
+- A chooser inside a card (which assistant to connect, which theme's colours
+  to set) is a `SegmentedControl` (`components/shared`) or a select.
+- A status filter over one list (with its counts) is a `SegmentedControl`,
+  which keeps one list on the page (Abonnements, Saisies du mode simple).
+
 ## Navigation
 
 Defined once in `components/layout/nav-config.ts`, ordered by how often a

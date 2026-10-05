@@ -116,7 +116,7 @@ describe('Assistants IA page', () => {
     auth.list.mockResolvedValue({ data: [key], error: null })
     render(<AssistantsPage />)
     await screen.findByText('Claude est connecté')
-    await user.click(screen.getByRole('tab', { name: /Claude Code/ }))
+    await user.click(screen.getByRole('radio', { name: /Claude Code/ }))
     expect(await screen.findByText('Clé API active')).toBeInTheDocument()
   })
 

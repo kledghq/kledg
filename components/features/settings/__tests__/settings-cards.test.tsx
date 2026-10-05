@@ -113,7 +113,7 @@ describe('McpConnectCard', () => {
     expect(screen.getByText('Claude est connecté')).toBeInTheDocument()
     expect(screen.getAllByLabelText('connecté')).toHaveLength(2)
 
-    await user.click(screen.getByRole('tab', { name: /Claude Code/ }))
+    await user.click(screen.getByRole('radio', { name: /Claude Code/ }))
     expect(screen.getByText('Clé API active')).toBeInTheDocument()
     expect(
       screen.getByText(`claude mcp add --transport http kledg ${window.location.origin}/api/mcp --header "Authorization: Bearer VOTRE_CLE"`),
@@ -124,9 +124,9 @@ describe('McpConnectCard', () => {
   it('says Claude Code is connected when it is, without an API key', async () => {
     const user = userEvent.setup()
     render(<McpConnectCard connected={new Set(['claude-code', 'chatgpt'] as const)} hasApiKey={false} />)
-    await user.click(screen.getByRole('tab', { name: /Claude Code/ }))
+    await user.click(screen.getByRole('radio', { name: /Claude Code/ }))
     expect(screen.getByText('Claude Code est connecté')).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: /ChatGPT/ }))
+    await user.click(screen.getByRole('radio', { name: /ChatGPT/ }))
     expect(screen.getByText('ChatGPT est connecté')).toBeInTheDocument()
   })
 })
