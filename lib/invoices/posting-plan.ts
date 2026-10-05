@@ -11,7 +11,9 @@
  * - deductible VAT, debit per rate: 44566 "TVA sur autres biens et
  *   services", or 44562 "TVA sur immobilisations" for fixed asset lines.
  *   A company under the VAT franchise (CGI art. 293 B) deducts nothing: the
- *   VAT is part of the cost of each line.
+ *   VAT is part of the cost of each line. A partly exempt company deducts
+ *   the share of its coefficient de déduction (CGI ann. II art. 205), the
+ *   rest is part of the cost of each line, in proportion to the bases.
  *
  * Sale (journal VE):
  * - 411 Clients, debit of the total including tax, with the auxiliary account;
@@ -59,6 +61,13 @@ export interface PlanInput {
   servicesVatOnDebits: boolean
   /** VAT franchise (CGI art. 293 B): no VAT deducted on purchases. */
   vatExempt: boolean
+  /**
+   * Purchases of a partly exempt company: the whole percent of the VAT it
+   * deducts, its provisional coefficient de déduction (CGI ann. II art. 205
+   * and 206, lib/vat-deduction/coefficient.ts); the rest is a cost of each
+   * line. Absent or 100: all of it.
+   */
+  deductionPercent?: number
 }
 
 export interface PlannedLine {
@@ -84,8 +93,8 @@ function vatKeyOf(direction: PlanInput['direction'], line: Pick<PlanLine, 'natur
 }
 
 /** VAT accounts an invoice needs, to resolve before planning. */
-export function vatAccountsNeeded(input: Pick<PlanInput, 'direction' | 'lines' | 'breakdown' | 'servicesVatOnDebits' | 'vatExempt'>): VatAccountKey[] {
-  if (input.direction === 'PURCHASE' && input.vatExempt) return []
+export function vatAccountsNeeded(input: Pick<PlanInput, 'direction' | 'lines' | 'breakdown' | 'servicesVatOnDebits' | 'vatExempt' | 'deductionPercent'>): VatAccountKey[] {
+  if (input.direction === 'PURCHASE' && (input.vatExempt || input.deductionPercent === 0)) return []
   const keys = new Set<VatAccountKey>()
   for (const row of input.breakdown) {
     if (row.vatCents === 0) continue
@@ -120,7 +129,7 @@ export function planInvoiceEntry(input: PlanInput): PostingPlan {
     return debit ? { debitCents: cents, creditCents: 0 } : { debitCents: 0, creditCents: cents }
   }
 
-  // Lines excluding tax; for a VAT-exempt buyer, each line also carries its share of the VAT.
+  // Lines excluding tax; each line also carries its share of the VAT the buyer cannot deduct.
   const extraVat = new Array<number>(input.lines.length).fill(0)
   const vatLines: PlannedLine[] = []
   let pendingVatCents = 0
@@ -130,18 +139,21 @@ export function planInvoiceEntry(input: PlanInput): PostingPlan {
     if (indexes.length === 0) {
       throw new ValidationError(`Aucune ligne au taux de ${formatVatRate(row.vatRateBp)} ne porte la TVA de ce taux : corrigez les lignes.`)
     }
-    if (exempt) {
-      const shares = allocateCents(row.vatCents, indexes.map((i) => input.lines[i].totalExclTaxCents))
+    // Deductible part of the VAT of this rate, rounded half up; the rest stays a cost of the lines.
+    const percent = purchase && input.deductionPercent !== undefined ? Math.min(Math.max(input.deductionPercent, 0), 100) : 100
+    const deductible = exempt ? 0 : percent === 100 ? row.vatCents : Math.floor((row.vatCents * percent * 2 + 100) / 200)
+    if (deductible !== row.vatCents) {
+      const shares = allocateCents(row.vatCents - deductible, indexes.map((i) => input.lines[i].totalExclTaxCents))
       indexes.forEach((lineIndex, k) => (extraVat[lineIndex] += shares[k]))
-      continue
     }
+    if (deductible === 0) continue
     const groups = new Map<VatAccountKey, number>()
     for (const i of indexes) {
       const key = vatKeyOf(input.direction, input.lines[i], input.servicesVatOnDebits)
       groups.set(key, (groups.get(key) ?? 0) + input.lines[i].totalExclTaxCents)
     }
     const keys = KEY_ORDER.filter((key) => groups.has(key))
-    const amounts = allocateCents(row.vatCents, keys.map((key) => groups.get(key) as number))
+    const amounts = allocateCents(deductible, keys.map((key) => groups.get(key) as number))
     keys.forEach((key, k) => {
       if (amounts[k] === 0) return
       const accountId = input.vatAccounts[key]

@@ -49,7 +49,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
-import { calculateVatRecoveryRatio, vatRecoveryMonthOf } from '@/lib/accounting/vat-recovery-ratio'
+import { vatDeductionShareOn } from '@/lib/vat-deduction/coefficient'
 import { counterpartyOf } from '@/lib/reconciliation/prefill'
 import {
   bankAccountMissingMessage,
@@ -170,12 +170,9 @@ interface PreparedAsset {
   expenseAccountId: string
 }
 
-/** The VAT recovery share of a company exempt from VAT for the month of the day, null when it is subject to VAT. */
+/** The share of deductible VAT recovered on the day (provisional coefficient de déduction), null when the company deducts all of it. */
 async function recoveryRatioFor(companyId: string, day: string): Promise<number | null> {
-  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { isVatExempt: true } })
-  if (!company?.isVatExempt) return null
-  const { periodStart, periodEnd } = vatRecoveryMonthOf(isoDateToUtc(day))
-  return (await calculateVatRecoveryRatio(companyId, periodStart, periodEnd)) ?? 0
+  return vatDeductionShareOn(companyId, day)
 }
 
 /** A category books the same way every time, so a rule can repeat it. */

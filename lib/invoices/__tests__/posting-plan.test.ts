@@ -176,3 +176,39 @@ describe('refusals', () => {
     expect(plan.pendingVatCents).toBe(0)
   })
 })
+
+describe('partly exempt buyer (coefficient de déduction, CGI ann. II art. 205 and 206)', () => {
+  const lines = [
+    { label: 'Fournitures', quantity: 1, unitPriceCents: 30_000, vatRateBp: 2000, accountId: 'acc-6064', nature: 'GOODS' as const, fixedAsset: false },
+    { label: 'Logiciel', quantity: 1, unitPriceCents: 10_000, vatRateBp: 2000, accountId: 'acc-6068', nature: 'SERVICES' as const, fixedAsset: false },
+  ]
+
+  it('deducts 60 % of the VAT and charges the rest to the lines in proportion to their bases', () => {
+    // VAT 80,00: 48,00 deducted, 32,00 split 24,00 / 8,00 on bases of 300 and 100
+    const plan = planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 60 }))
+    expect(byAccount(plan.lines)).toEqual({
+      'acc-401': { debit: 0, credit: 48_000 },
+      'acc-6064': { debit: 32_400, credit: 0 },
+      'acc-6068': { debit: 10_800, credit: 0 },
+      'acc-44566': { debit: 4_800, credit: 0 },
+    })
+    expect(sum(plan.lines, 'debitCents')).toBe(sum(plan.lines, 'creditCents'))
+  })
+
+  it('needs no VAT account and deducts nothing at 0 %, all of it at 100 %', () => {
+    expect(vatAccountsNeeded(input('PURCHASE', lines, { deductionPercent: 0 }))).toEqual([])
+    expect(byAccount(planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 0 })).lines)['acc-44566']).toBeUndefined()
+    expect(byAccount(planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 100 })).lines)['acc-44566']).toEqual({ debit: 8_000, credit: 0 })
+  })
+
+  it('rounds the deductible VAT half up: 33 % of 0,10 € is 0,03 €', () => {
+    const plan = planInvoiceEntry(input('PURCHASE', [{ ...lines[0], unitPriceCents: 50 }], { deductionPercent: 33 }))
+    expect(byAccount(plan.lines)['acc-44566']).toEqual({ debit: 3, credit: 0 })
+    expect(byAccount(plan.lines)['acc-6064']).toEqual({ debit: 57, credit: 0 })
+  })
+
+  it('never applies the coefficient to a sale', () => {
+    const plan = planInvoiceEntry(input('SALE', lines.map((l) => ({ ...l, accountId: 'acc-706' })), { deductionPercent: 0, servicesVatOnDebits: true }))
+    expect(byAccount(plan.lines)['acc-44571']).toEqual({ debit: 0, credit: 8_000 })
+  })
+})

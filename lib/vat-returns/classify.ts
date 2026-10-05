@@ -38,6 +38,11 @@
  *   réduction de prix a été consentie");
  * - deductible VAT below zero (a supplier credit note) is VAT previously
  *   deducted to pay back: CA3 line 15, CA12 line 18.
+ * - the regularisation of the coefficient de déduction (reference
+ *   "COEF-TVA-", lib/vat-deduction): a complement of deduction goes to CA3
+ *   line 21 (CA12 line 25), a reversement to CA3 line 15 (CA12 line 18)
+ *   (notices 2026: "complément de déduction résultant des variations du
+ *   pourcentage de déduction").
  *
  * Rates: the ledger holds amounts, not rates. The rate of an entry's
  * collected VAT is, in order:
@@ -57,6 +62,7 @@
  */
 
 import { allocateCents, vatOnBaseCents } from '@/lib/invoices/amounts'
+import { REGULARISATION_REFERENCE_PREFIX } from '@/lib/vat-deduction/rules'
 
 /** Rates of the metropolitan lines of the CA3 (08, 9B, 09, T6) and the CA12 (5A, 6C, 06, 09). */
 export const DECLARED_RATES_BP = [2000, 1000, 550, 210] as const
@@ -134,6 +140,8 @@ export interface VatMovements {
   transferredDeductibleCents: number
   /** Supplier credit notes: VAT previously deducted to pay back (CA3 15, CA12 18). */
   deductibleReversalCents: number
+  /** Complement of deduction of a coefficient regularisation (CA3 21, CA12 25). */
+  coefficientComplementCents: number
   /** Sales (70) without any VAT: exports, intra-Community supplies, exempt sales, to split by hand (CA3 E1, E2, F2; CA12 02, 03, 04). */
   nonTaxedSalesCents: number
   /** VAT credited to 44574 in the period, due when the customers pay (informative). */
@@ -303,6 +311,7 @@ export function emptyMovements(): VatMovements {
     deductibleOtherCents: 0,
     transferredDeductibleCents: 0,
     deductibleReversalCents: 0,
+    coefficientComplementCents: 0,
     nonTaxedSalesCents: 0,
     pendingCollectedCents: 0,
     acomptesPaidCents: 0,
@@ -357,13 +366,14 @@ export function classifyEntries(entries: VatEntry[]): VatMovements {
       m.autoliquidationReversalCents += -autoliquidated
     }
 
+    const coefficientRegularisation = entry.reference?.startsWith(REGULARISATION_REFERENCE_PREFIX) ?? false
     for (const [test, key] of [
       [isDeductibleFixedAssetsCode, 'deductibleFixedAssetsCents'],
       [isDeductibleOtherCode, 'deductibleOtherCents'],
       [isTransferredCode, 'transferredDeductibleCents'],
     ] as const) {
       const deductible = net(lines, test)
-      if (deductible > 0) m[key] += deductible
+      if (deductible > 0) m[coefficientRegularisation ? 'coefficientComplementCents' : key] += deductible
       else m.deductibleReversalCents += -deductible
     }
     m.groups.deductibleFixedAssets += net(lines, isDeductibleFixedAssetsCode)

@@ -47,7 +47,6 @@ on balance.
 | `delete-accounts.service.ts` | Deletes an account with its sub-accounts, or the non PCG accounts of a chart, never a PCG account nor one holding entries. |
 | `pcg-chart.service.ts` | Seeds the PCG accounts in a chart and completes a chart with the missing ones. |
 | `create-journal.service.ts`, `manage-journals.service.ts`, `default-journals.ts` | Journals of a company (create, list, edit, delete one without entries) and the standard set every company starts with. |
-| `vat-recovery-ratio.ts` | VAT recovery ratio of partly exempt companies. |
 
 ## Errors
 

@@ -215,6 +215,17 @@ comptabilisée en 4456 ; les taxes assimilées, l'accise sur les énergies,
 les régularisations de déclarations antérieures (5B, 2C, AD, AE) et la
 demande de remboursement.
 
+## Assujettis partiels : coefficient de déduction
+
+Une société qui réalise des opérations taxées et des opérations exonérées
+(organisme de formation, CGI art. 261, 4, 4° a) déduit sa TVA par le
+coefficient de déduction ([organisme de formation](organisme-de-formation.md)) :
+la page affiche le coefficient de taxation provisoire de l'année à porter
+ligne 22A de la CA3 (25A de la CA12). La régularisation de l'année
+précédente (référence `COEF-TVA-<année>`) est lue à part : un complément de
+déduction va ligne 21 de la CA3 (25 de la CA12), une TVA à reverser ligne 15
+(18 de la CA12), comme le disent les notices 2026.
+
 ## Contrôles
 
 `lib/vat-returns/checks.ts`. Un contrôle « à corriger » rend les chiffres

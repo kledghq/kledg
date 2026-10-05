@@ -515,6 +515,30 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
             </CardContent>
           </Card>
 
+          {view.deductionCoefficient ? (
+            <Alert role="note">
+              <Info aria-hidden />
+              <AlertTitle>
+                Coefficient de taxation {view.deductionCoefficient.year}&nbsp;: {view.deductionCoefficient.taxationPercent}&nbsp;% (ligne {view.deductionCoefficient.line})
+              </AlertTitle>
+              <AlertDescription>
+                <p>
+                  Coefficient provisoire{' '}
+                  {view.deductionCoefficient.source === 'previous-year'
+                    ? `d’après le chiffre d’affaires ${view.deductionCoefficient.year - 1}`
+                    : view.deductionCoefficient.source === 'estimate'
+                      ? 'estimé pour une première année'
+                      : 'calculé sur les comptes de l’année à ce jour, faute d’estimation'}
+                  &nbsp;; la TVA déduite dans les comptes suit un coefficient de déduction de {view.deductionCoefficient.deductionPercent}&nbsp;%.{' '}
+                  {view.deductionCoefficient.taxationPercent === 100 ? 'À 100 %, la ligne reste vide. ' : ''}
+                  <Link href={`/${companyId}/coefficient-tva?annee=${view.deductionCoefficient.year}`} className="text-link underline-offset-4 hover:underline">
+                    Voir le coefficient de déduction
+                  </Link>
+                </p>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
           {computation.acomptes ? (
             <Card>
               <CardHeader>

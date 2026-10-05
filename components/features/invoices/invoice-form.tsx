@@ -24,6 +24,14 @@ import { InvoiceTotals } from './invoice-totals'
 
 export type InvoiceDirection = 'SALE' | 'PURCHASE'
 
+/**
+ * Value of the VAT select for an exempt training sale: 0 % with the legal
+ * basis of CGI art. 261, 4, 4° a (lib/invoices/vat-exemptions.ts), which
+ * puts the exemption mention on the invoice.
+ */
+export const EXEMPT_TRAINING = 'exempt-training'
+const rateOf = (value: string) => (value === EXEMPT_TRAINING ? 0 : Number(value))
+
 const lineSchema = z.object({
   label: z.string().trim().min(1, 'La désignation est requise'),
   quantity: z.string().refine((v) => (parseQuantity(v) ?? 0) > 0, 'Quantité positive, trois décimales au plus'),
@@ -200,7 +208,7 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
   const amountLines = (lines ?? []).map((line) => ({
     quantityThousandths: parseQuantity(line.quantity) ?? 0,
     unitPriceCents: line.unitPriceCents ?? 0,
-    vatRateBp: Number(line.vatRateBp),
+    vatRateBp: rateOf(line.vatRateBp),
   }))
 
   const onSubmit = async (values: InvoiceFormValues) => {
@@ -222,7 +230,8 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
           label: line.label,
           quantity: line.quantity.replace(',', '.'),
           unitPriceCents: line.unitPriceCents ?? 0,
-          vatRateBp: Number(line.vatRateBp),
+          vatRateBp: rateOf(line.vatRateBp),
+          vatExemption: sale && line.vatRateBp === EXEMPT_TRAINING ? 'training' : null,
           accountCode: line.accountCode || null,
           nature: line.nature,
           fixedAsset: sale ? false : line.fixedAsset,
@@ -465,6 +474,7 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
                               {formatVatRate(rate)}
                             </SelectItem>
                           ))}
+                          {sale ? <SelectItem value={EXEMPT_TRAINING}>Exonérée, formation (art. 261, 4, 4° a)</SelectItem> : null}
                         </SelectContent>
                       </Select>
                     )}

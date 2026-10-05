@@ -77,6 +77,10 @@ const L223_31 = { label: 'Code de commerce, art. L223-31 (EURL)', url: `${LEGIFR
 const L225_100 = { label: 'Code de commerce, art. L225-100 (SA)', url: `${LEGIFRANCE}LEGIARTI000048535138` }
 const L227_9 = { label: 'Code de commerce, art. L227-9 (SAS)', url: `${LEGIFRANCE}LEGIARTI000019291762` }
 const L232_22 = { label: 'Code de commerce, art. L232-22 (SARL)', url: `${LEGIFRANCE}LEGIARTI000048535223` }
+const CGI_231 = { label: 'CGI, art. 231 (taxe sur les salaires)', url: `${LEGIFRANCE}LEGIARTI000051764961` }
+const BOI_TS_DECLA = { label: 'BOI-TPS-TS-40 (déclaration et paiement de la taxe sur les salaires)', url: `${BOFIP}6683-PGP.html/identifiant=BOI-TPS-TS-40-20200624` }
+const NOTICE_2501 = { label: 'Notice 2501-SD 2026', url: 'https://www.impots.gouv.fr/sites/default/files/formulaires/2501-sd/2026/2501-sd_5272.pdf' }
+const R6352_23 = { label: 'Code du travail, art. R6352-22 à R6352-24 (bilan pédagogique et financier avant le 30 avril)', url: 'https://www.legifrance.gouv.fr/codes/id/LEGISCTA000018522310' }
 const L232_23 = { label: 'Code de commerce, art. L232-23 (sociétés par actions)', url: `${LEGIFRANCE}LEGIARTI000039260292` }
 
 export const RULES = {
@@ -191,6 +195,30 @@ export const RULES = {
     summary:
       "Quand un élément de la CFE change (surface des locaux, activité, exonération demandée), la déclaration modificative 1447-M-SD est déposée au plus tard le deuxième jour ouvré qui suit le 1er mai. Sans changement, rien à déposer.",
     sources: [CGI_1477, BOI_CFE_DECLA],
+  },
+  'ts-releve': {
+    id: 'ts-releve',
+    category: 'salaires',
+    form: '2501',
+    summary:
+      "La taxe sur les salaires se paie avec un relevé 2501 dans les quinze premiers jours du mois qui suit, quand la taxe de l'année précédente dépassait 10 000 €, ou du trimestre qui suit (avant les 15 avril, 15 juillet et 15 octobre) de 4 000 € à 10 000 €. Pas de relevé pour décembre ni pour le quatrième trimestre : ils sont réglés avec la déclaration annuelle.",
+    sources: [CGI_231, BOI_TS_DECLA, NOTICE_2501],
+  },
+  'ts-2502': {
+    id: 'ts-2502',
+    category: 'salaires',
+    form: '2502',
+    summary:
+      "La déclaration annuelle 2502 des salaires d'une année est déposée, avec le solde de la taxe, au plus tard le 15 janvier de l'année suivante ; il est admis qu'elle le soit jusqu'au 31 janvier. Rien à déposer quand la taxe n'est pas due (franchise de 1 200 €, abattement des associations).",
+    sources: [CGI_231, BOI_TS_DECLA],
+  },
+  bpf: {
+    id: 'bpf',
+    category: 'formation',
+    form: 'BPF (cerfa 10443)',
+    summary:
+      "Un organisme de formation adresse avant le 30 avril de chaque année le bilan pédagogique et financier de son dernier exercice clos, sur Mon Activité Formation. Le ministère prolonge la campagne chaque année par annonce (jusqu'au 31 mai en 2026). Sans bilan, la déclaration d'activité devient caduque (art. L6351-6).",
+    sources: [R6352_23],
   },
   approbation: {
     id: 'approbation',

@@ -1,9 +1,9 @@
 /**
- * Read tool of the file exports: export_report, one tool for the fifteen
+ * Read tool of the file exports: export_report, one tool for the sixteen
  * export routes (balance sheet and income statement PDF and Excel, annexe,
  * fixed asset movements, corporate tax, VAT return, local taxes,
- * remuneration, financial indicators, aged and auxiliary balances, journal,
- * group). For each report, the same rule as its route:
+ * remuneration, bilan pédagogique et financier, financial indicators, aged and auxiliary balances, journal,
+ * cash forecast, group). For each report, the same rule as its route:
  * - the company guard with the route's right (reports:export, the
  *   *_EXPORT constants of each feature), so the connection's grant and the
  *   user's role apply; the group exports check each subsidiary read through
@@ -42,6 +42,8 @@ import { CORPORATE_TAX_EXPORT } from '@/lib/corporate-tax/permissions'
 import { exportVatReturn, VatReturnExportQuerySchema } from '@/lib/vat-returns/export-vat-return.service'
 import { VAT_RETURN_EXPORT } from '@/lib/vat-returns/permissions'
 import { exportLocalTaxes, LocalTaxesExportQuerySchema } from '@/lib/local-taxes/export-local-taxes.service'
+import { exportTrainingReport, TrainingReportExportQuerySchema } from '@/lib/training-report/export-training-report.service'
+import { TRAINING_REPORT_EXPORT } from '@/lib/training-report/permissions'
 import { LOCAL_TAXES_EXPORT } from '@/lib/local-taxes/permissions'
 import { exportRemuneration, RemunerationExportQuerySchema } from '@/lib/remuneration/export-remuneration.service'
 import { REMUNERATION_EXPORT } from '@/lib/remuneration/permissions'
@@ -52,6 +54,8 @@ import {
 import { AgedBalanceQuerySchema, AuxiliaryBalanceQuerySchema } from '@/lib/reports/third-parties/get-third-party-reports.service'
 import { exportAgedBalanceExcel, exportAuxiliaryBalanceExcel } from '@/lib/reports/third-parties/export-third-party-reports.service'
 import { exportGroup, GROUP_REPORTS, GroupExportQuerySchema } from '@/lib/group/export-group.service'
+import { CashForecastQuerySchema } from '@/lib/cash-forecast/load-cash-forecast.service'
+import { exportCashForecast } from '@/lib/cash-forecast/export-cash-forecast.service'
 
 const REPORT_EXPORT: Permission = { reports: ['export'] }
 
@@ -91,6 +95,8 @@ export const EXPORTS = {
   vat_return: exportOf(VAT_RETURN_EXPORT, VatReturnExportQuerySchema, (companyId, query) => exportVatReturn(companyId, query)),
   /** GET /api/companies/[id]/local-taxes/export */
   local_taxes: exportOf(LOCAL_TAXES_EXPORT, LocalTaxesExportQuerySchema, (companyId, query) => exportLocalTaxes(companyId, query)),
+  /** GET /api/companies/[id]/training-report/export */
+  training_report: exportOf(TRAINING_REPORT_EXPORT, TrainingReportExportQuerySchema, (companyId, query) => exportTrainingReport(companyId, query)),
   /** GET /api/companies/[id]/remuneration/export */
   remuneration: exportOf(REMUNERATION_EXPORT, RemunerationExportQuerySchema, (companyId, query) => exportRemuneration(companyId, query)),
   /** GET /api/reports/financial-indicators/export */
@@ -101,6 +107,8 @@ export const EXPORTS = {
   auxiliary_balance_excel: exportOf(REPORT_EXPORT, AuxiliaryBalanceQuerySchema, (companyId, query) => exportAuxiliaryBalanceExcel(companyId, query)),
   /** GET /api/reports/journal/export-excel */
   journal_excel: exportOf(REPORT_EXPORT, JournalReportQuerySchema, (companyId, query) => exportJournalExcel(companyId, query)),
+  /** GET /api/cash-forecast/export (reports:export and banking:read) */
+  cash_forecast: exportOf({ reports: ['export'], banking: ['read'] }, CashForecastQuerySchema, (companyId, query) => exportCashForecast(companyId, query)),
   /** GET /api/group/export (reports:export in the holding, reports:read in each subsidiary read) */
   group: exportOf(REPORT_EXPORT, GroupExportQuerySchema, (companyId, query, group) => exportGroup(companyId, query, group)),
 } satisfies Record<string, ExportDefinition>
@@ -113,7 +121,7 @@ const text = (max: number) => z.string().max(max)
 const InputSchema = z.object({
   companyId: z.string().describe('Company id, from list_companies (the holding for report group).'),
   report: z.enum(REPORTS, { error: 'Rapport inconnu' }).describe('The file to generate.'),
-  fiscalYearId: text(100).optional().describe('Fiscal year id, from list_fiscal_years. Required for balance_sheet_*, income_statement_*, annexe and fixed_asset_movements; optional elsewhere (current or latest year).'),
+  fiscalYearId: text(100).optional().describe('Fiscal year id, from list_fiscal_years. Required for balance_sheet_*, income_statement_*, annexe and fixed_asset_movements; optional elsewhere (current or latest year; training_report: the last closed one).'),
   previousFiscalYearId: text(100).optional().describe('balance_sheet_excel: the N-1 column.'),
   variant: z.enum(['complete', 'simplified']).optional().describe('balance_sheet_*, income_statement_*: layout (complete by default).'),
   format: text(10).optional().describe('annexe: pdf or md; fixed_asset_movements, corporate_tax, vat_return, local_taxes, remuneration: pdf or csv; financial_indicators, group: csv or xlsx. The default of the route otherwise.'),
@@ -127,6 +135,9 @@ const InputSchema = z.object({
   scenarioId: text(100).optional().describe('remuneration: a saved scenario.'),
   basis: text(20).optional().describe('remuneration: current, projection or closed.'),
   inputs: text(4000).optional().describe('remuneration: the inputs changed, as JSON (same as simulate_remuneration).'),
+  horizon: text(3).optional().describe('cash_forecast: 3, 6 or 12 months (the saved horizon by default).'),
+  granularity: text(10).optional().describe('cash_forecast: month or week.'),
+  components: text(200).optional().describe('cash_forecast: components counted, comma separated (receivables, payables, taxes, recurring, budget, trend); the saved ones by default.'),
   groupReport: z.enum(GROUP_REPORTS).optional().describe('group: which group report (combined by default).'),
   groupFilters: z
     .record(z.string().max(40), text(200))
@@ -155,7 +166,7 @@ export function registerExportTools(server: McpServer, access: McpAccess, guard:
     {
       title: 'Exporter un état en fichier',
       description: describeTool({
-        summary: `Generates the file of a report, exactly as its download button in Kledg (same service, same checks), and returns it in the result as an embedded resource (base64 blob with its MIME type and file name): balance_sheet_pdf, balance_sheet_excel, income_statement_pdf, income_statement_excel, annexe (pdf or md), fixed_asset_movements (2054, 2055, 2033-C; pdf or csv), corporate_tax, vat_return, local_taxes, remuneration (pdf or csv), financial_indicators (csv or xlsx), aged_balance_excel, auxiliary_balance_excel, journal_excel, group (holding and subsidiaries; csv or xlsx). Files above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB are refused: the user downloads them from Kledg. To read the figures, prefer the matching read tool (get_balance_sheet, get_vat_return...).`,
+        summary: `Generates the file of a report, exactly as its download button in Kledg (same service, same checks), and returns it in the result as an embedded resource (base64 blob with its MIME type and file name): balance_sheet_pdf, balance_sheet_excel, income_statement_pdf, income_statement_excel, annexe (pdf or md), fixed_asset_movements (2054, 2055, 2033-C; pdf or csv), corporate_tax, vat_return, local_taxes, remuneration (pdf or csv), training_report (bilan pédagogique et financier, csv), financial_indicators (csv or xlsx), aged_balance_excel, auxiliary_balance_excel, journal_excel, cash_forecast (csv), group (holding and subsidiaries; csv or xlsx). Files above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB are refused: the user downloads them from Kledg. To read the figures, prefer the matching read tool (get_balance_sheet, get_vat_return...).`,
         access: 'read',
         permission: REPORT_EXPORT,
         amounts: 'euros',

@@ -77,7 +77,7 @@ L'immobilisation est **liée à son écriture d'acquisition** (`fixed_assets.acq
 
 Avec la validation par l'expert-comptable, l'immobilisation est créée avec le brouillon. La liste des saisies du mode simple l'indique sous la catégorie : « Immobilisation créée : Matériel informatique (Apple Store Opera), amortie sur 3 ans ». Si le comptable requalifie l'achat en charge en corrigeant le brouillon, l'immobilisation est supprimée avec la correction (voir ci-dessus).
 
-Une société exonérée de TVA récupère la part donnée par son prorata du mois (`lib/accounting/vat-recovery-ratio.ts`) : rien pour une franchise sans ventes taxées. Elle ne collecte pas de TVA sur ses ventes.
+Une société exonérée de TVA, ou assujettie partielle, récupère la part donnée par son coefficient de déduction provisoire de l'année (`lib/vat-deduction/coefficient.ts`, [organisme de formation](organisme-de-formation.md)) : rien pour une franchise en base. Elle ne collecte pas de TVA sur ses ventes.
 
 Les comptes du catalogue sont ceux du plan que Kledg crée. Pour un plan importé d'un FEC, Kledg prend le compte détaillé (626000, sinon le plus petit sous-compte), sinon le compte parent le plus proche (`lib/simple/ledger-accounts.ts`). Sans compte proche, la dépense n'est pas enregistrée et l'utilisateur est invité à faire compléter le plan.
 

@@ -43,10 +43,12 @@ import { registerYearEndReadTools } from '@/lib/mcp/year-end-tools'
 import { registerApprovalReadTools } from '@/lib/mcp/approval-tools'
 import { registerAnnexeReadTools } from '@/lib/mcp/annexe-tools'
 import { registerDeadlineReadTools } from '@/lib/mcp/deadline-tools'
+import { registerCashForecastTools } from '@/lib/mcp/cash-forecast-tools'
 import { registerVatReturnReadTools } from '@/lib/mcp/vat-return-tools'
 import { registerCorporateTaxReadTools } from '@/lib/mcp/corporate-tax-tools'
 import { registerRemunerationReadTools } from '@/lib/mcp/remuneration-tools'
 import { registerLocalTaxReadTools } from '@/lib/mcp/local-tax-tools'
+import { registerTrainingReadTools } from '@/lib/mcp/training-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
@@ -755,10 +757,12 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerApprovalReadTools(server, guard)
   registerAnnexeReadTools(server, access, guard)
   registerDeadlineReadTools(server, guard)
+  registerCashForecastTools(server, guard)
   registerVatReturnReadTools(server, guard)
   registerCorporateTaxReadTools(server, access, guard)
   registerRemunerationReadTools(server, guard)
   registerLocalTaxReadTools(server, guard)
+  registerTrainingReadTools(server, guard)
   registerBankingReadTools(server, guard)
   registerThirdPartyReadTools(server, guard)
   registerLedgerReadTools(server, guard)
