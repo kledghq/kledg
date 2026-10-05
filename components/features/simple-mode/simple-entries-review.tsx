@@ -165,7 +165,7 @@ export function SimpleEntriesReview({ companyId }: { companyId: string }) {
   const summary = data?.summary
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Saisies du mode simple à valider"
         description="Les paiements que la société a classés en mode simple, avec la catégorie choisie, les réponses et la note. Vérifiez-les, corrigez-les si besoin, puis validez-les."
