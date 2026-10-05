@@ -140,7 +140,7 @@ neither read, created nor moved into a company outside the context.
 | Grant companies | `ai_access_grant_companies` | read and delete when the grant is visible (the user's own); insert and update also need the company reachable, so a user cannot grant an assistant a company they do not belong to |
 | Membership | `organization` (company reachable), `member` (own membership, or organization visible), `invitation` (organization visible) | reads as stated; writes only for an unrestricted context (instance administrators, system), except that a user may delete their own membership |
 | Optional company | `audit_logs` (company reachable; rows without company are instance events: any context writes them, only unrestricted contexts read them), `persons` (company reachable, or no company and a shareholder of a reachable company), `balance_sheet_config_templates`, `income_statement_config_templates` (company reachable, or public template) | as stated |
-| Exempt | `user`, `session`, `auth_account`, `verification`, `apikey`, `jwks`, `oauthClient`, `oauthResource`, `oauthClientResource`, `oauthRefreshToken`, `oauthAccessToken`, `oauthConsent`, `oauthClientAssertion`, `rateLimit`, `update_connection`, `_prisma_migrations` | no tenant data; see below |
+| Exempt | `user`, `session`, `auth_account`, `verification`, `apikey`, `jwks`, `oauthClient`, `oauthResource`, `oauthClientResource`, `oauthRefreshToken`, `oauthAccessToken`, `oauthConsent`, `oauthClientAssertion`, `rateLimit`, `update_connection`, `instance_versions`, `_prisma_migrations` | no tenant data; see below |
 
 An `INSERT ... RETURNING` must also pass the select policy: audit rows
 without company are therefore written with `createMany` (no `RETURNING`).
@@ -184,7 +184,8 @@ token by its value. A policy there would need a context that Better Auth
 itself establishes, and protects nothing that the secret in the lookup does
 not already protect. They hold no accounting data. `rateLimit` holds
 counters keyed by IP or user, `update_connection` the instance's GitHub
-connection (instance administrators only, checked by the route).
+connection and `instance_versions` its update history (instance
+administrators only, checked by the route).
 `_prisma_migrations` belongs to the migration tool (the application role
 gets no right on it).
 
@@ -242,6 +243,7 @@ transactions, and Better Auth (which goes through the same Prisma client).
 | Crons (`lib/banking/sync-banks.service.ts`) | `system`, reason `cron:bank-sync`, after the `CRON_SECRET` check: the integrations are listed unscoped, then each company's sync runs narrowed to that company and writes an audit row in it |
 | Automatic period closing (`lib/accounting/period-lock/auto-lock.service.ts`) | `system`, reason `cron:period-lock`, after the `CRON_SECRET` check: the companies are listed unscoped, then each company in monthly mode is locked narrowed to that company |
 | Secret rotation (`lib/crypto/reencrypt.ts`, at server start) | `system`, reason `secret-rotation`, only while an older auth secret is configured: the sealed credentials of every company (bank connections, integrations, GitHub token) are read and sealed again with the current key, under an advisory lock |
+| Update history (`lib/updates/history.ts`, at server start) | `system`, reason `version-history`, only when the running version differs from the last recorded one: reads the instance's `UPDATES_MERGE` audit rows (no company, so only an unrestricted context reads them) to attribute the new version to the administrator who installed it, and writes the `instance_versions` row |
 | Company creation by a user (`lib/companies/create-company.service.ts`) | `system`, reason `company-creation`, only when the instance policy lets a user who is not an instance administrator create a company (`companyCreationRefusal`, [extension-points.md](extension-points.md#company-creation)): the company has no member yet, and its organization and the creator's membership are writes that only an unrestricted context may do. Kledg's default policy never takes this path |
 | Better Auth (`/api/auth/*`) | derived from the session cookie when there is one, else `anonymous`; its own tables are exempt |
 | Setup (`/setup`) | `anonymous` (only Better Auth tables are written) |

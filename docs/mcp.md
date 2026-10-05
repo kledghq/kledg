@@ -409,8 +409,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
 | Qui modifient des données (POST, PUT, PATCH, DELETE) | 227 | 186 | 41 |
-| Lectures (GET) | 180 | 153 | 27 |
-| Total | 407 | 339 | 68 |
+| Lectures (GET) | 181 | 153 | 28 |
+| Total | 408 | 339 | 69 |
 
 ### Exclusions
 
@@ -423,7 +423,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Serveur MCP | Le serveur MCP lui-même. | 3 (2) |
 | Tâches planifiées | Tâche planifiée appelée par la plateforme avec son secret, jamais par un utilisateur. | 3 (0) |
 | Disponibilité | Sonde de disponibilité de l'instance, sans donnée. | 1 (0) |
-| Administration de l'instance | Administration de l'instance (utilisateurs, mises à jour, messagerie), hors de toute société ; reste dans les pages d'administration. | 13 (9) |
+| Administration de l'instance | Administration de l'instance (utilisateurs, mises à jour, messagerie), hors de toute société ; reste dans les pages d'administration. | 14 (9) |
 | Suppression d'une société | Suppression définitive d'une société : les livres sont conservés 10 ans (Code de commerce art. L123-22) ; une société qui en tient s'archive (archive_company), seule une société vide se supprime, dans Kledg. | 1 (1) |
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
@@ -831,6 +831,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/updates/connection` | administrateur de l’instance | Exclu : administration de l'instance |
 | `DELETE /api/updates/connection` | administrateur de l’instance | Exclu : administration de l'instance |
 | `GET /api/updates/github` | administrateur de l’instance | Exclu : administration de l'instance |
+| `GET /api/updates/history` | administrateur de l’instance | Exclu : administration de l'instance |
 | `POST /api/updates/install` | administrateur de l’instance | Exclu : administration de l'instance |
 | `POST /api/updates/prepare` | administrateur de l’instance | Exclu : administration de l'instance |
 | `GET /api/updates` | administrateur de l’instance | Exclu : administration de l'instance |

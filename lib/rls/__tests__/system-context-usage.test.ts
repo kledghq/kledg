@@ -24,6 +24,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/companies/create-company.service.ts': ['company-creation'],
   // Re-encryption after a rotation of the auth secret: every company's sealed credentials, at server start.
   'lib/crypto/reencrypt.ts': ['secret-rotation'],
+  // Update history at server start: reads the instance's UPDATES_MERGE audit rows (no company) to attribute a new version.
+  'lib/updates/history.ts': ['version-history'],
 }
 
 function files(entry: string): string[] {

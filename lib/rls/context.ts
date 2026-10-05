@@ -39,6 +39,12 @@ export type SystemReason =
    * server start, lib/crypto/reencrypt.ts.
    */
   | 'secret-rotation'
+  /**
+   * The update history, at server start: the UPDATES_MERGE audit rows (no
+   * company, readable by unrestricted contexts only) that attribute a new
+   * version to the administrator who installed it, lib/updates/history.ts.
+   */
+  | 'version-history'
   /** Command line scripts run by an operator (scripts/). */
   | 'script'
   /** Instance extensions of a fork (docs/extension-points.md), e.g. the demo's throwaway companies. */

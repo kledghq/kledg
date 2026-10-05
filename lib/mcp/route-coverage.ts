@@ -436,6 +436,7 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'POST /api/updates/connection': { excluded: 'instance' },
   'DELETE /api/updates/connection': { excluded: 'instance' },
   'GET /api/updates/github': { excluded: 'instance' },
+  'GET /api/updates/history': { excluded: 'instance' },
   'POST /api/updates/install': { excluded: 'instance' },
   'POST /api/updates/prepare': { excluded: 'instance' },
   'GET /api/updates': { excluded: 'instance' },
