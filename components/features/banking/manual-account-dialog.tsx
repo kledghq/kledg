@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -41,13 +41,15 @@ interface ManualAccountDialogProps {
   onCreated?: () => void
   /** Trigger button variant (outline next to a primary action). */
   variant?: 'default' | 'outline'
+  /** Trigger button size: "sm" inside an empty state. */
+  size?: 'default' | 'sm'
 }
 
 /**
  * "Ajouter un compte bancaire": an account without API connection (any
  * bank, fed by statement files), with its 512 ledger account.
  */
-export function ManualAccountDialog({ companyId, onCreated, variant = 'outline' }: ManualAccountDialogProps) {
+export function ManualAccountDialog({ companyId, onCreated, variant = 'outline', size = 'default' }: ManualAccountDialogProps) {
   const [open, setOpen] = useState(false)
   const { can, denied } = useCompanyAccess()
   const allowed = can({ banking: ['manage'] })
@@ -57,6 +59,13 @@ export function ManualAccountDialog({ companyId, onCreated, variant = 'outline' 
     defaultValues: { name: '', iban: '', ledgerAccountCode: '' },
   })
   const { errors, isSubmitting } = form.formState
+
+  // A new company has a single bank ledger account (512): choose it rather than ask
+  useEffect(() => {
+    if (ledgerAccounts.length === 1 && !form.getValues('ledgerAccountCode')) {
+      form.setValue('ledgerAccountCode', ledgerAccounts[0].code, { shouldDirty: true })
+    }
+  }, [ledgerAccounts, form])
 
   const submit = form.handleSubmit(async (values) => {
     const response = await fetch('/api/banking/manual-accounts', {
@@ -77,7 +86,7 @@ export function ManualAccountDialog({ companyId, onCreated, variant = 'outline' 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={variant} disabled={!allowed} title={allowed ? undefined : denied('ajouter un compte bancaire')}>
+        <Button variant={variant} size={size} disabled={!allowed} title={allowed ? undefined : denied('ajouter un compte bancaire')}>
           <Plus aria-hidden />
           Ajouter un compte bancaire
         </Button>
