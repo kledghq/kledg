@@ -75,6 +75,24 @@ describe('NavMain', () => {
     expect(screen.getByRole('link', { name: 'Tableau de bord' })).toHaveAttribute('aria-current', 'page')
   })
 
+  it('lists the provisions for risks and charges and the impairments as two pages of Saisie, each active on its own', () => {
+    const saisie = navGroups.find((group) => group.label === 'Saisie')
+    expect(saisie?.items.filter((item) => item.url.startsWith('/provisions')).map((item) => [item.title, item.url])).toEqual([
+      ['Risques et charges', '/provisions'],
+      ['Dépréciations', '/provisions/impairments'],
+    ])
+    nav.pathname = '/alpha/provisions/impairments'
+    const { unmount } = inSidebar(<NavMain groups={navGroups} />)
+    expect(screen.getByRole('link', { name: 'Dépréciations' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Risques et charges' })).not.toHaveAttribute('aria-current')
+    unmount()
+    nav.pathname = '/alpha/provisions'
+    inSidebar(<NavMain groups={navGroups} />)
+    expect(screen.getByRole('link', { name: 'Risques et charges' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Risques et charges' })).toHaveAttribute('href', '/alpha/provisions')
+    expect(screen.getByRole('link', { name: 'Dépréciations' })).not.toHaveAttribute('aria-current')
+  })
+
   it('shows Frais de gestion and Vue groupe in a holding only (lib/management-fees/holding.ts)', () => {
     const { unmount } = inSidebar(<NavMain groups={navGroups} holdingRefs={['beta']} />)
     expect(screen.queryByRole('link', { name: 'Frais de gestion' })).toBeNull()
