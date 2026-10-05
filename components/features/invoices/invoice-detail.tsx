@@ -491,7 +491,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
         <CardHeader>
           <CardTitle>Identifiants des parties</CardTitle>
           <CardDescription>
-            SIREN et numéros de TVA tels qu’enregistrés sur la facture. Kledg n’est pas une plateforme agréée&nbsp;: il ne reçoit ni n’émet de facture électronique.
+            SIREN et numéros de TVA tels qu’enregistrés sur la facture. Kledg n’est pas une plateforme agréée de facturation électronique&nbsp;: il ne reçoit, n’émet ni ne transmet de facture électronique et ne transmet aucune donnée à l’administration (e-reporting).
           </CardDescription>
         </CardHeader>
         <CardContent>

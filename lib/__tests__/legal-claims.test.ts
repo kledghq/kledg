@@ -48,6 +48,9 @@ describe('claims about legal compliance', () => {
   it('documents what Kledg guarantees and what it does not (docs/conformite.md)', () => {
     const doc = readFileSync(join(ROOT, 'docs', 'conformite.md'), 'utf8')
     expect(doc).toContain("Kledg n'est pas une plateforme agréée")
+    // The reform covers transactions between taxable businesses established in France (CGI art. 289 bis)
+    expect(doc).toContain('assujetties à la TVA établies en France')
+    expect(doc).toContain('e-reporting')
     expect(doc).toContain('Kledg ne stocke aucun fichier')
     expect(doc).toContain('hors du périmètre')
     expect(readFileSync(join(ROOT, 'docs', 'README.md'), 'utf8')).toContain('(conformite.md)')

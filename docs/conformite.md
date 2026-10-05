@@ -97,7 +97,7 @@ Kledg **enregistre** les factures d'achat et de vente ; il ne les **émet** pas 
 
 ### Facturation électronique
 
-**Kledg n'est pas une plateforme agréée** et ne se connecte à aucune. Il ne reçoit, n'émet ni ne transmet de facture électronique, et ne fait pas d'e-reporting. Depuis le 1er septembre 2026, toute société assujettie doit pouvoir recevoir ses factures par une plateforme agréée ; les grandes entreprises et les ETI émettent depuis cette date, les PME et microentreprises à partir du 1er septembre 2027 (CGI art. 289 bis et 290, loi n° 2026-103 de finances pour 2026). Choisissez une plateforme agréée ; Kledg comptabilise ensuite les factures. Kledg n'importe pas encore de fichier Factur-X, UBL ou CII.
+**Kledg n'est pas une plateforme agréée** et ne se connecte à aucune. Il ne reçoit, n'émet ni ne transmet de facture électronique, et ne transmet aucune donnée à l'administration (e-reporting). La réforme (CGI art. 289 bis et 290, tels que modifiés par la loi n° 2026-103 de finances pour 2026) vise les opérations entre entreprises assujetties à la TVA établies en France : depuis le 1er septembre 2026, chacune doit pouvoir recevoir ses factures électroniques par une plateforme agréée ; les grandes entreprises et les ETI émettent leurs factures électroniques et transmettent leurs données de transaction et de paiement (e-reporting) depuis cette date, les PME et microentreprises à partir du 1er septembre 2027. Les ventes aux particuliers et les opérations internationales relèvent de l'e-reporting, pas de la facture électronique. Kledg comptabilise les factures que la plateforme agréée de la société lui remet, par saisie ou import Qonto ; il n'importe pas encore de fichier Factur-X, UBL ou CII.
 
 ## Impôts et déclarations
 

@@ -101,12 +101,12 @@ Non utilisés : Qonto ne publie pas de liste des fournisseurs (ils viennent des
 
 | Date | Obligation |
 | --- | --- |
-| 1er septembre 2026 | Toutes les sociétés assujetties à la TVA doivent pouvoir **recevoir** leurs factures électroniques, par une plateforme agréée de leur choix. Les grandes entreprises et les ETI **émettent** et transmettent les données de transaction (e-reporting). |
-| 1er septembre 2027 | Les PME et les microentreprises émettent à leur tour et transmettent leurs données de transaction. |
+| 1er septembre 2026 | Toutes les entreprises assujetties à la TVA établies en France doivent pouvoir **recevoir** les factures électroniques de leurs fournisseurs assujettis établis en France, par une plateforme agréée de leur choix. Les grandes entreprises et les ETI **émettent** leurs factures électroniques et transmettent leurs données de transaction (ventes aux particuliers, opérations internationales) et de paiement (e-reporting). |
+| 1er septembre 2027 | Les PME et les microentreprises émettent à leur tour leurs factures électroniques et transmettent leurs données de transaction et de paiement. |
 
 Ce que cela veut dire pour une société qui tient ses comptes dans Kledg :
 
-- Choisissez une plateforme agréée (liste publiée par la DGFiP sur impots.gouv.fr) pour recevoir vos factures fournisseurs, et pour émettre vos factures de vente quand l'émission vous devient obligatoire. Le portail public (Chorus Pro) ne sert plus aux échanges entre entreprises.
+- Choisissez une plateforme agréée (liste publiée par la DGFiP sur impots.gouv.fr) pour recevoir vos factures fournisseurs, et pour émettre vos factures de vente quand l'émission vous devient obligatoire. Le portail public de facturation n'est pas une plateforme d'échange entre entreprises (Chorus Pro reste celui des factures adressées au secteur public).
 - Kledg enregistre ensuite ces factures en comptabilité : saisie, import Qonto, ou, plus tard, import du fichier. **Kledg n'importe pas encore de fichier Factur-X, UBL ou CII.**
 - Les mentions de la réforme (SIREN du client, adresse de livraison si elle diffère, catégorie de l'opération, option pour le paiement de la TVA d'après les débits, CGI ann. II art. 242 nonies A, I, 1°, 7° bis, 8° bis et 11° bis) sont portées par le document émis par votre outil de facturation ou votre plateforme. Kledg garde celles dont la comptabilité a besoin.
 
