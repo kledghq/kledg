@@ -5,6 +5,7 @@ import { isEmailEnabled, sendEmail } from '@/lib/email'
 import { testEmail } from '@/lib/email/templates'
 import { getAppUrl } from '@/lib/config'
 import { logger } from '@/lib/logger'
+import { assertSameOrigin } from '@/lib/api/same-origin'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,9 +17,11 @@ const FAILED =
 /**
  * Sends a test email to the administrator asking for it, from the
  * Configuration page: proves RESEND_API_KEY and EMAIL_FROM work end to end.
- * Only to the caller's own address, and rate limited.
+ * Only to the caller's own address, from the instance's own pages, and rate
+ * limited.
  */
-export const POST = adminRoute({}, async ({ user }) => {
+export const POST = adminRoute({}, async ({ request, user }) => {
+  assertSameOrigin(request)
   await enforceRateLimit('test-email', user.id)
   if (!(await isEmailEnabled())) throw new ValidationError(NOT_CONFIGURED)
   try {
