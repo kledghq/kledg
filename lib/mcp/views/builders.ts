@@ -27,6 +27,7 @@ import type { GroupStructureReport } from '@/lib/group/get-group-structure.servi
 import { flowDiagram, moneyFlows, MONEY_FLOW_LABELS, type MoneyFlowKind } from '@/lib/group/flows'
 import { INDICATIVE_NOTICE, PARTICIPATION_KIND_LABELS } from '@/lib/group/labels'
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_TONES, type InvoiceStatus } from '@/lib/invoices/status'
+import { qontoStanding } from '@/lib/invoices/origin'
 import { EXPENSE_STATUS_LABELS, EXPENSE_STATUS_TONES, type ExpenseReportStatus } from '@/lib/expense-reports/status'
 import type {
   ActionsView,
@@ -559,9 +560,33 @@ interface InvoiceLike {
   entry: { entryNumber?: string | number | null } | null
   payments: Array<{ amount: number; entryNumber: string | number | null; date: string }>
   source: string | null
+  origin?: string | null
+  createdInQonto?: boolean
+  qontoDraft?: boolean
+  qontoId?: string | null
 }
 
 const TONES: Record<string, DocumentView['status']['tone']> = { neutral: 'neutral', info: 'info', warning: 'warning', success: 'success' }
+
+/** "Origine" of an invoice: created in Qonto by Kledg (and still a draft there), imported from Qonto, or entered in Kledg. */
+function originFacts(invoice: InvoiceLike): Array<{ label: string; value: string }> {
+  const qonto = qontoStanding({
+    source: invoice.source,
+    origin: invoice.origin ?? null,
+    createdInQonto: invoice.createdInQonto ?? false,
+    qontoDraft: invoice.qontoDraft ?? false,
+    qontoId: invoice.qontoId ?? null,
+  })
+  if (qonto.label) {
+    return [
+      { label: 'Origine', value: qonto.label },
+      ...(qonto.draftLabel ? [{ label: 'Dans Qonto', value: qonto.draftLabel }] : []),
+      ...(qonto.qontoId ? [{ label: 'Identifiant Qonto', value: qonto.qontoId }] : []),
+    ]
+  }
+  if (!invoice.source) return []
+  return [{ label: 'Origine', value: invoice.source === 'MANUAL' ? 'Saisie dans Kledg' : invoice.source }]
+}
 
 export function invoiceDocument(companyId: string, invoice: InvoiceLike): DocumentView {
   const sale = invoice.direction === 'SALE'
@@ -586,7 +611,7 @@ export function invoiceDocument(companyId: string, invoice: InvoiceLike): Docume
       { label: 'Échéance', value: invoice.dueDate, format: 'date' },
       ...(invoice.entry?.entryNumber ? [{ label: 'Écriture', value: String(invoice.entry.entryNumber) }] : []),
       ...(invoice.lettering ? [{ label: 'Lettrage', value: invoice.lettering }] : []),
-      ...(invoice.source ? [{ label: 'Origine', value: invoice.source === 'QONTO' ? 'Importée de Qonto' : invoice.source === 'MANUAL' ? 'Saisie dans Kledg' : invoice.source }] : []),
+      ...originFacts(invoice),
     ],
     tables: [
       {

@@ -18,6 +18,7 @@ import type { Answers } from '@/lib/simple/posting'
 import type { ExpenseToReview, ExpensesToReview } from '@/lib/simple/expenses-to-review.service'
 import type { ConfirmAllResult, ConfirmResult } from '@/lib/simple/confirm-expense.service'
 import { CategoryDialog, type CategoryChoice } from './category-dialog'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 
 /** Event that makes the simple navigation reload its counts (components/layout/app-sidebar.tsx). */
 const COUNTS_REFRESH_EVENT = 'simple:counts-refresh'
@@ -409,6 +410,10 @@ function ExpenseRow({ expense, note, onNote, busy, canConfirm, onConfirm, onEdit
         </div>
         <div className="col-span-2 flex items-center justify-end gap-2 lg:col-span-1">
           {expense.hasReceipt ? <Paperclip role="img" aria-label="Justificatif joint" className="text-muted-foreground size-4" /> : null}
+          <ProposeWithAiButton
+            icon
+            target={{ kind: 'simple_expense', id: expense.id, side: expense.side === 'credit' ? 'credit' : 'debit', date: expense.date, label: expense.label || expense.name, amountCents: expense.amountCents }}
+          />
           {question ? null : classified ? (
             <>
               <Button size="sm" variant="outline" onClick={onEdit} disabled={!canConfirm || blocked || busy}>

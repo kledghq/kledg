@@ -56,6 +56,7 @@ import { logger } from '@/lib/logger'
 import { Amount, ConfirmDeleteDialog, EmptyState, PageHeader, formatAmount, formatDisplayDate } from '@/components/shared'
 import { OpeningBalanceNotice } from '@/components/features/accounting/opening-balance-notice'
 import { PeriodLockCard } from '@/components/features/accounting/period-lock-card'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 import { plural, pluralWord } from '@/lib/utils/plural'
 import { docsUrl } from '@/lib/docs-links'
 import { defaultFiscalYearDates } from '@/lib/accounting/default-fiscal-year-dates'
@@ -582,6 +583,12 @@ export default function FiscalYearsPage() {
                     <li key={index} className="text-sm">{error}</li>
                   ))}
                 </ul>
+                {closingFiscalYearId ? (
+                  <ProposeWithAiButton
+                    className="mt-3"
+                    target={{ kind: 'closing_check', fiscalYearId: closingFiscalYearId, year: fiscalYears.find((fy) => fy.id === closingFiscalYearId)?.year ?? 0, checks: closingErrors }}
+                  />
+                ) : null}
               </AlertDescription>
             </Alert>
           )}

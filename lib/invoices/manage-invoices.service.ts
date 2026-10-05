@@ -185,6 +185,8 @@ export interface InvoiceSummary {
   qontoPending: boolean
   /** A draft in Qonto: numbered and postable once finalized in Qonto (the import completes it). */
   qontoDraft: boolean
+  /** Id of the invoice at Qonto (created there or imported), null for an invoice Qonto never saw. */
+  qontoId: string | null
   externalStatus: string | null
   hasAttachment: boolean
   entry: { id: string; entryNumber: string; status: string } | null
@@ -217,6 +219,7 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
     createdInQonto: row.origin === 'QONTO' && row.qontoRequestedAt !== null,
     qontoPending: row.origin === 'QONTO' && row.qontoRequestedAt !== null && row.externalId === null,
     qontoDraft: row.origin === 'QONTO' && row.qontoDraft,
+    qontoId: row.source === 'QONTO' || row.origin === 'QONTO' ? row.externalId : null,
     externalStatus: row.externalStatus,
     hasAttachment: row.externalAttachmentId !== null,
     entry: row.entry ? { id: row.entry.id, entryNumber: row.entry.entryNumber, status: row.entry.status } : null,

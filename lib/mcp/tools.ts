@@ -696,7 +696,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
       title: 'Facture',
       description: describeTool({
         summary:
-          'One invoice with its lines (quantity, unit price excluding tax, VAT rate, account), VAT breakdown per rate, entry, payments recorded from the bank and status.',
+          'One invoice with its lines (quantity, unit price excluding tax, VAT rate, account), VAT breakdown per rate, entry, payments recorded from the bank and status. Qonto: createdInQonto (Kledg created it in Qonto, as opposed to imported from Qonto), qontoDraft (still a draft in Qonto: no number, not postable until finalized there) and qontoId (its id at Qonto).',
         access: 'read',
         permission: { entries: ['read'] },
         amounts: 'euros',
@@ -741,6 +741,10 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           entry: invoice.entry,
           payments: invoice.payments.map((p) => ({ amount: fromCents(p.amountCents), entryNumber: p.entry.entryNumber, date: p.entry.date })),
           source: invoice.source,
+          origin: invoice.origin,
+          createdInQonto: invoice.createdInQonto,
+          qontoDraft: invoice.qontoDraft,
+          qontoId: invoice.qontoId,
         }
         return withView(json(out), () => invoiceDocument(args.companyId, out))
       }),

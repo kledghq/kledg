@@ -162,6 +162,27 @@ describe('list_invoices and get_invoice', () => {
     expect(data.vatBreakdown).toEqual([{ ratePercent: 20, base: 100, vat: 20 }])
     expect(data.payments).toEqual([{ amount: 50, entryNumber: '13', date: '2026-04-02' }])
   })
+
+  it('says an invoice was created in Qonto, still a draft there, with its Qonto id', async () => {
+    vi.mocked(getInvoice).mockResolvedValue({
+      ...summary,
+      number: null,
+      source: 'QONTO',
+      origin: 'QONTO',
+      createdInQonto: true,
+      qontoDraft: true,
+      qontoId: 'q-77',
+      tiers: { id: 't1', name: 'Martin SA', kind: 'CUSTOMER', auxiliaryAccountNumber: 'C00001', defaultAccountCode: null, defaultVatRateBp: null },
+      currency: 'EUR',
+      parties: { sellerSiren: null, sellerVatNumber: null, buyerSiren: null, buyerVatNumber: null },
+      attachmentFileName: null,
+      lines: [],
+      vatBreakdown: [],
+      payments: [],
+    } as never)
+    const data = parse(await server().get('get_invoice')!({ companyId: 'c1', invoiceId: 'inv-1' }))
+    expect(data).toMatchObject({ source: 'QONTO', origin: 'QONTO', createdInQonto: true, qontoDraft: true, qontoId: 'q-77' })
+  })
 })
 
 describe('create_draft_invoice (full control)', () => {

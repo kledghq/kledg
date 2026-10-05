@@ -5,6 +5,8 @@ import { Paperclip, Workflow } from 'lucide-react'
 
 import { Amount, DateDisplay, StatusBadge } from '@/components/shared'
 import { Button } from '@/components/ui/button'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
+import { toCents } from '@/lib/utils/money'
 import { Skeleton } from '@/components/ui/skeleton'
 import { operationTypeLabel } from '@/lib/banking/operation-type'
 
@@ -202,15 +204,22 @@ export function ReconciliationQueue({
               <Amount value={amount} sign="always" className="text-sm font-medium" />
               <StatusBadge className="w-14 justify-center">{transaction.side === 'debit' ? 'Débit' : 'Crédit'}</StatusBadge>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              tabIndex={tabIndex}
-              onClick={() => onProcess(transaction)}
-            >
-              Traiter
-            </Button>
+            <div className="flex items-center gap-1">
+              <ProposeWithAiButton
+                icon
+                tabIndex={tabIndex}
+                target={{ kind: 'bank_transaction', id: transaction.id, date: transaction.date.slice(0, 10), label: transaction.label || name, amountCents: toCents(amount) ?? 0 }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                tabIndex={tabIndex}
+                onClick={() => onProcess(transaction)}
+              >
+                Traiter
+              </Button>
+            </div>
           </li>
         )
       })}

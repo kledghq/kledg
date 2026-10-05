@@ -21,6 +21,8 @@ import { responseError } from '@/hooks/use-cursor-list'
 import { centsToDecimal } from '@/lib/utils/money'
 import { plural } from '@/lib/utils/plural'
 import type { MissingReceipts, MissingReceipt } from '@/lib/banking/missing-receipts.service'
+import type { AiPromptTarget } from '@/lib/ai-assist/prompts'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 
 type Side = 'debit' | 'credit' | 'all'
 
@@ -48,6 +50,11 @@ function writeThreshold(cents: number | null) {
   } catch {
     // Storage blocked: the threshold is only remembered for this visit.
   }
+}
+
+/** The request of "Proposer avec l'IA" for one transaction without receipt. */
+function missingReceiptTarget(t: MissingReceipt): AiPromptTarget {
+  return { kind: 'missing_receipt', id: t.id, date: t.date, label: t.counterpartyName || t.label || '', amountCents: t.amountCents }
 }
 
 /** The transactions list filtered on one transaction: its account, its day, without receipt, its label. */
@@ -251,8 +258,8 @@ export default function MissingReceiptsPage() {
           <CardContent>
             <ul className="divide-y rounded-md border lg:hidden" aria-label="Opérations sans justificatif">
               {(data?.transactions ?? []).map((t) => (
-                <li key={t.id}>
-                  <Link href={transactionHref(companyId, t)} className="hover:bg-muted/60 flex items-start justify-between gap-3 px-3 py-2.5">
+                <li key={t.id} className="flex items-center gap-1 pr-2">
+                  <Link href={transactionHref(companyId, t)} className="hover:bg-muted/60 flex min-w-0 flex-1 items-start justify-between gap-3 px-3 py-2.5">
                     <span className="min-w-0">
                       <span className="block truncate text-sm">{t.counterpartyName || t.label || 'Opération sans libellé'}</span>
                       <span className="text-muted-foreground block truncate text-xs">
@@ -261,6 +268,7 @@ export default function MissingReceiptsPage() {
                     </span>
                     <Amount value={t.amountCents / 100} sign="always" className="shrink-0 text-sm" />
                   </Link>
+                  <ProposeWithAiButton icon target={missingReceiptTarget(t)} />
                 </li>
               ))}
             </ul>
@@ -301,12 +309,15 @@ export default function MissingReceiptsPage() {
                           {t.reconciled ? <StatusBadge tone="success">Rapprochée</StatusBadge> : <StatusBadge tone="neutral">À rapprocher</StatusBadge>}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button asChild size="xs" variant="outline">
-                            <Link href={transactionHref(companyId, t)}>
-                              Voir la transaction
-                              <ArrowRight aria-hidden />
-                            </Link>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <ProposeWithAiButton icon target={missingReceiptTarget(t)} />
+                            <Button asChild size="xs" variant="outline">
+                              <Link href={transactionHref(companyId, t)}>
+                                Voir la transaction
+                                <ArrowRight aria-hidden />
+                              </Link>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

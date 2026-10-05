@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 import { Amount, ConfirmDialog, DateDisplay, EmptyState, Field, PageHeader, StatCard, StatusBadge, formatDisplayDate, type StatusTone } from '@/components/shared'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { euros, sendJson, useJson } from '@/components/features/year-end/shared'
@@ -351,20 +352,25 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
         description="Kledg prépare la déclaration de TVA de chaque période à partir des écritures validées, ligne par ligne. Vous la vérifiez, puis vous la déposez sur impots.gouv.fr."
         docsHref={docsUrl('vat')}
         actions={
-          canExport && view?.status === 'ready' ? (
+          view?.status === 'ready' && view.period ? (
             <>
-              <Button asChild variant="outline">
-                <a href={exportUrl('pdf')} download>
-                  <Download aria-hidden />
-                  PDF
-                </a>
-              </Button>
-              <Button asChild variant="outline">
-                <a href={exportUrl('csv')} download>
-                  <Download aria-hidden />
-                  CSV
-                </a>
-              </Button>
+              <ProposeWithAiButton size="default" target={{ kind: 'vat_return', period: view.period.id, periodStart: view.period.start, periodEnd: view.period.end }} />
+              {canExport ? (
+                <>
+                  <Button asChild variant="outline">
+                    <a href={exportUrl('pdf')} download>
+                      <Download aria-hidden />
+                      PDF
+                    </a>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <a href={exportUrl('csv')} download>
+                      <Download aria-hidden />
+                      CSV
+                    </a>
+                  </Button>
+                </>
+              ) : null}
             </>
           ) : null
         }

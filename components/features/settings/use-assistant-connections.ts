@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { authClient } from '@/lib/auth-client'
+import { assistantKind as kindOfClient, type AssistantKind } from '@/lib/ai-access/assistant-kind'
 
-export type AssistantKind = 'claude' | 'chatgpt' | 'claude-code' | 'other'
+export type { AssistantKind }
 
 export type AssistantConsent = {
   id: string
@@ -17,37 +18,9 @@ export type AssistantConsent = {
 type Consent = { id: string; clientId: string; scopes?: string[]; createdAt?: string }
 type PublicClient = { client_name?: string; client_uri?: string }
 
-/**
- * Client metadata documents (CIMD) of the assistants Kledg brands. Better
- * Auth fetched the document at the client id URL and checked that it names
- * this very URL (@better-auth/cimd), so a client id on one of these origins
- * can only come from Claude or ChatGPT. Exact origin (scheme, host, default
- * port): no subdomain, no look-alike.
- */
-const VERIFIED_CLIENT_ORIGINS: ReadonlyArray<{ origin: string; pathPrefix: string; kind: AssistantKind }> = [
-  { origin: 'https://claude.ai', pathPrefix: '/oauth/', kind: 'claude' },
-  { origin: 'https://chatgpt.com', pathPrefix: '/', kind: 'chatgpt' },
-]
-
-/**
- * Which assistant an OAuth client is: Claude or ChatGPT only for a verified
- * identity (a CIMD client id on an allowlisted origin), Claude Code when
- * Claude's metadata document says so. A dynamically registered client
- * (RFC 7591) declares its name, URI and logo itself: it is 'other', whatever
- * it claims.
- */
+/** Which assistant an OAuth client is (lib/ai-access/assistant-kind.ts); the declared metadata never decides it. */
 export function assistantKind(clientId: string, _client?: PublicClient | null): AssistantKind {
-  let url: URL
-  try {
-    url = new URL(clientId)
-  } catch {
-    return 'other'
-  }
-  if (url.username || url.password || url.hash) return 'other'
-  const match = VERIFIED_CLIENT_ORIGINS.find((v) => url.origin === v.origin && url.pathname.startsWith(v.pathPrefix))
-  if (!match) return 'other'
-  if (match.kind === 'claude' && url.pathname.includes('claude-code')) return 'claude-code'
-  return match.kind
+  return kindOfClient(clientId)
 }
 
 const KNOWN_ASSISTANT_NAMES: Partial<Record<AssistantKind, string>> = {
