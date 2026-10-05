@@ -86,7 +86,8 @@ function base(integration: { id: string; companyId: string; provider: string }) 
   return { companyId: integration.companyId, integrationId: integration.id, provider: integration.provider }
 }
 
-function isCronRequest(request: Request): boolean {
+/** Whether the request carries the CRON_SECRET bearer token (Vercel Cron). */
+export function isCronRequest(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return false
   const expected = Buffer.from(`Bearer ${secret}`)

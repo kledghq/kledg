@@ -44,6 +44,20 @@ export function defaultVatFilingDay(legalType: string | null | undefined): numbe
 export const VAT_CA3_FREQUENCIES = ['auto', 'monthly', 'quarterly'] as const
 export type VatCa3Frequency = (typeof VAT_CA3_FREQUENCIES)[number]
 
+/**
+ * Automatic period closing (PCG art. 1031-4: the closing of a period "est
+ * mise en œuvre au plus tard avant l'expiration de la période suivante"),
+ * off by default:
+ * - after_vat_filing: recording the filing of a VAT return closes the
+ *   periods up to the end of its period;
+ * - monthly: each month is closed `periodAutoLockDelayDays` days after its
+ *   end (1 to 27, so always before the end of the following month).
+ * A period still holding drafts is not closed; the reason is reported.
+ */
+export const PERIOD_AUTO_LOCK_MODES = ['off', 'after_vat_filing', 'monthly'] as const
+export type PeriodAutoLockMode = (typeof PERIOD_AUTO_LOCK_MODES)[number]
+export const PERIOD_AUTO_LOCK_MAX_DELAY = 27
+
 export const DeadlineSettingsSchema = z.object({
   /** Day of the month of the CA3 and of the CA12 acomptes; null: not known, the earliest day of the legal form is shown. */
   vatFilingDay: z
@@ -76,6 +90,15 @@ export const DeadlineSettingsSchema = z.object({
   cfeChanges: z.boolean().default(false),
   /** Annual accounts filed online with the greffe: two months instead of one after approval. */
   accountsFiledOnline: z.boolean(),
+  /** Automatic period closing (PCG art. 1031-4); optional in the body, off by default. */
+  periodAutoLock: z.enum(PERIOD_AUTO_LOCK_MODES, { error: 'Mode de clôture automatique des périodes inconnu' }).default('off'),
+  /** Monthly mode: days after the end of a month before it is closed. */
+  periodAutoLockDelayDays: z
+    .number({ error: 'Le délai de clôture est un nombre de jours' })
+    .int()
+    .min(1, { error: `Le délai de clôture est compris entre 1 et ${PERIOD_AUTO_LOCK_MAX_DELAY} jours` })
+    .max(PERIOD_AUTO_LOCK_MAX_DELAY, { error: `Le délai de clôture est compris entre 1 et ${PERIOD_AUTO_LOCK_MAX_DELAY} jours : la période doit être clôturée avant la fin de la suivante (PCG art. 1031-4)` })
+    .default(20),
 })
 
 export type DeadlineSettings = z.infer<typeof DeadlineSettingsSchema>
@@ -92,6 +115,8 @@ export const DEFAULT_DEADLINE_SETTINGS: DeadlineSettings = {
   cvaeAcomptes: false,
   cfeChanges: false,
   accountsFiledOnline: false,
+  periodAutoLock: 'off',
+  periodAutoLockDelayDays: 20,
 }
 
 /** Body of PUT /api/companies/[id]/deadline-settings: the whole settings object. */

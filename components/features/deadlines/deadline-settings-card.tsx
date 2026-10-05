@@ -19,6 +19,8 @@ import {
   defaultVatFilingDay,
   type DeadlineSettings,
   type VatCa3Frequency,
+  type PeriodAutoLockMode,
+  PERIOD_AUTO_LOCK_MAX_DELAY,
 } from '@/lib/deadlines/settings'
 
 type BooleanSetting = 'vatSimplifiedAcomptes' | 'isAcomptes' | 'cfeAcompte' | 'cfeChanges' | 'das2' | 'cvae' | 'cvaeDue' | 'cvaeAcomptes' | 'accountsFiledOnline'
@@ -54,6 +56,12 @@ const SWITCHES: Array<{ key: BooleanSetting; label: string; hint: string }> = [
     label: 'Dépôt des comptes au greffe en ligne',
     hint: "Le dépôt électronique laisse deux mois après l'approbation au lieu d'un.",
   },
+]
+
+const AUTO_LOCK_MODES: Array<{ value: PeriodAutoLockMode; label: string }> = [
+  { value: 'off', label: 'Non, je clôture mes périodes moi-même' },
+  { value: 'after_vat_filing', label: 'Après chaque déclaration de TVA enregistrée' },
+  { value: 'monthly', label: 'Chaque mois, après un délai' },
 ]
 
 const FREQUENCIES: Array<{ value: VatCa3Frequency; label: string }> = [
@@ -208,6 +216,42 @@ export function DeadlineSettingsCard({ companyId, legalType, canEdit }: { compan
                   </SelectContent>
                 </Select>
               </Field>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Clôture automatique des périodes"
+                htmlFor="deadline-period-lock"
+                hint={"Le plan comptable impose de clôturer chaque période au plus tard avant la fin de la suivante (PCG art. 1031-4). Une période qui contient encore des brouillons n'est pas clôturée : la raison est inscrite au journal d'audit. Une période clôturée ne se rouvre pas."}
+              >
+                <Select value={draft.periodAutoLock} onValueChange={(value) => update('periodAutoLock', value as PeriodAutoLockMode)} disabled={!canEdit}>
+                  <SelectTrigger id="deadline-period-lock" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AUTO_LOCK_MODES.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              {draft.periodAutoLock === 'monthly' ? (
+                <Field label="Délai après la fin du mois" htmlFor="deadline-period-lock-delay" hint={`Entre 1 et ${PERIOD_AUTO_LOCK_MAX_DELAY} jours, pour que le mois soit clôturé avant la fin du suivant.`}>
+                  <Select value={String(draft.periodAutoLockDelayDays)} onValueChange={(value) => update('periodAutoLockDelayDays', Number(value))} disabled={!canEdit}>
+                    <SelectTrigger id="deadline-period-lock-delay" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: PERIOD_AUTO_LOCK_MAX_DELAY }, (_, i) => i + 1).map((days) => (
+                        <SelectItem key={days} value={String(days)}>
+                          {days} jour{days > 1 ? 's' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ) : null}
             </div>
             <ul className="divide-y">
               {SWITCHES.map((s) => (

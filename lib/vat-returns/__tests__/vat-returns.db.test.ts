@@ -339,7 +339,7 @@ describe.skipIf(!available)('VAT returns (PostgreSQL)', () => {
       expect((await call('viewer', routes.filing.PUT, 'PUT', `${base()}/filing`, { period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0 })).status).toBe(403)
       const saved = await call('accountant', routes.filing.PUT, 'PUT', `${base()}/filing`, { period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0 })
       expect(saved.status).toBe(200)
-      expect(await saved.json()).toEqual({ period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0 })
+      expect(await saved.json()).toEqual({ period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0, periodLock: null })
       const removed = await call('accountant', routes.filing.DELETE, 'DELETE', `${base()}/filing?period=2026-07`)
       expect(removed.status).toBe(200)
       expect((await call('accountant', routes.filing.DELETE, 'DELETE', `${base()}/filing?period=2026-07`)).status).toBe(404)
@@ -357,5 +357,20 @@ describe.skipIf(!available)('VAT returns (PostgreSQL)', () => {
         }),
       ).rejects.toThrow()
     })
+  })
+  it('closes the periods up to the end of the return when the company chose "after_vat_filing" (PCG art. 1031-4)', async () => {
+    await prisma.company.update({ where: { id: books.companyId }, data: { deadlineSettings: { vatFilingDay: 21, vatCa3Frequency: 'monthly', periodAutoLock: 'after_vat_filing' } } })
+    // A period still holding drafts is not closed: the filing is recorded, the reason given
+    const draft = await svc.createEntry({ companyId: books.companyId, journalId: (await prisma.journal.findFirstOrThrow({ where: { companyId: books.companyId, code: 'OD' } })).id, date: '2026-08-20', description: 'Brouillon', lines: [{ accountId: books.accounts['6064'], debit: 10, credit: 0 }, { accountId: books.accounts['401000'], debit: 0, credit: 10 }] })
+    const blocked = await filing.recordVatFiling(books.companyId, { period: '2026-08', filedOn: '2026-09-18', amountDueCents: 10_000, creditCents: 0 }, { now: NOW, userId: USERS.owner.id })
+    expect(blocked.periodLock).toMatchObject({ locked: [], skipped: [{ fiscalYearId: books.fiscalYearId, reason: expect.stringContaining('brouillon') }] })
+    for (const entry of await prisma.accountingEntry.findMany({ where: { companyId: books.companyId, status: 'draft', date: { lte: new Date('2026-08-31T00:00:00Z') } } })) {
+      await svc.deleteDraftEntry(books.companyId, entry.id)
+    }
+    expect(await prisma.accountingEntry.count({ where: { id: draft.id } })).toBe(0)
+    const saved = await filing.recordVatFiling(books.companyId, { period: '2026-08', filedOn: '2026-09-18', amountDueCents: 10_000, creditCents: 0 }, { now: NOW, userId: USERS.owner.id })
+    expect(saved.periodLock).toEqual({ locked: [{ fiscalYearId: books.fiscalYearId, through: '2026-08-31' }], skipped: [] })
+    const year = await prisma.fiscalYear.findUniqueOrThrow({ where: { id: books.fiscalYearId } })
+    expect(year.periodLockedThrough?.toISOString()).toBe('2026-08-31T00:00:00.000Z')
   })
 })

@@ -23,7 +23,16 @@ describe('deadline settings', () => {
       cvaeAcomptes: false,
       cfeChanges: false,
       accountsFiledOnline: false,
+      periodAutoLock: 'off',
+      periodAutoLockDelayDays: 20,
     })
+  })
+
+  it('keeps the automatic period closing off unless asked, and before the end of the next month (PCG art. 1031-4)', () => {
+    expect(DeadlineSettingsBody.parse({ ...DEFAULT_DEADLINE_SETTINGS, periodAutoLock: undefined, periodAutoLockDelayDays: undefined })).toMatchObject({ periodAutoLock: 'off', periodAutoLockDelayDays: 20 })
+    const late = DeadlineSettingsBody.safeParse({ ...DEFAULT_DEADLINE_SETTINGS, periodAutoLock: 'monthly', periodAutoLockDelayDays: 28 })
+    expect(late.success).toBe(false)
+    expect(late.error?.issues[0].message).toContain('avant la fin de la suivante')
   })
 
   it('reads the settings added for local taxes as false when a client or a stored value omits them', () => {

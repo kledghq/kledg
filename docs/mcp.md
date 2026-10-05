@@ -560,6 +560,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/companies` | session | Exclu : cycle de vie des sociétés |
 | `GET /api/cron/sync-banks` | aucun (voir exclusion) | Exclu : tâches planifiées |
 | `GET /api/cron/sync-qonto` | aucun (voir exclusion) | Exclu : tâches planifiées |
+| `GET /api/cron/period-locks` | aucun (voir exclusion) | Exclu : tâches planifiées |
 | `GET /api/dashboard/layout` | reports:read | Exclu : aides de l'interface |
 | `PUT /api/dashboard/layout` | reports:read | Exclu : aides de l'interface |
 | `DELETE /api/dashboard/layout` | reports:read | Exclu : aides de l'interface |

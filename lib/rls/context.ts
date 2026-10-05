@@ -26,6 +26,8 @@ import { logger } from '@/lib/logger'
 export type SystemReason =
   /** The daily bank sync (CRON_SECRET), lib/banking/sync-banks.service.ts. */
   | 'cron:bank-sync'
+  /** The daily automatic period closing (CRON_SECRET), lib/accounting/period-lock/auto-lock.service.ts. */
+  | 'cron:period-lock'
   /**
    * A company created by a user the instance policy allows
    * (companyCreationRefusal): the company and its organization do not exist

@@ -18,6 +18,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/rls/context.ts': [],
   // The daily bank sync (CRON_SECRET): lists the integrations, then syncs each company narrowed to it.
   'lib/banking/sync-banks.service.ts': ['cron:bank-sync'],
+  // The daily automatic period closing (CRON_SECRET): lists the companies in monthly mode, then locks each one narrowed to it.
+  'lib/accounting/period-lock/auto-lock.service.ts': ['cron:period-lock'],
   // A company created by a user the instance policy allows: it has no member yet, and its organization and membership are system writes.
   'lib/companies/create-company.service.ts': ['company-creation'],
   // Re-encryption after a rotation of the auth secret: every company's sealed credentials, at server start.

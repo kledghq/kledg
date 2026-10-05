@@ -27,6 +27,7 @@ const ALLOWLIST: Record<string, string> = {
   'api/health': 'Public liveness probe, returns no data',
   'api/cron/sync-banks': 'Vercel cron: requires the CRON_SECRET bearer token',
   'api/cron/sync-qonto': 'Former path of the bank sync cron: same handler, CRON_SECRET bearer token',
+  'api/cron/period-locks': 'Vercel cron: automatic period closing, requires the CRON_SECRET bearer token when set',
   'auth/signout': 'Sign out: same-origin POST only (assertSameOrigin), a GET only redirects to the confirmation page',
   '.well-known/openid-configuration/[[...path]]': 'Public OpenID discovery metadata (Better Auth OAuth provider)',
   '.well-known/oauth-authorization-server/[[...path]]': 'Public RFC 8414 authorization server metadata (Better Auth)',

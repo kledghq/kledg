@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/sync-banks",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/period-locks",
+      "schedule": "30 4 * * *"
     }
   ]
 }

@@ -166,3 +166,44 @@ describe.skipIf(!available)('period closing (PCG art. 1031-4)', () => {
     expect((await lock('2026-01-31')).status).toBe(403)
   })
 })
+
+describe.skipIf(!available)('automatic period closing (deadline settings, off by default)', () => {
+  it('reaches the end of the latest month whose delay has run', async () => {
+    const { monthlyLockTarget } = await import('@/lib/accounting/period-lock/auto-lock.service')
+    expect(monthlyLockTarget('2026-03-20', 20)).toBe('2026-02-28')
+    expect(monthlyLockTarget('2026-03-19', 20)).toBe('2026-01-31')
+    expect(monthlyLockTarget('2026-01-05', 1)).toBe('2025-12-31')
+  })
+
+  it('closes the companies in monthly mode only, through the cron route, and reports a period with drafts', async () => {
+    await prepareTestDatabase('period_lock')
+    const auto = await import('@/lib/accounting/period-lock/auto-lock.service')
+    const make = async (slug: string, siren: string, settings: { periodAutoLock: string; periodAutoLockDelayDays: number } | null) => {
+      const company = await prisma.company.create({ data: { name: slug, slug, siren, ...(settings ? { deadlineSettings: settings } : {}) } })
+      const fy = await prisma.fiscalYear.create({ data: { companyId: company.id, year: 2026, startDate: day('2026-01-01'), endDate: day('2026-12-31') } })
+      return { company: company.id, fy: fy.id }
+    }
+    const monthly = await make('mensuelle', '111111111', { periodAutoLock: 'monthly', periodAutoLockDelayDays: 10 })
+    const off = await make('sans', '222222222', null)
+    const blocked = await make('brouillons', '333333333', { periodAutoLock: 'monthly', periodAutoLockDelayDays: 10 })
+    const journal = await prisma.journal.create({ data: { companyId: blocked.company, code: 'OD', label: 'OD' } })
+    await prisma.accountingEntry.create({ data: { companyId: blocked.company, journalId: journal.id, fiscalYearId: blocked.fy, entryNumber: 'BR-1', date: day('2026-02-10') } })
+
+    const result = await auto.runMonthlyPeriodLocks(new Date('2026-03-15T08:00:00Z'))
+    expect(result).toEqual({ companies: 2, locked: 1, skipped: 1 })
+    const lockOf = async (id: string) => (await prisma.fiscalYear.findUniqueOrThrow({ where: { id } })).periodLockedThrough?.toISOString() ?? null
+    expect(await lockOf(monthly.fy)).toBe('2026-02-28T00:00:00.000Z')
+    expect(await lockOf(off.fy)).toBeNull()
+    expect(await lockOf(blocked.fy)).toBeNull()
+    expect((await prisma.fiscalYear.findUniqueOrThrow({ where: { id: monthly.fy } })).periodLockedById).toBe(auto.AUTO_LOCK_USER)
+
+    // The cron route: refused without the bearer token when CRON_SECRET is set
+    process.env.CRON_SECRET = 'cron-secret-for-tests'
+    const { GET } = await import('@/app/api/cron/period-locks/route')
+    expect((await GET(new Request('http://localhost/api/cron/period-locks'))).status).toBe(401)
+    const ran = await GET(new Request('http://localhost/api/cron/period-locks', { headers: { authorization: 'Bearer cron-secret-for-tests' } }))
+    expect(ran.status).toBe(200)
+    expect(await ran.json()).toMatchObject({ success: true, companies: 2 })
+    delete process.env.CRON_SECRET
+  })
+})

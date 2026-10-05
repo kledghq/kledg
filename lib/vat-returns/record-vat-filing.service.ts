@@ -14,6 +14,8 @@ import { writeAuditLog } from '@/lib/audit'
 import { calendarDayOf, todayUtc } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { buildVatReturn } from './load-vat-return.service'
+import { parseDeadlineSettings } from '@/lib/deadlines/settings'
+import { lockOpenYearsThrough, type AutoLockResult } from '@/lib/accounting/period-lock/auto-lock.service'
 import { PERIOD_KEY_PATTERN, periodOfKey } from './periods'
 
 const periodField = z.string({ error: 'La période est requise' }).regex(PERIOD_KEY_PATTERN, 'Période invalide : aaaa-mm, aaaa-Tn ou aaaa.')
@@ -35,6 +37,8 @@ export interface VatFilingSaved {
   filedOn: string
   amountDueCents: number
   creditCents: number
+  /** Periods closed with the filing (automatic period closing "after_vat_filing"), null when off. */
+  periodLock: AutoLockResult | null
 }
 
 const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
@@ -73,7 +77,14 @@ export async function recordVatFiling(companyId: string, body: VatFilingBody, op
     companyId,
     metadata: { period: period.id, form: period.form, filedOn: body.filedOn, amountDueCents: body.amountDueCents, creditCents: body.creditCents },
   })
+  // Automatic period closing after a VAT filing (lib/deadlines/settings.ts, PCG art. 1031-4)
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { deadlineSettings: true } })
+  const periodLock =
+    parseDeadlineSettings(company?.deadlineSettings).periodAutoLock === 'after_vat_filing'
+      ? await lockOpenYearsThrough(companyId, period.end, options.userId)
+      : null
   return {
+    periodLock,
     period: saved.periodKey,
     filedOn: calendarDayOf(saved.filedOn) as string,
     amountDueCents: parseCents(saved.amountDue) ?? 0,

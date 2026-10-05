@@ -208,6 +208,7 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'POST /api/companies': { excluded: 'companyLifecycle' },
   'GET /api/cron/sync-banks': { excluded: 'cron' },
   'GET /api/cron/sync-qonto': { excluded: 'cron' },
+  'GET /api/cron/period-locks': { excluded: 'cron' },
   'GET /api/dashboard/layout': { excluded: 'ui' },
   'PUT /api/dashboard/layout': { excluded: 'ui' },
   'DELETE /api/dashboard/layout': { excluded: 'ui' },
