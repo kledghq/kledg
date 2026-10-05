@@ -139,7 +139,7 @@ export function buildChecklist(
           : null,
     action: {
       label: top && facts.rules === 0 ? `Créer la règle « ${top.label} »` : 'Créer une règle',
-      href: top && facts.rules === 0 ? `${base}/rules?fromTransaction=${encodeURIComponent(top.transactionId)}` : `${base}/rules`,
+      href: top && facts.rules === 0 ? `${base}/rules/new?fromTransaction=${encodeURIComponent(top.transactionId)}` : `${base}/rules`,
     },
   })
 

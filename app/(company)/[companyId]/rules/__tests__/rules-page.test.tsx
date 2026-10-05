@@ -2,9 +2,12 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const replace = vi.fn()
+let search = new URLSearchParams()
 vi.mock('next/navigation', () => ({
   useParams: () => ({ companyId: 'c1' }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace }),
+  useSearchParams: () => search,
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
@@ -40,6 +43,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   fetchMock.mockReset()
+  replace.mockReset()
+  search = new URLSearchParams()
 })
 
 describe('Règles d’affectation page', () => {
@@ -70,5 +75,19 @@ describe('Règles d’affectation page', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/transaction-rules/r1', { method: 'DELETE' }),
     )
     expect(nativeConfirm).not.toHaveBeenCalled()
+  })
+
+  it('opens the rule pages instead of a dialog', async () => {
+    render(<RulesPage />)
+    expect(await screen.findByRole('link', { name: 'Loyer' })).toHaveAttribute('href', '/c1/rules/r1')
+    expect(screen.getByRole('link', { name: 'Modifier la règle Loyer' })).toHaveAttribute('href', '/c1/rules/r1')
+    expect(screen.getByRole('link', { name: 'Nouvelle règle' })).toHaveAttribute('href', '/c1/rules/new')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('sends a link of an earlier version with a prefill to the new rule page, prefill kept', async () => {
+    search = new URLSearchParams({ fromTransaction: 'tx-1', ruleName: 'Adobe' })
+    render(<RulesPage />)
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/c1/rules/new?fromTransaction=tx-1&ruleName=Adobe'))
   })
 })

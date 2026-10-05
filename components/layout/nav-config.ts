@@ -214,6 +214,8 @@ const subPages: Array<{ path: string; title: string }> = [
   { path: "/invoices/[id]/edit", title: "Modifier la facture" },
   { path: "/invoices/[id]", title: "Facture" },
   { path: "/tiers/new", title: "Nouveau tiers" },
+  { path: "/rules/new", title: "Nouvelle règle" },
+  { path: "/rules/[id]", title: "Règle" },
   { path: "/expense-reports/new", title: "Nouvelle note de frais" },
   { path: "/expense-reports/settings", title: "Bénéficiaires et catégories" },
   { path: "/expense-reports/[id]/edit", title: "Modifier la note de frais" },
