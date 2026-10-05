@@ -396,6 +396,15 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('accounts_approvals'), companyId, fiscalYearId: id('fiscal_years'), details: {}, approvedOn: day('2026-06-15') },
       })
       record('accounts_approvals', p, id('accounts_approvals'))
+      // Annexe: register of methods, a change of method, the answers of the annexe (lib/annexe)
+      await prisma.accountingMethod.create({ data: { id: id('accounting_methods'), companyId, topic: 'depreciation', label: 'Linéaire', description: "Sur la durée d'utilisation" } })
+      record('accounting_methods', p, id('accounting_methods'))
+      await prisma.accountingChange.create({
+        data: { id: id('accounting_changes'), companyId, fiscalYearId: id('fiscal_years'), kind: 'METHOD_CHANGE', treatment: 'PROSPECTIVE', methodId: id('accounting_methods'), label: 'Durée', description: 'Allongée' },
+      })
+      record('accounting_changes', p, id('accounting_changes'))
+      await prisma.annexeNote.create({ data: { id: id('annexe_notes'), companyId, fiscalYearId: id('fiscal_years'), details: {} } })
+      record('annexe_notes', p, id('annexe_notes'))
       // A VAT return recorded as filed (lib/vat-returns)
       await prisma.vatReturnFiling.create({
         data: { id: id('vat_return_filings'), companyId, form: 'CA3', periodKey: '2026-09', periodStart: day('2026-09-01'), periodEnd: day('2026-09-30'), filedOn: day('2026-10-15'), amountDue: 120, creditAmount: 0 },

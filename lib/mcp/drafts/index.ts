@@ -13,6 +13,7 @@ import { registerBudgetDraftTools } from './budgets'
 import { registerYearEndDraftTools } from './year-end'
 import { registerExpenseReportDraftTools } from './expense-reports'
 import { registerApprovalDraftTools } from './approval'
+import { registerAnnexeDraftTools } from './annexe'
 import { registerSimpleModeDraftTools } from './simple-mode'
 import { registerVatReturnDraftTools } from './vat-returns'
 import { registerCorporateTaxDraftTools } from './corporate-tax'
@@ -27,6 +28,7 @@ export function registerDraftTools(server: McpServer, access: McpAccess, guard: 
   registerYearEndDraftTools(register)
   registerExpenseReportDraftTools(register)
   registerApprovalDraftTools(register)
+  registerAnnexeDraftTools(register)
   registerSimpleModeDraftTools(register)
   registerVatReturnDraftTools(register)
   registerCorporateTaxDraftTools(register)

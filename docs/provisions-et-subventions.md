@@ -102,6 +102,6 @@ La page États, Composition du capital (`GET /api/reports/capital-composition?co
 
 ## Ce qui n'est pas repris de Ledgerly
 
-- Les méthodes comptables, changements de méthode et d'estimation, corrections d'erreurs et frais de développement : prévus pour kledg-labs.
+- Les frais de développement : prévus pour kledg-labs. Les méthodes comptables, changements de méthode et d'estimation et corrections d'erreurs sont tenus dans le registre des méthodes ([annexe](annexe-et-2054.md)).
 - Le transfert d'une dépréciation en amortissement pour raisons fiscales et la révision du plan d'amortissement après une dépréciation (la base amortissable devient la valeur nette comptable dépréciée) : le plan d'une immobilisation dépréciée se corrige à la main.
-- Le PDF de la composition du capital et le tableau des participations.
+- Le PDF de la composition du capital. Le tableau des filiales et participations figure dans l'annexe ([annexe](annexe-et-2054.md)).

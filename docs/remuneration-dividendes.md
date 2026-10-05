@@ -222,7 +222,7 @@ associés votent, puis l'affectation du résultat comptabilise les dividendes
 actuelles doit être simulé de nouveau avant d'être proposé.
 
 Table `remuneration_scenarios` (migration
-`20261107090000_remuneration_scenarios`) : une ligne par nom et exercice
+`20261109090000_remuneration_scenarios`) : une ligne par nom et exercice
 (clé unique exercice, société, nom ; clé étrangère composite vers l'exercice
 de la même société). Contraintes de la base : nom de 1 à 80 caractères,
 coût et dividendes jamais négatifs, hypothèses en objet JSON. Sécurité au

@@ -116,6 +116,9 @@ const DRAFT_TOOLS = [
   'prepare_year_end_entries',
   'create_draft_expense_report',
   'update_year_end_formalities',
+  'manage_accounting_methods',
+  'manage_accounting_changes',
+  'update_annexe_notes',
   'accept_expense_suggestion',
   'prepare_vat_settlement',
   'prepare_corporate_tax_entry',
@@ -324,7 +327,7 @@ describe('draft tools', () => {
   // checks every right of the tool through the company guard before the
   // service runs.
   const dir = path.resolve(__dirname, '../drafts')
-  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts', 'records.ts', 'remuneration.ts']
+  const toolFiles = ['budgets.ts', 'year-end.ts', 'expense-reports.ts', 'approval.ts', 'simple-mode.ts', 'vat-returns.ts', 'corporate-tax.ts', 'declarations.ts', 'records.ts', 'remuneration.ts', 'annexe.ts']
   const define = readFileSync(path.join(dir, 'define.ts'), 'utf8')
 
   it('checks the company guard first, in the single registration path', () => {

@@ -231,6 +231,13 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
     data: { companyId: company.id, label: 'Subvention', amount: 1000, grantedOn: new Date('2026-02-01T00:00:00Z'), spreading: 'TENTHS' },
   })
   ids[`${prefix}Provision`] = provision.id
+  // Annexe: a method of the register and a change of method of the year (no entry yet)
+  const method = await prisma.accountingMethod.create({ data: { companyId: company.id, topic: 'inventory_valuation', label: 'CMUP', description: 'Coût moyen pondéré' } })
+  const change = await prisma.accountingChange.create({
+    data: { companyId: company.id, fiscalYearId: fy.id, kind: 'METHOD_CHANGE', treatment: 'EQUITY', label: 'Stocks au CMUP', description: 'Meilleure information', impact: 100, accountCode: '310000' },
+  })
+  ids[`${prefix}Method`] = method.id
+  ids[`${prefix}Change`] = change.id
   ids[`${prefix}Grant`] = grant.id
   const fixedAsset = await prisma.fixedAsset.create({
     data: {
@@ -534,6 +541,15 @@ const ROUTE_MODULES = {
   groupTax: () => import('@/app/api/group/tax/route'),
   groupSimpleHome: () => import('@/app/api/group/simple-home/route'),
   provisions: () => import('@/app/api/provisions/route'),
+  accountingMethods: () => import('@/app/api/accounting-methods/route'),
+  accountingMethod: () => import('@/app/api/accounting-methods/[id]/route'),
+  accountingChanges: () => import('@/app/api/accounting-changes/route'),
+  accountingChange: () => import('@/app/api/accounting-changes/[id]/route'),
+  accountingChangeEntry: () => import('@/app/api/accounting-changes/[id]/entry/route'),
+  annexe: () => import('@/app/api/annexe/route'),
+  annexeExport: () => import('@/app/api/annexe/export/route'),
+  fixedAssetMovements: () => import('@/app/api/reports/fixed-asset-movements/route'),
+  fixedAssetMovementsExport: () => import('@/app/api/reports/fixed-asset-movements/export/route'),
   provision: () => import('@/app/api/provisions/[id]/route'),
   provisionAssessment: () => import('@/app/api/provisions/[id]/assessment/route'),
   doubtfulReceivables: () => import('@/app/api/provisions/doubtful-receivables/route'),
@@ -747,6 +763,16 @@ const WRITES: Call[] = [
   { label: 'create management fee convention', route: 'feeConventions', method: 'POST', path: () => '/api/management-fees/conventions', body: () => ({ companyId: A(), label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'update management fee convention', route: 'feeConvention', method: 'PATCH', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ label: 'Convention', startDate: '2026-01-01', subsidiaries: [] }) },
   { label: 'delete management fee convention', route: 'feeConvention', method: 'DELETE', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}`, params: p({ id: () => ids.aFeeConvention }) },
+  { label: 'create accounting method', route: 'accountingMethods', method: 'POST', path: () => '/api/accounting-methods', body: () => ({ companyId: A(), topic: 'depreciation', label: 'Linéaire', description: "Durée d'utilisation" }) },
+  { label: 'update accounting method', route: 'accountingMethod', method: 'PATCH', path: () => `/api/accounting-methods/${ids.aMethod}`, params: p({ id: () => ids.aMethod }), body: () => ({ topic: 'inventory_valuation', label: 'PEPS', description: 'Premier entré, premier sorti' }) },
+  { label: 'delete accounting method', route: 'accountingMethod', method: 'DELETE', path: () => `/api/accounting-methods/${ids.aMethod}`, params: p({ id: () => ids.aMethod }) },
+  { label: 'create accounting change', route: 'accountingChanges', method: 'POST', path: () => '/api/accounting-changes', body: () => ({ companyId: A(), fiscalYearId: ids.aFy, kind: 'ESTIMATE_CHANGE', label: 'Durée', description: 'Allongée' }) },
+  { label: 'update accounting change', route: 'accountingChange', method: 'PATCH', path: () => `/api/accounting-changes/${ids.aChange}`, params: p({ id: () => ids.aChange }), body: () => ({ fiscalYearId: ids.aFy, kind: 'METHOD_CHANGE', label: 'Stocks', description: 'CMUP', impactCents: 20_000, accountCode: '310000' }) },
+  { label: 'delete accounting change', route: 'accountingChange', method: 'DELETE', path: () => `/api/accounting-changes/${ids.aChange}`, params: p({ id: () => ids.aChange }) },
+  { label: 'prepare accounting change entry', route: 'accountingChangeEntry', method: 'POST', path: () => `/api/accounting-changes/${ids.aChange}/entry`, params: p({ id: () => ids.aChange }) },
+  { label: 'save annexe', route: 'annexe', method: 'PUT', path: () => '/api/annexe', body: () => ({ companyId: A(), fiscalYearId: ids.aFy, details: { commitments: { none: true } } }) },
+  { label: 'export annexe', route: 'annexeExport', method: 'GET', path: () => `/api/annexe/export?companyId=${A()}&fiscalYearId=${ids.aFy}&format=md` },
+  { label: 'export fixed asset forms', route: 'fixedAssetMovementsExport', method: 'GET', path: () => `/api/reports/fixed-asset-movements/export?companyId=${A()}&fiscalYearId=${ids.aFy}&format=csv` },
   { label: 'create provision', route: 'provisions', method: 'POST', path: () => '/api/provisions', body: () => ({ companyId: A(), category: 'RISK_CHARGE', label: 'Garantie', justification: 'Retours clients', accountCode: '1512', openedOn: '2026-01-10' }) },
   { label: 'update provision', route: 'provision', method: 'PATCH', path: () => `/api/provisions/${ids.aProvision}`, params: p({ id: () => ids.aProvision }), body: () => ({ category: 'RISK_CHARGE', label: 'Litige', justification: 'Assignation', accountCode: '1511', openedOn: '2026-02-01' }) },
   { label: 'delete provision', route: 'provision', method: 'DELETE', path: () => `/api/provisions/${ids.aProvision}`, params: p({ id: () => ids.aProvision }) },
@@ -867,6 +893,9 @@ const READS: Call[] = [
   { label: 'group structure', route: 'groupStructure', method: 'GET', path: () => `/api/group/structure?companyId=${A()}` },
   { label: 'group tax and integration', route: 'groupTax', method: 'GET', path: () => `/api/group/tax?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'group simple home', route: 'groupSimpleHome', method: 'GET', path: () => `/api/group/simple-home?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'accounting methods', route: 'accountingMethods', method: 'GET', path: () => `/api/accounting-methods?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'annexe', route: 'annexe', method: 'GET', path: () => `/api/annexe?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'fixed asset forms', route: 'fixedAssetMovements', method: 'GET', path: () => `/api/reports/fixed-asset-movements?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'list provisions', route: 'provisions', method: 'GET', path: () => `/api/provisions?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'list investment grants', route: 'investmentGrants', method: 'GET', path: () => `/api/investment-grants?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'year-end inventory', route: 'yearEnd', method: 'GET', path: () => `/api/year-end?companyId=${A()}&fiscalYearId=${ids.aFy}` },
