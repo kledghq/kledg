@@ -4,6 +4,7 @@ import * as React from "react"
 import { useParams, usePathname } from "next/navigation"
 
 import type { DisplayMode } from "@/lib/appearance/display-mode"
+import type { NavFeatureRefs } from "@/lib/companies/nav-features"
 import { navGroupsFor, type NavCountKey } from "@/components/layout/nav-config"
 import { NavMain } from "@/components/layout/nav-main"
 import { GroupNav, useGroupSummary } from "@/components/layout/group-nav"
@@ -60,9 +61,10 @@ function useSimpleCounts(companyId: string | undefined, enabled: boolean) {
 export function AppSidebar({
   companies,
   holdingRefs,
+  featureRefs,
   mode = "expert",
   ...props
-}: React.ComponentProps<typeof Sidebar> & { companies?: SwitcherCompany[]; holdingRefs?: string[]; mode?: DisplayMode }) {
+}: React.ComponentProps<typeof Sidebar> & { companies?: SwitcherCompany[]; holdingRefs?: string[]; featureRefs?: NavFeatureRefs; mode?: DisplayMode }) {
   const params = useParams()
   const companyId = params?.companyId as string | undefined
   const pathname = usePathname() ?? ""
@@ -75,7 +77,7 @@ export function AppSidebar({
         <TeamSwitcher initialCompanies={companies} holdingRefs={holdingRefs} group={inGroup ? { summary: group } : undefined} />
       </SidebarHeader>
       <SidebarContent>
-        {inGroup ? <GroupNav mode={mode} /> : <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} counts={counts} />}
+        {inGroup ? <GroupNav mode={mode} /> : <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} featureRefs={featureRefs} counts={counts} />}
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

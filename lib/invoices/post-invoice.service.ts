@@ -29,6 +29,7 @@ import { formatVatRate, isFrenchVatRate } from './amounts'
 import { accountByRoot, accountsByCode } from './ledger-accounts'
 import { lockInvoice, INVOICE_NOT_FOUND } from './manage-invoices.service'
 import { planInvoiceEntry, vatAccountsNeeded, type PlanLine, type VatAccountKey } from './posting-plan'
+import { vatDeductionShareOn } from '@/lib/vat-deduction/coefficient'
 
 /** PCG roots of the VAT accounts (PCG art. 932-1; 44574 is a subdivision of 4457). */
 export const VAT_ACCOUNT_ROOTS: Record<VatAccountKey, { root: string; label: string }> = {
@@ -55,6 +56,12 @@ export interface PostResult {
 }
 
 export async function postInvoice(companyId: string, invoiceId: string, options: { source?: string } = {}): Promise<PostResult> {
+  // Share of the VAT of a purchase the company deducts on the invoice day (its
+  // provisional coefficient de déduction), read before the transaction; the
+  // date is checked again under the lock.
+  const header = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { direction: true, issueDate: true } })
+  const share = header?.direction === 'PURCHASE' ? await vatDeductionShareOn(companyId, header.issueDate) : null
+  const deductionPercent = share === null ? undefined : Math.round(share * 100)
   const result = await prisma.$transaction(async (tx) => {
     const locked = await lockInvoice(tx, companyId, invoiceId)
     if (locked.entryId) throw new ConflictError(`La facture n° ${locked.number} est déjà comptabilisée.`)
@@ -76,6 +83,9 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
 
     // Fiscal year containing the invoice date: never another one.
     const day = calendarDayOf(invoice.issueDate) as string
+    if (header && (header.issueDate.getTime() !== invoice.issueDate.getTime() || header.direction !== invoice.direction)) {
+      throw new ConflictError('La facture a été modifiée pendant sa comptabilisation : réessayez.')
+    }
     const years = await tx.fiscalYear.findMany({ where: { companyId }, select: GUARDED_FISCAL_YEAR_SELECT, orderBy: { startDate: 'asc' } })
     const fiscalYear = fiscalYearContaining(years, day)
     if (!fiscalYear) {
@@ -132,7 +142,8 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
       lines: planLines,
       breakdown,
       servicesVatOnDebits: company.servicesVatOnDebits,
-      vatExempt: company.isVatExempt,
+      vatExempt: company.isVatExempt && deductionPercent === undefined,
+      deductionPercent,
     })
     const vatAccounts: Partial<Record<VatAccountKey, string>> = {}
     for (const key of needed) {
@@ -152,7 +163,8 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
       tiers: { accountId: tiersAccount.id, auxiliaryAccountNumber: invoice.tiers.auxiliaryAccountNumber, name: invoice.tiers.name },
       vatAccounts,
       servicesVatOnDebits: company.servicesVatOnDebits,
-      vatExempt: company.isVatExempt,
+      vatExempt: company.isVatExempt && deductionPercent === undefined,
+      deductionPercent,
     })
 
     const entry = await createEntryInTx(tx, {

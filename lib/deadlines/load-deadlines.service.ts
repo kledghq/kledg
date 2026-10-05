@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { addIsoDays, calendarDayOf, todayUtc } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
+import { parsePayrollTaxData } from '@/lib/payroll-tax/schemas'
 import { computeDeadlines, missingVatRegime, type DeadlineApproval, type DeadlineCompany, type DeadlineFiscalYear } from './engine'
 import { OVERDUE_DAYS } from './relative'
 import { RULE_LIST } from './rules'
@@ -49,11 +50,15 @@ export interface CompanyContext {
   localTaxes: Array<{ year: number; cfeTotalCents: number | null; cfeAcompteCents: number | null }>
   /** Total CFE by year, for the acompte rule of the engine (CGI art. 1679 quinquies). */
   cfeAmounts: Record<number, number>
+  /** An establishment is an organisme de formation (bilan pédagogique et financier). */
+  trainingOrganisation: boolean
+  /** Taxe sur les salaires as last saved, by calendar year (lib/payroll-tax). */
+  payrollTax: Record<number, { liable: boolean; frequency: 'monthly' | 'quarterly' | 'annual' }>
 }
 
 /** What the engine needs for one company; also read by the VAT return worksheet (lib/vat-returns). */
 export async function loadDeadlineContext(companyId: string): Promise<CompanyContext> {
-  const [company, fiscalYears, history, approvals, localTaxes] = await Promise.all([
+  const [company, fiscalYears, history, approvals, localTaxes, trainingEstablishments, payrollRows] = await Promise.all([
     prisma.company.findUnique({
       where: { id: companyId },
       select: { legalType: true, vatRegime: true, isVatExempt: true, corporateTaxRegime: true, foundationDate: true, deadlineSettings: true },
@@ -81,6 +86,8 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
       take: MAX_LOCAL_TAX_YEARS,
       select: { year: true, cfeTotal: true, cfeAcompte: true },
     }),
+    prisma.establishment.count({ where: { companyId, isTrainingOrganization: true } }),
+    prisma.payrollTaxYear.findMany({ where: { companyId }, orderBy: { year: 'asc' }, take: MAX_LOCAL_TAX_YEARS, select: { year: true, data: true } }),
   ])
   if (!company) throw new NotFoundError('Société non trouvée')
   const turnover = await prisma.$queryRaw<Array<{ year: number; cents: bigint }>>`
@@ -120,6 +127,13 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
     ),
     localTaxes: local,
     cfeAmounts: Object.fromEntries(local.filter((row) => row.cfeTotalCents !== null).map((row) => [row.year, row.cfeTotalCents as number])),
+    trainingOrganisation: trainingEstablishments > 0,
+    payrollTax: Object.fromEntries(
+      payrollRows.flatMap((row) => {
+        const computed = parsePayrollTaxData(row.data).computed
+        return computed ? [[row.year, { liable: computed.liable, frequency: computed.frequency }]] : []
+      }),
+    ),
   }
 }
 

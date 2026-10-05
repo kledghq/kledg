@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useParams } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/shared'
-import { InvoiceForm, type InvoiceDirection, type InvoiceFormValues } from '@/components/features/invoices/invoice-form'
+import { EXEMPT_TRAINING, InvoiceForm, type InvoiceDirection, type InvoiceFormValues } from '@/components/features/invoices/invoice-form'
 import { responseError } from '@/hooks/use-cursor-list'
 import { parseQuantity, quantityToString } from '@/lib/invoices/amounts'
 
@@ -16,6 +16,7 @@ interface LoadedLine {
   accountCode: string | null
   nature: 'GOODS' | 'SERVICES'
   fixedAsset: boolean
+  vatExemption?: string | null
 }
 
 interface Loaded {
@@ -54,7 +55,7 @@ export default function EditInvoicePage() {
               label: line.label,
               quantity: quantityToString(parseQuantity(line.quantity) ?? 0).replace('.', ','),
               unitPriceCents: line.unitPriceCents,
-              vatRateBp: String(line.vatRateBp),
+              vatRateBp: line.vatExemption === 'training' ? EXEMPT_TRAINING : String(line.vatRateBp),
               accountCode: line.accountCode ?? '',
               nature: line.nature,
               fixedAsset: line.fixedAsset,

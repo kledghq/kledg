@@ -36,6 +36,7 @@ import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { computeInvoiceTotals, formatVatRate, isFrenchVatRate, parseQuantity, type InvoiceTotals } from './amounts'
 import { assertInvoiceAmountsFit } from './amount-bounds'
+import { VAT_EXEMPTION_CODES, invoiceExemptionMentions, isVatExemption, type VatExemption } from './vat-exemptions'
 import { defaultDueDate, invoiceStatus, maxDueDate, remainingCents, type InvoiceStatus } from './status'
 
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
@@ -52,6 +53,8 @@ const lineSchema = z.object({
   accountCode: optionalText(20),
   nature: z.enum(['GOODS', 'SERVICES']).default('SERVICES'),
   fixedAsset: z.boolean().default(false),
+  /** Legal basis of an exempt 0 % sale line (vat-exemptions.ts); null: taxed or another 0 % operation. */
+  vatExemption: z.enum(VAT_EXEMPTION_CODES, { error: 'Exonération inconnue' }).nullable().optional(),
 })
 
 const invoiceFields = {
@@ -222,7 +225,7 @@ const DETAIL_SELECT = {
   tiers: { select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true, defaultAccountCode: true, defaultVatRateBp: true } },
   lines: {
     orderBy: { position: 'asc' },
-    select: { id: true, position: true, label: true, quantity: true, unitPrice: true, vatRateBp: true, totalExclTax: true, accountCode: true, nature: true, fixedAsset: true },
+    select: { id: true, position: true, label: true, quantity: true, unitPrice: true, vatRateBp: true, totalExclTax: true, accountCode: true, nature: true, fixedAsset: true, vatExemption: true },
   },
   vatBreakdown: { orderBy: { vatRateBp: 'desc' }, select: { vatRateBp: true, baseAmount: true, vatAmount: true } },
   payments: {
@@ -240,6 +243,8 @@ const DETAIL_SELECT = {
 export async function getInvoice(companyId: string, id: string, db: Db = prisma) {
   const row = await db.invoice.findFirst({ where: { id, companyId }, select: DETAIL_SELECT })
   if (!row) throw new NotFoundError(INVOICE_NOT_FOUND)
+  const hasExempt = row.lines.some((l) => l.vatExemption !== null)
+  const companyMention = hasExempt ? ((await db.company.findUnique({ where: { id: companyId }, select: { vatExemptionMention: true } }))?.vatExemptionMention ?? null) : null
   return {
     ...summaryOf(row),
     tiers: row.tiers,
@@ -257,7 +262,10 @@ export async function getInvoice(companyId: string, id: string, db: Db = prisma)
       accountCode: l.accountCode,
       nature: l.nature,
       fixedAsset: l.fixedAsset,
+      vatExemption: isVatExemption(l.vatExemption) ? l.vatExemption : null,
     })),
+    /** Mentions the invoice carries for its exempt lines (CGI ann. II art. 242 nonies A, I, 12°). */
+    vatExemptionMentions: row.direction === 'SALE' ? invoiceExemptionMentions(row.lines, companyMention) : [],
     vatBreakdown: row.vatBreakdown.map((b) => ({ vatRateBp: b.vatRateBp, baseCents: cents(b.baseAmount), vatCents: cents(b.vatAmount) })),
     payments: row.payments.map((p) => ({
       id: p.id,
@@ -282,6 +290,7 @@ interface PreparedLine {
   accountCode: string | null
   nature: 'GOODS' | 'SERVICES'
   fixedAsset: boolean
+  vatExemption: VatExemption | null
 }
 
 /** Checks the lines of an invoice entered in Kledg; throws one French 400 listing every problem. */
@@ -304,6 +313,8 @@ function prepareLines(
       const error = accountCodeError(kind, 'line', line.accountCode)
       if (error) errors.push(`Ligne ${n} : ${error}`)
     }
+    if (line.vatExemption && direction !== 'SALE') errors.push(`Ligne ${n} : seule une vente porte une exonération de TVA.`)
+    if (line.vatExemption && line.vatRateBp !== 0) errors.push(`Ligne ${n} : une ligne exonérée est à 0 % de TVA.`)
     if (line.fixedAsset && direction === 'SALE') errors.push(`Ligne ${n} : seule une facture d’achat porte une immobilisation.`)
     if (line.fixedAsset && line.accountCode && !line.accountCode.startsWith('2')) {
       errors.push(`Ligne ${n} : une immobilisation se comptabilise en classe 2 (ex. 2183).`)
@@ -317,6 +328,7 @@ function prepareLines(
       accountCode: line.accountCode ?? null,
       nature: line.nature,
       fixedAsset: line.fixedAsset,
+      vatExemption: direction === 'SALE' ? (line.vatExemption ?? null) : null,
     }
   })
   if (errors.length > 0) throw new ValidationError(errors.join(' '))
@@ -392,6 +404,7 @@ function lineRows(prepared: PreparedLine[], totals: InvoiceTotals) {
     accountCode: line.accountCode,
     nature: line.nature,
     fixedAsset: line.fixedAsset,
+    vatExemption: line.vatExemption,
   }))
 }
 

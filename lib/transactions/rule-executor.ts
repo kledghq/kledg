@@ -160,20 +160,11 @@ export async function prepareRuleEntry(
   }
   const fiscalYear = dateCheck.fiscalYear;
 
-  // Get company VAT exemption status and calculate recovery ratio if exempt
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { isVatExempt: true },
-  });
-
-  let vatRecoveryRatio: number | null = null;
-
-  if (company?.isVatExempt) {
-    // Ratio of the month of the transaction (its calendar day, stored at midnight UTC)
-    const { calculateVatRecoveryRatio, vatRecoveryMonthOf } = await import('@/lib/accounting/vat-recovery-ratio');
-    const { periodStart, periodEnd } = vatRecoveryMonthOf(isoDateToUtc(entryDate));
-    vatRecoveryRatio = await calculateVatRecoveryRatio(companyId, periodStart, periodEnd) ?? 0;
-  }
+  // Share of deductible VAT recovered on the day of the transaction: null for a
+  // company subject to VAT on everything, else its provisional coefficient de
+  // déduction (CGI ann. II art. 206, lib/vat-deduction/coefficient.ts)
+  const { vatDeductionShareOn } = await import('@/lib/vat-deduction/coefficient');
+  const vatRecoveryRatio: number | null = await vatDeductionShareOn(companyId, entryDate);
 
   const journal = await prisma.journal.findFirst({
     where: {

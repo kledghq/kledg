@@ -409,12 +409,12 @@ export function EstablishmentsManagement({ companyId }: EstablishmentsManagement
                             }}
                           />
                           <p className="text-xs text-muted-foreground">
-                            Cette date permet de déterminer à partir de quand le Bilan Prévisionnel Financier (BPF) est requis pour les déclarations.
+                            Date de l'enregistrement de la déclaration d'activité. Chaque année, avant le 30 avril, l'organisme adresse le bilan pédagogique et financier (BPF) de son dernier exercice clos sur Mon Activité Formation (Code du travail, art. R6352-23)&nbsp;; sans BPF, la déclaration devient caduque (art. L6351-6).
                           </p>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Le numéro de déclaration d'activité est délivré par la DIRECCTE. 
-                          Si cet établissement est un organisme de formation, le Bilan Prévisionnel Financier (BPF) sera visible dans les rapports.
+                          La déclaration d'activité est enregistrée par la DREETS (DRIEETS en Île-de-France), qui a remplacé la DIRECCTE le 1er avril 2021.
+                          Kledg prépare le bilan pédagogique et financier (BPF) dans États, Bilan pédagogique et financier.
                         </p>
                       </div>
                     )}

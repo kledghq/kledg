@@ -35,6 +35,9 @@ export const DECLARATION_KINDS: Record<string, DeclarationKind> = {
   'cfe-1447m': 'file',
   approbation: 'file',
   'depot-comptes': 'file',
+  'ts-releve': 'file-and-pay',
+  'ts-2502': 'file-and-pay',
+  bpf: 'file',
 }
 
 export function declarationKindOf(ruleId: string): DeclarationKind {

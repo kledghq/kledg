@@ -20,6 +20,20 @@ import { NotFoundError, ValidationError } from '@/lib/accounting/errors';
 import { z } from 'zod';
 import { RuleEntryLineSchema } from './manage-rules.service';
 
+/**
+ * Share of deductible VAT the company recovers today (its provisional
+ * coefficient de déduction, lib/vat-deduction/coefficient.ts), null when it
+ * deducts all of it. A preview never fails on it: an error shows no recovery.
+ */
+async function deductionShareToday(companyId: string): Promise<number | null> {
+  try {
+    const { vatDeductionShareOn } = await import('@/lib/vat-deduction/coefficient');
+    return await vatDeductionShareOn(companyId, todayUtc());
+  } catch {
+    return 0;
+  }
+}
+
 const RULE_NOT_FOUND_MESSAGE = 'Règle introuvable';
 const NO_LINES_MESSAGE = "La règle n'a aucune ligne d'écriture à simuler : ajoutez-en une.";
 
@@ -142,23 +156,7 @@ export async function simulateRule(
       : null,
   };
 
-  const company = await prisma.company.findUnique({
-    where: { id: rule.companyId },
-    select: { isVatExempt: true },
-  });
-
-  let vatRecoveryRatio: number | null = null;
-
-  if (company?.isVatExempt) {
-    try {
-      // Ratio of the current month (UTC calendar day of today)
-      const { calculateVatRecoveryRatio, vatRecoveryMonthOf } = await import('@/lib/accounting/vat-recovery-ratio');
-      const { periodStart, periodEnd } = vatRecoveryMonthOf(todayUtc());
-      vatRecoveryRatio = await calculateVatRecoveryRatio(rule.companyId, periodStart, periodEnd) ?? 0;
-    } catch {
-      vatRecoveryRatio = 0;
-    }
-  }
+  const vatRecoveryRatio = await deductionShareToday(rule.companyId);
 
   return calculateSimulationResult(resolved, transactionExample, vatRecoveryRatio);
 }
@@ -267,24 +265,7 @@ export async function simulateRuleFromData(
       : null,
   };
 
-  let vatRecoveryRatio: number | null = null;
-  if (companyId) {
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: { isVatExempt: true },
-    });
-
-    if (company?.isVatExempt) {
-      try {
-        // Ratio of the current month (UTC calendar day of today)
-        const { calculateVatRecoveryRatio, vatRecoveryMonthOf } = await import('@/lib/accounting/vat-recovery-ratio');
-        const { periodStart, periodEnd } = vatRecoveryMonthOf(todayUtc());
-        vatRecoveryRatio = await calculateVatRecoveryRatio(companyId, periodStart, periodEnd) ?? 0;
-      } catch {
-        vatRecoveryRatio = 0;
-      }
-    }
-  }
+  const vatRecoveryRatio = companyId ? await deductionShareToday(companyId) : null;
 
   return calculateSimulationResult(resolved, transactionExample, vatRecoveryRatio);
 }

@@ -140,7 +140,7 @@ export default function MissingReceiptsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Justificatifs manquants"
+        title="Justificatifs"
         description="Les opérations bancaires sans pièce justificative. Chaque écriture s'appuie sur une pièce, à conserver dix ans (Code de commerce, art. L123-22)&nbsp;: déposez-la dans votre banque, puis synchronisez."
         actions={
           can({ banking: ['reconcile'] }) ? (

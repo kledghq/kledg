@@ -29,6 +29,8 @@ import { nextBusinessDay, nthBusinessDayAfter, isBusinessDay } from './french-ho
 import { RULES, type RuleId } from './rules'
 import { defaultVatFilingDay, type DeadlineSettings } from './settings'
 import type { Deadline } from './types'
+import { bpfDeadlineOf } from '@/lib/training-report/deadline'
+import { annualDeclarationDate, releveDates } from '@/lib/payroll-tax/rules'
 
 export interface RegimePeriod {
   regimeType: string
@@ -109,6 +111,13 @@ export interface DeadlineInput {
    * the cfeAcompte setting.
    */
   cfeAmounts?: Record<number, number>
+  /** An establishment is an organisme de formation: the bilan pédagogique et financier of each fiscal year. */
+  trainingOrganisation?: boolean
+  /**
+   * Taxe sur les salaires of each calendar year as last saved
+   * (lib/payroll-tax): liability and frequency of the relevés 2501.
+   */
+  payrollTax?: Record<number, { liable: boolean; frequency: 'monthly' | 'quarterly' | 'annual' }>
   /** First and last day of the range, both included (yyyy-mm-dd). */
   from: string
   to: string
@@ -643,9 +652,51 @@ function legalDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidat
   return out
 }
 
+// ------------------------------------------------------------ training and payroll tax
+
+/** The BPF of each fiscal year of a training organisation, the year after its closing (lib/training-report/deadline.ts). */
+function trainingDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidate[] {
+  if (!input.trainingOrganisation) return []
+  return spans.map((fy) => {
+    const { date, extendedDate } = bpfDeadlineOf(fy.endDate)
+    return {
+      key: fy.endDate,
+      ruleId: 'bpf' as const,
+      legalDate: date,
+      label: `Bilan pédagogique et financier de ${exerciceLabel(fy)}`,
+      extendedDate: extendedDate ?? undefined,
+      note: extendedDate
+        ? `Avant le 30 avril (Code du travail, art. R6352-23) ; campagne prolongée jusqu'au ${frDay(extendedDate)}.`
+        : "Avant le 30 avril (Code du travail, art. R6352-23) ; le ministère annonce chaque année une éventuelle prolongation.",
+      projected: fy.projected,
+    }
+  })
+}
+
+/** Relevés 2501 and declaration 2502 of the years whose taxe sur les salaires is due (lib/payroll-tax/rules.ts). */
+function payrollTaxDeadlines(input: DeadlineInput): Candidate[] {
+  const out: Candidate[] = []
+  for (const [yearText, tax] of Object.entries(input.payrollTax ?? {})) {
+    if (!tax.liable) continue
+    const year = Number(yearText)
+    for (const r of releveDates(year, tax.frequency)) {
+      const quarter = r.period.includes('T')
+      out.push({
+        key: r.key,
+        ruleId: 'ts-releve',
+        legalDate: r.date,
+        label: quarter ? `Taxe sur les salaires du ${QUARTERS[Number(r.period.slice(-1)) - 1]} trimestre ${year}` : `Taxe sur les salaires de ${MONTHS[monthOf(`${r.period}-01`) - 1]} ${year}`,
+      })
+    }
+    const declaration = annualDeclarationDate(year)
+    out.push({ key: `${year}`, ruleId: 'ts-2502', legalDate: declaration.date, extendedDate: declaration.extendedDate, label: `Déclaration annuelle et solde de la taxe sur les salaires ${year}`, note: 'Dépôt admis jusqu’au 31 janvier (BOI-TPS-TS-40 §280).' })
+  }
+  return out
+}
+
 // ------------------------------------------------------------ entry point
 
-const CATEGORY_ORDER = { tva: 0, is: 1, liasse: 2, cfe: 3, cvae: 4, juridique: 5 } as const
+const CATEGORY_ORDER = { tva: 0, is: 1, liasse: 2, cfe: 3, cvae: 4, salaires: 5, formation: 6, juridique: 7 } as const
 
 /** The deadlines dated from `from` to `to` (both included), in date order. */
 export function computeDeadlines(input: DeadlineInput): Deadline[] {
@@ -655,6 +706,8 @@ export function computeDeadlines(input: DeadlineInput): Deadline[] {
     ...corporateTaxDeadlines(input, spans),
     ...yearlyDeadlines(input),
     ...legalDeadlines(input, spans),
+    ...trainingDeadlines(input, spans),
+    ...payrollTaxDeadlines(input),
   ]
   const byId = new Map<string, Deadline>()
   for (const candidate of candidates) {

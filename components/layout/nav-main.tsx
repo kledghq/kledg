@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
 
 import { findNavEntry, type NavCountKey, type NavGroup } from "@/components/layout/nav-config"
+import type { NavFeatureRefs } from "@/lib/companies/nav-features"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -18,16 +19,19 @@ import {
  * Company navigation. One item is active at a time: the entry whose URL is
  * the longest prefix of the current path, so detail pages (an account, an
  * entry) keep their section highlighted. Entries marked holdingOnly appear
- * only when the current company is in `holdingRefs` (ids and slugs). An
+ * only when the current company is in `holdingRefs` (ids and slugs), entries
+ * with a `feature` when it is in that feature's `featureRefs`. An
  * entry with a `count` shows it when `counts` has a positive value for it.
  */
 export function NavMain({
   groups,
   holdingRefs = [],
+  featureRefs = {},
   counts = {},
 }: {
   groups: NavGroup[]
   holdingRefs?: readonly string[]
+  featureRefs?: Partial<NavFeatureRefs>
   counts?: Partial<Record<NavCountKey, number>>
 }) {
   const pathname = usePathname() ?? ""
@@ -41,7 +45,11 @@ export function NavMain({
 
   const href = (url: string) => (url === "/" ? base || "/" : `${base}${url}`)
   const isHolding = companyId !== undefined && holdingRefs.includes(companyId)
-  const visibleGroups = groups.map((group) => ({ ...group, items: group.items.filter((item) => !item.holdingOnly || isHolding) }))
+  const hasFeature = (feature: keyof NavFeatureRefs) => companyId !== undefined && (featureRefs[feature] ?? []).includes(companyId)
+  const visibleGroups = groups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => (!item.holdingOnly || isHolding) && (!item.feature || hasFeature(item.feature))),
+  }))
 
   return (
     <>

@@ -32,8 +32,8 @@ Page **États, Balance âgée**, `GET /api/reports/aged-balance` et son export E
 - **Tranches** : non échu (échéance au jour de la balance ou après), 0 à 30 jours, 31 à 60, 61 à 90, plus de 90 jours de retard.
 - Limite : les à-nouveaux portent le solde global de chaque compte. Une ligne d'à-nouveaux sans compte auxiliaire forme un tiers nommé d'après le compte et vieillit à partir du premier jour de l'exercice. Pour une balance âgée exacte en début d'exercice, détaillez l'écriture d'ouverture par compte auxiliaire.
 
-## Justificatifs manquants
+## Justificatifs
 
-Page **Banque, Justificatifs manquants** (`/banking/missing-receipts`), `GET /api/banking/missing-receipts`, outil MCP `list_missing_receipts`, droit `banking:read`.
+Page **Banque, Justificatifs** (`/banking/missing-receipts`), `GET /api/banking/missing-receipts`, outil MCP `list_missing_receipts`, droit `banking:read`.
 
 Transactions bancaires sans pièce jointe, d'un montant au moins égal au seuil choisi (retenu dans le navigateur), filtrables par exercice, compte bancaire et sens ; les opérations refusées par la banque sont exclues. Chaque écriture s'appuie sur une pièce justificative, conservée dix ans (Code de commerce art. L123-22). Kledg reçoit les justificatifs de la banque (Qonto) : déposez la pièce dans la banque puis « Synchroniser les justificatifs ». Chaque ligne mène à la liste des transactions filtrée sur l'opération (`/transactions?bankAccountId=&startDate=&endDate=&hasAttachments=without&search=`).

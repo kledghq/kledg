@@ -14,8 +14,8 @@
  *    (recoverableVatByRule: passenger transport and staff lodging nothing,
  *    fuel 80 %, gifts up to 73 € TTC, passenger vehicles nothing, CGI ann. II
  *    art. 206, IV, 2). A company under VAT exemption recovers the share given
- *    by its recovery ratio (lib/accounting/vat-recovery-ratio.ts: nothing for
- *    a franchise without taxed sales). The recoverable VAT goes to 44562 for
+ *    by its provisional coefficient de déduction (lib/vat-deduction/coefficient.ts:
+ *    nothing for a franchise, CGI art. 293 B). The recoverable VAT goes to 44562 for
  *    a fixed asset, 44566 otherwise (PCG art. 944-44); the rest stays in the
  *    charge or the asset.
  * 4. Income: the collected VAT goes to 44571, unless the company is exempt.
@@ -117,9 +117,10 @@ export interface PostingInput {
   /** VAT read by the bank on the receipt (Qonto), in cents. */
   bankVatCents?: number | null
   /**
-   * The company is exempt from VAT (franchise or exempt activity) and
-   * recovers this share of its deductible VAT (0 to 1, from
-   * calculateVatRecoveryRatio). Null: subject to VAT, full recovery.
+   * The company is exempt from VAT (franchise or exempt activity) or partly
+   * exempt and recovers this share of its deductible VAT (0 to 1, its
+   * provisional coefficient de déduction, lib/vat-deduction/coefficient.ts).
+   * Null: subject to VAT, full recovery.
    */
   recoveryRatio: number | null
 }
@@ -168,7 +169,7 @@ export function buildPostingLines(input: PostingInput): PostingPlan {
   }
   if (input.recoveryRatio !== null && recoverable > 0) {
     recoverable = share(recoverable, input.recoveryRatio)
-    vatNote = `Société exonérée de TVA : ${Math.round(input.recoveryRatio * 100)} % de la TVA récupérable (prorata du mois)`
+    vatNote = `Coefficient de déduction provisoire : ${Math.round(input.recoveryRatio * 100)} % de la TVA récupérable (CGI ann. II art. 206)`
   }
   if (recoverable <= 0) return { ...single(vatNote), vatCents }
   const vatAccount = posting.account.startsWith('2') ? VAT_ON_ASSETS : VAT_DEDUCTIBLE

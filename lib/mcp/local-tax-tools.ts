@@ -64,7 +64,7 @@ const LocalTaxesInput = z.object({
 const StatusInput = z.object({
   companyId: z.string().min(1, 'La société est requise').describe('Company id, from list_companies.'),
   fiscalYearId: z.string().max(64).optional().describe('Fiscal year id, from list_fiscal_years. Defaults to the current fiscal year.'),
-  category: z.enum(DEADLINE_CATEGORIES).optional().describe('tva, is, liasse, cfe, cvae or juridique; all by default.'),
+  category: z.enum(DEADLINE_CATEGORIES).optional().describe('tva, is, liasse, cfe, cvae, salaires (taxe sur les salaires), formation (bilan pédagogique et financier) or juridique; all by default.'),
   status: z.enum(DECLARATION_STATUS_CODES).optional().describe('todo, filed, paid, overdue or not-due; all by default.'),
   unsettledOnly: z.boolean().default(false).describe('true: only the deadlines with something left to do.'),
 })

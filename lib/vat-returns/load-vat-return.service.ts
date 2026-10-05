@@ -17,6 +17,8 @@
 
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { deductionModeOn, provisionalCoefficientOf } from '@/lib/vat-deduction/coefficient'
+import { COEFFICIENT_LINE } from '@/lib/vat-deduction/rules'
 import { ConflictError, ValidationError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { computeDeadlines } from '@/lib/deadlines/engine'
@@ -92,6 +94,12 @@ export interface VatReturnView {
   filing: VatFilingRecord | null
   notFromTheBooks: string[]
   sources: VatSource[]
+  /**
+   * A partly exempt company (lib/vat-deduction): its provisional coefficient
+   * de taxation of the year, written on line 22A of the CA3 (25A of the
+   * CA12) when it is not 100 %, and its coefficient de déduction.
+   */
+  deductionCoefficient: { year: number; line: string; taxationPercent: number; deductionPercent: number; source: 'previous-year' | 'estimate' | 'books-to-date' } | null
 }
 
 /** What the settlement service needs besides the view. */
@@ -230,6 +238,7 @@ function emptyView(today: string, status: VatReturnView['status'], periods: VatR
     filing: null,
     notFromTheBooks: [],
     sources: status === 'exempt' ? [VAT_SOURCES.cgi293B, VAT_SOURCES.bofipFranchise] : [],
+    deductionCoefficient: null,
   }
 }
 
@@ -348,6 +357,9 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   })
 
   const deadline = deadlines.find((d) => d.id === deadlineIdOfPeriod(period)) ?? null
+  const coefficientYear = Number(period.start.slice(0, 4))
+  const { mode } = await deductionModeOn(companyId, period.start)
+  const coefficient = mode === 'coefficient' ? await provisionalCoefficientOf(companyId, coefficientYear, period.end < today ? period.end : today) : null
   const view: VatReturnView = {
     today,
     status: 'ready',
@@ -371,6 +383,9 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
       period.form === 'CA3'
         ? [VAT_SOURCES.ca3Form, VAT_SOURCES.ca3Notice, VAT_SOURCES.bofipDecla, VAT_SOURCES.bofipContent, VAT_SOURCES.cgi287, VAT_SOURCES.pcg944]
         : [VAT_SOURCES.ca12Form, VAT_SOURCES.ca12Notice, VAT_SOURCES.bofipSimplified, VAT_SOURCES.bofipDecla, VAT_SOURCES.cgi287, VAT_SOURCES.pcg944],
+    deductionCoefficient: coefficient
+      ? { year: coefficientYear, line: COEFFICIENT_LINE[period.form], taxationPercent: coefficient.taxationPercent, deductionPercent: coefficient.deductionPercent, source: coefficient.source }
+      : null,
   }
 
   const basis: SettlementBasis = {
