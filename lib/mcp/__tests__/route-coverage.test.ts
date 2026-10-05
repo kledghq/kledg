@@ -21,6 +21,7 @@ vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { EXCLUSIONS, ROUTE_COVERAGE } from '@/lib/mcp/route-coverage'
+import { INSTANCE_ROUTE_COVERAGE } from '@/lib/instance/route-coverage'
 
 const ROOT = path.resolve(__dirname, '../../..')
 const API = path.join(ROOT, 'app/api')
@@ -78,13 +79,29 @@ describe('MCP coverage of the API routes', () => {
   })
 
   it('maps every route handler to MCP tools or to a written exclusion', () => {
-    const missing = HANDLERS.filter((handler) => !(handler in ROUTE_COVERAGE))
-    expect(missing, 'Add these handlers to lib/mcp/route-coverage.ts: an MCP tool doing the same, or an exclusion with its reason').toEqual([])
+    const missing = HANDLERS.filter((handler) => !(handler in ROUTE_COVERAGE) && !(handler in INSTANCE_ROUTE_COVERAGE))
+    expect(
+      missing,
+      'Add these handlers to lib/mcp/route-coverage.ts (or, for a route of the instance, lib/instance/route-coverage.ts): an MCP tool doing the same, or an exclusion with its reason',
+    ).toEqual([])
   })
 
   it('keeps no entry for a handler that is gone', () => {
-    const stale = Object.keys(ROUTE_COVERAGE).filter((key) => !HANDLERS.includes(key))
+    const stale = [...Object.keys(ROUTE_COVERAGE), ...Object.keys(INSTANCE_ROUTE_COVERAGE)].filter((key) => !HANDLERS.includes(key))
     expect(stale).toEqual([])
+  })
+
+  it('checks the routes the instance declares: existing tools, or a French reason without dashes', () => {
+    for (const [handler, coverage] of Object.entries(INSTANCE_ROUTE_COVERAGE)) {
+      expect(handler in ROUTE_COVERAGE, `${handler} is already mapped by Kledg`).toBe(false)
+      if ('tools' in coverage) {
+        expect(coverage.tools.length, handler).toBeGreaterThan(0)
+        for (const tool of coverage.tools) expect(tools.has(tool), `${handler}: ${tool}`).toBe(true)
+      } else {
+        expect(coverage.excluded.length, handler).toBeGreaterThan(20)
+        expect(coverage.excluded, handler).not.toMatch(/[–—]/)
+      }
+    }
   })
 
   it('names only tools that exist, and a writing tool for each handler that changes data', () => {
