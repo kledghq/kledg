@@ -15,7 +15,8 @@
  */
 
 import { formatCentsFr } from '@/lib/utils/money'
-import { formatIsoDateFr } from '@/lib/utils/date'
+import { addIsoDays, formatIsoDateFr, isIsoDate } from '@/lib/utils/date'
+import { receiptVendorById } from '@/lib/receipts/vendors'
 
 /** The company the request is about: its name (quoted as data) and its id. */
 export interface PromptCompany {
@@ -27,7 +28,17 @@ export type AiPromptTarget =
   | { kind: 'bank_transaction'; id: string; date: string; label: string; amountCents: number }
   | { kind: 'draft_entry'; id: string; date: string; label: string; journalCode?: string | null }
   | { kind: 'invoice'; id: string; direction: 'SALE' | 'PURCHASE'; number: string | null; date: string; tiersName: string; totalInclTaxCents: number; posted: boolean }
-  | { kind: 'missing_receipt'; id: string; date: string; label: string; amountCents: number }
+  | {
+      kind: 'missing_receipt'
+      id: string
+      date: string
+      label: string
+      amountCents: number
+      /** Supplier recognised from the label (lib/receipts/detect-supplier.ts): its name, and the vendor id for the page of its invoices. */
+      supplier?: { name: string; vendorId: string | null } | null
+      /** Banking provider of the account: QONTO takes the receipt through upload_receipt. */
+      bankProvider?: string | null
+    }
   | { kind: 'simple_expense'; id: string; side: 'debit' | 'credit'; date: string; label: string; amountCents: number }
   | { kind: 'vat_return'; period: string; periodStart: string; periodEnd: string }
   | { kind: 'closing_check'; fiscalYearId: string; year: number; checks: string[] }
@@ -59,6 +70,31 @@ function id(value: string): string {
 /** A VAT period key of get_vat_return (yyyy-mm, yyyy-Tn, yyyy). */
 const period = (key: string) => (/^\d{4}(-(0[1-9]|1[0-2]|T[1-4]))?$/.test(key) ? key : 'inconnue')
 const day = (iso: string) => formatIsoDateFr(String(iso).slice(0, 10)) || 'date inconnue'
+/** The days an invoice is looked for around a payment: 10 days before to 5 days after. */
+export const INVOICE_WINDOW_DAYS = { before: 10, after: 5 } as const
+const invoiceWindow = (iso: string) =>
+  isIsoDate(iso) ? `du ${day(addIsoDays(iso, -INVOICE_WINDOW_DAYS.before))} au ${day(addIsoDays(iso, INVOICE_WINDOW_DAYS.after))}` : 'autour de cette date'
+/**
+ * The page of invoices of a known vendor, read from lib/receipts/vendors.ts
+ * by its id: a URL never comes from the target itself.
+ */
+const invoicesPage = (vendorId: string | null | undefined) => receiptVendorById(vendorId)?.invoicesUrl ?? null
+
+function missingReceiptRequest(t: Extract<AiPromptTarget, { kind: 'missing_receipt' }>): string {
+  const url = invoicesPage(t.supplier?.vendorId)
+  const found =
+    t.bankProvider === 'QONTO'
+      ? 'dis-moi ce que tu as trouvé puis joins-la avec upload_receipt'
+      : 'donne-moi le fichier et ses détails (date, numéro, montant)'
+  return [
+    `aide-moi à retrouver le justificatif de la transaction ${id(t.id)} du ${day(t.date)}, ${quote(t.label)}, ${amount(t.amountCents)}. Lis-la avec get_transaction_details.`,
+    t.supplier?.name ? `Fournisseur reconnu\u00a0: ${quote(t.supplier.name)}.` : 'Identifie le fournisseur.',
+    `Cherche sa facture datée ${invoiceWindow(t.date)}, de ${amount(t.amountCents)} TTC, dans mes outils de messagerie et de fichiers si tu y as accès (Gmail, Outlook, Google Drive, OneDrive...).`,
+    `Si tu la trouves, ${found}.`,
+    url ? `Sinon, indique-moi la page de ses factures\u00a0: ${url}` : 'Sinon, dis-moi où la demander.',
+  ].join(' ')
+}
+
 const amount = (cents: number) => (Number.isSafeInteger(cents) ? formatCentsFr(Math.abs(cents)) : 'montant inconnu')
 
 /** Every template, by kind of object. The opening names the company so the assistant picks it with list_companies. */
@@ -69,8 +105,7 @@ export const PROMPT_TEMPLATES: { [K in AiPromptKind]: (target: Extract<AiPromptT
     `vérifie le brouillon d'écriture ${id(t.id)} du ${day(t.date)}${t.journalCode ? `, journal ${id(t.journalCode)}` : ''}, ${quote(t.label)}. Lis-le avec get_entry, puis propose les corrections (comptes, TVA, pièce) avec update_draft_entry, sans le valider.`,
   invoice: (t) =>
     `${t.posted ? 'vérifie' : 'propose la comptabilisation de'} la facture ${t.direction === 'SALE' ? 'de vente' : "d'achat"} ${t.number ? `n°\u00a0${quote(t.number)} ` : ''}(id ${id(t.id)}) du ${day(t.date)}, ${t.direction === 'SALE' ? 'client' : 'fournisseur'} ${quote(t.tiersName)}, ${amount(t.totalInclTaxCents)} TTC. Lis-la avec get_invoice, puis propose ${t.posted ? 'le rapprochement avec son paiement' : 'ses comptes et sa TVA'} sans rien valider.`,
-  missing_receipt: (t) =>
-    `aide-moi à retrouver le justificatif de la transaction ${id(t.id)} du ${day(t.date)}, ${quote(t.label)}, ${amount(t.amountCents)}. Lis-la avec get_transaction_details, dis-moi quelle pièce chercher et chez qui, et comment la joindre.`,
+  missing_receipt: missingReceiptRequest,
   simple_expense: (t) =>
     `propose la catégorie ${t.side === 'credit' ? 'de la recette' : 'de la dépense'} ${id(t.id)} du ${day(t.date)}, ${quote(t.label)}, ${amount(t.amountCents)}. Lis-la avec list_expenses_to_review et explique ton choix simplement, sans la confirmer.`,
   vat_return: (t) =>

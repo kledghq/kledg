@@ -25,6 +25,7 @@ const TARGETS: AiPromptTarget[] = [
   { kind: 'draft_entry', id: 'ent_7', date: '2026-09-30', label: 'Loyer', journalCode: 'OD' },
   { kind: 'invoice', id: 'inv_3', direction: 'SALE', number: 'F1', date: '2026-09-15', tiersName: 'Studio Nord', totalInclTaxCents: 120_000, posted: false },
   { kind: 'missing_receipt', id: 'tx_2', date: '2026-09-12', label: 'CB AMAZON', amountCents: -3_990 },
+  { kind: 'missing_receipt', id: 'tx_4', date: '2026-09-12', label: 'OVH SAS', amountCents: -2_399, supplier: { name: 'OVHcloud', vendorId: 'ovhcloud' }, bankProvider: 'QONTO' },
   { kind: 'simple_expense', id: 'tx_3', side: 'debit', date: '2026-09-10', label: 'CB BISTROT', amountCents: 6_450 },
   { kind: 'vat_return', period: '2026-T3', periodStart: '2026-07-01', periodEnd: '2026-09-30' },
   { kind: 'closing_check', fiscalYearId: 'fy_2025', year: 2025, checks: [] },

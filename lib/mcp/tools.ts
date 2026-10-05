@@ -559,7 +559,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
       title: 'Justificatifs manquants',
       description: describeTool({
         summary:
-          'Lists bank transactions without a supporting document (justificatif, Code de commerce art. L123-22: kept 10 years), newest first, at or above an amount threshold, over a fiscal year or a period, optionally for one bank account. Receipts are attached at the bank (Qonto) and synced into Kledg.',
+          'Lists bank transactions without a supporting document (justificatif, Code de commerce art. L123-22: kept 10 years), newest first, at or above an amount threshold, over a fiscal year or a period, optionally for one bank account. Each transaction carries the supplier recognised from its label (a known vendor or a tiers of the company, null when none) and, for known vendors, invoicesUrl: the official page where the customer downloads its invoices (sign in required). Look for the invoice in the user\'s own mail or file tools if you have them; Kledg never reads mail or drives. Receipts are attached at the bank: with upload_receipt when bank is QONTO, then synced into Kledg.',
         access: 'read',
         permission: { banking: ['read'] },
         amounts: 'euros',
@@ -604,7 +604,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
             counterparty: t.counterpartyName,
             amount: fromCents(t.amountCents),
             bankAccount: t.bankAccount.displayName || t.bankAccount.name,
+            bank: t.bankProvider,
             reconciled: t.reconciled,
+            supplier: t.supplier ? { name: t.supplier.name, recognisedBy: t.supplier.kind === 'vendor' ? 'vendor' : 'tiers', tiersId: t.supplier.tiersId, invoicesUrl: t.supplier.invoicesUrl } : null,
           })),
         }
         return withView(json(out), () => missingReceiptsList(args.companyId, access, args, out))

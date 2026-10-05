@@ -13,6 +13,11 @@
  * need no receipt. Amounts are stored positive with a side; the threshold
  * applies to the amount. The list is bounded (MAX_ROWS) and its count and
  * total cover every matching transaction.
+ *
+ * Each transaction carries the supplier read from its label
+ * (lib/receipts/detect-supplier.ts): a known vendor with the page of its
+ * invoices when verified, or a tiers of the company. Kledg never looks for
+ * the receipt itself (no mail, no drive): it says where to find it.
  */
 
 import { Prisma } from '@prisma/client'
@@ -21,10 +26,13 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { calendarDay } from '@/lib/api/zod-fields'
+import { detectSupplier, indexTiers, type DetectedSupplier } from '@/lib/receipts/detect-supplier'
 import { calendarDayOf, endOfDay, isoDateToUtc } from '@/lib/utils/date'
 import { centsToDecimal, parseCents, toCents } from '@/lib/utils/money'
 
 export const MAX_ROWS = 500
+/** Tiers compared to the labels: enough for a small company, bounded for the others. */
+const MAX_TIERS = 5000
 
 /** ?companyId=&fiscalYearId=&startDate=&endDate=&bankAccountId=&minAmount=&side=&limit= */
 export const MissingReceiptsQuerySchema = z.object({
@@ -57,6 +65,10 @@ export interface MissingReceipt {
   /** The entry linked by reconciliation, if any. */
   entryId: string | null
   bankAccount: { id: string; name: string; displayName: string | null }
+  /** Banking provider of the account (QONTO, PONTO...): receipts are sent to Qonto only. */
+  bankProvider: string
+  /** The supplier read from the label, null when nothing is recognised. */
+  supplier: DetectedSupplier | null
 }
 
 export interface MissingReceipts {
@@ -118,28 +130,37 @@ export async function listMissingReceipts(companyId: string, query: ParsedQuery)
         side: true,
         reconciled: true,
         reconciledWith: true,
-        bankAccount: { select: { id: true, name: true, displayName: true } },
+        bankAccount: { select: { id: true, name: true, displayName: true, bankConnection: { select: { provider: true } } } },
       },
     }),
     prisma.bankTransaction.count({ where }),
     prisma.bankTransaction.aggregate({ where, _sum: { amount: true } }),
   ])
 
+  const tiers = indexTiers(
+    rows.length === 0
+      ? []
+      : await prisma.tiers.findMany({ where: { companyId }, select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true }, orderBy: { id: 'asc' }, take: MAX_TIERS }),
+  )
+
   return {
     period: { startDate, endDate },
     thresholdCents: query.minAmount,
     transactions: rows.map((t) => {
       const cents = Math.abs(parseCents(t.amount) ?? 0)
+      const side = /^d/i.test(t.side) ? 'debit' : 'credit'
       return {
         id: t.id,
         date: calendarDayOf(t.date) as string,
         label: t.label,
         counterpartyName: t.counterpartyName,
         reference: t.reference,
-        amountCents: /^d/i.test(t.side) ? -cents : cents,
+        amountCents: side === 'debit' ? -cents : cents,
         reconciled: t.reconciled,
         entryId: t.reconciledWith,
-        bankAccount: t.bankAccount,
+        bankAccount: { id: t.bankAccount.id, name: t.bankAccount.name, displayName: t.bankAccount.displayName },
+        bankProvider: t.bankAccount.bankConnection.provider,
+        supplier: detectSupplier({ label: t.label, counterpartyName: t.counterpartyName, side }, tiers),
       }
     }),
     count,

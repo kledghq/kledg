@@ -12,6 +12,7 @@
  */
 
 import { DEBIT, labelMatches, noVatLine, reducedVatLine, standardVatLine, type RuleTemplate, type RuleTemplateLine } from '../template'
+import { UBER_RIDES_PATTERN } from './label-patterns'
 import { SOURCES } from './sources'
 
 const FUEL_STATIONS = labelMatches(
@@ -65,7 +66,7 @@ export const TRAVEL_TEMPLATES: RuleTemplate[] = [
     name: 'Taxis et VTC',
     category: 'transport',
     description: 'Courses de taxi et de VTC (Uber, G7, FreeNow, Heetch), en voyages et déplacements (6251).',
-    conditions: [DEBIT, labelMatches('\\buber\\W*(trip|bv|rides?)\\b|\\b(g7|taxis?|heetch|freenow|free now|lecab)\\b', 'UBER TRIP, G7, TAXI, FREENOW, HEETCH')],
+    conditions: [DEBIT, labelMatches(`${UBER_RIDES_PATTERN}|\\b(g7|taxis?|heetch|freenow|free now|lecab)\\b`, 'UBER TRIP, G7, TAXI, FREENOW, HEETCH')],
     lines: [noVatLine('6251')],
     vat: { treatment: 'not-deductible', why: PASSENGER_TRANSPORT_WHY },
     sources: [SOURCES.passengerTransportRate, SOURCES.passengerTransportExclusion],

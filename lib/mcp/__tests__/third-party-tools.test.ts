@@ -117,16 +117,64 @@ describe('list_missing_receipts', () => {
       period: { startDate: '2026-01-01', endDate: '2026-12-31' },
       thresholdCents: 5_000,
       transactions: [
-        { id: 't1', date: '2026-02-01', label: 'PRLV', counterpartyName: 'SCI', reference: null, amountCents: -120_000, reconciled: false, entryId: null, bankAccount: { id: 'b1', name: 'Courant', displayName: null } },
+        {
+          id: 't1',
+          date: '2026-02-01',
+          label: 'PRLV',
+          counterpartyName: 'SCI',
+          reference: null,
+          amountCents: -120_000,
+          reconciled: false,
+          entryId: null,
+          bankAccount: { id: 'b1', name: 'Courant', displayName: null },
+          bankProvider: 'PONTO',
+          supplier: null,
+        },
+        {
+          id: 't2',
+          date: '2026-01-15',
+          label: 'PRLV SEPA OVH SAS',
+          counterpartyName: null,
+          reference: null,
+          amountCents: -2_399,
+          reconciled: true,
+          entryId: 'e1',
+          bankAccount: { id: 'b2', name: 'Qonto', displayName: null },
+          bankProvider: 'QONTO',
+          supplier: { name: 'OVHcloud', kind: 'vendor', vendorId: 'ovhcloud', tiersId: 'tiers-ovh', invoicesUrl: 'https://example.test/factures' },
+        },
       ],
-      count: 1,
-      totalCents: 120_000,
+      count: 2,
+      totalCents: 122_399,
       truncated: false,
     })
     const result = await server().get('list_missing_receipts')!({ companyId: 'c1', fiscalYearId: 'fy-1', minAmount: 50, side: 'debit', limit: 50 })
     expect(guard.require).toHaveBeenCalledWith('c1', { banking: ['read'] })
     expect(listMissingReceipts).toHaveBeenCalledWith('c1', expect.objectContaining({ fiscalYearId: 'fy-1', minAmount: 5_000, side: 'debit', limit: 50 }))
-    expect(parse(result)).toMatchObject({ threshold: 50, count: 1, total: 1200, transactions: [{ id: 't1', amount: -1200, counterparty: 'SCI', bankAccount: 'Courant' }] })
+    expect(parse(result)).toMatchObject({
+      threshold: 50,
+      count: 2,
+      total: 1223.99,
+      transactions: [
+        { id: 't1', amount: -1200, counterparty: 'SCI', bankAccount: 'Courant', bank: 'PONTO', supplier: null },
+        { id: 't2', amount: -23.99, bank: 'QONTO', supplier: { name: 'OVHcloud', recognisedBy: 'vendor', tiersId: 'tiers-ovh', invoicesUrl: 'https://example.test/factures' } },
+      ],
+    })
+  })
+
+  it('tells the assistant where the invoice of a known vendor is and that Kledg reads no mail', async () => {
+    let description = ''
+    registerKledgTools(
+      {
+        registerTool: (name: string, config: { description?: string }) => {
+          if (name === 'list_missing_receipts') description = config.description ?? ''
+        },
+      } as never,
+      { user: { id: 'u1', email: 'a@b.c', name: null, role: 'user' }, canWrite: false, canAdmin: false, caller: { kind: 'apiKey', apiKeyId: 'k1' }, executionMode: 'validation' },
+    )
+    expect(description).toContain('invoicesUrl')
+    expect(description).toContain('Kledg never reads mail or drives')
+    expect(description).toContain('upload_receipt when bank is QONTO')
   })
 })
 

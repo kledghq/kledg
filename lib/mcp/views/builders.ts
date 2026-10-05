@@ -531,7 +531,16 @@ interface MissingReceiptsLike {
   count: number
   total: number
   truncated: boolean
-  transactions: Array<{ id: string; date: string; label: string | null; counterparty: string | null; amount: number; bankAccount: string; reconciled: boolean }>
+  transactions: Array<{
+    id: string
+    date: string
+    label: string | null
+    counterparty: string | null
+    amount: number
+    bankAccount: string
+    reconciled: boolean
+    supplier?: { name: string; invoicesUrl: string | null } | null
+  }>
 }
 
 export function missingReceiptsList(companyId: string, access: Pick<McpAccess, 'canAdmin' | 'executionMode'>, args: Record<string, unknown>, result: MissingReceiptsLike): ActionsView {
@@ -549,17 +558,18 @@ export function missingReceiptsList(companyId: string, access: Pick<McpAccess, '
       { key: 'date', label: 'Date', format: 'date' },
       { key: 'label', label: 'Libellé', format: 'text' },
       { key: 'counterparty', label: 'Contrepartie', format: 'text' },
+      { key: 'supplier', label: 'Fournisseur', format: 'text' },
       { key: 'bankAccount', label: 'Compte', format: 'text' },
       { key: 'amount', label: 'Montant', format: 'euros', align: 'end' },
     ],
     items: result.transactions.map((t) => ({
       id: t.id,
-      cells: { date: t.date, label: t.label, counterparty: t.counterparty, bankAccount: t.bankAccount, amount: t.amount },
+      cells: { date: t.date, label: t.label, counterparty: t.counterparty, supplier: t.supplier?.name ?? null, bankAccount: t.bankAccount, amount: t.amount },
       actions: [
         {
           kind: 'message' as const,
           label: 'Retrouver la pièce',
-          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${t.id} du ${formatIsoDateFr(t.date)} (${t.label ?? 'sans libellé'}${t.counterparty ? `, ${t.counterparty}` : ''}, ${euroText(t.amount)}) de la société ${companyId} : quel document chercher et auprès de qui.`,
+          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${t.id} du ${formatIsoDateFr(t.date)} (${t.label ?? 'sans libellé'}${t.counterparty ? `, ${t.counterparty}` : ''}, ${euroText(t.amount)}) de la société ${companyId} : quel document chercher et auprès de qui${t.supplier ? ` (fournisseur reconnu\u00a0: ${t.supplier.name}${t.supplier.invoicesUrl ? `, factures sur ${t.supplier.invoicesUrl}` : ''})` : ''}.`,
         },
       ],
     })),

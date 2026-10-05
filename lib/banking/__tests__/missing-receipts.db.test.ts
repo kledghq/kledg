@@ -3,7 +3,8 @@
  * against PostgreSQL (skipped without the server): transactions without an
  * attachment, filtered by fiscal year or period, bank account, threshold
  * and side; declined operations and other companies left out; count and
- * total over every match, the list bounded.
+ * total over every match, the list bounded; the supplier recognised from
+ * the label (known vendor or tiers of the company) and the bank provider.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,7 +41,9 @@ async function seed() {
       data: { bankAccountId, externalTransactionId: `t${++n}`, amount, date: new Date(`${date}T00:00:00Z`), side, label: `Opération ${n}`, ...extra },
     })
   const rent = await tx(main.id, '2026-02-01', 1200, 'debit', { counterpartyName: 'SCI Les Tilleuls' })
-  await tx(main.id, '2026-02-03', 9.9, 'debit')
+  const ovh = await tx(main.id, '2026-02-03', 9.9, 'debit', { label: 'PRLV SEPA OVH SAS 1234567' })
+  await prisma.tiers.create({ data: { companyId: company.id, kind: 'SUPPLIER', name: 'SCI Les Tilleuls', auxiliaryAccountNumber: 'FTILLEULS' } })
+  await prisma.tiers.create({ data: { companyId: other.id, kind: 'SUPPLIER', name: 'Opération', auxiliaryAccountNumber: 'FOPE' } })
   await tx(main.id, '2026-03-10', 450, 'credit', { reconciled: true })
   await tx(savings.id, '2026-04-01', 300, 'debit')
   await tx(main.id, '2026-04-02', 80, 'debit', { status: 'declined' })
@@ -48,7 +51,7 @@ async function seed() {
   await tx(foreign.id, '2026-02-01', 999, 'debit')
   const withReceipt = await tx(main.id, '2026-02-05', 60, 'debit')
   await prisma.attachment.create({ data: { companyId: company.id, bankTransactionId: withReceipt.id, fileName: 'facture.pdf' } })
-  Object.assign(ids, { company: company.id, fy: fy.id, main: main.id, savings: savings.id, foreign: foreign.id, rent: rent.id })
+  Object.assign(ids, { ovh: ovh.id, company: company.id, fy: fy.id, main: main.id, savings: savings.id, foreign: foreign.id, rent: rent.id })
 }
 
 const parse = (query: Record<string, string>) => service.MissingReceiptsQuerySchema.parse(query)
@@ -77,6 +80,18 @@ describe.skipIf(!available)('missing receipts (PostgreSQL)', () => {
     ])
     expect(result).toMatchObject({ count: 4, totalCents: 195_990, truncated: false, thresholdCents: 0, period: { startDate: '2026-01-01', endDate: '2026-12-31' } })
     expect(result.transactions[3]).toMatchObject({ id: ids.rent, counterpartyName: 'SCI Les Tilleuls', bankAccount: { name: 'Courant' }, reconciled: false })
+  })
+
+  it('recognises the supplier from the label: a known vendor, a tiers of the company, else none', async () => {
+    const { RECEIPT_VENDORS } = await import('@/lib/receipts/vendors')
+    const ovhcloud = RECEIPT_VENDORS.find((v) => v.id === 'ovhcloud')
+    const result = await service.listMissingReceipts(ids.company, parse({ fiscalYearId: ids.fy }))
+    const byId = new Map(result.transactions.map((t) => [t.id, t]))
+    expect(byId.get(ids.ovh)).toMatchObject({ bankProvider: 'QONTO', supplier: { name: 'OVHcloud', kind: 'vendor', vendorId: 'ovhcloud', tiersId: null, invoicesUrl: ovhcloud?.invoicesUrl ?? null } })
+    const tiers = await prisma.tiers.findFirstOrThrow({ where: { companyId: ids.company } })
+    expect(byId.get(ids.rent)?.supplier).toEqual({ name: 'SCI Les Tilleuls', kind: 'SUPPLIER', vendorId: null, tiersId: tiers.id, invoicesUrl: null })
+    // "Opération 3" and "Opération 4" name a tiers of another company only: nothing recognised.
+    expect(result.transactions.filter((t) => t.id !== ids.ovh && t.id !== ids.rent).map((t) => t.supplier)).toEqual([null, null])
   })
 
   it('filters by threshold, side, bank account and period', async () => {
