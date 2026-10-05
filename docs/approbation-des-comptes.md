@@ -31,6 +31,7 @@ Textes vérifiés le 4 octobre 2026 sur la version consolidée du Code de commer
 | Procès-verbal, ou décision de l'associé unique | Toujours | Date, lieu, associés présents ou représentés avec leurs titres, règle de quorum et de majorité, ordre du jour, documents présentés, texte de chaque résolution et résultat du vote (R223-24 pour la SARL, R225-106 pour la SA) ; pour un associé unique, décision consignée au registre. |
 | Feuille de présence | Assemblée (obligatoire dans une SA, R225-95 ; utile ailleurs pour établir le quorum et la majorité) | Associés, titres, présence ou représentation, colonne de signature, certification du bureau. |
 | Déclaration de confidentialité, ou de publication simplifiée | Option choisie au dépôt | Catégorie de la société, exclusions, demande de non-publication (L232-25, R123-111-1). Le guichet unique propose le modèle fixé par arrêté : ce document en reprend les éléments. |
+| Annexe des comptes annuels, ou informations à la suite du bilan | Toujours ; facultative pour une micro-entreprise (L123-16-1) | Notes selon la catégorie de taille, établies par `lib/annexe` avec leurs propres informations manquantes ([annexe](annexe-et-2054.md)). |
 | Liste du dépôt au greffe | Sociétés commerciales | Pièces, délai, canal, sanction. |
 
 Chaque document se télécharge en **PDF** (à signer) ou en **Markdown** (texte modifiable dans n'importe quel éditeur, ou à coller dans un traitement de texte). Les deux formats viennent du même contenu (`lib/approval/documents`).
