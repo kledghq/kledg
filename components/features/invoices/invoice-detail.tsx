@@ -25,6 +25,7 @@ interface Detail {
   origin: InvoiceOriginCode
   createdInQonto: boolean
   qontoPending: boolean
+  qontoDraft: boolean
   provisionalNumber: string | null
   typeCode: string
   issueDate: string
@@ -153,7 +154,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
   const kind = invoice.typeCode === '381' ? 'Avoir' : 'Facture'
   const name = invoice.number ? `${kind.toLowerCase()} ${invoice.number}` : `${kind.toLowerCase()} en brouillon`
   // A number given by the series, or an invoice created in Qonto, stays: a credit note cancels it.
-  const deletable = !(invoice.origin === 'AUTO' && invoice.number) && !invoice.createdInQonto
+  const deletable = !(invoice.origin === 'AUTO' && invoice.number) && (!invoice.createdInQonto || invoice.qontoDraft)
   const resumeQonto = () => run(() => send(`/api/invoices/${invoiceId}/qonto`, 'POST'), 'Facture créée dans Qonto')
   const accountsChanged = invoice.lines.some((l) => (accounts[l.id] ?? '') !== (l.accountCode ?? ''))
 
@@ -172,7 +173,9 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
   const remove = async () => {
     const ok = await confirm({
       title: `Supprimer la ${name} ?`,
-      description: 'La facture et ses lignes sont supprimées. Aucune écriture n’existe encore.',
+      description: invoice.qontoDraft
+        ? 'La facture est supprimée de Kledg. Son brouillon reste dans Qonto : supprimez-le aussi dans Qonto, ou finalisez-le et importez-le de nouveau.'
+        : 'La facture et ses lignes sont supprimées. Aucune écriture n’existe encore.',
       confirmLabel: 'Supprimer la facture',
     })
     if (!ok) return
@@ -261,7 +264,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
                 Reprendre la création dans Qonto
               </Button>
             ) : null}
-            {!posted && !invoice.qontoPending ? (
+            {!posted && !invoice.qontoPending && !invoice.qontoDraft ? (
               <Button onClick={post} disabled={busy || !mayPost || accountsChanged} loading={busy}>
                 <BookCheck aria-hidden />
                 Comptabiliser
@@ -277,6 +280,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
           ) : invoice.source === 'QONTO' ? (
             <StatusBadge tone="info">Importée de Qonto</StatusBadge>
           ) : null}
+          {invoice.qontoDraft ? <StatusBadge tone="warning">Brouillon dans Qonto</StatusBadge> : null}
           {!invoice.number && invoice.origin === 'AUTO' ? (
             <span className="text-muted-foreground text-sm" data-testid="draft-number-hint">
               Numéro attribué à l’émission{invoice.provisionalNumber ? ` (prochain prévu : ${invoice.provisionalNumber})` : ''}
@@ -292,6 +296,11 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
       </PageHeader>
 
       {!mayPost ? <AccessNotice>{denied('comptabiliser les factures')}</AccessNotice> : null}
+      {invoice.qontoDraft ? (
+        <p role="status" className="max-w-prose text-sm" data-testid="qonto-draft-note">
+          Cette facture est un brouillon dans Qonto : elle n’a pas encore de numéro. Finalisez-la dans Qonto, puis importez les factures Qonto : Kledg reprend son numéro et vous pourrez la comptabiliser.
+        </p>
+      ) : null}
       {invoice.qontoPending ? (
         <p role="status" className="max-w-prose text-sm">
           Qonto n’a pas confirmé la création de cette facture. Reprenez sa création : Kledg vérifie d’abord si Qonto l’a créée, pour ne jamais la créer deux fois.

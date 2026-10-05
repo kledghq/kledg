@@ -11,6 +11,8 @@
  *   running the import twice creates nothing twice; an invoice Kledg sent to
  *   Qonto without receiving the answer (same customer, date and total) is
  *   completed with its Qonto id instead of being imported a second time;
+ * - an invoice Kledg created as a draft in Qonto is found by its Qonto id
+ *   once finalized there: it gets its number and keeps its accounts;
  * - imported numbers stay as Qonto gives them (origin QONTO): they never
  *   go through Kledg's numbering series;
  * - an imported invoice already posted keeps its amounts (its entry is the
@@ -215,9 +217,15 @@ async function saveInvoice(
       // Still a draft (checked above, again under the row lock): replace its lines with the document's.
       const locked = await tx.$queryRaw<Array<{ entryId: string | null }>>`SELECT "entryId" FROM "invoices" WHERE "id" = ${existing.id} FOR UPDATE`
       if (locked[0]?.entryId) return
+      // The accounts and natures chosen in Kledg (a draft created in Qonto from Kledg, then finalized there) stay on the lines.
+      const kept = await tx.invoiceLine.findMany({ where: { invoiceId: existing.id }, orderBy: { position: 'asc' }, select: { accountCode: true, nature: true, fixedAsset: true } })
+      const lines =
+        kept.length === mapped.lines.length
+          ? { create: data.lines.create.map((line, i) => ({ ...line, accountCode: kept[i].accountCode, nature: kept[i].nature, fixedAsset: kept[i].fixedAsset })) }
+          : data.lines
       await tx.invoiceLine.deleteMany({ where: { invoiceId: existing.id } })
       await tx.invoiceVatBreakdown.deleteMany({ where: { invoiceId: existing.id } })
-      await tx.invoice.update({ where: { id: existing.id }, data: adopting ? { ...data, externalId: mapped.externalId } : data })
+      await tx.invoice.update({ where: { id: existing.id }, data: { ...data, lines, qontoDraft: false, ...(adopting ? { externalId: mapped.externalId } : {}) } })
     } else {
       await tx.invoice.create({ data: { ...data, companyId, direction, source: 'QONTO', origin: 'QONTO', externalId: mapped.externalId } })
     }

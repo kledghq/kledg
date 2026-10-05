@@ -42,10 +42,21 @@
  *   setting), then Qonto gives it; required when it is off. Answers 201
  *   { client_invoice }, the PDF attachment generated asynchronously;
  *   https://docs.qonto.com/api-reference/business-api/expense-management/client-quotes-notes/client-invoices/create-a-client-invoice
- *   Kledg creates the invoice "unpaid" (finalized, numbered by Qonto): with
- *   an API key, Qonto offers no way to finalize a draft later (Finalize a
- *   client invoice is OAuth only in the endpoints access table), and credit
- *   notes cannot be created (Create a credit note: OAuth only).
+ *   The request schema accepts status "draft" and the operation lists the
+ *   SecretKey scheme (API key) next to OAuth, so a draft can be created with
+ *   the stored key. The reference does not say whether Qonto numbers a
+ *   draft: Kledg ignores any number on a Qonto draft and takes the number
+ *   once the invoice is finalized in Qonto (status "unpaid", same id, read
+ *   by the import). Kledg creates finalized invoices by default, drafts on
+ *   request (qontoStatus "draft").
+ *   Not called: POST /v2/client_invoices/{id}/finalize and POST
+ *   /v2/credit_notes. Their pages list the SecretKey scheme, but the
+ *   endpoints access table of the authentication introduction does not list
+ *   them among the endpoints open to an API key (it lists create, update,
+ *   cancel, delete and mark as paid); the user finalizes a draft in Qonto,
+ *   and credit notes follow Kledg's numbering.
+ *   https://docs.qonto.com/api-reference/business-api/expense-management/client-quotes-notes/client-invoices/finalize-a-client-invoice
+ *   https://docs.qonto.com/api-reference/business-api/expense-management/client-quotes-notes/credit-notes/create-a-credit-note
  *   Idempotency: Qonto's X-Qonto-Idempotency-Key
  *   (https://docs.qonto.com/get-started/general/idempotent-requests) is not
  *   among the parameters of this endpoint, so Kledg records the request
@@ -162,7 +173,7 @@ export interface QontoNewClientInvoice {
   issue_date: string
   due_date: string
   currency: string
-  status: 'unpaid'
+  status: 'unpaid' | 'draft'
   payment_methods: { iban: string }
   items: Array<{ title: string; description?: string; quantity: string; unit_price: QontoMoney; vat_rate: string }>
 }

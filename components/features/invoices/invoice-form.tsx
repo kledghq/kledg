@@ -39,6 +39,8 @@ const formSchema = z.object({
   /** Checked on submit: required only when the number is typed (numberIsTyped). */
   number: z.string().trim().max(60),
   numbering: z.enum(['kledg', 'qonto', 'recorded']),
+  /** Created in Qonto: finalized (numbered by Qonto at once) or a draft in Qonto. */
+  qontoStatus: z.enum(['finalized', 'draft']).optional(),
   issueDate: z.string().min(1, 'La date est requise'),
   dueDate: z.string(),
   typeCode: z.enum(['380', '381']),
@@ -136,6 +138,7 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
   const lines = useWatch({ control, name: 'lines' })
   const choice = useWatch({ control, name: 'numbering' })
   const typeCode = useWatch({ control, name: 'typeCode' })
+  const qontoStatus = useWatch({ control, name: 'qontoStatus' })
 
   // A new sales invoice follows the company's numbering: created in Qonto first when it is on.
   React.useEffect(() => {
@@ -208,6 +211,7 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
         companyId,
         ...(invoiceId ? {} : { direction }),
         ...(invoiceId || !sale ? {} : { numbering: values.numbering }),
+        ...(!invoiceId && sale && values.numbering === 'qonto' ? { qontoStatus: values.qontoStatus ?? 'finalized' } : {}),
         tiersId: values.tiersId,
         number: typed ? values.number : (edited?.number ?? null),
         issueDate: values.issueDate,
@@ -230,8 +234,8 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
         body: JSON.stringify(body),
       })
       if (!response.ok) throw new Error(await responseError(response, 'La facture n’a pas été enregistrée. Réessayez.'))
-      const saved = (await response.json()) as { id: string; number: string | null; origin: string }
-      toast.success(invoiceId ? 'Facture modifiée' : saved.origin === 'QONTO' ? `Facture créée dans Qonto${saved.number ? ` sous le n°\u00a0${saved.number}` : ''}` : 'Facture enregistrée')
+      const saved = (await response.json()) as { id: string; number: string | null; origin: string; qontoDraft?: boolean }
+      toast.success(invoiceId ? 'Facture modifiée' : saved.origin === 'QONTO' ? `${saved.qontoDraft ? 'Brouillon créé dans Qonto' : 'Facture créée dans Qonto'}${saved.number ? ` sous le n°\u00a0${saved.number}` : ''}` : 'Facture enregistrée')
       form.reset(values)
       router.push(`/${companyId}/invoices/${saved.id}`)
     } catch (e) {
@@ -294,6 +298,25 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
                         ? 'La société numérote ses factures ailleurs : saisissez le numéro.'
                         : 'Kledg donne le numéro suivant de sa série quand la facture est comptabilisée.'}
               </p>
+              {choice === 'qonto' ? (
+                <Controller
+                  control={control}
+                  name="qontoStatus"
+                  render={({ field }) => (
+                    <ToggleGroup
+                      type="single"
+                      variant="outline"
+                      size="sm"
+                      value={field.value ?? 'finalized'}
+                      onValueChange={(value) => value && field.onChange(value)}
+                      aria-label="Statut dans Qonto"
+                    >
+                      <ToggleGroupItem value="finalized">Facture finalisée dans Qonto</ToggleGroupItem>
+                      <ToggleGroupItem value="draft">Brouillon dans Qonto</ToggleGroupItem>
+                    </ToggleGroup>
+                  )}
+                />
+              ) : null}
             </div>
           ) : null}
           <Field label={sale ? 'Client' : 'Fournisseur'} htmlFor="invoice-tiers" required error={formState.errors.tiersId?.message}>
@@ -351,7 +374,7 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
               {edited?.number ? (
                 <p className="font-mono text-sm">{edited.number}</p>
               ) : choice === 'qonto' && !edited ? (
-                <p className="text-sm">Donné par Qonto à la création</p>
+                <p className="text-sm">{qontoStatus === 'draft' ? 'Donné par Qonto quand le brouillon sera finalisé dans Qonto' : 'Donné par Qonto à la création'}</p>
               ) : edited?.origin === 'QONTO' ? (
                 <p className="text-sm">En attente de Qonto</p>
               ) : (
@@ -516,7 +539,13 @@ export function InvoiceForm({ companyId, direction, invoiceId, initial, edited }
           Annuler
         </Button>
         <Button type="submit" loading={submitting}>
-          {invoiceId ? 'Enregistrer les modifications' : sale && choice === 'qonto' ? 'Créer la facture dans Qonto' : 'Enregistrer la facture'}
+          {invoiceId
+            ? 'Enregistrer les modifications'
+            : sale && choice === 'qonto'
+              ? qontoStatus === 'draft'
+                ? 'Créer le brouillon dans Qonto'
+                : 'Créer la facture dans Qonto'
+              : 'Enregistrer la facture'}
         </Button>
       </div>
     </form>

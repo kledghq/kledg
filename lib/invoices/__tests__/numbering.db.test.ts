@@ -238,6 +238,44 @@ describe.skipIf(!available)('sales invoice numbering (PostgreSQL)', () => {
     })
   })
 
+  describe('default numbering of existing and new companies', () => {
+    it('sets companies that existed before the migration to typed numbers, invited to configure the automatic numbering', async () => {
+      const { readFileSync } = await import('node:fs')
+      const path = await import('node:path')
+      const sql = readFileSync(path.join(process.cwd(), 'prisma/migrations/20261115090000_invoice_numbering/migration.sql'), 'utf8')
+      const update = /^UPDATE "companies" SET "invoiceNumbering".*;$/m.exec(sql)?.[0]
+      expect(update).toBeDefined()
+      // books.companyId was created with no configuration, like a row before the migration
+      await prisma.$executeRawUnsafe(update!)
+      const view = await settingsSvc.getInvoiceNumbering(books.companyId, NOW)
+      expect(view.settings.mode).toBe('MANUAL')
+      expect(view.suggestAutomatic).toBe(true)
+      expect(view.next).toEqual({ invoice: null, creditNote: null })
+      await expect(draft()).rejects.toThrow(/numéro est requis/)
+      // Once the numbering is saved, the invitation goes
+      expect((await configure({})).suggestAutomatic).toBe(false)
+      expect(await draft()).toMatchObject({ origin: 'AUTO', number: null })
+    })
+
+    it('numbers the sales invoices of a company created after the migration automatically (F{YYYY}-{SEQ:4})', async () => {
+      const { createCompany } = await import('@/lib/companies/create-company.service')
+      const { CreateCompanySchema } = await import('@/lib/companies/company-wizard')
+      const created = await createCompany(
+        CreateCompanySchema.parse({
+          name: 'Nouvelle société',
+          siren: '732829320',
+          firstFiscalYear: { startDate: '2026-01-01', endDate: '2026-12-31', isFirst: false },
+          vatRegime: 'normal',
+          corporateTaxRegime: 'normal',
+        }),
+      )
+      const view = await settingsSvc.getInvoiceNumbering(created.id, NOW)
+      expect(view.settings).toEqual(DEFAULT_NUMBERING)
+      expect(view.suggestAutomatic).toBe(false)
+      expect(view.next.invoice).toBe('F2026-0001')
+    })
+  })
+
   describe('configuration', () => {
     it('saves the configuration with an audit log entry, and isolates companies', async () => {
       const other = await seedBooks(prisma, svc, { siren: '900000302', slug: 'numerotation-beta' })

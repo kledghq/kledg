@@ -104,7 +104,9 @@ model Company {
   /// Numbering of sales invoices and credit notes (CGI ann. II art. 242
   /// nonies A, I, 7°): JSON validated by InvoiceNumberingSettingsSchema
   /// (lib/invoices/numbering/settings.ts); null: the defaults (F{YYYY}-{SEQ:4},
-  /// yearly reset, automatic, created in Qonto when Qonto can).
+  /// yearly reset, automatic, created in Qonto when Qonto can), what a new
+  /// company gets. Companies that existed before migration 20261115090000
+  /// were set to typed numbers with "legacy": true (invited to configure).
   invoiceNumbering           Json?
   /// Why Qonto refused to create a client invoice with the stored connection
   /// (HTTP 401/403); null: never refused. Cleared when the setting is saved again.
@@ -1820,6 +1822,8 @@ model Invoice {
   origin               InvoiceOrigin    @default(MANUAL)
   /// When Kledg asked Qonto to create the invoice (origin QONTO); externalId still null: the answer is pending.
   qontoRequestedAt     DateTime?
+  /// Created as a draft in Qonto (origin QONTO): no number and not postable until finalized in Qonto, then completed by the import.
+  qontoDraft           Boolean          @default(false)
   issueDate            DateTime
   dueDate              DateTime
   /// UNTDID 1001 (EN 16931 BT-3): 380 invoice, 381 credit note.

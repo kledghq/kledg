@@ -2,11 +2,17 @@
 -- Numérotation; CGI ann. II art. 242 nonies A, I, 7°, BOI-TVA-DECLA-30-20-20-10 § 70 to 100: a unique number in a
 -- chronological and continuous sequence, several series allowed).
 --
--- - companies.invoiceNumbering: the configuration (JSON, null: defaults);
+-- - companies.invoiceNumbering: the configuration (JSON, null: defaults,
+--   automatic numbering for companies created from now on). Existing
+--   companies keep typed numbers ({"mode": "MANUAL", "legacy": true}): their
+--   numbering is not changed under them, Kledg invites them to configure the
+--   automatic numbering;
 --   companies.qontoInvoicingRefusal: why Qonto refused to create an invoice.
 -- - invoices.origin: where the number comes from; existing rows keep their
 --   numbers (QONTO for imported invoices, MANAGEMENT_FEES for the invoices
 --   of a convention, MANUAL for the others).
+-- - invoices.qontoDraft: created as a draft in Qonto (no number until it is
+--   finalized there).
 -- - invoices.number becomes nullable: a sales draft numbered by the series
 --   has no number until it is posted, so deleting a draft leaves no gap.
 -- - invoice_number_counters: the last number of each series and period,
@@ -22,6 +28,8 @@ CREATE TYPE "InvoiceOrigin" AS ENUM ('AUTO', 'MANUAL', 'RECORDED', 'QONTO', 'MAN
 ALTER TABLE "companies" ADD COLUMN "invoiceNumbering" JSONB,
 ADD COLUMN "qontoInvoicingRefusal" TEXT;
 
+UPDATE "companies" SET "invoiceNumbering" = '{"mode": "MANUAL", "legacy": true}'::jsonb WHERE "invoiceNumbering" IS NULL;
+
 ALTER TABLE "companies" ADD CONSTRAINT "companies_invoiceNumbering_check"
   CHECK ("invoiceNumbering" IS NULL OR jsonb_typeof("invoiceNumbering") = 'object');
 
@@ -29,6 +37,7 @@ ALTER TABLE "companies" ADD CONSTRAINT "companies_invoiceNumbering_check"
 ALTER TABLE "invoices" ADD COLUMN "origin" "InvoiceOrigin" NOT NULL DEFAULT 'MANUAL',
 ADD COLUMN "numberAssignedAt" TIMESTAMP(3),
 ADD COLUMN "qontoRequestedAt" TIMESTAMP(3),
+ADD COLUMN "qontoDraft" BOOLEAN NOT NULL DEFAULT false,
 ALTER COLUMN "number" DROP NOT NULL;
 
 UPDATE "invoices" SET "origin" = 'QONTO' WHERE "source" = 'QONTO';

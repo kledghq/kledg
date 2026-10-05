@@ -32,6 +32,7 @@ export interface InvoiceNumberingView {
   patterns: { invoice: string; creditNote: string }
   next: { invoice: string | null; creditNote: string | null }
   qonto: { connected: boolean; refusal: string | null; canCreate: boolean; active: boolean }
+  suggestAutomatic?: boolean
 }
 
 const YEARS: Array<{ value: YearFormat; label: string }> = [
@@ -165,6 +166,11 @@ export function InvoiceNumberingCard({ companyId, today = new Date() }: { compan
       </CardHeader>
       <CardContent className="space-y-6">
         {!mayUpdate ? <AccessNotice>{denied('changer la numérotation des factures')}</AccessNotice> : null}
+        {view.suggestAutomatic ? (
+          <p role="status" className="rounded-md border px-3 py-2 text-sm" data-testid="numbering-suggestion">
+            Les numéros de vos factures de vente sont saisis à la main. Activez la numérotation automatique : Kledg donnera le numéro suivant à chaque facture comptabilisée, sans trou ni doublon. Choisissez un format qui prolonge vos numéros actuels (ou le prochain numéro), puis enregistrez.
+          </p>
+        ) : null}
         <fieldset disabled={!mayUpdate || saving} className="min-w-0 space-y-6">
           <div className="flex items-center gap-3">
             <Switch id="numbering-auto" checked={auto} onCheckedChange={(on) => set('mode', on ? 'AUTO' : 'MANUAL')} />

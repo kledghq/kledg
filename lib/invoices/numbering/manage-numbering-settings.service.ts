@@ -2,7 +2,10 @@
  * The invoice numbering configuration of a company (Informations,
  * "Numérotation des factures"): read with the next numbers it would give,
  * saved by an administrator (settings:update) with an audit log entry.
- * The rules are in format.ts, the series in series.ts.
+ * The rules are in format.ts, the series in series.ts. A company that
+ * existed before automatic numbering was set to typed numbers by migration
+ * 20261115090000 ("legacy"): it is invited to configure the numbering until
+ * it saves it; a new company numbers automatically (null: the defaults).
  */
 
 import { prisma } from '@/lib/prisma'
@@ -12,7 +15,7 @@ import { toIsoDateUtc } from '@/lib/utils/date'
 import { qontoInvoicingCapability, type QontoInvoicingCapability } from '../create-in-qonto.service'
 import { formatOf, patternOf, type InvoiceNumberingSettings } from './format'
 import { loadNumberingSettings, peekNextNumber, raiseNextNumbers } from './series'
-import type { InvoiceNumberingBody } from './settings'
+import { isLegacyNumbering, type InvoiceNumberingBody } from './settings'
 
 export interface InvoiceNumberingView {
   settings: InvoiceNumberingSettings
@@ -21,10 +24,12 @@ export interface InvoiceNumberingView {
   /** What the next invoice and credit note dated today would get (null: numbers are typed, or no fiscal year for a fiscal year reset). */
   next: { invoice: string | null; creditNote: string | null }
   qonto: QontoInvoicingCapability & { active: boolean }
+  /** The company existed before automatic numbering and still types its numbers: invite it to configure the numbering. */
+  suggestAutomatic: boolean
 }
 
 export async function getInvoiceNumbering(companyId: string, now = new Date()): Promise<InvoiceNumberingView> {
-  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } })
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true, invoiceNumbering: true } })
   if (!company) throw new NotFoundError('Société introuvable')
   const settings = await loadNumberingSettings(prisma, companyId)
   const today = toIsoDateUtc(now)
@@ -38,6 +43,7 @@ export async function getInvoiceNumbering(companyId: string, now = new Date()): 
     patterns: { invoice: patternOf(formatOf(settings, 'INVOICE')), creditNote: patternOf(formatOf(settings, 'CREDIT_NOTE')) },
     next: { invoice, creditNote },
     qonto: { ...capability, active: (settings.qontoFirst ?? true) && capability.canCreate },
+    suggestAutomatic: settings.mode === 'MANUAL' && isLegacyNumbering(company.invoiceNumbering),
   }
 }
 

@@ -65,6 +65,11 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
   const result = await prisma.$transaction(async (tx) => {
     const locked = await lockInvoice(tx, companyId, invoiceId)
     if (locked.entryId) throw new ConflictError(`${invoiceName(locked)} est déjà comptabilisée.`)
+    if (locked.number === null && locked.origin === 'QONTO' && locked.qontoDraft && locked.externalId) {
+      throw new ConflictError(
+        'La facture est un brouillon dans Qonto : finalisez-la dans Qonto, puis importez les factures Qonto pour recevoir son numéro avant de la comptabiliser.',
+      )
+    }
     if (locked.number === null && locked.origin !== 'AUTO') {
       throw new ConflictError('Kledg attend la réponse de Qonto pour cette facture : reprenez sa création dans Qonto avant de la comptabiliser.')
     }

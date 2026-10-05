@@ -229,6 +229,15 @@ describe('create_draft_invoice (full control)', () => {
     expect(data.preview.problems).toEqual([])
   })
 
+  it('announces a draft in Qonto in the dry run and passes qontoStatus on', async () => {
+    const { number: _number, numbering: _numbering, ...rest } = args
+    const data = parse(await server({ canAdmin: true }).get('create_draft_invoice')!({ ...rest, qontoStatus: 'draft' }))
+    expect(data.preview.numbering).toBe('Créée en brouillon dans Qonto\u00a0: sans numéro jusqu’à sa finalisation dans Qonto.')
+    vi.mocked(issueInvoice).mockResolvedValue({ id: 'inv-10', number: null, origin: 'QONTO', totalInclTaxCents: 33_164 } as never)
+    await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_invoice')!({ ...rest, qontoStatus: 'draft' })
+    expect(issueInvoice).toHaveBeenCalledWith('c1', expect.objectContaining({ qontoStatus: 'draft', number: null }), { source: 'mcp' })
+  })
+
   it('reports a typed sales number under automatic numbering as a problem of the dry run', async () => {
     const { numbering: _numbering, ...typed } = args
     const data = parse(await server({ canAdmin: true }).get('create_draft_invoice')!(typed))

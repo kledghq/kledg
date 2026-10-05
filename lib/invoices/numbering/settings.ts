@@ -35,6 +35,11 @@ export const InvoiceNumberingBodySchema = z.object({
 })
 export type InvoiceNumberingBody = z.infer<typeof InvoiceNumberingBodySchema>
 
+/** Typed numbers set by migration 20261115090000 for a company that existed before automatic numbering, never saved since. */
+export function isLegacyNumbering(stored: unknown): boolean {
+  return Boolean(stored && typeof stored === 'object' && (stored as Record<string, unknown>).legacy === true)
+}
+
 /** The stored configuration, the defaults for what is missing or unreadable. */
 export function readNumberingSettings(stored: unknown): InvoiceNumberingSettings {
   if (!stored || typeof stored !== 'object') return { ...DEFAULT_NUMBERING }

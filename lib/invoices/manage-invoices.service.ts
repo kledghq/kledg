@@ -88,6 +88,8 @@ export const CreateInvoiceBodySchema = z.object({
   direction: directionSchema,
   ...invoiceFields,
   numbering: z.enum(INVOICE_NUMBERING_CHOICES, { error: 'Choisissez comment numéroter la facture' }).optional(),
+  /** Created in Qonto: finalized (the default, numbered by Qonto) or a draft (numbered once finalized in Qonto). */
+  qontoStatus: z.enum(['draft', 'finalized'], { error: 'Choisissez une facture finalisée ou un brouillon dans Qonto' }).optional(),
 })
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceBodySchema>
 
@@ -140,6 +142,7 @@ const SUMMARY_SELECT = {
   source: true,
   origin: true,
   qontoRequestedAt: true,
+  qontoDraft: true,
   externalId: true,
   externalStatus: true,
   externalAttachmentId: true,
@@ -177,6 +180,8 @@ export interface InvoiceSummary {
   createdInQonto: boolean
   /** Qonto was asked to create the invoice and has not answered yet: resume it (POST /api/invoices/[id]/qonto). */
   qontoPending: boolean
+  /** A draft in Qonto: numbered and postable once finalized in Qonto (the import completes it). */
+  qontoDraft: boolean
   externalStatus: string | null
   hasAttachment: boolean
   entry: { id: string; entryNumber: string; status: string } | null
@@ -208,6 +213,7 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
     origin: row.origin,
     createdInQonto: row.origin === 'QONTO' && row.qontoRequestedAt !== null,
     qontoPending: row.origin === 'QONTO' && row.qontoRequestedAt !== null && row.externalId === null,
+    qontoDraft: row.origin === 'QONTO' && row.qontoDraft,
     externalStatus: row.externalStatus,
     hasAttachment: row.externalAttachmentId !== null,
     entry: row.entry ? { id: row.entry.id, entryNumber: row.entry.entryNumber, status: row.entry.status } : null,
@@ -495,7 +501,7 @@ function numberForOrigin(origin: InvoiceOrigin, number: string | null | undefine
 export async function createInvoice(
   companyId: string,
   input: CreateInvoiceInput,
-  options: { source?: string; db?: Prisma.TransactionClient; origin?: InvoiceOrigin; qontoRequestedAt?: Date } = {},
+  options: { source?: string; db?: Prisma.TransactionClient; origin?: InvoiceOrigin; qontoRequestedAt?: Date; qontoDraft?: boolean } = {},
 ): Promise<InvoiceDetail> {
   const run = async (tx: Prisma.TransactionClient) => {
     const company = await loadCompany(tx, companyId)
@@ -516,7 +522,7 @@ export async function createInvoice(
         tiersId: tiers.id,
         number,
         origin,
-        ...(origin === 'QONTO' ? { source: 'QONTO' as const, qontoRequestedAt: options.qontoRequestedAt ?? new Date() } : {}),
+        ...(origin === 'QONTO' ? { source: 'QONTO' as const, qontoRequestedAt: options.qontoRequestedAt ?? new Date(), qontoDraft: options.qontoDraft ?? false } : {}),
         issueDate: dayToDate(input.issueDate),
         dueDate: dayToDate(dueDate),
         typeCode: input.typeCode,
@@ -557,6 +563,7 @@ export async function lockInvoice(tx: Prisma.TransactionClient, companyId: strin
       issueDate: true,
       numberAssignedAt: true,
       qontoRequestedAt: true,
+      qontoDraft: true,
       externalId: true,
     },
   })
@@ -669,7 +676,8 @@ export async function deleteInvoice(companyId: string, id: string): Promise<{ id
         `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
       )
     }
-    if (current.origin === 'QONTO' && current.qontoRequestedAt) {
+    // A draft in Qonto has no number yet: deleting it in Kledg leaves no gap (finalized later in Qonto, the import brings it back).
+    if (current.origin === 'QONTO' && current.qontoRequestedAt && !(current.qontoDraft && current.externalId)) {
       throw new ConflictError(
         current.externalId
           ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`

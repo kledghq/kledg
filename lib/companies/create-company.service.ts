@@ -127,6 +127,8 @@ async function createCompanyRows(input: CreateCompanyData, creator?: CompanyCrea
           totalShares: input.totalShares ?? null,
           shareNominalValue: input.shareNominalValueCents ? centsToDecimal(input.shareNominalValueCents) : null,
           shareCapital: capitalCents !== null ? centsToDecimal(capitalCents) : null,
+          // invoiceNumbering stays null: a new company numbers its sales invoices automatically, F{YYYY}-{SEQ:4}
+          // (lib/invoices/numbering; companies older than migration 20261115090000 type theirs until they configure it).
         },
         select: { id: true, slug: true, name: true },
       })

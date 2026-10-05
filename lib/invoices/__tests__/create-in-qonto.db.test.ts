@@ -48,11 +48,13 @@ function json(body: unknown, status = 200) {
 }
 
 function qontoInvoiceFrom(body: Record<string, unknown>, n: number) {
+  const draft = body.status === 'draft'
   const items = body.items as Array<{ title: string; quantity: string; unit_price: { value: string }; vat_rate: string }>
   return {
     id: `qi-${n}`,
-    number: `QF-${String(n).padStart(3, '0')}`,
-    status: 'unpaid',
+    // A number on a draft, if Qonto gave one, is ignored by Kledg until the invoice is finalized
+    number: draft ? 'BROUILLON' : `QF-${String(n).padStart(3, '0')}`,
+    status: draft ? 'draft' : 'unpaid',
     issue_date: body.issue_date,
     due_date: body.due_date,
     created_at: new Date().toISOString(),
@@ -157,6 +159,28 @@ describe.skipIf(!available)('sales invoices created in Qonto first (PostgreSQL, 
     expect(await prisma.invoice.count({ where: { companyId: books.companyId } })).toBe(2)
   })
 
+  it('creates a draft in Qonto on request: no number, not postable, completed by the import once finalized in Qonto', async () => {
+    const invoice = await sale({ qontoStatus: 'draft' })
+    expect(invoice).toMatchObject({ origin: 'QONTO', number: null, qontoDraft: true, qontoPending: false, createdInQonto: true })
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/client_invoices')!.body).toMatchObject({ status: 'draft' })
+    await expect(posting.postInvoice(books.companyId, invoice.id)).rejects.toThrow(/brouillon dans Qonto/)
+    // Still a draft at Qonto: the import leaves it as it is and creates nothing
+    expect((await importer.importQontoInvoices(books.companyId)).invoices).toMatchObject({ created: 0, updated: 0 })
+    expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id }, select: { number: true } })).toEqual({ number: null })
+
+    // Finalized in Qonto (same id): the import gives it its number, keeps its accounts, and it posts
+    Object.assign(createdAtQonto[0], { status: 'unpaid', number: 'QF-001' })
+    expect((await importer.importQontoInvoices(books.companyId)).invoices).toMatchObject({ created: 0, updated: 1 })
+    const completed = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id }, select: { number: true, qontoDraft: true, externalId: true, lines: { select: { accountCode: true } } } })
+    expect(completed).toEqual({ number: 'QF-001', qontoDraft: false, externalId: 'qi-1', lines: [{ accountCode: '706000' }] })
+    expect((await posting.postInvoice(books.companyId, invoice.id)).number).toBe('QF-001')
+    expect(await prisma.invoice.count({ where: { companyId: books.companyId } })).toBe(1)
+  })
+
+  it('refuses a Qonto status for an invoice not created in Qonto', async () => {
+    await expect(sale({ qontoStatus: 'draft', numbering: 'kledg' })).rejects.toThrow(/ne vaut que pour une facture créée dans Qonto/)
+  })
+
   it('never creates an invoice twice when Qonto’s answer is lost: the retry finds it at Qonto first', async () => {
     invoiceAnswer = 'lost'
     await expect(sale()).rejects.toThrow(/Qonto n’a pas confirmé la création de la facture/)
@@ -217,7 +241,7 @@ describe.skipIf(!available)('sales invoices created in Qonto first (PostgreSQL, 
     expect(recorded).toMatchObject({ origin: 'RECORDED', number: 'ANC-2025-12' })
     const note = await sale({ typeCode: '381' })
     expect(note).toMatchObject({ origin: 'AUTO', number: null })
-    await expect(sale({ typeCode: '381', numbering: 'qonto' })).rejects.toThrow(/créer un avoir/)
+    await expect(sale({ typeCode: '381', numbering: 'qonto' })).rejects.toThrow(/création d’avoirs/)
     const off = await sale({ numbering: 'kledg' })
     expect(off.origin).toBe('AUTO')
     expect(posts('/client_invoices')).toBe(0)

@@ -22,6 +22,7 @@ import { DEFAULT_NUMBERING } from '@/lib/invoices/numbering/format'
 import { InvoiceNumberingCard, type InvoiceNumberingView } from '../invoice-numbering-card'
 import { InvoiceForm } from '../invoice-form'
 import { VatSettingsSummary } from '../vat-settings-summary'
+import { NumberingSuggestion } from '../numbering-suggestion'
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/[  ]/g, ' ')
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -135,6 +136,32 @@ describe('InvoiceForm numbering', () => {
     expect(toast.success).toHaveBeenCalledWith('Facture créée dans Qonto sous le n° QF-001')
   })
 
+  it('creates a draft in Qonto when asked, the number then given once finalized in Qonto', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url).startsWith('/api/tiers')) return tiers.clone()
+      if (url === '/api/companies/c1/invoice-numbering') return json({ ...VIEW, qonto: { connected: true, refusal: null, canCreate: true, active: true } })
+      if (url === '/api/invoices' && init?.method === 'POST') return json({ id: 'inv-4', number: null, origin: 'QONTO', qontoDraft: true }, 201)
+      return json({}, 404)
+    })
+    render(
+      <InvoiceForm
+        companyId="c1"
+        direction="SALE"
+        initial={{ tiersId: 't1', number: '', numbering: 'kledg', issueDate: '2026-03-02', dueDate: '', typeCode: '380', label: '', lines: [{ label: 'A', quantity: '1', unitPriceCents: 100, vatRateBp: '2000', accountCode: '', nature: 'SERVICES', fixedAsset: false }] }}
+      />,
+    )
+    await screen.findByRole('button', { name: 'Créer la facture dans Qonto' })
+    expect(screen.getByRole('radio', { name: 'Facture finalisée dans Qonto' })).toHaveAttribute('aria-checked', 'true')
+    await user.click(screen.getByRole('radio', { name: 'Brouillon dans Qonto' }))
+    expect(plain(screen.getByTestId('invoice-number-hint').textContent)).toContain('Donné par Qonto quand le brouillon sera finalisé dans Qonto')
+    await user.click(screen.getByRole('button', { name: 'Créer le brouillon dans Qonto' }))
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/c1/invoices/inv-4'))
+    const body = JSON.parse(String((fetchMock.mock.calls.find(([u, i]) => u === '/api/invoices' && i?.method === 'POST') as [string, RequestInit])[1].body))
+    expect(body).toMatchObject({ numbering: 'qonto', qontoStatus: 'draft', number: null })
+    expect(toast.success).toHaveBeenCalledWith('Brouillon créé dans Qonto')
+  })
+
   it('records an invoice already issued with its typed number, required', async () => {
     const user = userEvent.setup()
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
@@ -159,6 +186,26 @@ describe('InvoiceForm numbering', () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/c1/invoices/inv-3'))
     const body = JSON.parse(String((fetchMock.mock.calls.find(([u, i]) => u === '/api/invoices' && i?.method === 'POST') as [string, RequestInit])[1].body))
     expect(body).toMatchObject({ numbering: 'recorded', number: 'ANC-12' })
+  })
+})
+
+describe('numbering invitation', () => {
+  it('invites a company that types its numbers since before automatic numbering to configure it, with a link', async () => {
+    fetchMock.mockResolvedValue(json({ ...VIEW, settings: { ...DEFAULT_NUMBERING, mode: 'MANUAL' }, next: { invoice: null, creditNote: null }, suggestAutomatic: true }))
+    render(<NumberingSuggestion companyId="c1" />)
+    expect(plain((await screen.findByTestId('numbering-suggestion')).textContent)).toContain('Les numéros de vos factures de vente sont saisis à la main.')
+    expect(screen.getByRole('link', { name: 'Configurer la numérotation' })).toHaveAttribute('href', '/c1/informations#numerotation-factures')
+  })
+
+  it('shows the invitation in the settings card too, and nothing once configured', async () => {
+    fetchMock.mockResolvedValueOnce(json({ ...VIEW, settings: { ...DEFAULT_NUMBERING, mode: 'MANUAL' }, suggestAutomatic: true }))
+    const { unmount } = render(<InvoiceNumberingCard companyId="c1" today={new Date(2026, 5, 15)} />)
+    expect(await screen.findByTestId('numbering-suggestion')).toBeInTheDocument()
+    unmount()
+    fetchMock.mockResolvedValueOnce(json({ ...VIEW, suggestAutomatic: false }))
+    render(<NumberingSuggestion companyId="c1" />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(screen.queryByTestId('numbering-suggestion')).not.toBeInTheDocument()
   })
 })
 

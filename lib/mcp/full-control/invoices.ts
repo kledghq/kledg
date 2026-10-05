@@ -37,6 +37,10 @@ const input = {
     .enum(INVOICE_NUMBERING_CHOICES)
     .optional()
     .describe('Sales only. qonto: created in Qonto, which gives the number and the PDF; kledg: Kledg numbers it in its series when posted (or the number is typed when the company numbers elsewhere); recorded: an invoice already issued elsewhere, with its own number, outside the series. Omitted: the company setting (get_company_settings section invoice_numbering).'),
+  qontoStatus: z
+    .enum(['draft', 'finalized'])
+    .optional()
+    .describe('Created in Qonto only. finalized (default): Qonto numbers the invoice at once; draft: a draft in Qonto, without number and not postable until a person finalizes it in Qonto (the Qonto import then brings its number).'),
   issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu\u00a0: AAAA-MM-JJ'),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu\u00a0: AAAA-MM-JJ').optional().describe('Defaults to the payment terms of the tiers or the company.'),
   creditNote: z.boolean().default(false).describe('true for a credit note (avoir, type 381).'),
@@ -85,8 +89,12 @@ function linesOf(args: Args) {
 async function numberingPreview(args: Args): Promise<{ text: string; problem: string | null }> {
   if (args.direction === 'PURCHASE') return { text: 'Numéro du fournisseur, saisi tel quel.', problem: args.number ? null : 'Le numéro est requis' }
   const typeCode = args.creditNote ? '381' : '380'
-  const choice = args.numbering ?? (typeCode === '380' && !args.number && (await qontoFirstActive(args.companyId)) ? 'qonto' : 'kledg')
-  if (choice === 'qonto') return { text: 'Créée dans Qonto : Qonto donne le numéro et le PDF.', problem: null }
+  const choice = args.numbering ?? (args.qontoStatus ? 'qonto' : typeCode === '380' && !args.number && (await qontoFirstActive(args.companyId)) ? 'qonto' : 'kledg')
+  if (choice === 'qonto') {
+    return args.qontoStatus === 'draft'
+      ? { text: 'Créée en brouillon dans Qonto : sans numéro jusqu’à sa finalisation dans Qonto.', problem: null }
+      : { text: 'Créée dans Qonto : Qonto donne le numéro et le PDF.', problem: null }
+  }
   if (choice === 'recorded') return { text: `Facture déjà émise, enregistrée sous le n° ${args.number ?? '(à préciser)'}.`, problem: args.number ? null : 'Le numéro est requis' }
   const settings = await loadNumberingSettings(prisma, args.companyId)
   if (settings.mode !== 'AUTO') return { text: `Numéro saisi : ${args.number ?? '(à préciser)'}.`, problem: args.number ? null : 'Le numéro est requis' }
@@ -100,7 +108,7 @@ async function numberingPreview(args: Args): Promise<{ text: string; problem: st
 const createDraftInvoiceTool = fullControlTool({
   name: 'create_draft_invoice',
   title: 'Enregistrer une facture',
-  description: `Records a purchase or sales invoice in Kledg as a draft (brouillon), with its lines and several VAT rates: totals are computed by Kledg (VAT per rate on the sum of the line totals, CGI ann. II art. 242 nonies A). A sales invoice follows the company's numbering (numbering): with Qonto-first it is created in Qonto (finalized there, Qonto's number and PDF), else Kledg's series numbers it when it is posted, or the number typed is kept (an invoice already issued elsewhere: numbering recorded). With post: true it also creates the DRAFT entry (AC or VE journal) in the fiscal year containing the invoice date; a person validates it in Kledg. Kledg never sends the invoice to the customer. ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the totals, the VAT breakdown and how the invoice will be numbered.`,
+  description: `Records a purchase or sales invoice in Kledg as a draft (brouillon), with its lines and several VAT rates: totals are computed by Kledg (VAT per rate on the sum of the line totals, CGI ann. II art. 242 nonies A). A sales invoice follows the company's numbering (numbering): with Qonto-first it is created in Qonto (finalized there, Qonto's number and PDF; qontoStatus draft: a draft in Qonto, numbered once a person finalizes it there), else Kledg's series numbers it when it is posted, or the number typed is kept (an invoice already issued elsewhere: numbering recorded). With post: true it also creates the DRAFT entry (AC or VE journal) in the fiscal year containing the invoice date; a person validates it in Kledg. Kledg never sends the invoice to the customer. ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the totals, the VAT breakdown and how the invoice will be numbered.`,
   input,
   permission: { entries: ['create'] },
   amounts: 'euros',
@@ -138,6 +146,7 @@ const createDraftInvoiceTool = fullControlTool({
         tiersId: tiers.id,
         number: args.number ?? null,
         numbering: args.numbering,
+        qontoStatus: args.qontoStatus,
         issueDate: args.issueDate,
         dueDate: args.dueDate ?? null,
         typeCode: args.creditNote ? '381' : '380',

@@ -24,8 +24,13 @@
  * - Qonto refusing the connection (401, 403) is recorded on the company
  *   (qontoInvoicingRefusal): Kledg then numbers the invoices itself until the
  *   setting is saved again;
- * - credit notes are not created in Qonto: an API key cannot (Create a
- *   credit note is OAuth only); they follow Kledg's numbering.
+ * - credit notes are not created in Qonto (Create a credit note is not in
+ *   the endpoints open to an API key, invoicing.ts); they follow Kledg's
+ *   numbering;
+ * - an invoice may be created as a draft in Qonto (qontoStatus "draft",
+ *   stored as qontoDraft): it stays a draft in Kledg, without number and not
+ *   postable, until it is finalized in Qonto; the import then finds it by
+ *   its Qonto id and completes its number and document.
  */
 
 import { Prisma, type Tiers } from '@prisma/client'
@@ -85,6 +90,10 @@ export async function qontoFirstActive(companyId: string): Promise<boolean> {
  */
 export async function issueInvoice(companyId: string, input: CreateInvoiceInput, options: { source?: string } = {}): Promise<InvoiceDetail> {
   let choice = input.numbering
+  if (input.qontoStatus && choice && choice !== 'qonto') {
+    throw new ValidationError('Le statut dans Qonto (brouillon ou finalisée) ne vaut que pour une facture créée dans Qonto.')
+  }
+  if (!choice && input.qontoStatus) choice = 'qonto'
   if (!choice && input.direction === 'SALE' && input.typeCode === '380' && !input.number && (await qontoFirstActive(companyId))) choice = 'qonto'
   if (choice === 'qonto') return createInvoiceInQonto(companyId, input, options)
   return createInvoice(companyId, input, { source: options.source, origin: await originOfNewInvoice(prisma, companyId, input.direction, choice) })
@@ -202,6 +211,7 @@ async function loadForQonto(companyId: string, invoiceId: string) {
       origin: true,
       externalId: true,
       qontoRequestedAt: true,
+      qontoDraft: true,
       createdAt: true,
       issueDate: true,
       dueDate: true,
@@ -222,7 +232,8 @@ function payloadOf(invoice: LoadedInvoice, clientId: string, iban: string) {
     issue_date: calendarDayOf(invoice.issueDate) as string,
     due_date: calendarDayOf(invoice.dueDate) as string,
     currency: 'EUR',
-    status: 'unpaid' as const,
+    // Finalized (numbered by Qonto) unless the user asked for a draft in Qonto.
+    status: invoice.qontoDraft ? ('draft' as const) : ('unpaid' as const),
     payment_methods: { iban },
     items: invoice.lines.map((line) => ({
       // Qonto: title at most 40 characters, the full label in the description (1800).
@@ -264,7 +275,8 @@ async function adopt(companyId: string, invoiceId: string, created: QontoClientI
   await prisma.$transaction(async (tx) => {
     const locked = await lockInvoice(tx, companyId, invoiceId)
     if (locked.externalId) return
-    const number = created.number?.trim() || null
+    // A draft in Qonto stays without number in Kledg until it is finalized there (the import completes it).
+    const number = created.status === 'draft' ? null : created.number?.trim() || null
     if (number) {
       const clash = await tx.invoice.findFirst({ where: { companyId, direction: 'SALE', number, id: { not: invoiceId } }, select: { id: true } })
       if (clash) {
@@ -278,6 +290,7 @@ async function adopt(companyId: string, invoiceId: string, created: QontoClientI
       number,
       externalStatus: created.status ?? null,
       externalAttachmentId: created.attachment_id ?? null,
+      qontoDraft: created.status === 'draft',
     }
     if (mapped.kind === 'ok') {
       const current = await tx.invoice.findUniqueOrThrow({
@@ -355,7 +368,7 @@ async function send(companyId: string, invoiceId: string, qonto: QontoInvoicing,
 export async function createInvoiceInQonto(companyId: string, input: CreateInvoiceInput, options: { source?: string } = {}): Promise<InvoiceDetail> {
   if (input.direction !== 'SALE') throw new ValidationError('Seule une facture de vente se crée dans Qonto.')
   if (input.typeCode === '381') {
-    throw new ValidationError('Qonto ne permet pas à Kledg de créer un avoir (réservé aux applications connectées par OAuth) : numérotez l’avoir dans Kledg, ou créez-le dans Qonto puis importez-le.')
+    throw new ValidationError('Qonto n’ouvre pas la création d’avoirs à la clé API enregistrée par Kledg : numérotez l’avoir dans Kledg, ou créez-le dans Qonto puis importez-le.')
   }
   if (input.number) throw new ValidationError('Qonto donne le numéro de la facture : laissez le numéro vide, ou choisissez « Enregistrer une facture déjà émise ».')
   const capability = await qontoInvoicingCapability(companyId)
@@ -365,7 +378,7 @@ export async function createInvoiceInQonto(companyId: string, input: CreateInvoi
   const qonto = await qontoFor(companyId)
   const target = await prerequisites(companyId, qonto, input.tiersId)
   // Recorded before it is sent (checked like any invoice: tiers, lines, VAT, due date), so a lost answer is found again.
-  const draft = await createInvoice(companyId, { ...input, number: null }, { source: options.source, origin: 'QONTO', qontoRequestedAt: new Date() })
+  const draft = await createInvoice(companyId, { ...input, number: null }, { source: options.source, origin: 'QONTO', qontoRequestedAt: new Date(), qontoDraft: input.qontoStatus === 'draft' })
   return send(companyId, draft.id, qonto, target, false)
 }
 
