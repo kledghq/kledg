@@ -6,7 +6,7 @@
 -- operations and deducts its VAT by the coefficient de déduction (CGI ann. II
 -- art. 205 to 207). Default false: nothing changes for existing companies.
 -- companies.vatExemptionMention: the mention of exempt training invoices
--- (CGI ann. II art. 242 nonies A, I, 10°); null: the default text.
+-- (CGI ann. II art. 242 nonies A, I, 12°); null: the default text.
 -- invoice_lines.vatExemption: legal basis of an exempt 0 % line.
 -- tiers.trainingOrigin: frame C line of the BPF for a customer.
 --

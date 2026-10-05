@@ -107,7 +107,7 @@ model Company {
   /// (lib/vat-deduction). False: full deduction, unless isVatExempt.
   partialVatDeduction        Boolean           @default(false)
   /// Mention printed on the invoices of exempt training sales (CGI ann. II
-  /// art. 242 nonies A, I, 10°); null: the default of lib/invoices/vat-exemptions.ts.
+  /// art. 242 nonies A, I, 12°); null: the default of lib/invoices/vat-exemptions.ts.
   vatExemptionMention        String?
   /// Simple mode (docs/categories-simples.md): whether the entries a user
   /// confirms in simple mode stay drafts until the accountant validates them.

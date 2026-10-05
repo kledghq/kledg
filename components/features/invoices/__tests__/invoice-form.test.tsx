@@ -14,7 +14,7 @@ const router = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), refresh: vi.fn(
 vi.mock('next/navigation', () => ({ useRouter: () => router }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
-import { InvoiceForm } from '../invoice-form'
+import { EXEMPT_TRAINING, InvoiceForm } from '../invoice-form'
 import { InvoiceTotals } from '../invoice-totals'
 
 /** Text of an element with every kind of space made plain, for amounts formatted with narrow no-break spaces. */
@@ -120,7 +120,30 @@ describe('InvoiceForm', () => {
     const [, init] = fetchMock.mock.calls.find(([url]) => url === '/api/invoices') as [string, RequestInit]
     const body = JSON.parse(init.body as string)
     expect(body).toMatchObject({ companyId: 'c1', direction: 'SALE', tiersId: 't1', number: 'V-1', dueDate: null })
-    expect(body.lines).toEqual([{ label: 'Conseil', quantity: '2', unitPriceCents: 12_500, vatRateBp: 550, accountCode: null, nature: 'SERVICES', fixedAsset: false }])
+    expect(body.lines).toEqual([{ label: 'Conseil', quantity: '2', unitPriceCents: 12_500, vatRateBp: 550, vatExemption: null, accountCode: null, nature: 'SERVICES', fixedAsset: false }])
     expect(body.totalInclTax).toBeUndefined()
+  })
+
+  it('sends an exempt training line at 0 % with its legal basis (CGI art. 261, 4, 4° a)', async () => {
+    const user = userEvent.setup()
+    render(
+      <InvoiceForm
+        companyId="c1"
+        direction="SALE"
+        initial={{
+          tiersId: 't1',
+          number: 'V-2',
+          issueDate: '2026-03-02',
+          dueDate: '',
+          typeCode: '380',
+          label: '',
+          lines: [{ label: 'Formation', quantity: '1', unitPriceCents: 90_000, vatRateBp: EXEMPT_TRAINING, accountCode: '', nature: 'SERVICES', fixedAsset: false }],
+        }}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Enregistrer la facture' }))
+    await waitFor(() => expect(router.push).toHaveBeenCalled())
+    const [, init] = fetchMock.mock.calls.find(([url]) => url === '/api/invoices') as [string, RequestInit]
+    expect(JSON.parse(init.body as string).lines[0]).toMatchObject({ vatRateBp: 0, vatExemption: 'training' })
   })
 })
