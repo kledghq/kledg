@@ -685,6 +685,7 @@ const WRITES: Call[] = [
   { label: 'update budget line', route: 'budgetLine', method: 'PATCH', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }), body: () => ({ amounts: [{ month: '2026-02', amountCents: 5_000 }] }) },
   { label: 'delete budget line', route: 'budgetLine', method: 'DELETE', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }) },
   { label: 'confirm a simple mode expense', route: 'simpleConfirm', method: 'POST', path: () => `/api/simple/expenses/${ids.aTransaction}/confirm`, params: p({ id: () => ids.aTransaction }), body: () => ({ categoryId: 'paiement-client' }) },
+  { label: 'confirm a simple mode income with its invoice', route: 'simpleConfirm', method: 'POST', path: () => `/api/simple/expenses/${ids.aTransaction}/confirm`, params: p({ id: () => ids.aTransaction }), body: () => ({ invoiceId: ids.aPostedInvoice }) },
   { label: 'confirm simple mode expenses in bulk', route: 'simpleConfirmAll', method: 'POST', path: () => '/api/simple/expenses/confirm-all', body: () => ({ companyId: A(), transactionIds: [ids.aTransaction] }) },
   { label: 'send a simple mode receipt', route: 'simpleReceipt', method: 'POST', path: () => `/api/simple/expenses/${ids.aTransaction}/receipt`, params: p({ id: () => ids.aTransaction }), form: () => ({ note: 'sans fichier' }) },
   { label: 'update simple mode settings', route: 'simpleSettings', method: 'PUT', path: () => `/api/companies/${A()}/simple-mode-settings`, params: p({ id: A }), body: () => ({ accountantReview: true }) },
@@ -787,6 +788,7 @@ const READS: Call[] = [
   { label: 'read budget', route: 'budget', method: 'GET', path: () => `/api/budgets/${ids.aBudget}`, params: p({ id: () => ids.aBudget }) },
   { label: 'budget against the books', route: 'budgetReport', method: 'GET', path: () => `/api/budgets/${ids.aBudget}/report`, params: p({ id: () => ids.aBudget }) },
   { label: 'list simple mode expenses', route: 'simpleExpenses', method: 'GET', path: () => `/api/simple/expenses?companyId=${A()}` },
+  { label: 'list simple mode income', route: 'simpleExpenses', method: 'GET', path: () => `/api/simple/expenses?companyId=${A()}&side=credit` },
   { label: 'list simple mode entries', route: 'simpleEntries', method: 'GET', path: () => `/api/simple/entries?companyId=${A()}` },
   { label: 'read simple mode settings', route: 'simpleSettings', method: 'GET', path: () => `/api/companies/${A()}/simple-mode-settings`, params: p({ id: A }) },
   { label: 'list detected subscriptions', route: 'subscriptions', method: 'GET', path: () => `/api/subscriptions?companyId=${A()}` },
@@ -975,6 +977,21 @@ describe.skipIf(!available)('authorization matrix', () => {
       })
       expect(crossPayment.status).toBe(404)
       expect(await prisma.invoicePayment.count()).toBe(0)
+    })
+
+    it("cannot settle company B's invoice from the simple mode income of company A", async () => {
+      await reseed()
+      const response = await call('accountant', {
+        label: 'cross simple income',
+        route: 'simpleConfirm',
+        method: 'POST',
+        path: () => `/api/simple/expenses/${ids.aTransaction}/confirm`,
+        params: p({ id: () => ids.aTransaction }),
+        body: () => ({ invoiceId: ids.bPostedInvoice }),
+      })
+      expect(response.status).toBe(404)
+      expect((await prisma.bankTransaction.findUnique({ where: { id: ids.aTransaction } }))?.reconciled).toBe(false)
+      expect(await prisma.simpleModeEntry.count()).toBe(0)
     })
 
     it('reads the document route of an invoice without a Qonto document as 404, never another company', async () => {

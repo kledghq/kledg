@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Amount, EmptyState, PageHeader, formatDisplayDate } from '@/components/shared'
+import { Amount, EmptyState, PageHeader, formatAmount, formatDisplayDate } from '@/components/shared'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
 import { responseError } from '@/hooks/use-cursor-list'
 import { cn } from '@/lib/utils'
@@ -19,6 +19,47 @@ import type { ExpenseToReview, ExpensesToReview } from '@/lib/simple/expenses-to
 import type { ConfirmAllResult, ConfirmResult } from '@/lib/simple/confirm-expense.service'
 import { CategoryDialog, type CategoryChoice } from './category-dialog'
 
+/** Event that makes the simple navigation reload its counts (components/layout/app-sidebar.tsx). */
+const COUNTS_REFRESH_EVENT = 'simple:counts-refresh'
+
+type Side = 'debit' | 'credit'
+
+/** The words of each page: money out (Dépenses à vérifier), money in (Recettes à vérifier). */
+const COPY = {
+  debit: {
+    title: 'Dépenses à vérifier',
+    description: "Kledg a reconnu ces paiements. Confirmez d'un clic, ou corrigez la catégorie.",
+    column: 'Paiement',
+    loadError: 'Les dépenses ne se sont pas chargées. Réessayez dans un instant.',
+    loadErrorTitle: 'Les dépenses ne se sont pas chargées',
+    confirmError: "La dépense n'a pas été classée. Réessayez dans un instant.",
+    confirmAllError: "Les dépenses n'ont pas été classées. Réessayez dans un instant.",
+    denied: 'classer les dépenses',
+    emptyDescription: 'Aucune dépense à vérifier pour le moment. Les nouveaux paiements apparaîtront ici après la synchronisation de votre banque.',
+    sent: 'Dépense envoyée à votre comptable',
+    done: 'Dépense classée',
+    many: (n: number) => (n > 1 ? `${n} dépenses classées` : '1 dépense classée'),
+    shown: (shown: number, count: number) => `${shown} dépenses affichées sur ${count}. Les suivantes apparaîtront une fois celles-ci classées.`,
+    things: 'ces dépenses',
+  },
+  credit: {
+    title: 'Recettes à vérifier',
+    description: "L'argent reçu sur vos comptes. Kledg retrouve la facture payée ou propose une catégorie : confirmez d'un clic, ou corrigez.",
+    column: 'Versement',
+    loadError: 'Les recettes ne se sont pas chargées. Réessayez dans un instant.',
+    loadErrorTitle: 'Les recettes ne se sont pas chargées',
+    confirmError: "La recette n'a pas été classée. Réessayez dans un instant.",
+    confirmAllError: "Les recettes n'ont pas été classées. Réessayez dans un instant.",
+    denied: 'classer les recettes',
+    emptyDescription: "Aucune recette à identifier pour le moment. L'argent reçu apparaîtra ici après la synchronisation de votre banque.",
+    sent: 'Recette envoyée à votre comptable',
+    done: 'Recette classée',
+    many: (n: number) => (n > 1 ? `${n} recettes classées` : '1 recette classée'),
+    shown: (shown: number, count: number) => `${shown} recettes affichées sur ${count}. Les suivantes apparaîtront une fois celles-ci classées.`,
+    things: 'ces recettes',
+  },
+} as const
+
 const GRID = 'lg:grid lg:grid-cols-[6.5rem_minmax(0,2fr)_minmax(0,2.2fr)_7.5rem_11rem] lg:gap-4 lg:items-center'
 
 function names(list: Array<{ name: string }>): string {
@@ -26,13 +67,13 @@ function names(list: Array<{ name: string }>): string {
   return all.length <= 1 ? (all[0] ?? '') : `${all.slice(0, -1).join(', ')} et ${all[all.length - 1]}`
 }
 
-/** The line under the table: where confirmed expenses go. */
-function ReviewNotice({ review }: { review: ExpensesToReview['review'] }) {
+/** The line under the table: where confirmed lines go. */
+function ReviewNotice({ review, things }: { review: ExpensesToReview['review']; things: string }) {
   const text = review.accountantReview
     ? review.accountants.length > 0
-      ? `Une fois confirmées, ces dépenses sont envoyées à ${names(review.accountants)}, ${review.accountants.length > 1 ? 'vos experts-comptables' : 'votre expert-comptable'}, pour validation.`
-      : 'Une fois confirmées, ces dépenses sont envoyées à votre expert-comptable pour validation.'
-    : 'Une fois confirmées, ces dépenses sont enregistrées dans vos comptes.'
+      ? `Une fois confirmées, ${things} sont envoyées à ${names(review.accountants)}, ${review.accountants.length > 1 ? 'vos experts-comptables' : 'votre expert-comptable'}, pour validation.`
+      : `Une fois confirmées, ${things} sont envoyées à votre expert-comptable pour validation.`
+    : `Une fois confirmées, ${things} sont enregistrées dans vos comptes.`
   return (
     <p className="text-muted-foreground flex items-start gap-2 text-sm">
       <ShieldCheck aria-hidden className="text-primary mt-0.5 size-4 shrink-0" />
@@ -41,13 +82,32 @@ function ReviewNotice({ review }: { review: ExpensesToReview['review'] }) {
   )
 }
 
+/** What the user is told once a line is confirmed. */
+function confirmedMessage(result: ConfirmResult, side: Side): string {
+  const invoice = result.invoice
+  if (invoice) {
+    if (!invoice.recorded) {
+      const sent = result.status === 'draft' ? `Paiement de la facture n°\u00a0${invoice.number} envoyé à votre comptable.` : `${COPY[side].done}.`
+      return `${sent} ${invoice.pending ?? ''}`.trim()
+    }
+    if (invoice.lettered || invoice.remainingCents === 0) return `Facture n°\u00a0${invoice.number} payée.`
+    return `Paiement enregistré sur la facture n°\u00a0${invoice.number}, reste ${formatAmount((invoice.remainingCents ?? 0) / 100)} à payer.`
+  }
+  const rule = result.learnedRule ? ` Kledg classera désormais « ${result.learnedRule.name.replace(/ \(mode simple\)$/, '')} » de la même façon.` : ''
+  const asset = result.fixedAsset ? ` Son coût sera étalé sur ${result.fixedAsset.years} an${result.fixedAsset.years > 1 ? 's' : ''}.` : ''
+  return `${result.needsReview ? COPY[side].sent : COPY[side].done}.${asset}${rule}`
+}
+
 /**
- * "Dépenses à vérifier" of simple mode (docs/categories-simples.md): each
- * payment not yet classified with the category Kledg proposes and why.
- * "OK" confirms it, "Modifier" picks another category, a question is
- * answered in one click, "Tout confirmer" confirms the sure ones.
+ * "Dépenses à vérifier" and "Recettes à vérifier" of simple mode
+ * (docs/categories-simples.md): each bank line not yet classified, money
+ * out or money in, with what Kledg proposes and why: a category, or for
+ * money in the sales invoice it pays. "OK" confirms it, "Modifier" picks
+ * another category, a question is answered in one click, "Tout confirmer"
+ * confirms the sure ones.
  */
-export function ExpensesReview({ companyId }: { companyId: string }) {
+export function ExpensesReview({ companyId, side = 'debit' }: { companyId: string; side?: Side }) {
+  const copy = COPY[side]
   const { can, denied } = useCompanyAccess()
   const canConfirm = can({ banking: ['reconcile'] }) && can({ entries: ['create'] })
   const [data, setData] = React.useState<ExpensesToReview | null>(null)
@@ -63,9 +123,9 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
   React.useEffect(() => {
     if (!companyId) return
     let cancelled = false
-    fetch(`/api/simple/expenses?${new URLSearchParams({ companyId, side: 'debit' })}`)
+    fetch(`/api/simple/expenses?${new URLSearchParams({ companyId, side })}`)
       .then(async (response) => {
-        if (!response.ok) throw new Error(await responseError(response, 'Les dépenses ne se sont pas chargées. Réessayez dans un instant.'))
+        if (!response.ok) throw new Error(await responseError(response, copy.loadError))
         return response.json() as Promise<ExpensesToReview>
       })
       .then((list) => {
@@ -78,7 +138,7 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
     return () => {
       cancelled = true
     }
-  }, [companyId, version])
+  }, [companyId, version, side, copy.loadError])
 
   const setBusyFor = (id: string, on: boolean) =>
     setBusy((current) => {
@@ -88,7 +148,8 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
       return next
     })
 
-  const remove = (ids: string[]) =>
+  const remove = (ids: string[]) => {
+    window.dispatchEvent(new Event(COUNTS_REFRESH_EVENT))
     setData((current) =>
       current
         ? {
@@ -99,14 +160,11 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
           }
         : current,
     )
-
-  const toastFor = (result: ConfirmResult) => {
-    const rule = result.learnedRule ? ` Kledg classera désormais « ${result.learnedRule.name.replace(/ \(mode simple\)$/, '')} » de la même façon.` : ''
-    const asset = result.fixedAsset ? ` Son coût sera étalé sur ${result.fixedAsset.years} an${result.fixedAsset.years > 1 ? 's' : ''}.` : ''
-    toast.success(`${result.needsReview ? 'Dépense envoyée à votre comptable' : 'Dépense classée'}.${asset}${rule}`)
   }
 
-  const confirm = async (expense: ExpenseToReview, body: { categoryId?: string; ruleId?: string; answers?: Answers; note?: string }) => {
+  const toastFor = (result: ConfirmResult) => toast.success(confirmedMessage(result, side))
+
+  const confirm = async (expense: ExpenseToReview, body: { categoryId?: string; ruleId?: string; invoiceId?: string; answers?: Answers; note?: string }) => {
     setBusyFor(expense.id, true)
     try {
       const response = await fetch(`/api/simple/expenses/${encodeURIComponent(expense.id)}/confirm`, {
@@ -114,7 +172,7 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!response.ok) throw new Error(await responseError(response, "La dépense n'a pas été classée. Réessayez dans un instant."))
+      if (!response.ok) throw new Error(await responseError(response, copy.confirmError))
       toastFor((await response.json()) as ConfirmResult)
       remove([expense.id])
       setEditing(null)
@@ -128,6 +186,7 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
   const confirmSuggestion = (expense: ExpenseToReview, answers: Answers = expense.suggestion.answers) => {
     const note = notes[expense.id]?.trim() || undefined
     const s = expense.suggestion
+    if (s.invoice) return confirm(expense, { invoiceId: s.invoice.invoiceId, note })
     return confirm(expense, s.ruleId ? { ruleId: s.ruleId, categoryId: s.categoryId ?? undefined, note } : { categoryId: s.categoryId ?? undefined, answers, note })
   }
 
@@ -143,11 +202,11 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ companyId, transactionIds: data.bulkConfirmableIds }),
       })
-      if (!response.ok) throw new Error(await responseError(response, "Les dépenses n'ont pas été classées. Réessayez dans un instant."))
+      if (!response.ok) throw new Error(await responseError(response, copy.confirmAllError))
       const result = (await response.json()) as ConfirmAllResult
       remove(result.confirmed.map((r) => r.transactionId))
       const n = result.confirmed.length
-      if (n > 0) toast.success(n > 1 ? `${n} dépenses classées` : '1 dépense classée')
+      if (n > 0) toast.success(copy.many(n))
       if (result.skipped.length > 0) toast.info(`${result.skipped.length} à vérifier une par une.`)
     } catch (e) {
       toast.error((e as Error).message)
@@ -178,8 +237,8 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
           Accueil
         </Link>
         <PageHeader
-          title="Dépenses à vérifier"
-          description="Kledg a reconnu ces paiements. Confirmez d'un clic, ou corrigez la catégorie."
+          title={copy.title}
+          description={copy.description}
           actions={
             <Button onClick={confirmAll} loading={bulkBusy} disabled={!canConfirm || bulkCount === 0}>
               Tout confirmer ({bulkCount})
@@ -187,12 +246,12 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
           }
         />
       </div>
-      {!canConfirm ? <AccessNotice>{denied('classer les dépenses')}</AccessNotice> : null}
+      {!canConfirm ? <AccessNotice>{denied(copy.denied)}</AccessNotice> : null}
 
       {error ? (
         <Card className="px-5 py-5">
           <EmptyState
-            title="Les dépenses ne se sont pas chargées"
+            title={copy.loadErrorTitle}
             description={error}
             action={
               <Button size="sm" variant="outline" onClick={() => setVersion((v) => v + 1)}>
@@ -213,13 +272,13 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
           tone="success"
           icon={CheckCircle2}
           title="Tout est vérifié"
-          description="Aucune dépense à vérifier pour le moment. Les nouveaux paiements apparaîtront ici après la synchronisation de votre banque."
+          description={copy.emptyDescription}
         />
       ) : data ? (
         <Card className="gap-0 overflow-hidden py-0">
           <div className={cn(GRID, 'text-muted-foreground hidden border-b px-5 py-3 text-xs')} aria-hidden>
             <div>Date</div>
-            <div>Paiement</div>
+            <div>{copy.column}</div>
             <div>Catégorie proposée</div>
             <div className="text-right">Montant</div>
             <div />
@@ -240,13 +299,23 @@ export function ExpensesReview({ companyId }: { companyId: string }) {
           </ul>
           {data.count > data.items.length ? (
             <p className="text-muted-foreground border-t px-5 py-3 text-sm">
-              {data.items.length} dépenses affichées sur {data.count}. Les suivantes apparaîtront une fois celles-ci classées.
+              {copy.shown(data.items.length, data.count)}
             </p>
           ) : null}
         </Card>
       ) : null}
 
-      {data ? <ReviewNotice review={data.review} /> : null}
+      {data ? <ReviewNotice review={data.review} things={copy.things} /> : null}
+
+      {side === 'credit' ? (
+        <p className="text-muted-foreground text-sm">
+          Vos factures de vente, payées ou à encaisser, sont dans{' '}
+          <Link href={`/${companyId}/invoices/sales`} className="text-link underline-offset-4 hover:underline">
+            Factures de vente
+          </Link>
+          .
+        </p>
+      ) : null}
 
       <CategoryDialog
         expense={editing}
@@ -273,10 +342,10 @@ interface ExpenseRowProps {
 function ExpenseRow({ expense, note, onNote, busy, canConfirm, onConfirm, onEdit }: ExpenseRowProps) {
   const s = expense.suggestion
   const category = findCategory(s.categoryId)
-  const label = category?.label ?? (s.ruleName ? s.ruleName : 'À classer')
+  const label = s.invoice ? `Facture n°\u00a0${s.invoice.number}, ${s.invoice.customerName}` : (category?.label ?? (s.ruleName ? s.ruleName : 'À classer'))
   const question = s.pendingQuestion
   const blocked = Boolean(expense.blockedReason)
-  const classified = Boolean(s.categoryId || s.ruleId)
+  const classified = Boolean(s.categoryId || s.ruleId || s.invoice)
   const noteId = `note-${expense.id}`
 
   return (

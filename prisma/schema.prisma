@@ -1795,6 +1795,7 @@ model Invoice {
   payments              InvoicePayment[]
   managementFeeSale     ManagementFeeBilling? @relation("ManagementFeeSalesInvoice")
   managementFeePurchase ManagementFeeBilling? @relation("ManagementFeePurchaseInvoice")
+  simpleModeEntries     SimpleModeEntry[]
 
   @@unique([companyId, direction, tiersId, number])
   @@unique([companyId, source, externalId])
@@ -2474,6 +2475,8 @@ model SimpleModeEntry {
   source            String   @default("web")
   /// Fixed asset created with the entry (durable equipment); null once the asset is deleted.
   fixedAssetId      String?  @unique
+  /// Sales invoice a customer payment confirmed in simple mode pays; recorded on it (invoice_payments) once the entry is validated. The invoice cannot be deleted while it is named here.
+  invoiceId         String?
   createdById       String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -2482,9 +2485,11 @@ model SimpleModeEntry {
   entry           AccountingEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
   bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
   fixedAsset      FixedAsset?      @relation(fields: [fixedAssetId], references: [id], onDelete: SetNull)
+  invoice         Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: NoAction)
 
   @@index([companyId, counterpartyKey])
   @@index([bankTransactionId])
+  @@index([invoiceId])
   @@map("simple_mode_entries")
 }
 

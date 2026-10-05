@@ -2,7 +2,9 @@
  * Read tool of simple mode (docs/categories-simples.md):
  * list_expenses_to_review, the bank transactions not reconciled yet with
  * the plain language category Kledg proposes (rules, history, French payee
- * dictionary, keywords, bank category), its confidence and reason. Same
+ * dictionary, keywords, bank category), its confidence and reason; for
+ * money in (side credit, "Recettes à vérifier"), the open sales invoice a
+ * credit pays, before any category. Same
  * rule as the page: the company guard with banking:read, then the service
  * scopes everything by company. Amounts in euros. Confirming a suggestion
  * is the draft-level tool accept_expense_suggestion (lib/mcp/drafts/simple-mode.ts).
@@ -24,7 +26,7 @@ export function registerSimpleModeReadTools(server: McpServer, guard: CompanyGua
       title: 'Dépenses à vérifier',
       description: describeTool({
         summary:
-          "Lists the company's bank transactions not reconciled yet (simple mode, \"Dépenses à vérifier\"), latest first, each with the category Kledg proposes from its plain language catalogue: categoryId and label, the transaction rule when one matches (ruleId), confidence (high, medium or low; low means no category, the line is to classify), the source (rule, history of the same counterparty, built-in French payee dictionary, label keyword, bank category) and the reason in French, the question to answer first when the category needs one (fixed asset above 500 € HT, meal guests, vehicle type, rent VAT) with its answer ids, whether it can be confirmed without anything else (bulkConfirmable), whether a receipt is attached, and why it cannot be confirmed yet (no open fiscal year). Kledg never invents a category: a payee it recognises without knowing what was bought stays to classify with a hint.",
+          "Lists the company's bank transactions not reconciled yet (simple mode, \"Dépenses à vérifier\" for money out, side debit, the default; \"Recettes à vérifier\" for money in, side credit), latest first. For money in, Kledg first looks for the open sales invoice the credit pays (amount at most what is left to pay, invoice number, customer SIREN or name in the label): suggestion.invoice gives it (invoiceId, number, customer, amount left to pay in euros, partial payment or not), with source invoice. Otherwise each line has the category Kledg proposes from its plain language catalogue: categoryId and label, the transaction rule when one matches (ruleId), confidence (high, medium or low; low means no category, the line is to classify), the source (invoice, rule, history of the same counterparty, built-in French payee dictionary, label keyword, partner of the company, known customer, bank category) and the reason in French, the question to answer first when the category needs one (fixed asset above 500 € HT, meal guests, vehicle type, rent VAT, VAT rate of a sale, money from a partner: loan to the company, capital increase or sale) with its answer ids, whether it can be confirmed without anything else (bulkConfirmable), whether a receipt is attached, and why it cannot be confirmed yet (no open fiscal year). Kledg never invents a category: a payee it recognises without knowing what was bought stays to classify with a hint.",
         access: 'read',
         permission: { banking: ['read'] },
         amounts: 'euros',
@@ -54,6 +56,9 @@ export function registerSimpleModeReadTools(server: McpServer, guard: CompanyGua
               payee: item.name,
               label: item.label,
               suggestion: {
+                invoice: s.invoice
+                  ? { invoiceId: s.invoice.invoiceId, number: s.invoice.number, customer: s.invoice.customerName, remaining: fromCents(s.invoice.remainingCents), partial: s.invoice.partial }
+                  : null,
                 categoryId: s.categoryId,
                 category: findCategory(s.categoryId)?.label ?? null,
                 ruleId: s.ruleId,

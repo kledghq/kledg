@@ -19,6 +19,8 @@
  *    a fixed asset, 44566 otherwise (PCG art. 944-44); the rest stays in the
  *    charge or the asset.
  * 4. Income: the collected VAT goes to 44571, unless the company is exempt.
+ *    A refund of an expense (money in) takes back what the expense booked:
+ *    the same lines on the credit side, the recovered VAT included.
  * 5. Movements that are not taxed operations (taxes paid, loans, transfers,
  *    salaries) and categories without VAT: one line for the whole amount.
  *
@@ -27,7 +29,7 @@
  */
 
 import { recoverableVatByRule, vatIncludedCents, RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
-import type { Posting, Question, SimpleCategory } from './categories'
+import type { CategoryKind, Posting, Question, SimpleCategory } from './categories'
 
 export type Side = 'debit' | 'credit'
 export type Answers = Record<string, string>
@@ -35,7 +37,7 @@ export type Answers = Record<string, string>
 export type Resolution =
   | { status: 'pending'; question: Question }
   | { status: 'invalid'; question: Question; message: string }
-  | { status: 'ready'; posting: Posting; answers: Answers; question: Question | null }
+  | { status: 'ready'; posting: Posting; answers: Answers; question: Question | null; kind: CategoryKind }
 
 /** Deductible VAT on fixed assets and on other goods and services, collected VAT (PCG art. 944-44). */
 export const VAT_ON_ASSETS = '44562'
@@ -68,7 +70,7 @@ export function questionApplies(category: SimpleCategory, amountCents: number, b
 export function resolvePosting(category: SimpleCategory, answers: Answers, amountCents: number, bankVatCents?: number | null): Resolution {
   const question = category.question
   if (!question || !questionApplies(category, amountCents, bankVatCents)) {
-    return { status: 'ready', posting: { ...category.posting }, answers: {}, question: null }
+    return { status: 'ready', posting: { ...category.posting }, answers: {}, question: null, kind: category.kind }
   }
   const answerId = answers[question.id] ?? question.defaultAnswerId
   if (!answerId) return { status: 'pending', question }
@@ -76,7 +78,7 @@ export function resolvePosting(category: SimpleCategory, answers: Answers, amoun
   if (!answer) {
     return { status: 'invalid', question, message: `Réponse inconnue à la question « ${question.text} » : choisissez l'une des réponses proposées.` }
   }
-  return { status: 'ready', posting: { ...category.posting, ...answer.posting }, answers: { [question.id]: answer.id }, question }
+  return { status: 'ready', posting: { ...category.posting, ...answer.posting }, answers: { [question.id]: answer.id }, question, kind: answer.kind ?? category.kind }
 }
 
 /** The VAT the bank read, when it is plausible: positive, below the amount, at most 20 % of the base (one cent of rounding). */
@@ -107,6 +109,8 @@ export interface PostingPlan {
 export interface PostingInput {
   category: SimpleCategory
   posting: Posting
+  /** What the money is once the question is answered (resolvePosting); the category's kind by default. */
+  kind?: CategoryKind
   side: Side
   /** Absolute amount of the transaction, VAT included. */
   amountCents: number
@@ -131,16 +135,17 @@ const PASSENGER_VEHICLE_NOTE = 'Véhicule de tourisme : TVA non récupérable (
 /** The counterpart lines of the entry, summing to the amount on the side opposite to the bank line. */
 export function buildPostingLines(input: PostingInput): PostingPlan {
   const { category, posting, side, amountCents } = input
+  const kind = input.kind ?? category.kind
   const line = (accountCode: string, cents: number, role: CounterpartLine['role']): CounterpartLine =>
     side === 'debit' ? { accountCode, debitCents: cents, creditCents: 0, role } : { accountCode, debitCents: 0, creditCents: cents, role }
   const single = (vatNote: string): PostingPlan => ({ lines: [line(posting.account, amountCents, 'base')], vatCents: 0, vatBookedCents: 0, vatNote })
 
-  if (posting.vatRateBp <= 0 || posting.vatRule === 'none' || category.kind === 'other') return single(RECOVERY_LABELS['no-vat'])
+  if (posting.vatRateBp <= 0 || posting.vatRule === 'none' || kind === 'other') return single(RECOVERY_LABELS['no-vat'])
 
   const vatCents = plausibleBankVat(amountCents, input.bankVatCents) ?? vatIncludedCents(amountCents, posting.vatRateBp)
   if (vatCents <= 0) return single(RECOVERY_LABELS['no-vat'])
 
-  if (category.kind === 'income') {
+  if (kind === 'income') {
     if (input.recoveryRatio !== null) return { ...single('Société exonérée de TVA : pas de TVA collectée'), vatCents }
     return {
       lines: [line(posting.account, amountCents - vatCents, 'base'), line(VAT_COLLECTED, vatCents, 'vat')],

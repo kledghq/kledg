@@ -58,7 +58,10 @@ import { listMembers } from "@/lib/rbac/manage-members.service";
 import { simpleValidationSummary } from "./simple-validation.service";
 import { calendarDayOf, todayUtc, utcDate } from "@/lib/utils/date";
 import { parseCents } from "@/lib/utils/money";
-import { countExpensesToCheck } from "./count-expenses-to-check.service";
+import {
+  countExpensesToCheck,
+  countIncomeToCheck,
+} from "./count-expenses-to-check.service";
 
 /** Customers to chase listed at most on the home. */
 export const MAX_CUSTOMERS_TO_CHASE = 3;
@@ -115,6 +118,8 @@ export interface SimpleHome {
   todo: {
     /** Null without banking:read. */
     expensesToCheck: number | null;
+    /** Bank credits not identified yet; null without banking:read. */
+    incomeToCheck: number | null;
     /** Bank lines of the fiscal year without a supporting document; null without banking:read or fiscal year. */
     missingReceipts: number | null;
     /** The customers most overdue; null without reports:read or fiscal year. */
@@ -321,6 +326,7 @@ export async function loadSimpleHome(
     result,
     deadline,
     expensesToCheck,
+    incomeToCheck,
     missingReceipts,
     accountants,
     validation,
@@ -337,6 +343,7 @@ export async function loadSimpleHome(
       ? nextVatDeadline(companyId, today, ctx.now)
       : skip<NextVatDeadline>(),
     canBank ? countExpensesToCheck(companyId) : skip<number>(),
+    canBank ? countIncomeToCheck(companyId) : skip<number>(),
     canBank && fy ? countMissingReceipts(companyId, fy) : skip<number>(),
     ctx.can({ settings: ["read"] })
       ? loadAccountants(companyId)
@@ -389,6 +396,7 @@ export async function loadSimpleHome(
       : null,
     todo: {
       expensesToCheck,
+      incomeToCheck,
       missingReceipts,
       customersToChase: aged?.toChase ?? null,
     },

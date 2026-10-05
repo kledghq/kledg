@@ -36,7 +36,7 @@ devient :
 |---|---|
 | Accueil | `/<société>/simple`, l'accueil du mode simple (ci-dessous) |
 | Dépenses | `/<société>/simple/depenses`, les dépenses à vérifier, avec leur nombre |
-| Recettes | Factures de vente |
+| Recettes | `/<société>/simple/recettes`, les recettes à vérifier, avec leur nombre ; un lien y mène aux factures de vente |
 | Factures | Factures d'achat |
 | Banque | Comptes bancaires |
 | Justificatifs | Justificatifs manquants |
@@ -48,13 +48,13 @@ démarrage, `?guide=`). Les pages expertes restent accessibles par leur
 adresse : elles ne sont simplement pas listées. Le fil d'Ariane et le titre
 de l'onglet suivent la navigation du mode.
 
-Le nombre affiché à côté de « Dépenses » vient de
-`GET /api/companies/[id]/simple/counts` (droit `banking:read`) : pour
-l'instant, les débits bancaires de la société pas encore rapprochés
-(`lib/simple/count-expenses-to-check.service.ts`). La page des dépenses à
-vérifier le remplace par son propre décompte ; une page qui change ce
-nombre envoie l'évènement `simple:counts-refresh` pour que la barre
-latérale le relise.
+Les nombres affichés à côté de « Dépenses » et de « Recettes » viennent de
+`GET /api/companies/[id]/simple/counts` (droit `banking:read`) : les
+débits et les crédits bancaires de la société pas encore rapprochés ni
+refusés (`lib/simple/count-expenses-to-check.service.ts`). Les pages des
+dépenses et des recettes à vérifier envoient l'évènement
+`simple:counts-refresh` après chaque confirmation pour que la barre
+latérale les relise.
 
 ### Accueil
 
@@ -71,7 +71,7 @@ les comparent aux états au centime.
 | TVA à payer le ... | Prochaine échéance de TVA du calendrier (`lib/deadlines`) ; montant de la déclaration de sa période, calculé comme la page Déclarations de TVA (`lib/vat-returns/vat-return-for-deadline.service.ts`, [déclarations de TVA](declarations-tva.md)) quand ses contrôles passent, avec « D'après votre déclaration de septembre 2026 » ; sinon estimé d'après les comptes 445 (crédit moins débit, `summarizeLedger`) et présenté comme une estimation à confirmer. Un montant négatif s'affiche « TVA en votre faveur » | `reports:read` |
 | Bénéfice depuis ... (mois de début de l'exercice) | Résultat de l'exercice d'après les écritures validées, hors écritures de clôture, comme le compte de résultat (`loadStatementAccounts`, `computeSig`), avant l'impôt sur les bénéfices (comptes 69 sauf 691, ligne 2053 HK) | `reports:read` |
 | Impôt sur les sociétés estimé | L'impôt de l'exercice en cours sur les écritures passées, calculé comme la page Impôt sur les sociétés (`estimateCorporateTax`, [impôt sur les sociétés](impot-societes.md)) sans les dividendes de filiales, avec « Estimation sur le bénéfice depuis janvier, à confirmer à la clôture » ; absent pour une société à l'impôt sur le revenu ou sans régime | `reports:read` |
-| À faire | Dépenses à vérifier (lien vers `simple/depenses`), justificatifs manquants de l'exercice (`listMissingReceipts`), les trois clients les plus en retard de la balance âgée | `banking:read`, `reports:read` |
+| À faire | Dépenses à vérifier (lien vers `simple/depenses`), « N recettes à identifier » quand des crédits ne sont pas rapprochés (lien vers `simple/recettes`), justificatifs manquants de l'exercice (`listMissingReceipts`), les trois clients les plus en retard de la balance âgée | `banking:read`, `reports:read` |
 | Votre comptable | Les membres de la société au rôle Comptable ; sans comptable, un lien pour l'inviter depuis la page Membres. L'avancement de ses validations s'affichera ici quand la validation des dépenses du mode simple existera | `settings:read` |
 
 Un bloc que les rôles de l'utilisateur ne permettent pas de lire n'est pas
@@ -101,7 +101,7 @@ qui agit, [rls.md](rls.md)) couvrent la nouvelle colonne.
 |---|---|
 | `GET /api/account/display-mode` | `{ mode, chosen }` de l'utilisateur connecté |
 | `PUT /api/account/display-mode` | `{ mode: 'simple' \| 'expert' }`, même origine, limite `account-appearance` |
-| `GET /api/companies/[id]/simple/counts` | `{ expensesToCheck }`, droit `banking:read` |
+| `GET /api/companies/[id]/simple/counts` | `{ expensesToCheck, incomeToCheck }`, droit `banking:read` |
 
 ## Tests
 

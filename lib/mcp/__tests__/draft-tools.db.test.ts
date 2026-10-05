@@ -380,6 +380,56 @@ describe.skipIf(!available)('draft-level MCP tools', () => {
       expect(again.text).toMatch(/déjà rapprochée/)
     })
 
+    it('lists money in with the sales invoice it pays and confirms its payment as a draft, recorded once validated', async () => {
+      await seedExpense()
+      const fiscalYearId = ids.aFy
+      for (const [code, label] of [['411', 'Clients'], ['707', 'Ventes de marchandises'], ['44571', 'TVA collectée']]) {
+        await prisma.account.create({ data: { companyId: ids.aCompany, fiscalYearId, code, label, isPCG: true } })
+      }
+      await prisma.journal.create({ data: { companyId: ids.aCompany, code: 'VE', label: 'Ventes' } })
+      const { createTiers } = await import('@/lib/tiers/manage-tiers.service')
+      const { createInvoice } = await import('@/lib/invoices/manage-invoices.service')
+      const { postInvoice } = await import('@/lib/invoices/post-invoice.service')
+      const customer = await createTiers(ids.aCompany, { kind: 'CUSTOMER', name: 'Studio Nord', email: null })
+      const invoice = await createInvoice(ids.aCompany, {
+        direction: 'SALE',
+        tiersId: customer.id,
+        number: 'F-2025-031',
+        issueDate: '2025-03-01',
+        typeCode: '380',
+        lines: [{ label: 'Lampes', quantity: '1', unitPriceCents: 100_000, vatRateBp: 2000, accountCode: null, nature: 'GOODS', fixedAsset: false }],
+      })
+      await postInvoice(ids.aCompany, invoice.id)
+      const bankAccount = await prisma.bankAccount.findFirstOrThrow({ where: { externalAccountId: 'acc-simple' } })
+      const received = await prisma.bankTransaction.create({
+        data: { bankAccountId: bankAccount.id, externalTransactionId: 'simple-in-1', amount: 1200, date: day('2025-03-20'), side: 'credit', label: 'VIR SEPA STUDIO NORD F-2025-031' },
+      })
+
+      const read = await call(await apiKey('read'), 'list_expenses_to_review', { companyId: ids.aCompany, side: 'credit' })
+      expect(read.ok, read.text).toBe(true)
+      expect(read.data.expenses).toEqual([
+        expect.objectContaining({
+          transactionId: received.id,
+          side: 'credit',
+          amount: 1200,
+          suggestion: expect.objectContaining({ source: 'invoice', confidence: 'high', categoryId: null, invoice: { invoiceId: invoice.id, number: 'F-2025-031', customer: 'Studio Nord', remaining: 1200, partial: false } }),
+        }),
+      ])
+
+      const confirmed = await call(await apiKey('write'), 'accept_expense_suggestion', { companyId: ids.aCompany, transactionId: received.id, invoiceId: invoice.id })
+      expect(confirmed.ok, confirmed.text).toBe(true)
+      expect(confirmed.data).toMatchObject({ status: 'draft', categoryId: null, invoice: { invoiceId: invoice.id, number: 'F-2025-031', customer: 'Studio Nord', recorded: false } })
+      expect(confirmed.data.lines).toEqual(
+        expect.arrayContaining([
+          { accountCode: '5121', debit: 1200, credit: 0 },
+          { accountCode: '411', debit: 0, credit: 1200 },
+        ]),
+      )
+      expect(await prisma.invoicePayment.count({ where: { invoiceId: invoice.id } })).toBe(0)
+      const audit = await prisma.auditLog.findFirst({ where: { action: 'MCP_WRITE', companyId: ids.aCompany }, orderBy: { createdAt: 'desc' } })
+      expect(audit?.metadata).toMatchObject({ tool: 'accept_expense_suggestion', transactionId: received.id, invoiceId: invoice.id })
+    })
+
     it('refuses a viewer and a company outside the grant', async () => {
       const transaction = await seedExpense()
       const viewer = await apiKey('write', { allCompanies: true, companyIds: [] }, VIEWER)

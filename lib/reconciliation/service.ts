@@ -91,6 +91,9 @@ export interface GeneratedLine {
   debitCents: number
   creditCents: number
   description?: string | null
+  /** Tiers of a 401 or 411 line (FEC CompAuxNum, CompAuxLib): a customer payment settles the customer's invoice. */
+  auxiliaryAccountNumber?: string | null
+  auxiliaryAccountLabel?: string | null
 }
 
 export interface GeneratedEntry {
@@ -168,6 +171,8 @@ export async function createEntryAndReconcile(input: GeneratedEntry): Promise<{ 
           debit: centsToDecimal(line.debitCents),
           credit: centsToDecimal(line.creditCents),
           description: line.description || input.description,
+          auxiliaryAccountNumber: line.auxiliaryAccountNumber ?? null,
+          auxiliaryAccountLabel: line.auxiliaryAccountLabel ?? null,
         })),
       })
       const entry = await db.accountingEntry.update({

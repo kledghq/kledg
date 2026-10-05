@@ -192,12 +192,14 @@ describe.skipIf(!available)('simple home', () => {
     expect(home.vat!.deadline).toEqual({ date: next.date, label: next.label, estimated: next.estimated })
   })
 
-  it('counts the bank debits to check and the missing receipts as the existing pages do', async () => {
+  it('counts the bank debits and credits to check and the missing receipts as the existing pages do', async () => {
     const { listMissingReceipts, MissingReceiptsQuerySchema } = await import('@/lib/banking/missing-receipts.service')
     const missing = await listMissingReceipts(ids.company, MissingReceiptsQuerySchema.parse({ fiscalYearId: ids.fy }))
     const home = await load()
     // Not reconciled debits of the company: 100,00 and 250,50
     expect(home.todo.expensesToCheck).toBe(2)
+    // Not reconciled credits: the 999,00 received on the dollar account
+    expect(home.todo.incomeToCheck).toBe(1)
     expect(home.todo.missingReceipts).toBe(missing.count)
     expect(home.todo.missingReceipts).toBeGreaterThan(0)
   })
@@ -211,6 +213,7 @@ describe.skipIf(!available)('simple home', () => {
     const home = await load((permission) => !('banking' in permission) && !('settings' in permission))
     expect(home.bank).toBeNull()
     expect(home.todo.expensesToCheck).toBeNull()
+    expect(home.todo.incomeToCheck).toBeNull()
     expect(home.todo.missingReceipts).toBeNull()
     expect(home.accountants).toBeNull()
     expect(home.profit).not.toBeNull()
@@ -244,6 +247,8 @@ describe.skipIf(!available)('simple home', () => {
     expect(text).toContain('Argent sur vos comptes')
     expect(text).toContain('Bénéfice depuis janvier')
     expect(text).toContain('2 dépenses à vérifier')
+    expect(text).toContain('1 recette à identifier')
+    expect(html).toContain('href="/atelier-lumen/simple/recettes"')
     expect(text).toContain('Relancer Studio Nord pour')
     expect(jargonIn(text)).toEqual([])
     for (const code of ['411100', '512000', '445710', '706000']) expect(text).not.toContain(code)
@@ -256,11 +261,11 @@ describe.skipIf(!available)('simple home', () => {
       return GET(new NextRequest(`http://localhost/api/companies/${ref}/simple/counts`), { params: Promise.resolve({ id: ref }) })
     }
 
-    it('answers the bank debits to check of the company, by slug or id', async () => {
+    it('answers the bank debits and credits to check of the company, by slug or id', async () => {
       for (const ref of ['atelier-lumen', ids.company]) {
         const response = await call('viewer', ref)
         expect(response.status).toBe(200)
-        expect(await response.json()).toEqual({ expensesToCheck: 2 })
+        expect(await response.json()).toEqual({ expensesToCheck: 2, incomeToCheck: 1 })
       }
     })
 

@@ -4,7 +4,8 @@
  * DRAFT entry, reconciled with its transaction, through the service of the
  * page (confirmExpense, source mcp): the suggestion as proposed, or a
  * category of the catalogue with the answer to its question, or a matching
- * rule. The rights are those of the page's route (banking:reconcile and
+ * rule, or for money in the open sales invoice it pays (the payment is
+ * recorded on the invoice when a person validates the entry). The rights are those of the page's route (banking:reconcile and
  * entries:create). Whatever the company setting, the entry is never
  * validated by the assistant: a person validates it in Kledg ("Saisies du
  * mode simple à valider"). It never creates a transaction rule from the
@@ -22,9 +23,9 @@ export function registerSimpleModeDraftTools(register: RegisterDraftTool): void 
   register(
     draftTool({
       name: 'accept_expense_suggestion',
-      title: 'Classer une dépense à vérifier',
+      title: 'Classer une dépense ou une recette à vérifier',
       summary:
-        'Confirms one bank transaction of list_expenses_to_review as a DRAFT entry reconciled with it: the bank line on 512, the charge or product of the category and its VAT (recoverable VAT per the category rule: none on passenger transport, staff lodging and passenger vehicles, 80 % on passenger car fuel, gifts up to 73 € TTC), in the BQ journal, on the accounts of the fiscal year of the transaction date. Without categoryId nor ruleId it confirms the suggestion as proposed; with categoryId, that category of the catalogue (answers: { questionId: answerId } when the category asks a question); with ruleId, the entry that transaction rule produces. Returns the entry id and its lines. 409 when the transaction is already reconciled.',
+        'Confirms one bank transaction of list_expenses_to_review as a DRAFT entry reconciled with it: the bank line on 512, the charge or product of the category and its VAT (recoverable VAT per the category rule: none on passenger transport, staff lodging and passenger vehicles, 80 % on passenger car fuel, gifts up to 73 € TTC), in the BQ journal, on the accounts of the fiscal year of the transaction date. Money in (side credit) works the same way: an income category (sale with its collected VAT on 44571, subsidy, interest...), a movement (loan received, partner current account, VAT refund) or the refund of an expense (the charge and its VAT reversed); or, with invoiceId (suggestion.invoice.invoiceId), the payment of an open sales invoice: bank line and customer line (411 of the invoice, customer auxiliary account), the payment being recorded on the invoice and lettered by the invoices module once a person validates the entry. Without categoryId, ruleId nor invoiceId it confirms the suggestion as proposed; with categoryId, that category of the catalogue (answers: { questionId: answerId } when the category asks a question); with ruleId, the entry that transaction rule produces. Returns the entry id and its lines. 409 when the transaction is already reconciled or the invoice already paid; 404 for an invoice of another company.',
       never: 'validates the entry (it stays a draft whatever the company setting, a person validates it in Kledg), creates a transaction rule, or sends a receipt to the bank.',
       amounts: 'euros',
       units: 'Line amounts returned in euros.',
@@ -32,6 +33,7 @@ export function registerSimpleModeDraftTools(register: RegisterDraftTool): void 
         transactionId: z.string().min(1, 'La transaction est requise').max(64).describe('Transaction id, from list_expenses_to_review.'),
         categoryId: z.enum(CATEGORY_IDS as [string, ...string[]]).optional().describe('Category of the catalogue (ids from list_expenses_to_review); omit to confirm the suggestion.'),
         ruleId: z.string().min(1).max(64).optional().describe('Transaction rule to apply instead of a category (suggestion.ruleId).'),
+        invoiceId: z.string().min(1).max(64).optional().describe('Open sales invoice a credit pays (suggestion.invoice.invoiceId), instead of a category.'),
         answers: z.record(z.string().max(40), z.string().max(40)).optional().describe('Answer to the category question, { questionId: answerId }, e.g. { "durable": "durable" }.'),
         note: z.string().max(1000).optional().describe('Note for the accountant (the guests of a business meal...).'),
       },
@@ -42,7 +44,7 @@ export function registerSimpleModeDraftTools(register: RegisterDraftTool): void 
         const result = await confirmExpense(
           args.companyId,
           args.transactionId,
-          { categoryId: args.categoryId, ruleId: args.ruleId, answers: args.answers, note: args.note, learn: false },
+          { categoryId: args.categoryId, ruleId: args.ruleId, invoiceId: args.invoiceId, answers: args.answers, note: args.note, learn: false },
           { userId: access.user.id, canValidate: false, source: 'mcp' },
         )
         return {
@@ -56,9 +58,10 @@ export function registerSimpleModeDraftTools(register: RegisterDraftTool): void 
           ruleId: result.ruleId,
           lines: result.lines.map((l) => ({ accountCode: l.accountCode, debit: fromCents(l.debitCents), credit: fromCents(l.creditCents) })),
           vatNote: result.vatNote,
+          invoice: result.invoice ? { invoiceId: result.invoice.id, number: result.invoice.number, customer: result.invoice.customerName, recorded: result.invoice.recorded } : null,
         }
       },
-      audit: (args, result) => ({ transactionId: args.transactionId, entryId: result.entryId, categoryId: result.categoryId, ruleId: result.ruleId }),
+      audit: (args, result) => ({ transactionId: args.transactionId, entryId: result.entryId, categoryId: result.categoryId, ruleId: result.ruleId, invoiceId: result.invoice?.invoiceId ?? null }),
     }),
   )
 }

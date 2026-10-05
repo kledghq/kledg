@@ -336,6 +336,25 @@ export async function getEntry(id: string, db: Db | typeof prisma = prisma): Pro
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 60_000 }
 
+/**
+ * After validation: a customer payment confirmed in simple mode while the
+ * accountant had to validate it is recorded on its sales invoice now that
+ * its entry is validated (lib/simple/invoice-receipts.service.ts; the
+ * invoices module records payments from validated entries only). Loaded
+ * lazily: the invoices module builds on this one. Never undoes the
+ * validation: a refusal is logged and the payment can be recorded from the
+ * invoice page.
+ */
+async function afterValidation(companyId: string, entryIds: string[]): Promise<void> {
+  if (entryIds.length === 0) return
+  try {
+    const { recordValidatedInvoicePayments } = await import('@/lib/simple/invoice-receipts.service')
+    await recordValidatedInvoicePayments(companyId, entryIds)
+  } catch (error) {
+    logger.error('Recording simple mode invoice payments after validation failed', { companyId, entryIds, error })
+  }
+}
+
 /** Creates an entry (draft by default) and returns it with its relations. */
 export async function createEntry(input: CreateEntryInput): Promise<EntryWithRelations> {
   const entry = await prisma.$transaction(async (db) => getEntry((await createEntryInTx(db, input)).id, db), TX_OPTIONS)
@@ -371,6 +390,7 @@ export async function validateEntries(
       errors.push({ entryId: id, error: describeEntryError(error) })
     }
   }
+  await afterValidation(companyId, validated.map((e) => e.id))
   return { validated, errors }
 }
 
@@ -463,6 +483,7 @@ export async function updateDraftEntry(
     if (data.status === 'validated') await validateEntryInTx(db, existing.id)
     return getEntry(existing.id, db)
   }, TX_OPTIONS)
+  if (data.status === 'validated') await afterValidation(entry.companyId, [entry.id])
   return entry
 }
 
