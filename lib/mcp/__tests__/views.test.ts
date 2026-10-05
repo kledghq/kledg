@@ -28,8 +28,8 @@ import type { McpAccess } from '@/lib/mcp/company-access'
 import { VIEW_MIME_TYPE, VIEWS, VIEW_RESOURCE_META, registerKledgViews, viewHtml, viewMeta, withView, type ViewData, type ViewName } from '@/lib/mcp/views'
 import { VIEW_SCHEMAS } from '@/lib/mcp/views/schemas'
 import { DARK_TOKENS, LIGHT_TOKENS } from '@/lib/mcp/views/html/runtime'
-import { viewSamples, SAMPLE_ENTRIES } from './view-samples'
-import { entriesList } from '@/lib/mcp/views/builders'
+import { viewSamples, SAMPLE_ENTRIES, SAMPLE_MATCHES, SAMPLE_TRANSACTIONS } from './view-samples'
+import { bankTransactionsList, entriesList } from '@/lib/mcp/views/builders'
 
 const NAMES = Object.keys(VIEWS) as ViewName[]
 
@@ -333,6 +333,85 @@ describe('MCP actionable list', () => {
     await view.flush()
     const [call] = view.requests('tools/call')
     expect(call.params).toEqual({ name: 'reconcile_transaction', arguments: { companyId: 'cmp_atelier', transactionId: 't_1', withoutEntry: true } })
+  })
+})
+
+describe('MCP "Rapprocher" button', () => {
+  const companyId = 'cmp_atelier'
+  const args = { companyId, onlyUnreconciled: true, limit: 50 }
+  const actionsOf = (data: ReturnType<typeof bankTransactionsList>, id: string) => data.items.find((i) => i.id === id)!.actions
+
+  it('offers Rapprocher only where the server found a unique match, with its ids, and keeps Proposer elsewhere', () => {
+    for (const executionMode of ['validation', 'automatic'] as const) {
+      const data = bankTransactionsList(companyId, { canAdmin: true, executionMode }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES)
+      expect(VIEW_SCHEMAS.actions.safeParse(data).success).toBe(true)
+      // Entry match: the existing entry, a direct write after a confirmation click, never Proposer
+      expect(actionsOf(data, 't_2')).toEqual([
+        expect.objectContaining({ kind: 'tool', label: 'Rapprocher', tool: 'reconcile_transaction', arguments: { companyId, transactionId: 't_2', entryId: 'e_412' }, highImpact: false, primary: true, confirm: expect.stringContaining('BQ-0412') }),
+      ])
+      expect(data.items.find((i) => i.id === 't_2')!.match).toEqual({ kind: 'entry', entryId: 'e_412', lineId: 'l_412_1', ruleId: null, label: expect.stringContaining('BQ-0412'), amount: 12480, date: '2025-11-27' })
+      // Rule match: the rule's lines, the draft entry is created by reconcile_transaction
+      const [rule] = actionsOf(data, 't_4')
+      expect(rule).toMatchObject({ label: 'Rapprocher', tool: 'reconcile_transaction', highImpact: false, arguments: { companyId, transactionId: 't_4', journalCode: 'BQ', lines: [{ accountCode: '626000', debit: 29.9 }, { accountCode: '44566', debit: 5.98 }] } })
+      expect(data.items.find((i) => i.id === 't_4')!.match).toMatchObject({ kind: 'rule', ruleId: 'r_ovh', entryId: null })
+      // No match: unchanged
+      expect(actionsOf(data, 't_1').map((a) => a.label)).toEqual(['Proposer une écriture', 'Pointer sans écriture'])
+      expect(data.items.find((i) => i.id === 't_1')!.match).toBeUndefined()
+      expect(data.notice).toContain('seule correspondance')
+    }
+  })
+
+  it('ignores matches without full control, and on a reconciled transaction', () => {
+    const read = bankTransactionsList(companyId, { canAdmin: false, executionMode: 'validation' }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES)
+    expect(read.items.flatMap((i) => i.actions).map((a) => a.label)).toEqual(['Proposer une écriture', 'Proposer une écriture', 'Proposer une écriture', 'Proposer une écriture'])
+    expect(read.items.every((i) => i.match === undefined)).toBe(true)
+    expect(read.notice).toBeUndefined()
+
+    const reconciled = SAMPLE_TRANSACTIONS.map((t) => ({ ...t, reconciled: t.id === 't_2' }))
+    const data = bankTransactionsList(companyId, { canAdmin: true, executionMode: 'automatic' }, { ...args, onlyUnreconciled: false }, reconciled, SAMPLE_MATCHES)
+    expect(actionsOf(data, 't_2')).toEqual([])
+  })
+
+  for (const executionMode of ['validation', 'automatic'] as const) {
+    it(`reconciles with the matched entry on the second click, without dry run (${executionMode} mode)`, async () => {
+      const view = mount('actions')
+      await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
+      expect(view.text()).toContain('Correspondance\u00a0: Écriture n° BQ-0412 du 27/11/2025')
+      const reconcile = view.document.querySelectorAll<HTMLButtonElement>('button[data-label="Rapprocher"]')
+      expect(reconcile).toHaveLength(2)
+      expect(reconcile[0].className).toContain('k-btn-primary')
+      reconcile[0].click()
+      await view.flush()
+      expect(view.requests('tools/call')).toHaveLength(0)
+      expect(view.text()).toContain('Rapprocher cette transaction avec l’écriture existante')
+      reconcile[0].click()
+      await view.flush()
+      const [call] = view.requests('tools/call')
+      expect(call.params).toEqual({ name: 'reconcile_transaction', arguments: { companyId, transactionId: 't_2', entryId: 'e_412' } })
+      await view.reply(call, { content: [{ type: 'text', text: JSON.stringify({ transactionId: 't_2', reconciled: true, entryId: 'e_412' }) }] })
+      expect(view.text()).toContain('Rapprocher\u00a0: fait.')
+      expect(reconcile[0].disabled).toBe(true)
+      expect(view.errors).toEqual([])
+    })
+  }
+
+  it('creates the rule entry through reconcile_transaction and shows a refusal of the server', async () => {
+    const view = mount('actions')
+    await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode: 'validation' }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
+    const rule = view.document.querySelectorAll<HTMLButtonElement>('button[data-label="Rapprocher"]')[1]
+    rule.click()
+    await view.flush()
+    expect(view.text()).toContain('Créer l’écriture en brouillon de la règle « Hébergement OVH »')
+    rule.click()
+    await view.flush()
+    const [call] = view.requests('tools/call')
+    expect(call.params).toEqual({
+      name: 'reconcile_transaction',
+      arguments: { companyId, transactionId: 't_4', journalCode: 'BQ', date: '2025-11-25', description: 'OVH hébergement', lines: [{ accountCode: '626000', debit: 29.9 }, { accountCode: '44566', debit: 5.98 }] },
+    })
+    await view.reply(call, { isError: true, content: [{ type: 'text', text: 'Cette transaction est déjà rapprochée.' }] })
+    expect(view.text()).toContain('Cette transaction est déjà rapprochée.')
+    expect(view.errors).toEqual([])
   })
 })
 

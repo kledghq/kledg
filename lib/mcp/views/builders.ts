@@ -38,6 +38,7 @@ import type {
   StatementView,
   ViewAction,
 } from './schemas'
+import type { UniqueMatch } from '@/lib/reconciliation/unique-match'
 
 type Numeric = number | string | { toString(): string } | null | undefined
 
@@ -422,17 +423,47 @@ interface BankTransactionLike {
 /** Signed amount of a bank transaction: money out (debit) negative. */
 const signed = (t: { amount: Numeric; side: string }) => (t.side === 'debit' ? -Math.abs(num(t.amount)) : Math.abs(num(t.amount)))
 
+/** What "Rapprocher" asks before its call: the match in words, and a second click. */
+function reconcileQuestion(match: UniqueMatch): string {
+  const what =
+    match.kind === 'entry'
+      ? `Rapprocher cette transaction avec l’écriture existante (${match.label}, ${euroText(match.amount)})\u00a0?`
+      : `Créer l’écriture en brouillon de la ${match.label.replace(/^Règle/, 'règle')} et rapprocher cette transaction (${euroText(match.amount)})\u00a0?`
+  return `${what} Cliquez à nouveau pour confirmer.`
+}
+
+/**
+ * The transactions to reconcile. With full control and `matches` (the
+ * unique match of each transaction the server found, computed only when
+ * the user may reconcile), a transaction that has one gets "Rapprocher",
+ * a direct call of reconcile_transaction with that entry (or the rule's
+ * lines) after a confirmation click; the others keep "Proposer une
+ * écriture" (a message to the assistant) and "Pointer sans écriture".
+ */
 export function bankTransactionsList(
   companyId: string,
   access: Pick<McpAccess, 'canAdmin' | 'executionMode'>,
   args: Record<string, unknown>,
   transactions: readonly BankTransactionLike[],
+  matches: ReadonlyMap<string, UniqueMatch> = new Map(),
 ): ActionsView {
   const open = transactions.filter((t) => !t.reconciled)
   const items = transactions.map((t) => {
     const amount = signed(t)
     const actions: ViewAction[] = []
-    if (!t.reconciled) {
+    const match = !t.reconciled && access.canAdmin ? matches.get(t.id) : undefined
+    if (match) {
+      actions.push({
+        kind: 'tool',
+        label: 'Rapprocher',
+        tool: 'reconcile_transaction',
+        arguments: { companyId, ...match.arguments },
+        // reconcile_transaction is a direct write (confirmation: false in lib/mcp/full-control/banking.ts)
+        highImpact: false,
+        primary: true,
+        confirm: reconcileQuestion(match),
+      })
+    } else if (!t.reconciled) {
       actions.push({
         kind: 'message',
         label: 'Proposer une écriture',
@@ -459,6 +490,9 @@ export function bankTransactionsList(
         amount,
         state: t.reconciled ? 'Rapprochée' : 'À rapprocher',
       },
+      ...(match && {
+        match: { kind: match.kind, entryId: match.entryId, lineId: match.lineId, ruleId: match.ruleId, label: match.label, amount: match.amount, date: match.date },
+      }),
       actions,
     }
   })
@@ -466,6 +500,9 @@ export function bankTransactionsList(
     view: 'actions',
     title: args.onlyUnreconciled === false ? 'Transactions bancaires' : 'Transactions à rapprocher',
     subtitle: `${plural(transactions.length, 'transaction', 'transactions')}, les plus récentes d’abord`,
+    ...(items.some((i) => i.match) && {
+      notice: 'Rapprocher apparaît quand Kledg trouve une seule correspondance (une écriture existante ou une seule règle)\u00a0; rien ne change avant votre second clic.',
+    }),
     executionMode: executionModeOf(access),
     columns: [
       { key: 'date', label: 'Date', format: 'date' },
