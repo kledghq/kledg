@@ -22,8 +22,17 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/company-access')>()),
   companyGuard: () => guard,
 }))
-vi.mock('@/lib/group/get-group-view.service', () => ({ getGroupView: vi.fn() }))
+vi.mock('@/lib/group/get-group-view.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-view.service')>()), getGroupView: vi.fn() }))
 vi.mock('@/lib/group/get-participations.service', () => ({ getParticipations: vi.fn() }))
+vi.mock('@/lib/group/get-group-companies.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-companies.service')>()), getGroupCompanies: vi.fn() }))
+vi.mock('@/lib/group/get-group-indicators.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-indicators.service')>()), getGroupIndicators: vi.fn() }))
+vi.mock('@/lib/group/get-group-evolution.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-evolution.service')>()), getGroupEvolution: vi.fn() }))
+vi.mock('@/lib/group/get-group-treasury.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-treasury.service')>()), getGroupTreasury: vi.fn() }))
+vi.mock('@/lib/group/get-group-persons.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-persons.service')>()), getGroupPersons: vi.fn() }))
+vi.mock('@/lib/group/get-group-deadlines.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-deadlines.service')>()), getGroupDeadlines: vi.fn() }))
+vi.mock('@/lib/group/get-group-alerts.service', () => ({ getGroupAlerts: vi.fn() }))
+vi.mock('@/lib/group/list-group-transactions.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/list-group-transactions.service')>()), listGroupTransactions: vi.fn() }))
+vi.mock('@/lib/group/get-group-ledger.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-ledger.service')>()), getGroupLedger: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { getGroupView, type GroupView } from '@/lib/group/get-group-view.service'
@@ -32,6 +41,17 @@ import { ZERO_FIGURES } from '@/lib/group/combine'
 import type { GroupAccess } from '@/lib/management-fees/access'
 import { NotFoundError } from '@/lib/accounting/errors'
 import type { ToolResult } from '@/lib/mcp/tool-result'
+import { getGroupCompanies } from '@/lib/group/get-group-companies.service'
+import { getGroupIndicators } from '@/lib/group/get-group-indicators.service'
+import { getGroupEvolution } from '@/lib/group/get-group-evolution.service'
+import { getGroupTreasury } from '@/lib/group/get-group-treasury.service'
+import { getGroupPersons } from '@/lib/group/get-group-persons.service'
+import { getGroupDeadlines } from '@/lib/group/get-group-deadlines.service'
+import { getGroupAlerts } from '@/lib/group/get-group-alerts.service'
+import { listGroupTransactions } from '@/lib/group/list-group-transactions.service'
+import { getGroupLedger } from '@/lib/group/get-group-ledger.service'
+import { summarizeDeadlines } from '@/lib/group/deadline-summary'
+import { computeFinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 
 type Handler = (args: Record<string, unknown>) => Promise<ToolResult>
 
@@ -64,8 +84,8 @@ describe('get_group_view', () => {
         holding: { id: 'h1', name: 'Holding' },
         fiscalYear: fy,
         members: [
-          { id: 'h1', name: 'Holding', siren: null, role: 'holding', ownershipBp: null, fiscalYear: fy, samePeriod: true, figures },
-          { id: 's1', name: 'Filiale Nord', siren: null, role: 'subsidiary', ownershipBp: 8000, fiscalYear: fy, samePeriod: true, figures },
+          { id: 'h1', name: 'Holding', slug: 'holding', siren: null, role: 'holding', ownershipBp: null, fiscalYear: fy, samePeriod: true, figures },
+          { id: 's1', name: 'Filiale Nord', slug: 'filiale-nord', siren: null, role: 'subsidiary', ownershipBp: 8000, fiscalYear: fy, samePeriod: true, figures },
         ],
         unreachable: [{ name: null, reason: 'out_of_reach' }],
         truncated: 0,
@@ -136,5 +156,157 @@ describe('get_participations', () => {
     expect(getParticipations).toHaveBeenCalledWith('h1', { fiscalYearId: 'fy' }, expect.objectContaining({ userId: 'u1' }))
     expect(data.participations[0]).toMatchObject({ category: 'Filiale (plus de 50 %)', ownershipPercent: 80, bookValueNet: 80000, equityShare: 72000, dividendsReceived: 15000 })
     expect(data.unattributedInvestments).toEqual([{ account: '261200', label: 'Titres B', amount: 30000 }])
+  })
+})
+
+describe('group space tools', () => {
+  const holding = { id: 'h1', name: 'Holding', slug: 'holding', role: 'holding' as const, ownershipBp: null }
+  const nord = { id: 's1', name: 'Filiale Nord', slug: 'filiale-nord', role: 'subsidiary' as const, ownershipBp: 8000 }
+  const perimeter = { unreachable: [{ name: null, reason: 'out_of_reach' as const }], truncated: 0, warnings: ['Une filiale n’est pas lue'] }
+
+  it('refuses every group space tool when the holding is outside the grant, without calling its service', async () => {
+    const tools = server()
+    for (const name of ['get_group_companies', 'get_group_indicators', 'get_group_evolution', 'get_group_treasury', 'get_group_shareholders', 'get_group_deadlines', 'get_group_alerts', 'list_group_transactions', 'get_group_ledger']) {
+      guard.require.mockRejectedValueOnce(new NotFoundError('Société introuvable'))
+      const result = await tools.get(name)!({ companyId: 'other' })
+      expect(result.isError, name).toBe(true)
+    }
+    for (const service of [getGroupCompanies, getGroupIndicators, getGroupEvolution, getGroupTreasury, getGroupPersons, getGroupDeadlines, getGroupAlerts, listGroupTransactions, getGroupLedger]) {
+      expect(service).not.toHaveBeenCalled()
+    }
+  })
+
+  it('get_group_companies answers the companies in euros with their officers', async () => {
+    vi.mocked(getGroupCompanies).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      fiscalYear: fy,
+      companies: [{ company: nord, siren: '931000020', legalType: 'SAS', legalForm: null, logo: null, shareCapitalCents: 100_000, numberOfShares: 100, officers: [{ name: 'Claire Martin', title: 'Présidente' }], fiscalYear: fy, samePeriod: true, figures: { ...ZERO_FIGURES, chiffreAffairesCents: 1_000_050 } }],
+      ...perimeter,
+    })
+    const data = parse(await server().get('get_group_companies')!({ companyId: 'h1' }))
+    expect(guard.require).toHaveBeenCalledWith('h1', { reports: ['read'] })
+    expect(data.companies[0]).toMatchObject({ name: 'Filiale Nord', ownershipPercent: 80, legalForm: 'SAS', officers: [{ name: 'Claire Martin', title: 'Présidente' }], figures: { revenue: 10000.5 } })
+    expect(data.notAccessibleSubsidiaries).toBe(1)
+  })
+
+  it('get_group_indicators answers each company and the aggregate, ratios as fractions', async () => {
+    const accounts = [
+      { code: '706000', debitCents: 0, creditCents: 10_000_000 },
+      { code: '641000', debitCents: 4_000_000, creditCents: 0 },
+    ]
+    const current = computeFinancialIndicators({ accounts, vat: { collecteeCents: 0, deductibleCents: 0 }, days: 365 })
+    vi.mocked(getGroupIndicators).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      fiscalYear: fy,
+      members: [{ company: nord, fiscalYear: fy, previousFiscalYear: null, samePeriod: true, current, previous: null }],
+      combined: { current, previous: null },
+      notice: 'Agrégat du groupe',
+      ...perimeter,
+    })
+    const data = parse(await server().get('get_group_indicators')!({ companyId: 'h1' }))
+    expect(data.companies[0].current).toMatchObject({ revenue: 100000, ebitda: 60000, ebitdaMargin: 0.6 })
+    expect(data.companies[0].previous).toBeNull()
+    expect(data.aggregate.current.netResult).toBe(60000)
+  })
+
+  it('get_group_evolution answers month by month in euros', async () => {
+    vi.mocked(getGroupEvolution).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      fiscalYear: fy,
+      companies: [nord],
+      months: [{ month: '2026-01', byCompany: { s1: { produitsCents: 150_000, chargesCents: 50_000, resultatCents: 100_000, tresorerieCents: null } }, total: { produitsCents: 150_000, chargesCents: 50_000, resultatCents: 100_000, tresorerieCents: null } }],
+      totals: { byCompany: {}, total: { produitsCents: 150_000, chargesCents: 50_000, resultatCents: 100_000 } },
+      ...perimeter,
+    })
+    const data = parse(await server().get('get_group_evolution')!({ companyId: 'h1' }))
+    expect(data.months[0]).toEqual({ month: '2026-01', total: { income: 1500, expenses: 500, result: 1000, cash: null }, byCompany: [{ company: 'Filiale Nord', income: 1500, expenses: 500, result: 1000, cash: null }] })
+  })
+
+  it('get_group_treasury answers masked accounts and current accounts in euros', async () => {
+    vi.mocked(getGroupTreasury).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      fiscalYear: fy,
+      companies: [{ company: nord, accounts: [{ id: 'a1', companyId: 's1', name: 'Compte courant', maskedIban: 'FR76 •••• 1234', provider: 'MANUAL', currency: 'EUR', balanceCents: 250_000, lastSyncedAt: null }], bankEurCents: 250_000, ledgerCents: 240_000 }],
+      totalsByCurrency: [{ currency: 'EUR', balanceCents: 250_000 }],
+      ledgerTotalCents: 240_000,
+      months: [],
+      currentAccounts: [{ creditorId: 'h1', debtorId: 's1', categories: ['current_account'], receivableCents: 2_500_000, payableCents: 2_500_000, eliminatedCents: 2_500_000, gapCents: 0 }],
+      currentAccountLines: [],
+      ...perimeter,
+    })
+    const data = parse(await server().get('get_group_treasury')!({ companyId: 'h1' }))
+    expect(data.companies[0].accounts[0]).toMatchObject({ iban: 'FR76 •••• 1234', balance: 2500 })
+    expect(data.totalsByCurrency).toEqual([{ currency: 'EUR', balance: 2500 }])
+    expect(data.currentAccounts[0]).toMatchObject({ debtor: 'Filiale Nord', receivable: 25000, gap: 0 })
+  })
+
+  it('get_group_shareholders answers percentages, never a photo, and hides an unread subsidiary', async () => {
+    vi.mocked(getGroupPersons).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      companies: [holding, nord],
+      holders: [
+        { holderId: 'holder-1', kind: 'person', name: 'Claire Martin', photo: 'data:image/png;base64,AAAA', groupCompany: null, titles: [{ companyId: 's1', title: 'Présidente' }], interests: [{ companyId: 's1', directBp: 0, indirectBp: 4800, totalBp: 4800, shares: null }] },
+        { holderId: 'holder-2', kind: 'company', name: null, photo: null, groupCompany: null, titles: [], interests: [{ companyId: 's1', directBp: 1000, indirectBp: 0, totalBp: 1000, shares: 10 }] },
+      ],
+      ...perimeter,
+    })
+    const result = await server().get('get_group_shareholders')!({ companyId: 'h1' })
+    const data = parse(result)
+    expect(result.content[0].text).not.toContain('base64')
+    expect(data.holders[0]).toEqual({ name: 'Claire Martin', kind: 'person', officerOf: [{ company: 'Filiale Nord', title: 'Présidente' }], holdings: [{ company: 'Filiale Nord', directPercent: 0, indirectPercent: 48, totalPercent: 48, shares: null }] })
+    expect(data.holders[1].name).toBe('Filiale non accessible')
+  })
+
+  it('get_group_deadlines and get_group_alerts answer the tracker of the group', async () => {
+    vi.mocked(getGroupDeadlines).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      fiscalYear: fy,
+      today: '2026-10-05',
+      companies: [{ company: nord, fiscalYear: { id: 'fy', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31' }, missingRegimes: false, summary: summarizeDeadlines([]) }],
+      deadlines: [{ companyId: 's1', id: 'cfe:2026', label: 'CFE 2026', form: '1447', category: 'cfe', column: 'cfe', date: '2026-12-15', lateAfter: '2026-12-15', estimated: false, status: 'todo', statusLabel: 'À faire', settled: false, amountCents: 120_000 }],
+      totals: { overdue: 0, pending: 1, settled: 0 },
+      ...perimeter,
+    })
+    const deadlines = parse(await server().get('get_group_deadlines')!({ companyId: 'h1' }))
+    expect(deadlines.deadlines).toEqual([{ company: 'Filiale Nord', date: '2026-12-15', label: 'CFE 2026', form: '1447', status: 'À faire', settled: false, amount: 1200 }])
+
+    vi.mocked(getGroupAlerts).mockResolvedValue({
+      companies: [{ company: nord, overdue: 1, unreconciled: 3, drafts: 2 }],
+      overdue: [{ companyId: 's1', deadlineId: 'tva-ca3:2026-08', label: 'TVA août', form: 'CA3', category: 'tva', date: '2026-09-24' }],
+      totals: { overdue: 1, unreconciled: 3, drafts: 2 },
+      ...perimeter,
+    })
+    const alerts = parse(await server().get('get_group_alerts')!({ companyId: 'h1' }))
+    expect(alerts.companies).toEqual([{ name: 'Filiale Nord', lateDeclarations: 1, transactionsToReconcile: 3, draftEntries: 2 }])
+    expect(alerts.lateDeclarations).toEqual([{ company: 'Filiale Nord', label: 'TVA août', form: 'CA3', dueOn: '2026-09-24' }])
+  })
+
+  it('list_group_transactions passes the filters and the cursor, and answers euros', async () => {
+    vi.mocked(listGroupTransactions).mockResolvedValue({
+      companies: [nord],
+      items: [{ id: 't1', companyId: 's1', date: '2026-03-02', at: '2026-03-02T00:00:00.000Z', label: 'Loyer', counterpartyName: null, reference: null, amountCents: 120_000, side: 'debit', reconciled: false, bankAccountName: 'Compte courant' }],
+      nextCursor: 'next',
+      ...perimeter,
+    })
+    const data = parse(await server().get('list_group_transactions')!({ companyId: 'h1', reconciled: false, cursor: 'abc', limit: 10 }))
+    expect(listGroupTransactions).toHaveBeenCalledWith('h1', expect.objectContaining({ reconciled: 'false', cursor: 'abc', limit: 10 }), expect.objectContaining({ userId: 'u1' }))
+    expect(data).toMatchObject({ nextCursor: 'next', transactions: [{ company: 'Filiale Nord', amount: 1200, side: 'debit', reconciled: false }] })
+  })
+
+  it('get_group_ledger answers the combined accounts and the lines of one account', async () => {
+    vi.mocked(getGroupLedger).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      fiscalYear: fy,
+      notice: 'Grand livre combiné',
+      companies: [{ ...nord, fiscalYear: fy }],
+      accounts: [{ code: '512000', label: 'Banque', byCompany: { s1: { debitCents: 300_000, creditCents: 100_000, balanceCents: 200_000 } }, total: { debitCents: 300_000, creditCents: 100_000, balanceCents: 200_000 } }],
+      total: { debitCents: 300_000, creditCents: 100_000, balanceCents: 200_000 },
+      detail: { code: '512000', lines: [{ companyId: 's1', date: '2026-02-01', journal: 'BQ', entryNumber: '1', label: 'Apport', debitCents: 300_000, creditCents: 0 }], truncated: false },
+      ...perimeter,
+    })
+    const data = parse(await server().get('get_group_ledger')!({ companyId: 'h1', account: '512000' }))
+    expect(getGroupLedger).toHaveBeenCalledWith('h1', { fiscalYearId: undefined, prefix: undefined, account: '512000' }, expect.anything())
+    expect(data.accounts[0]).toEqual({ account: '512000', label: 'Banque', byCompany: [{ company: 'Filiale Nord', debit: 3000, credit: 1000, balance: 2000 }], total: { debit: 3000, credit: 1000, balance: 2000 } })
+    expect(data.lines).toEqual([{ company: 'Filiale Nord', date: '2026-02-01', journal: 'BQ', entry: '1', label: 'Apport', debit: 3000, credit: 0 }])
   })
 })

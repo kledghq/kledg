@@ -221,7 +221,7 @@ describe.skipIf(!available)('MCP authorization boundary', () => {
     expect(JSON.parse(granted.text).subsidiaries).toEqual([expect.objectContaining({ id: ids.bCompany, name: 'Societe b', amountExclTax: 1000 })])
   })
 
-  it('the group view never reads nor names a subsidiary outside the grant (get_group_view, get_participations)', async () => {
+  it('the group view and the group space never read nor name a subsidiary outside the grant (get_group_view, get_participations, get_group_*)', async () => {
     // A is the holding of B (the owner is a member of both) and of C (the owner is not a member).
     if ((await prisma.shareholder.count({ where: { companyId: ids.bCompany, companyShareholderId: ids.aCompany } })) === 0) {
       await prisma.shareholder.create({ data: { companyId: ids.bCompany, type: 'LEGAL', sharePercentage: 100, companyShareholderId: ids.aCompany } })
@@ -255,6 +255,29 @@ describe.skipIf(!available)('MCP authorization boundary', () => {
     expect(grantedData.companies[1]).toMatchObject({ role: 'subsidiary', ownershipPercent: 100 })
     expect(grantedData.notAccessibleSubsidiaries).toBe(1)
     for (const secret of secretsOf('c')) expect(granted.text).not.toContain(secret)
+
+    // The tools of the group space follow the same grant: B and C are counted, never read nor named.
+    const spaceTools: Array<[string, Record<string, unknown>]> = [
+      ['get_group_companies', args],
+      ['get_group_indicators', args],
+      ['get_group_evolution', args],
+      ['get_group_treasury', args],
+      ['get_group_shareholders', { companyId: ids.aCompany }],
+      ['get_group_deadlines', args],
+      ['get_group_alerts', { companyId: ids.aCompany }],
+      ['list_group_transactions', { companyId: ids.aCompany }],
+      ['get_group_ledger', { ...args, account: '512000' }],
+    ]
+    for (const [tool, toolArgs] of spaceTools) {
+      const result = await call(onlyA, tool, toolArgs)
+      expect(result.ok, `${tool} ${result.text}`).toBe(true)
+      expect(JSON.parse(result.text).notAccessibleSubsidiaries, tool).toBe(2)
+      for (const secret of secretsOf('b', 'c')) expect(result.text, `${tool} leaks ${secret}`).not.toContain(secret)
+      const grantedSpace = await call(all, tool, toolArgs)
+      expect(grantedSpace.ok, `${tool} ${grantedSpace.text}`).toBe(true)
+      for (const secret of secretsOf('c')) expect(grantedSpace.text, `${tool} leaks ${secret}`).not.toContain(secret)
+      expect((await call(onlyA, tool, { ...toolArgs, companyId: ids.bCompany })).ok, tool).toBe(false)
+    }
   })
 
   it('an api key with no explicit kledg level is read-only (KLEDG-SEC-008, fixed)', () => {

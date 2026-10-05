@@ -23,6 +23,8 @@ import { logger } from '@/lib/logger'
 import { lastCompanyCookie } from '@/lib/last-company'
 import { companyInitials, displayCompanyName } from '@/lib/companies/legal-forms'
 import { CompanyNameWithForm } from '@/components/features/companies/legal-form-tag'
+import { PersonAvatar } from '@/components/shared/person-avatar'
+import type { GroupSummary } from '@/lib/group/get-group-summary.service'
 
 function CompanyMark({ name, legalType, size = "md" }: { name?: string | null; legalType?: string | null; size?: "sm" | "md" }) {
   return (
@@ -63,7 +65,23 @@ const findCompany = (companies: SwitcherCompany[], ref: string | undefined) =>
  * `holdingRefs`, ids or slugs); each opens the group view of its holding
  * (docs/vue-groupe.md).
  */
-export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCompanies?: SwitcherCompany[]; holdingRefs?: readonly string[] }) {
+/**
+ * In the group space, `group` is set: the trigger shows the group as the
+ * current selection (its main shareholder's photo, else the holding's logo,
+ * its name and how many companies it counts), and choosing a company opens
+ * that company's own pages.
+ */
+export function TeamSwitcher({
+  initialCompanies,
+  holdingRefs = [],
+  group,
+}: {
+  initialCompanies?: SwitcherCompany[]
+  holdingRefs?: readonly string[]
+  /** Set in the group space; `summary` is null while it loads. */
+  group?: { summary: GroupSummary | null }
+}) {
+  const inGroup = group !== undefined
   const { isMobile, state } = useSidebar()
   const params = useParams()
   const pathname = usePathname()
@@ -139,8 +157,8 @@ export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCo
 
   // `companyId` here is the target company's slug (used in URLs)
   const handleSelect = (companyId: string) => {
-    // Ne pas naviguer si on sélectionne la même société
-    if (companyId === currentCompanyId) {
+    // Ne pas naviguer si on sélectionne la même société (from the group space, its own pages open)
+    if (companyId === currentCompanyId && !inGroup) {
       return
     }
     
@@ -153,8 +171,10 @@ export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCo
       setCurrentCompany(selectedCompany)
     }
     
-    // Preserve current path by only replacing companyId
-    if (currentCompanyId && pathname) {
+    // Leaving the group space: the company's own home, never a /group path of another company.
+    if (inGroup) {
+      router.push(`/${companyId}`)
+    } else if (currentCompanyId && pathname) {
       // Extract path after companyId
       const pathAfterCompany = pathname.replace(`/${currentCompanyId}`, '') || '/'
       // Construire le nouveau chemin avec le nouveau companyId
@@ -231,9 +251,12 @@ export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCo
             <SidebarMenuButton
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-              tooltip={isCollapsed ? (currentCompany ? displayCompanyName(currentCompany.name, currentCompany.legalType) : "Choisir une société") : undefined}
+              tooltip={isCollapsed ? (inGroup ? (group.summary?.name ?? "Groupe") : currentCompany ? displayCompanyName(currentCompany.name, currentCompany.legalType) : "Choisir une société") : undefined}
             >
-              {navigating ? (
+              {inGroup && !navigating ? (
+                <GroupTrigger summary={group.summary} collapsed={isCollapsed} />
+              ) : null}
+              {inGroup && !navigating ? null : navigating ? (
                 <span className="flex size-8 shrink-0 items-center justify-center">
                   <Loader2 aria-hidden className="size-4 animate-spin" />
                 </span>
@@ -251,7 +274,7 @@ export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCo
               ) : (
                 <CompanyMark name={currentCompany?.name} legalType={currentCompany?.legalType} />
               )}
-              {!isCollapsed && (
+              {!isCollapsed && !(inGroup && !navigating) && (
                 <>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     {navigating ? (
@@ -320,7 +343,7 @@ export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCo
                     <span className="num text-xs text-muted-foreground">{comp.siret}</span>
                   )}
                 </div>
-                {(comp.slug === currentCompanyId || comp.id === currentCompanyId) && !isGroupView(comp) && (
+                {(comp.slug === currentCompanyId || comp.id === currentCompanyId) && !inGroup && !isGroupView(comp) && (
                   <Check className="ml-auto h-4 w-4" />
                 )}
               </DropdownMenuItem>
@@ -357,5 +380,44 @@ export function TeamSwitcher({ initialCompanies, holdingRefs = [] }: { initialCo
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
+  )
+}
+
+/** The group as the switcher's current selection: image, "Groupe <holding>", companies counted. */
+function GroupTrigger({ summary, collapsed }: { summary: GroupSummary | null; collapsed: boolean }) {
+  const photo = summary?.mainShareholder?.kind === "person" ? summary.mainShareholder.photo : null
+  const image = photo ?? summary?.holding.logo ?? null
+  const total = summary ? summary.readableCount + summary.unreadableCount : null
+  return (
+    <>
+      {photo && summary?.mainShareholder ? (
+        <PersonAvatar name={summary.mainShareholder.name} photo={photo} size="md" />
+      ) : image ? (
+        <span className="bg-background flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border">
+          <img src={image} alt="" className="size-8 object-contain" />
+        </span>
+      ) : (
+        <span aria-hidden className="bg-foreground text-background flex size-8 shrink-0 items-center justify-center rounded-md">
+          <Network className="size-4" />
+        </span>
+      )}
+      {!collapsed ? (
+        <>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            {summary ? (
+              <>
+                <span className="truncate font-medium">{summary.name}</span>
+                <span className="truncate text-xs text-sidebar-foreground/70">
+                  {total} {total === 1 ? "société" : "sociétés"}
+                </span>
+              </>
+            ) : (
+              <span className="truncate font-medium">Groupe</span>
+            )}
+          </div>
+          <ChevronsUpDown className="ml-auto" />
+        </>
+      ) : null}
+    </>
   )
 }
