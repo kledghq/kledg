@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableR
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { EmptyState, PageHeader, StatusBadge } from '@/components/shared'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
+import { TiersFlowsCard } from '@/components/features/tiers/tiers-flows-card'
 import { responseError } from '@/hooks/use-cursor-list'
 import { describePaymentTerms } from '@/lib/reports/third-parties/payment-terms'
 import { TIERS_KIND_LABELS } from '@/lib/tiers/rules'
@@ -38,6 +39,7 @@ export default function TiersPage() {
   const companyId = params.companyId as string
   const { can, denied } = useCompanyAccess()
   const mayCreate = can({ entries: ['create'] })
+  const mayReadReports = can({ reports: ['read'] })
   const [kind, setKind] = React.useState<KindFilter>('ALL')
   const [search, setSearch] = React.useState('')
   const [debounced, setDebounced] = React.useState('')
@@ -120,6 +122,8 @@ export default function TiersPage() {
         }
       />
       {!mayCreate ? <AccessNotice>{denied('créer des tiers')}</AccessNotice> : null}
+
+      {mayReadReports ? <TiersFlowsCard companyId={companyId} /> : null}
 
       <Card>
         <CardContent className="space-y-4">

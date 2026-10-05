@@ -4,7 +4,7 @@ Le journal des achats et des ventes : les clients et fournisseurs (tiers), les 
 
 ## Tiers
 
-Page **Factures, Tiers** (`/tiers`), API `GET|POST /api/tiers`, `GET|PATCH|DELETE /api/tiers/[id]`, `POST /api/tiers/attach-auxiliary`, outil MCP `list_tiers`.
+Page **Factures, Tiers** (`/tiers`), API `GET|POST /api/tiers`, `GET|PATCH|DELETE /api/tiers/[id]`, `POST /api/tiers/attach-auxiliary`, `GET /api/reports/tiers-flows` ([flux de l'exercice](#flux-de-lexercice)), outils MCP `list_tiers` et `get_tiers_flows`.
 
 - **Client ou fournisseur**, propre à une société : nom, SIREN et SIRET (clé de Luhn vérifiée, exception de La Poste comprise), numéro de TVA intracommunautaire (clé vérifiée pour un numéro français, forme pour les autres), e-mail, adresse (une adresse de la société, supprimée avec le dernier lien qui l'utilise), notes.
 - **Compte auxiliaire** (FEC `CompAuxNum`, LPF art. A47 A-1) : unique dans la société, C00001, C00002... pour les clients, F00001... pour les fournisseurs quand il n'est pas saisi. C'est lui qui relie le tiers aux lignes d'écriture : le lettrage, la balance auxiliaire et la balance âgée regroupent les lignes par compte auxiliaire et affichent le nom du tiers. Une fois que le tiers porte des factures, son compte auxiliaire ne change plus (les écritures passées ne sont jamais réécrites) et le tiers ne se supprime plus.
@@ -12,6 +12,14 @@ Page **Factures, Tiers** (`/tiers`), API `GET|POST /api/tiers`, `GET|PATCH|DELET
 - **Délai de paiement** propre au tiers, sinon celui de la société ([lettrage et tiers](lettrage-et-tiers.md#balance-âgée)) : au plus 60 jours ou 45 jours fin de mois (Code de commerce art. L441-10, I, al. 2), vérifié à l'enregistrement et par une contrainte de la base. La balance âgée l'applique aux factures du tiers.
 - **Créer depuis les écritures** : crée un tiers pour chaque compte auxiliaire déjà porté par des lignes des comptes 40 et 41 (import FEC par exemple), nommé d'après le libellé des lignes. Aucune ligne n'est modifiée ; un numéro déjà relié à un tiers est laissé tel quel ; un numéro présent à la fois sur des comptes clients et fournisseurs est signalé, jamais deviné. Relancer l'opération ne crée rien de plus.
 - Droits : lecture `entries:read`, création `entries:create`, modification `entries:update`, suppression `entries:delete`.
+
+### Flux de l'exercice
+
+En tête de la page Tiers, la carte « Clients et fournisseurs de l'exercice » dessine un diagramme de flux d'un exercice (choisi dans la carte, l'exercice en cours par défaut) : à gauche les clients qui facturent vers la société, à droite les fournisseurs vers lesquels elle paie, l'épaisseur suivant le montant. API `GET /api/reports/tiers-flows?companyId=&fiscalYearId=`, outil MCP `get_tiers_flows`, droit `reports:read`. Code : `lib/reports/third-parties/tiers-flows.ts`.
+
+- **Montants** : TTC, sur les écritures validées de l'exercice. Une ligne d'un compte 411 compte quand son écriture a aussi une ligne de produit (classe 7) ; une ligne d'un compte 401, quand son écriture a une ligne de charge (classe 6) ou d'immobilisation (classe 2). Les règlements (banque), les brouillons et l'écriture d'à-nouveaux (journal AN) ne comptent pas ; un avoir passe en déduction. Client : débit moins crédit de ses lignes ; fournisseur : crédit moins débit.
+- **Tiers** : regroupés par compte auxiliaire, nommés d'après le tiers enregistré, sinon le libellé des lignes ; les lignes sans compte auxiliaire forment un groupe « Sans compte auxiliaire ». Seuls les montants positifs apparaissent. Les 8 plus importants de chaque côté sont dessinés, les autres réunis en « Autres clients (N) » ou « Autres fournisseurs (N) ».
+- **Lecture** : clients et fournisseurs ont chacun leur couleur, nommée dans la légende ; l'infobulle donne le montant et la part du côté. « Lire les flux en texte » donne tous les montants et parts en deux tableaux. La page n'est pas listée en mode simple.
 
 ## Factures
 
