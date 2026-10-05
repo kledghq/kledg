@@ -4,6 +4,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.3.1] - 2026-10-05
+
 ### Ajouté
 
 - **Mode d'affichage Standard**, entre Simple et Expert ([documentation](docs/modes-et-menu.md)) : les pages, les mots et le tableau de bord du mode expert, avec un menu réduit aux pages du quotidien (Tableau de bord ; Banque : comptes bancaires, transactions, rapprochement, justificatifs ; Factures : achat, vente, tiers, notes de frais ; Saisie : écritures ; États : bilan, compte de résultat, échéances, déclarations de TVA, impôt sur les sociétés ; Société : informations, membres). Les autres pages restent accessibles par leur adresse, par les liens et gardent leur titre dans le fil d'Ariane. Dans l'espace groupe, un menu réduit à la Synthèse, l'Organigramme, les Soldes, l'Impôt sur les sociétés et les Échéances. Le menu « Affichage » de la barre du haut, l'assistant de création de société et Paramètres, Apparence proposent les trois modes, chacun avec sa ligne de description ; les modes déjà choisis ne changent pas.
@@ -24,6 +26,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Page **Mises à jour** : une préparation qui ne trouve rien de nouveau (instance déjà à jour) dit « Rien à installer » au lieu de rester sur « Préparation en cours » avec un bouton Installer grisé.
+- **Icône de Kledg dans les assistants** : l'instance sert un vrai `/favicon.ico` (il redirigeait vers la connexion), que Claude affiche pour un connecteur personnalisé, et le serveur MCP déclare son titre, son site et ses icônes (spécification MCP 2025-11-25).
 - Facture créée dans Qonto depuis Kledg : sa fiche et la vue `get_invoice` du serveur MCP indiquent « Créée dans Qonto » (et « Brouillon dans Qonto » tant qu'elle est en brouillon chez Qonto) au lieu de « Importée de Qonto », réservé aux factures importées, et affichent l'identifiant Qonto de la facture (Qonto ne documente pas de lien web vers une facture client). `get_invoice` renvoie `origin`, `createdInQonto`, `qontoDraft` et `qontoId`.
 - Approbation des comptes : « 1 écriture en brouillon sur l'exercice n'est pas comptée dans le résultat » (au lieu de « ne est pas comptée »).
 - Approbation des comptes : la décision d'une SAS, d'une SASU ou d'une EURL ne cite plus deux fois le même article (C. com. art. L227-9 ou L223-31).
