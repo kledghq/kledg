@@ -39,7 +39,7 @@ devient :
 | Recettes | `/<société>/simple/recettes`, les recettes à vérifier, avec leur nombre ; un lien y mène aux factures de vente |
 | Factures | Factures d'achat |
 | Banque | Comptes bancaires |
-| Justificatifs | Justificatifs manquants |
+| Justificatifs | Justificatifs |
 | Mon comptable | Membres de la société |
 
 La racine d'une société (`/<société>`) ouvre l'accueil simple au lieu du
