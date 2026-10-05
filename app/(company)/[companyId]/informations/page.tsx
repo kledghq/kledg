@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import { Save } from 'lucide-react'
 import { companySchema, type CompanyFormData } from '@/components/features/companies/company-informations-schemas'
 import { ShareholdersManagement } from '@/components/features/companies/shareholders-management'
+import { PersonsPrivacyCard } from '@/components/features/companies/persons-privacy-card'
 import { EstablishmentsManagement } from '@/components/features/companies/establishments-management'
 import { AccountCombobox } from '@/components/features/accounting/account-combobox'
 import {
@@ -859,6 +860,8 @@ export default function CompanyInformationsPage() {
         <EstablishmentsManagement companyId={companyId} />
 
         <ShareholdersManagement companyId={companyId} />
+
+        <PersonsPrivacyCard companyId={companyId} canEdit={canEdit} />
 
         <div id="regimes-fiscaux" className="scroll-mt-20">
           <TaxRegimeHistory companyId={companyId} />

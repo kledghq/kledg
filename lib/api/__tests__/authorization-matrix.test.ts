@@ -267,6 +267,7 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
   const shareholder = await prisma.shareholder.create({
     data: { companyId: company.id, type: 'LEGAL', name: 'Fonds', sharePercentage: 10 },
   })
+  const person = await prisma.person.create({ data: { companyId: company.id, firstName: 'Léa', name: `Martin ${prefix}` } })
   const taxRegime = await prisma.taxRegimeHistory.create({
     data: { companyId: company.id, regimeType: 'vat', regime: 'normal', startDate: new Date('2026-01-01T00:00:00Z') },
   })
@@ -274,6 +275,7 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
     [`${prefix}Establishment`]: establishment.id,
     [`${prefix}Address`]: address.id,
     [`${prefix}Shareholder`]: shareholder.id,
+    [`${prefix}Person`]: person.id,
     [`${prefix}TaxRegime`]: taxRegime.id,
     [`${prefix}Company`]: company.id,
     [`${prefix}Slug`]: slug,
@@ -369,6 +371,7 @@ const ROUTE_MODULES = {
   establishment: () => import('@/app/api/companies/[id]/establishments/[establishmentId]/route'),
   shareholders: () => import('@/app/api/companies/[id]/shareholders/route'),
   persons: () => import('@/app/api/companies/[id]/persons/route'),
+  person: () => import('@/app/api/companies/[id]/persons/[personId]/route'),
   shareholder: () => import('@/app/api/companies/[id]/shareholders/[shareholderId]/route'),
   taxRegimes: () => import('@/app/api/companies/[id]/tax-regimes/route'),
   deadlines: () => import('@/app/api/deadlines/route'),
@@ -579,6 +582,8 @@ const WRITES: Call[] = [
   { label: 'delete establishment', route: 'establishment', method: 'DELETE', path: () => `/api/companies/${A()}/establishments/${ids.aEstablishment}`, params: p({ id: A, establishmentId: () => ids.aEstablishment }) },
   { label: 'create address', route: 'addresses', method: 'POST', path: () => '/api/addresses', body: () => ({ companyId: A(), street: '2 rue Neuve', postalCode: '69001', city: 'Lyon' }) },
   { label: 'import file', route: 'importFile', method: 'POST', path: () => '/api/import', form: () => ({ companyId: A(), type: 'csv' }) },
+  { label: 'rectify person', route: 'person', method: 'PATCH', path: () => `/api/companies/${A()}/persons/${ids.aPerson}`, params: p({ id: A, personId: () => ids.aPerson }), body: () => ({ notes: 'x' }) },
+  { label: 'erase person', route: 'person', method: 'DELETE', path: () => `/api/companies/${A()}/persons/${ids.aPerson}`, params: p({ id: A, personId: () => ids.aPerson }) },
   { label: 'create person', route: 'persons', method: 'POST', path: () => `/api/companies/${A()}/persons`, params: p({ id: A }), body: () => ({ firstName: 'Jeanne', name: 'Martin' }) },
   { label: 'create shareholder', route: 'shareholders', method: 'POST', path: () => `/api/companies/${A()}/shareholders`, params: p({ id: A }), body: () => ({ type: 'LEGAL', name: 'Holding', sharePercentage: 5 }) },
   { label: 'update shareholder', route: 'shareholder', method: 'PATCH', path: () => `/api/companies/${A()}/shareholders/${ids.aShareholder}`, params: p({ id: A, shareholderId: () => ids.aShareholder }), body: () => ({ notes: 'x' }) },
@@ -769,6 +774,7 @@ const READS: Call[] = [
   { label: 'dashboard bank accounts widget', route: 'dashboardWidgets', method: 'GET', path: () => `/api/dashboard/widgets?companyId=${A()}&source=bank-accounts` },
   { label: 'own dashboard layout', route: 'dashboardLayout', method: 'GET', path: () => `/api/dashboard/layout?companyId=${A()}` },
   { label: 'preview FEC fiscal years', route: 'importPreview', method: 'POST', path: () => '/api/import/preview-fiscal-years', body: () => ({ companyId: A(), content: `${FEC_HEADER}\n` }) },
+  { label: 'export person', route: 'person', method: 'GET', path: () => `/api/companies/${A()}/persons/${ids.aPerson}`, params: p({ id: A, personId: () => ids.aPerson }) },
   { label: 'list persons', route: 'persons', method: 'GET', path: () => `/api/companies/${A()}/persons`, params: p({ id: A }) },
   { label: 'list shareholders', route: 'shareholders', method: 'GET', path: () => `/api/companies/${A()}/shareholders`, params: p({ id: A }) },
   { label: 'lettering lines', route: 'lettering', method: 'GET', path: () => `/api/lettering?companyId=${A()}&accountId=${ids.aReceivable}` },
@@ -844,6 +850,8 @@ const ACCOUNTANT_FORBIDDEN = new Set([
   'update establishment',
   'delete establishment',
   'create person',
+  'rectify person',
+  'erase person',
   'create shareholder',
   'update shareholder',
   'delete shareholder',
