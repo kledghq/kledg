@@ -38,7 +38,9 @@ interface Detail {
   tiers: { id: string; name: string; auxiliaryAccountNumber: string }
   parties: { sellerSiren: string | null; sellerVatNumber: string | null; buyerSiren: string | null; buyerVatNumber: string | null }
   entry: { id: string; entryNumber: string; status: string } | null
-  lines: Array<{ id: string; label: string; quantity: string; unitPriceCents: number; vatRateBp: number; totalExclTaxCents: number; accountCode: string | null; nature: 'GOODS' | 'SERVICES'; fixedAsset: boolean }>
+  lines: Array<{ id: string; label: string; quantity: string; unitPriceCents: number; vatRateBp: number; totalExclTaxCents: number; accountCode: string | null; nature: 'GOODS' | 'SERVICES'; fixedAsset: boolean; vatExemption?: 'training' | null }>
+  /** Mentions of the exempt lines (CGI ann. II art. 242 nonies A, I, 12°). */
+  vatExemptionMentions?: Array<{ code: string; text: string; positions: number[] }>
   vatBreakdown: Array<{ vatRateBp: number; baseCents: number; vatCents: number }>
   payments: Array<{ id: string; amountCents: number; entry: { id: string; entryNumber: string; date: string; description: string | null }; vatTransferEntry: { id: string; entryNumber: string; status: string } | null }>
 }
@@ -336,7 +338,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
                   <TableCell numeric>
                     <Amount value={line.unitPriceCents / 100} />
                   </TableCell>
-                  <TableCell>{formatVatRate(line.vatRateBp)}</TableCell>
+                  <TableCell>{line.vatExemption ? 'Exonérée' : formatVatRate(line.vatRateBp)}</TableCell>
                   <TableCell>
                     {!posted && mayUpdate ? (
                       <Input
@@ -396,6 +398,17 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
                 ))}
               </TableBody>
             </Table>
+            {invoice.vatExemptionMentions?.length ? (
+              <div className="space-y-1" data-testid="vat-exemption-mentions">
+                <p className="text-sm font-medium">Mention d’exonération</p>
+                {invoice.vatExemptionMentions.map((m) => (
+                  <p key={m.code} className="text-sm">
+                    {m.text}
+                  </p>
+                ))}
+                <p className="text-muted-foreground text-xs">À porter sur la facture émise (CGI, ann. II, art. 242 nonies A, I, 12°)&nbsp;; texte réglable sur la page Factures de vente.</p>
+              </div>
+            ) : null}
             <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
               <dt className="text-muted-foreground">Total HT</dt>
               <dd className="text-right">
