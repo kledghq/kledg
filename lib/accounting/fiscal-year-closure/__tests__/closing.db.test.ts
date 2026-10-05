@@ -260,6 +260,37 @@ describe.skipIf(!available)('fiscal year closing', () => {
     expect(report.warnings).toEqual([])
   })
 
+  it('gives the à-nouveaux the first number of the new year when the year is closed on time, and places them first in the FEC when it is closed late', async () => {
+    // On time: nothing validated yet in 2026, the opening entry is number 1 (BOI-CF-IOR-60-40-20 § 100)
+    const onTime = await createCompany()
+    await bookYear(onTime)
+    const closed = await closeFiscalYear(onTime.id, onTime.fy2025)
+    const opening = await prisma.accountingEntry.findFirstOrThrow({ where: { fiscalYearId: closed.nextFiscalYearId!, journal: { code: 'AN' } } })
+    expect(opening.entryNumber).toBe('1')
+
+    // Late: a 2026 entry is validated before 2025 is closed. Validated numbers never change (PCG art.
+    // 1031-3), so the opening entry takes the next number; BOFiP § 110 admits it ("il est admis qu'elles
+    // soient enregistrées au cours de l'exercice") and the FEC puts it first.
+    const late = await createCompany()
+    await bookYear(late)
+    const fy2026 = await prisma.fiscalYear.create({ data: { companyId: late.id, year: 2026, startDate: day('2026-01-01'), endDate: day('2026-12-31') } })
+    const accounts2026 = new Map<string, string>()
+    for (const [code, label] of CHART) {
+      const created = await prisma.account.create({ data: { companyId: late.id, fiscalYearId: fy2026.id, code, label, isPCG: true } })
+      accounts2026.set(code, created.id)
+    }
+    await book(late, 'BQ', '2026-01-05', [['606', 50, 0], ['512', 0, 50]], { fiscalYearId: fy2026.id, accounts: accounts2026 })
+    expect((await closeFiscalYear(late.id, late.fy2025)).success).toBe(true)
+    const lateOpening = await prisma.accountingEntry.findFirstOrThrow({ where: { fiscalYearId: fy2026.id, journal: { code: 'AN' } } })
+    expect(lateOpening.entryNumber).toBe('2')
+    const { exportFec } = await import('@/lib/fec/export')
+    const { validateFec } = await import('@/lib/fec/validator')
+    const fec = await exportFec(late.id, fy2026.id)
+    const firstRecord = fec.content.split('\r\n')[1].split('\t')
+    expect([firstRecord[0], firstRecord[2]]).toEqual(['AN', '2'])
+    expect(validateFec(fec.content, { fileName: fec.fileName, closingDate: '20261231' }).errors).toEqual([])
+  })
+
   it('is idempotent: a second closing changes nothing', async () => {
     const c = await createCompany()
     await bookYear(c)
