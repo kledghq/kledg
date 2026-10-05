@@ -39,7 +39,7 @@ Montants en centimes entiers, jours en `yyyy-mm-dd` (jamais d'heure locale).
 
 ## Seuil d'alerte
 
-Colonne `cashForecastSettings` de `companies` (JSON, migration `20261111090000_cash_forecast`, couverte par les politiques de sécurité au niveau des lignes de la table), lue par `parseCashForecastSettings` : un champ illisible reprend sa valeur par défaut.
+Colonne `cashForecastSettings` de `companies` (JSON, migration `20261114090000_cash_forecast`, couverte par les politiques de sécurité au niveau des lignes de la table), lue par `parseCashForecastSettings` : un champ illisible reprend sa valeur par défaut.
 
 | Champ | Valeur | Par défaut |
 | --- | --- | --- |
