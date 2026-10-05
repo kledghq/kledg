@@ -55,6 +55,8 @@ export interface ImportQontoResult {
   refused: Array<{ direction: InvoiceDirection; reference: string; reason: string }>
   /** False when a list had more pages than one run reads: run it again with `since`. */
   complete: boolean
+  /** Drafts Kledg had created in Qonto and that were deleted in Qonto: removed from Kledg too. */
+  removedDrafts: number
 }
 
 interface Identity {
@@ -89,6 +91,9 @@ function clientAddress(client: QontoClient) {
 }
 
 type Counters = ImportQontoResult
+
+/** Qonto drafts checked per import (one call each), the oldest kept for the next run. */
+const MAX_DRAFTS_CHECKED = 50
 
 async function upsertCustomer(companyId: string, client: QontoClient, counters: Counters): Promise<string> {
   const existing = await prisma.tiers.findFirst({ where: { companyId, kind: 'CUSTOMER', qontoId: client.id }, select: { id: true, name: true, email: true } })
@@ -240,7 +245,7 @@ export async function importQontoInvoices(companyId: string, input: { since?: st
   const qonto = new QontoInvoicing(login, secretKey)
   const since = input.since ? `${input.since}T00:00:00Z` : undefined
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { siren: true, vatNumber: true } })
-  const counters: Counters = { tiers: { created: 0, updated: 0 }, invoices: { created: 0, updated: 0, unchanged: 0 }, ignored: 0, refused: [], complete: true }
+  const counters: Counters = { tiers: { created: 0, updated: 0 }, invoices: { created: 0, updated: 0, unchanged: 0 }, ignored: 0, refused: [], complete: true, removedDrafts: 0 }
 
   const clients = await qonto.listClients(since)
   counters.complete &&= clients.complete
@@ -268,6 +273,18 @@ export async function importQontoInvoices(companyId: string, input: { since?: st
     await saveInvoice(companyId, 'SALE', tiersId, mapped.invoice, company, counters)
   }
 
+  // Drafts created from Kledg and deleted in Qonto since: Kledg removes its copy too (still a draft, no entry).
+  const qontoDrafts = await prisma.invoice.findMany({
+    where: { companyId, origin: 'QONTO', qontoDraft: true, entryId: null, externalId: { not: null } },
+    select: { id: true, externalId: true },
+    take: MAX_DRAFTS_CHECKED,
+  })
+  for (const draft of qontoDrafts) {
+    if ((await qonto.clientInvoiceExists(draft.externalId as string)) !== false) continue
+    const removed = await prisma.invoice.deleteMany({ where: { id: draft.id, companyId, qontoDraft: true, entryId: null } })
+    counters.removedDrafts += removed.count
+  }
+
   const purchases = await qonto.listSupplierInvoices(since)
   counters.complete &&= purchases.complete
   for (const invoice of purchases.items) {
@@ -293,7 +310,7 @@ export async function importQontoInvoices(companyId: string, input: { since?: st
   await writeAuditLog('info', 'Qonto invoices imported', {
     action: 'IMPORT_QONTO_INVOICES',
     companyId,
-    metadata: { tiers: counters.tiers, invoices: counters.invoices, ignored: counters.ignored, refused: counters.refused.length, complete: counters.complete },
+    metadata: { tiers: counters.tiers, invoices: counters.invoices, ignored: counters.ignored, refused: counters.refused.length, complete: counters.complete, removedDrafts: counters.removedDrafts },
   })
   return counters
 }

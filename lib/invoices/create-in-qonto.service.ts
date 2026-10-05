@@ -123,6 +123,21 @@ async function qontoFor(companyId: string) {
   return new QontoInvoicing(login, secretKey)
 }
 
+/**
+ * Deletes in Qonto the draft a Kledg invoice was created as, before Kledg
+ * deletes its own copy: both stay in step. Already gone in Qonto: nothing
+ * to do. Finalized in Qonto meanwhile, or no clear answer: refused, the
+ * Kledg copy stays.
+ */
+export async function deleteQontoDraft(companyId: string, externalId: string): Promise<void> {
+  const outcome = await (await qontoFor(companyId)).deleteClientInvoice(externalId)
+  if (outcome === 'deleted' || outcome === 'gone') return
+  if (outcome === 'not-draft') {
+    throw new ConflictError('Cette facture a été finalisée dans Qonto : elle ne peut plus être supprimée. Importez les factures Qonto pour reprendre son numéro, puis annulez-la par un avoir.')
+  }
+  throw new ConflictError('Qonto n’a pas confirmé la suppression du brouillon : réessayez dans un instant, la facture reste dans Kledg tant que Qonto la garde.')
+}
+
 async function recordRefusal(companyId: string, message: string) {
   await prisma.company.update({ where: { id: companyId }, data: { qontoInvoicingRefusal: message.slice(0, 500) } })
   await writeAuditLog('warn', 'Qonto refused to create client invoices', { action: 'QONTO_INVOICING_REFUSED', companyId })

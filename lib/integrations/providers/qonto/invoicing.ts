@@ -244,6 +244,45 @@ export class QontoInvoicing extends QontoClientBase {
     return this.create<{ client_invoice?: QontoClientInvoice }, QontoClientInvoice>('/client_invoices', invoice, (body) => body.client_invoice ?? null)
   }
 
+  /**
+   * DELETE /v2/client_invoices/{id} (open to the API key): Qonto deletes a
+   * draft only (412 invoice_not_in_draft_status otherwise); 404 when it is
+   * already gone.
+   * https://docs.qonto.com/api-reference/business-api/expense-management/client-quotes-notes/client-invoices/delete-a-client-invoice
+   */
+  async deleteClientInvoice(id: string): Promise<'deleted' | 'gone' | 'not-draft' | 'failed'> {
+    const outcome = await this.call('DELETE', `/client_invoices/${qontoPathSegment(id)}`)
+    if (outcome === 'ok') return 'deleted'
+    if (outcome === 404) return 'gone'
+    if (outcome === 412) return 'not-draft'
+    return 'failed'
+  }
+
+  /** Whether Qonto still holds a client invoice (GET /v2/client_invoices/{id}); null when Qonto does not answer clearly. */
+  async clientInvoiceExists(id: string): Promise<boolean | null> {
+    const outcome = await this.call('GET', `/client_invoices/${qontoPathSegment(id)}`)
+    if (outcome === 'ok') return true
+    if (outcome === 404) return false
+    return null
+  }
+
+  /** A request whose body Kledg does not need: 'ok', or the refusal status (0 without an answer). */
+  private async call(method: 'GET' | 'DELETE', endpoint: string): Promise<'ok' | number> {
+    try {
+      const response = await bankFetch('Qonto', (...args) => fetch(...args), `${this.baseUrl}${endpoint}`, {
+        method,
+        headers: { Authorization: this.getAuthHeader(), ...getQontoExtraHeaders() },
+      })
+      await response.body?.cancel().catch(() => undefined)
+      if (response.ok) return 'ok'
+      if (response.status !== 404) logger.warn(`[Qonto] ${method} ${endpoint.split('/').slice(0, 2).join('/')} refused`, { status: response.status })
+      return response.status
+    } catch (error) {
+      logger.warn(`[Qonto] ${method} without answer`, error)
+      return 0
+    }
+  }
+
   /** POST with the outcome told apart (see QontoCreateOutcome); Qonto's error detail is logged, never shown. */
   private async create<B, T>(endpoint: string, payload: unknown, pick: (body: B) => T | null): Promise<QontoCreateOutcome<T>> {
     let response: Response
