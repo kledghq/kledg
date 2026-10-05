@@ -131,7 +131,7 @@ Vérifié le 4 octobre 2026 dans la référence publique de l'API Business de Qo
 
 - Les seules « requests » publiques sont `GET /v2/requests` (portée `organization.read`), dont le filtre `request_type` n'accepte que `transfer`, `multi_transfer`, `flash_card` et `virtual_card`, et leurs créations et décisions.
 - Aucune portée OAuth ne couvre les notes de frais ; les pages `/expense-reports` ou `/reimbursements` de la référence n'existent pas.
-- Le point d'accès `/expense_reports` qu'utilisait l'ancien client Ledgerly n'y figure pas : Kledg ne l'appelle pas.
+- Le point d'accès `/expense_reports` n'y figure pas : Kledg ne l'appelle pas.
 
 Un remboursement payé par Qonto arrive comme une transaction bancaire : rapprochez-la avec le compte du bénéficiaire, puis lettrez la note avec elle (Remboursement). Si Qonto publie un jour un point d'accès, l'import se fera en lecture seule, sans doublon par identifiant Qonto.
 

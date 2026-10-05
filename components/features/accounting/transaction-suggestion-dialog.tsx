@@ -165,7 +165,7 @@ export function TransactionSuggestionDialog({
         ...(data.suggestedConditions && { conditions: JSON.stringify(data.suggestedConditions) }),
         ...(data.suggestedEntryLines && { entryLines: JSON.stringify(data.suggestedEntryLines) }),
       })
-      router.push(`/${companyId}/rules?${params.toString()}`)
+      router.push(`/${companyId}/rules/new?${params.toString()}`)
     } catch (error) {
       logger.error('Error creating rule:', error)
       toast.error(error instanceof Error ? error.message : 'Erreur lors de la création de la règle')

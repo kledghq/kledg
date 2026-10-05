@@ -27,8 +27,8 @@
  * d'acquisition) and is required above the thresholds of the Code de
  * commerce, art. L233-16 and L233-17. None of that is done here: the titres
  * de participation stay in the combined assets, the minority interests are
- * not separated, indirect holdings are not followed. Ledgerly multiplied
- * each company by its ownership percentage and called it a consolidation;
+ * not separated, indirect holdings are not followed. Multiplying each
+ * company by its ownership percentage would not be a consolidation either:
  * the percentage is shown here, never applied.
  *
  * A flow with a company outside the combined perimeter (a subsidiary the

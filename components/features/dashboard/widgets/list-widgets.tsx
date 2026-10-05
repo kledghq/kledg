@@ -311,7 +311,7 @@ export function ReglesList({ widget }: WidgetProps) {
           description="Une règle comptabilise toute seule les transactions qui se répètent (abonnements, loyers, frais bancaires)."
           action={
             <Button asChild size="sm">
-              <Link href={`/${companyId}/rules`}>Créer une règle</Link>
+              <Link href={`/${companyId}/rules/new`}>Créer une règle</Link>
             </Button>
           }
         />

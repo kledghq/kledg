@@ -6,7 +6,7 @@
  * them to. For the holding's fiscal year [start, end], a company's fiscal
  * year that ends the same day is taken; otherwise the one that overlaps the
  * period the most (the later one on a tie). The view says when the periods
- * differ instead of leaving the company out silently, as Ledgerly did.
+ * differ instead of leaving the company out silently.
  */
 
 export interface YearSpan {

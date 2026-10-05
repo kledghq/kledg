@@ -80,7 +80,7 @@ describe('officer titles and decision type in the documents', () => {
     expect(md).not.toMatch(/mise aux voix|assemblée/)
   })
 
-  it('SASU decision: the président prepared the accounts, never a gérant (Ledgerly bug)', () => {
+  it('SASU decision: the président prepared the accounts, never a gérant', () => {
     const md = markdownOf('SASU', 'decision')
     expect(md).toContain("# Décision de l'associé unique")
     expect(md).toContain('arrêtés par le président')

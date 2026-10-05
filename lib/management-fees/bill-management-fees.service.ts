@@ -21,8 +21,8 @@
  * - amounts come from computeConventionFees, the same engine as the preview;
  * - one billing per convention, subsidiary and period (unique constraint): a
  *   retried generation completes what is missing and creates nothing twice;
- *   an invoiced billing is never recomputed (Ledgerly overwrote invoiced
- *   fees on recalculation); a period overlapping an invoiced one is refused;
+ *   an invoiced billing is never recomputed (a recalculation never
+ *   overwrites invoiced fees); a period overlapping an invoiced one is refused;
  * - the holding's side of a generation (overlap check, billings, sales
  *   invoices) runs in one transaction under a lock per convention, so two
  *   generations at once never invoice a subsidiary or a period twice
