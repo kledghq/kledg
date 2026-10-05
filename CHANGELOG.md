@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- **Historique des mises à jour** (page Mises à jour, administrateurs de l'instance ; [documentation](docs/self-hosting.md#historique-des-mises-à-jour)) : chaque version que l'instance a fait tourner, de la plus récente à la plus ancienne, avec la date, la version précédente et la nouvelle (commit court), qui l'a installée (l'administrateur qui l'a fusionnée depuis la page, ou « Hôte ou dépôt (hors de cette page) » pour un redéploiement de l'hébergeur, un git push ou une mise à jour à la main), les migrations de la base appliquées et le lien vers les notes de version. La version est enregistrée au démarrage du serveur, une seule fois même si plusieurs serveurs démarrent en même temps, sans jamais retarder une requête. API `GET /api/updates/history` (pagination de 50), exclue du serveur MCP comme le reste de l'administration de l'instance. Migration `20261117100000_instance_versions` (nouvelle table, additive).
+
 ## [0.3.0] - 2026-10-05
 
 ### Ajouté

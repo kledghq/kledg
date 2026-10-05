@@ -10,4 +10,9 @@ export async function register() {
   const { reencryptStoredSecrets } = await import('@/lib/crypto/reencrypt')
   const { logger } = await import('@/lib/logger')
   await reencryptStoredSecrets().catch((error: unknown) => logger.error('Secret rotation: re-encryption failed', error))
+  // Update history (lib/updates/history.ts): records the running version when
+  // it changed. Not awaited, so it never delays the first request; it logs
+  // its own failures, and the history route awaits the same promise.
+  const { ensureVersionRecorded } = await import('@/lib/updates/history')
+  void ensureVersionRecorded()
 }

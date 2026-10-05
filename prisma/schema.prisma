@@ -1568,6 +1568,35 @@ model UpdateConnection {
   @@map("update_connection")
 }
 
+// Versions this instance has run, one row per (version, commit), written at
+// server start when the running version differs from the latest row
+// (lib/updates/history.ts). Shown in "Historique des mises à jour" on the
+// "Mises à jour" page, instance administrators only. The unique index is
+// NULLS NOT DISTINCT (migration 20261117100000_instance_versions), so a
+// deployment without a known commit is recorded once too.
+model InstanceVersion {
+  id                String   @id @default(cuid())
+  version           String
+  commit            String?
+  branch            String?
+  platform          String
+  firstSeenAt       DateTime @default(now())
+  previousVersion   String?
+  previousCommit    String?
+  // User who installed it from the "Mises à jour" page (UPDATES_MERGE audit), null otherwise.
+  installedByUserId String?
+  // "update-page" or "external" (host redeploy, git push, manual update).
+  source            String   @default("external")
+  // Prisma migrations finished since the previous row (empty on the first row).
+  migrations        String[] @default([])
+  // False when the migration history could not be read (KLEDG_RLS=enforce: the application role cannot read it).
+  migrationsKnown   Boolean  @default(true)
+
+  @@unique([version, commit])
+  @@index([firstSeenAt])
+  @@map("instance_versions")
+}
+
 // Companies an AI assistant (OAuth client) or an API key may reach on behalf
 // of a user (lib/ai-access). One grant per (user, OAuth client) and per API
 // key. No grant means every company the user can access, including future

@@ -23,6 +23,10 @@ vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn(async () => {}) }))
 vi.mock('@/lib/updates/overview', () => ({
   getUpdateOverview: vi.fn(async () => ({ state: 'up-to-date', current: { version: '0.1.0' }, connection: null })),
 }))
+vi.mock('@/lib/updates/history', () => ({
+  ensureVersionRecorded: vi.fn(async () => {}),
+  listVersionHistory: vi.fn(async () => ({ items: [], nextCursor: null })),
+}))
 vi.mock('@/lib/updates/connection', () => ({
   validateToken: vi.fn(async () => ({
     repository: { owner: 'acme', repo: 'compta' },
@@ -63,6 +67,8 @@ import * as githubRoute from '../updates/github/route'
 import * as prepareRoute from '../updates/prepare/route'
 import * as installRoute from '../updates/install/route'
 import * as channelRoute from '../updates/channel/route'
+import * as historyRoute from '../updates/history/route'
+import { ensureVersionRecorded, listVersionHistory } from '@/lib/updates/history'
 import { saveConnection, validateToken } from '@/lib/updates/connection'
 import { mergeUpdatePull } from '@/lib/updates/service'
 import { getUpdateOverview } from '@/lib/updates/overview'
@@ -78,6 +84,7 @@ const ROUTES: Array<{ name: string; method: string; url: string; handler: Handle
   { name: 'connect', method: 'POST', url: '/api/updates/connection', handler: connectionRoute.POST, body: { token: TOKEN } },
   { name: 'disconnect', method: 'DELETE', url: '/api/updates/connection', handler: connectionRoute.DELETE },
   { name: 'github status', method: 'GET', url: '/api/updates/github', handler: githubRoute.GET },
+  { name: 'history', method: 'GET', url: '/api/updates/history', handler: historyRoute.GET },
   { name: 'prepare', method: 'POST', url: '/api/updates/prepare', handler: prepareRoute.POST },
   {
     name: 'install',
@@ -189,6 +196,23 @@ describe('/api/updates behaviour', () => {
     expect(vi.mocked(getUpdateOverview).mock.calls.map(([options]) => options?.light)).toEqual([true, false, false])
   })
 
+  it('history records the running version, then lists the first page', async () => {
+    const res = await historyRoute.GET(request('GET', '/api/updates/history'))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [], nextCursor: null })
+    expect(ensureVersionRecorded).toHaveBeenCalledOnce()
+    expect(listVersionHistory).toHaveBeenCalledWith({ cursor: undefined, limit: undefined })
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+  })
+
+  it('history pages with the cursor and a limit of at most 50', async () => {
+    await historyRoute.GET(request('GET', '/api/updates/history?cursor=row-50&limit=20'))
+    expect(listVersionHistory).toHaveBeenLastCalledWith({ cursor: 'row-50', limit: 20 })
+    const res = await historyRoute.GET(request('GET', '/api/updates/history?limit=500'))
+    expect(res.status).toBe(400)
+    expect(listVersionHistory).toHaveBeenCalledTimes(1)
+  })
+
   it('version returns only the version and commit', async () => {
     const res = await versionRoute.GET(request('GET', '/api/updates/version'))
     expect(Object.keys(await res.json()).sort()).toEqual(['commit', 'version'])
@@ -212,10 +236,17 @@ describe('/api/updates behaviour', () => {
   it('refuses GitHub actions on Docker installs', async () => {
     delete process.env.VERCEL
     process.env.KLEDG_RUNTIME = 'docker'
-    for (const route of ROUTES.filter((r) => !['overview', 'version', 'disconnect'].includes(r.name))) {
+    for (const route of ROUTES.filter((r) => !['overview', 'version', 'history', 'disconnect'].includes(r.name))) {
       const res = await route.handler(request(route.method, route.url, route.body))
       expect(res.status, route.name).toBe(400)
     }
+  })
+
+  it('shows the update history on every host, Docker included', async () => {
+    delete process.env.VERCEL
+    process.env.KLEDG_RUNTIME = 'docker'
+    const res = await historyRoute.GET(request('GET', '/api/updates/history'))
+    expect(res.status).toBe(200)
   })
 
   it('install requires an explicit confirmation and a full commit', async () => {

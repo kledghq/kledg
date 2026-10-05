@@ -22,6 +22,7 @@ export const RLS_EXEMPT_TABLES: Readonly<Record<string, string>> = {
   oauthClientAssertion: 'Better Auth OAuth provider: replay protection of client assertions',
   rateLimit: 'Rate limit counters keyed by IP or user, written before authentication',
   update_connection: 'Instance GitHub connection, instance administrators only (checked by the route); no tenant data',
+  instance_versions: 'Update history of the instance, instance administrators only (checked by the route); no tenant data',
   _prisma_migrations: 'Migration history, owned by the migration tool',
 }
 

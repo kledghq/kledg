@@ -351,6 +351,14 @@ export KLEDG_COMMIT=$(git rev-parse HEAD)
 docker compose up -d --build
 ```
 
+### Historique des mises à jour
+
+La carte **Historique des mises à jour**, en bas de la page **Mises à jour**, liste les versions que l'instance a fait tourner : date, version précédente et nouvelle (avec le commit court), qui l'a installée, migrations de la base appliquées et lien vers les notes de version (la release GitHub de `kledghq/kledg` pour une version publiée, sinon le commit déployé de votre dépôt quand l'hébergeur le donne).
+
+- **Quand** : au démarrage du serveur (`instrumentation.ts`), Kledg compare la version et le commit en cours (`getDeployedVersion()`) à la dernière ligne de la table `instance_versions` et en ajoute une s'ils diffèrent. L'écriture n'est pas attendue par les requêtes ; un échec est journalisé et retenté au prochain affichage de l'historique (`GET /api/updates/history`). Un index unique sur (version, commit) garantit une seule ligne quand plusieurs serveurs démarrent en même temps. Un retour à une version déjà vue (rollback) n'ajoute pas de ligne : elle garde sa première date.
+- **Installée par** : l'administrateur de l'instance dont l'audit `UPDATES_MERGE` (bouton **Installer la mise à jour**) a été écrit après la première apparition de la version précédente et au plus 24 heures avant celle-ci, et dont le commit fusionné est le commit en cours (ou n'importe lequel de ces audits si l'hébergeur ne donne pas le commit). Sinon : « Hôte ou dépôt (hors de cette page) » (redéploiement par l'hébergeur, git push, mise à jour à la main).
+- **Migrations** : celles que `_prisma_migrations` marque terminées depuis la ligne précédente (aucune sur la première ligne, l'historique commence à cette version). Avec `KLEDG_RLS=enforce`, le rôle de l'application ne lit pas cette table : la colonne indique « Inconnues ».
+
 ### Par pull request (sans jeton)
 
 Votre dépôt contient le workflow **Update from Kledg** (`.github/workflows/update-from-kledg.yml`). Chaque lundi, il regarde s'il y a du nouveau sur `kledghq/kledg` et, si c'est le cas, ouvre une pull request **« Mise à jour Kledg x.y.z »** qui liste les notes de version et les migrations de la base qu'elle apporte :
