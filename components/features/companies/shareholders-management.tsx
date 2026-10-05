@@ -55,6 +55,7 @@ import {
 import { optionalNumberInput, shareholderSchema, type ShareholderFormData } from './company-informations-schemas'
 import type { Shareholder } from './company-informations-types'
 import { CreatePersonForm } from './create-person-form'
+import { PersonAvatar } from '@/components/shared/person-avatar'
 import { logger } from '@/lib/logger'
 import type { Address } from '@/lib/utils/address'
 
@@ -74,6 +75,8 @@ interface ShareholderWithRelations extends Shareholder {
     email: string | null
     phone: string | null
     address: string | null
+    /** Image data URL (Person.photo), shown next to the name. */
+    photo?: string | null
   } | null
 }
 
@@ -721,11 +724,14 @@ export function ShareholdersManagement({
                             )}
                           </div>
                         ) : shareholder.type === 'PHYSICAL' && shareholder.person ? (
-                          <div>
-                            <div className="font-medium">{shareholder.person.firstName} {shareholder.person.name}</div>
-                            <div className="text-xs text-success flex items-center gap-1">
-                              <CheckCircle2 className="h-3 w-3" />
-                              <span>Personne liée</span>
+                          <div className="flex items-center gap-2">
+                            <PersonAvatar name={`${shareholder.person.firstName} ${shareholder.person.name}`} photo={shareholder.person.photo} />
+                            <div>
+                              <div className="font-medium">{shareholder.person.firstName} {shareholder.person.name}</div>
+                              <div className="text-xs text-success flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>Personne liée</span>
+                              </div>
                             </div>
                           </div>
                         ) : shareholder.type === 'PHYSICAL' ? (
