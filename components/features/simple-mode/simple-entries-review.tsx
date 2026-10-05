@@ -262,6 +262,11 @@ export function SimpleEntriesReview({ companyId }: { companyId: string }) {
                     </div>
                     {entry.note ? <div className="text-xs">Note&nbsp;: {entry.note}</div> : null}
                     {entry.fixedAsset ? <div className="text-xs">{entry.fixedAsset.mention}</div> : null}
+                    {entry.invoice ? (
+                      <div className="text-xs">
+                        {entry.invoice.customerName}, {entry.invoice.recorded ? 'règlement enregistré sur la facture' : 'règlement enregistré sur la facture à la validation'}
+                      </div>
+                    ) : null}
                     {!entry.hasReceipt ? <div className="text-warning text-xs">Sans justificatif</div> : null}
                   </TableCell>
                   <TableCell className="min-w-64">

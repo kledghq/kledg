@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { CalendarClock, CircleAlert, FileText, HandCoins, UserPlus } from "lucide-react";
+import { ArrowDownLeft, CalendarClock, CircleAlert, FileText, HandCoins, UserPlus } from "lucide-react";
 
 import type { SimpleHome as SimpleHomeData } from "@/lib/simple/load-simple-home.service";
 import {
   ACCOUNTANT_PENDING,
   validationProgress,
   EXPENSES_TO_CHECK_HINT,
+  INCOME_TO_CHECK_HINT,
   MISSING_RECEIPTS_HINT,
   NO_ACCOUNTANT,
   NO_BANK_ACCOUNT_HINT,
@@ -19,6 +20,7 @@ import {
   declarationTitle,
   expensesToCheckLabel,
   greeting,
+  incomeToCheckLabel,
   lateLabel,
   missingReceiptsLabel,
   monthChangeLabel,
@@ -56,7 +58,7 @@ interface TodoItem {
 
 function todoItems(home: SimpleHomeData, base: string): TodoItem[] {
   const items: TodoItem[] = [];
-  const { expensesToCheck, missingReceipts, customersToChase, declarations } = home.todo;
+  const { expensesToCheck, incomeToCheck, missingReceipts, customersToChase, declarations } = home.todo;
   for (const d of declarations ?? []) {
     items.push({
       key: `declaration-${d.id}`,
@@ -83,6 +85,16 @@ function todoItems(home: SimpleHomeData, base: string): TodoItem[] {
       href: `${base}/simple/depenses`,
       action: "Vérifier",
       primary: true,
+    });
+  }
+  if (incomeToCheck) {
+    items.push({
+      key: "income",
+      icon: ArrowDownLeft,
+      title: incomeToCheckLabel(incomeToCheck),
+      hint: INCOME_TO_CHECK_HINT,
+      href: `${base}/simple/recettes`,
+      action: "Identifier",
     });
   }
   if (missingReceipts) {

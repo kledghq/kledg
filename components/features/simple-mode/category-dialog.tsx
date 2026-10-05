@@ -31,7 +31,8 @@ interface CategoryDialogProps {
 
 /**
  * "Modifier": the user picks another category of the catalogue (searchable
- * by its words, grouped), answers its question when it has one, adds a note
+ * by its words, grouped; for money in, income, movements and the refunds of
+ * expenses), answers its question when it has one, adds a note
  * for the accountant and, for a Qonto transaction, sends the receipt.
  */
 export function CategoryDialog(props: CategoryDialogProps) {
@@ -69,7 +70,10 @@ function CategoryDialogBody({ expense, onOpenChange, onConfirm, onReceipt, initi
             return words.every((w) => haystack.includes(w)) ? 1 : 0
           }}
         >
-          <CommandInput placeholder="ex. téléphone, restaurant, logiciel" aria-label="Rechercher une catégorie" />
+          <CommandInput
+            placeholder={expense.side === 'credit' ? 'ex. vente, subvention, remboursement' : 'ex. téléphone, restaurant, logiciel'}
+            aria-label="Rechercher une catégorie"
+          />
           <CommandList className="max-h-64">
             <CommandEmpty>Aucune catégorie ne correspond.</CommandEmpty>
             {CATEGORY_GROUPS.map((group) => {
@@ -154,7 +158,7 @@ function CategoryDialogBody({ expense, onOpenChange, onConfirm, onReceipt, initi
             disabled={!ready || Boolean(expense.blockedReason)}
             onClick={() => category && onConfirm(expense, { categoryId: category.id, answers: question && answer ? { [question.id]: answer } : {}, note })}
           >
-            Classer la dépense
+            {expense.side === 'credit' ? 'Classer la recette' : 'Classer la dépense'}
           </Button>
         </DialogFooter>
       </DialogContent>

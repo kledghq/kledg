@@ -79,7 +79,7 @@ const CORPUS: Array<[string, 'debit' | 'credit', string | null, 'high' | 'medium
   ['CB COLISSIMO', 'debit', 'livraisons', 'high'],
   ['PRLV INFOGREFFE', 'debit', 'formalites', 'high'],
   ['VIR LIBERATION DU CAPITAL', 'credit', 'apport-capital', 'high'],
-  ['VIR SEPA SUBVENTION REGION', 'credit', 'subvention', 'medium'],
+  ['VIR SEPA SUBVENTION REGION', 'credit', 'subvention', 'high'],
   ['VIR SEPA MARTIN CONSEIL FACTURE 2026-14', 'credit', null, 'low'],
   ['CB SARL DUBOIS', 'debit', null, 'low'],
   ['VIR INSTANTANE M JEAN DUPONT', 'debit', null, 'low'],
@@ -150,11 +150,17 @@ describe('signal priority', () => {
     expect(suggest(tx('CB SARL DUBOIS', { bankCategory: 'other_expense' }))).toMatchObject({ categoryId: null, confidence: 'low' })
   })
 
-  it('never proposes an income for money out nor an expense for money in', () => {
-    expect(suggest(tx('VIR SARL DUBOIS', { side: 'credit' }), history('fournitures', ['2026-09-01', '2026-08-01']))).toMatchObject({ categoryId: null })
+  it('never proposes an income for money out nor an expense for money in: money in from a supplier is its refund', () => {
+    // A supplier usually paid gives money back: the refund of that expense, medium at most
+    expect(suggest(tx('VIR SARL DUBOIS', { side: 'credit' }), history('fournitures', ['2026-09-01', '2026-08-01']))).toMatchObject({
+      categoryId: 'remboursement:fournitures',
+      confidence: 'medium',
+      bulkConfirmable: false,
+    })
     expect(suggest(tx('CB SARL DUBOIS'), history('ventes-prestations', ['2026-09-01', '2026-08-01']))).toMatchObject({ categoryId: null })
-    // A payee of money out only is not used for money in
-    expect(suggest(tx('VIR ORANGE REMBOURSEMENT', { side: 'credit' })).categoryId).toBeNull()
+    // A payee of money out is used for money in only as the refund of what it is paid for
+    expect(suggest(tx('VIR ORANGE REMBOURSEMENT', { side: 'credit' })).categoryId).toBe('remboursement:telephone-internet')
+    expect(suggest(tx('VIR ORANGE', { side: 'credit' })).categoryId).toBeNull()
   })
 })
 

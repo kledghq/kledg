@@ -40,8 +40,12 @@
 
 import type { VatRule } from '@/lib/expense-reports/categories'
 
-/** Expense (a debit, usually), income (a credit) or a movement that is neither (taxes paid, loans, transfers). */
-export type CategoryKind = 'expense' | 'income' | 'other'
+/**
+ * Expense (a debit, usually), income (a credit), a movement that is neither
+ * (taxes paid, loans, transfers), or the refund of an expense (money in that
+ * reduces the charge it refunds, with its VAT).
+ */
+export type CategoryKind = 'expense' | 'income' | 'other' | 'refund'
 
 /**
  * How the VAT of the operation is recovered: the expense report rules
@@ -60,7 +64,7 @@ export interface Posting {
   vatRule: SimpleVatRule
 }
 
-export type QuestionId = 'durable' | 'meal-guests' | 'vehicle' | 'rent-vat'
+export type QuestionId = 'durable' | 'meal-guests' | 'vehicle' | 'rent-vat' | 'sale-vat-rate' | 'owner-money'
 
 export interface QuestionAnswer {
   id: string
@@ -68,6 +72,12 @@ export interface QuestionAnswer {
   label: string
   /** What the answer changes in the category's posting. */
   posting: Partial<Posting>
+  /**
+   * What the money is once answered, when it differs from the category's
+   * kind: money from a partner who buys a service is a sale (income, with
+   * collected VAT), not a movement.
+   */
+  kind?: CategoryKind
 }
 
 export interface Question {
@@ -111,6 +121,12 @@ export interface SimpleCategory {
   notePrompt?: string
   /** PCG article of the account and tax source of the VAT rule. */
   source: string
+  /**
+   * Book only to this account or one of its subaccounts, never to a parent:
+   * the credit of VAT carried forward (44567) is read by the VAT return on
+   * that account, its parent 4456 would hide it.
+   */
+  exactAccount?: boolean
 }
 
 /** Small equipment of a unit value of 500 € HT at most may be expensed (BOI-BIC-CHG-20-30-10). */
@@ -168,6 +184,52 @@ const RENT_VAT: Question = {
   ],
   reusable: true,
   source: 'CGI art. 261 D, 2° (exonération des locations de locaux nus) et 260, 2° (option du bailleur)',
+}
+
+/**
+ * VAT collected on a sale, at the rate of the invoice: 20 % by default (CGI
+ * art. 278), 10 % (art. 279: restaurants, works in dwellings, passenger
+ * transport), 5,5 % (art. 278-0 bis: food, books, energy works), 2,1 % (art.
+ * 281 quater to 298 septies: reimbursed medicines, press), or none (exports
+ * and intra-EU supplies, art. 262 ter and 262, I; services taxed in the
+ * customer's country, art. 259 and 283, 2; exempt operations, art. 261).
+ * The answer is kept for the same customer.
+ */
+const SALE_VAT_RATE: Question = {
+  id: 'sale-vat-rate',
+  text: 'Quelle TVA figure sur votre facture ?',
+  help: 'Kledg reprend le taux de votre facture. Sans TVA : client à l’étranger ou activité exonérée.',
+  answers: [
+    { id: 'standard', label: '20 %', posting: { vatRateBp: STANDARD, vatRule: 'standard' } },
+    { id: 'intermediate', label: '10 %', posting: { vatRateBp: INTERMEDIATE, vatRule: 'standard' } },
+    { id: 'reduced', label: '5,5 %', posting: { vatRateBp: REDUCED, vatRule: 'standard' } },
+    { id: 'super-reduced', label: '2,1 %', posting: { vatRateBp: 210, vatRule: 'standard' } },
+    { id: 'none', label: 'Sans TVA', posting: { vatRateBp: 0, vatRule: 'none' } },
+  ],
+  reusable: true,
+  defaultAnswerId: 'standard',
+  source: 'CGI art. 278 (20 %), 279 (10 %), 278-0 bis (5,5 %), 281 quater à 298 septies (2,1 %), 262 ter et 262, I (exportations et livraisons intracommunautaires), 259 et 283, 2 (services taxés chez le client), 261 (exonérations)',
+}
+
+/**
+ * Money a partner or the director sends to the company can be a loan to the
+ * company (associés, comptes courants 455, repaid later), a contribution to
+ * the share capital (1013, only after a decision to increase it, C. com. art.
+ * L223-32 and L225-127 to L225-129), or the price of a sale made to them (706,
+ * with collected VAT). Nothing tells them apart on the bank line: the user
+ * answers each time.
+ */
+const OWNER_MONEY: Question = {
+  id: 'owner-money',
+  text: 'Est-ce de l’argent que vous avez prêté à votre société ?',
+  help: 'Un prêt vous sera rendu plus tard. Une augmentation de capital ne se rembourse pas. Un achat à votre société est une vente comme une autre.',
+  answers: [
+    { id: 'loan', label: 'Oui, un prêt à la société', posting: { account: '455' } },
+    { id: 'capital', label: 'Non, une augmentation de capital', posting: { account: '1013' } },
+    { id: 'sale', label: 'Non, le paiement d’une vente', posting: { account: '706', vatRateBp: STANDARD, vatRule: 'standard' }, kind: 'income' },
+  ],
+  reusable: false,
+  source: 'PCG art. 932-1, comptes 455 Associés, comptes courants, 1013 Capital souscrit, appelé, versé, 706 Prestations de services; C. com. art. L223-32 et L225-127 à L225-129 (augmentation de capital)',
 }
 
 const pcg = (account: string, label: string) => `PCG art. 932-1, compte ${account} ${label}`
@@ -337,45 +399,92 @@ const DEFS: Def[] = [
     hint: 'Bénéfices distribués aux associés.', keywords: ['dividendes', 'distribution', 'associes'], source: pcg('457', 'Associés, dividendes à payer') },
 
   // Recettes
-  { id: 'ventes-prestations', label: 'Ventes de prestations', group: 'Recettes', kind: 'income', account: '706', vatRateBp: STANDARD, vatRule: 'standard',
-    hint: 'Ce que vos clients vous paient pour un service.', keywords: ['vente', 'prestation', 'client', 'facture', 'mission', 'honoraires'], source: pcg('706', 'Prestations de services') },
-  { id: 'ventes-marchandises', label: 'Ventes de marchandises', group: 'Recettes', kind: 'income', account: '707', vatRateBp: STANDARD, vatRule: 'standard',
-    hint: 'Revente de produits achetés.', keywords: ['vente', 'marchandises', 'boutique', 'commande'], source: pcg('707', 'Ventes de marchandises') },
-  { id: 'ventes-produits', label: 'Ventes de produits fabriqués', group: 'Recettes', kind: 'income', account: '701', vatRateBp: STANDARD, vatRule: 'standard',
-    hint: 'Vente de ce que vous fabriquez.', keywords: ['vente', 'produits', 'fabrication'], source: pcg('701', 'Ventes de produits finis') },
+  { id: 'ventes-prestations', label: 'Ventes de prestations', group: 'Recettes', kind: 'income', account: '706', vatRateBp: STANDARD, vatRule: 'standard', question: SALE_VAT_RATE,
+    hint: 'Ce que vos clients vous paient pour un service.', keywords: ['vente', 'prestation', 'client', 'facture', 'mission', 'honoraires'], source: `${pcg('706', 'Prestations de services')}; ${pcg('44571', 'TVA collectée')}` },
+  { id: 'ventes-marchandises', label: 'Ventes de marchandises', group: 'Recettes', kind: 'income', account: '707', vatRateBp: STANDARD, vatRule: 'standard', question: SALE_VAT_RATE,
+    hint: 'Revente de produits achetés.', keywords: ['vente', 'marchandises', 'boutique', 'commande'], source: `${pcg('707', 'Ventes de marchandises')}; ${pcg('44571', 'TVA collectée')}` },
+  { id: 'ventes-produits', label: 'Ventes de produits fabriqués', group: 'Recettes', kind: 'income', account: '701', vatRateBp: STANDARD, vatRule: 'standard', question: SALE_VAT_RATE,
+    hint: 'Vente de ce que vous fabriquez.', keywords: ['vente', 'produits', 'fabrication'], source: `${pcg('701', 'Ventes de produits finis')}; ${pcg('44571', 'TVA collectée')}` },
   { id: 'paiement-client', label: 'Paiement d’une facture déjà enregistrée', group: 'Recettes', kind: 'other', account: '411', vatRateBp: 0, vatRule: 'none',
     hint: 'Le client règle une facture que vous avez déjà saisie dans Kledg.', keywords: ['client', 'reglement', 'facture', 'paiement'], source: pcg('411', 'Clients') },
   { id: 'subvention', label: "Subvention d'exploitation", group: 'Recettes', kind: 'income', account: '741', vatRateBp: 0, vatRule: 'none',
-    hint: 'Aide publique pour votre activité (région, État, Bpifrance).', keywords: ['subvention', 'aide', 'region', 'bpi'], source: pcg('741', 'Subventions d’exploitation') },
+    hint: 'Aide publique pour votre activité : région, État, Bpifrance, CAF, aide à l’embauche.', keywords: ['subvention', 'aide', 'region', 'bpi', 'caf', 'asp', 'france travail', 'embauche', 'apprentissage'],
+    source: `${pcg('741', 'Subventions d’exploitation')}; CGI art. 256 et BOI-TVA-BASE-10-10-10 (subvention sans contrepartie : hors champ de la TVA)` },
   { id: 'interets-recus', label: 'Intérêts reçus', group: 'Recettes', kind: 'income', account: '768', vatRateBp: 0, vatRule: 'none',
-    hint: 'Intérêts d’un compte rémunéré ou d’un placement.', keywords: ['interets', 'livret', 'placement', 'remuneration'], source: pcg('768', 'Autres produits financiers') },
+    hint: 'Intérêts d’un compte rémunéré ou d’un placement.', keywords: ['interets', 'livret', 'placement', 'remuneration'], source: `${pcg('768', 'Autres produits financiers')}; CGI art. 261 C, 1° (opérations financières exonérées)` },
   { id: 'indemnites-recues', label: 'Indemnités et remboursements reçus', group: 'Recettes', kind: 'income', account: '758', vatRateBp: 0, vatRule: 'none',
     hint: 'Indemnité d’assurance, dédommagement.', keywords: ['indemnite', 'assurance', 'dedommagement', 'remboursement'], source: pcg('758', 'Indemnités et autres produits') },
+  { id: 'versement-associe', label: 'Argent versé par un associé ou le dirigeant', group: 'Recettes', kind: 'other', account: '455', vatRateBp: 0, vatRule: 'none', question: OWNER_MONEY,
+    hint: 'Virement de votre compte personnel vers celui de la société.', keywords: ['associe', 'dirigeant', 'gerant', 'president', 'virement', 'personnel', 'apport'], source: `${pcg('455', 'Associés, comptes courants')}; ${OWNER_MONEY.source}` },
   { id: 'apport-capital', label: 'Apport en capital', group: 'Recettes', kind: 'other', account: '1013', vatRateBp: 0, vatRule: 'none',
     hint: 'Argent versé par les associés à la création ou lors d’une augmentation de capital.', keywords: ['capital', 'apport', 'creation', 'augmentation'], source: pcg('1013', 'Capital souscrit, appelé, versé') },
   { id: 'emprunt-recu', label: 'Emprunt reçu', group: 'Recettes', kind: 'other', account: '164', vatRateBp: 0, vatRule: 'none',
-    hint: 'Somme prêtée par la banque.', keywords: ['emprunt', 'pret', 'deblocage', 'credit'], source: pcg('164', 'Emprunts auprès des établissements de crédit') },
-  { id: 'remboursement-tva', label: 'Remboursement de TVA', group: 'Recettes', kind: 'other', account: '4458', vatRateBp: 0, vatRule: 'none',
-    hint: 'Crédit de TVA remboursé par les impôts.', keywords: ['tva', 'remboursement', 'credit de tva'], source: pcg('4458', 'Taxes sur le chiffre d’affaires à régulariser ou en attente') },
+    hint: 'Somme prêtée par la banque ou Bpifrance, versée sur votre compte.', keywords: ['emprunt', 'pret', 'deblocage', 'credit'], source: pcg('164', 'Emprunts auprès des établissements de crédit') },
+  { id: 'remboursement-tva', label: 'Remboursement de TVA', group: 'Recettes', kind: 'other', account: '44567', vatRateBp: 0, vatRule: 'none', exactAccount: true,
+    hint: 'Crédit de TVA remboursé par les impôts.', keywords: ['tva', 'remboursement', 'credit de tva'],
+    source: `${pcg('44567', 'Crédit de TVA à reporter')}; PCG art. 944-44; BOI-TVA-DED-50-20-20 (remboursement des crédits de TVA)` },
+  { id: 'depot-garantie-rendu', label: 'Dépôt de garantie rendu', group: 'Recettes', kind: 'other', account: '275', vatRateBp: 0, vatRule: 'none',
+    hint: 'Caution de vos locaux ou d’une location que l’on vous restitue.', keywords: ['caution', 'depot de garantie', 'restitution', 'garantie'], source: pcg('275', 'Dépôts et cautionnements versés') },
+  { id: 'depot-especes', label: "Dépôt d'espèces", group: 'Recettes', kind: 'other', account: '53', vatRateBp: 0, vatRule: 'none',
+    hint: 'Argent de la caisse déposé à la banque.', keywords: ['especes', 'versement', 'depot', 'caisse', 'liquide'], source: pcg('53', 'Caisse') },
 ]
 
 export const SIMPLE_CATEGORIES: readonly SimpleCategory[] = DEFS.map(({ account, vatRateBp, vatRule, ...rest }) => ({ ...rest, posting: { account, vatRateBp, vatRule } }))
 
-const BY_ID = new Map(SIMPLE_CATEGORIES.map((c) => [c.id, c]))
+/** Prefix of the refund categories: `remboursement:telephone-internet`. */
+export const REFUND_PREFIX = 'remboursement:'
+
+/** Group of the refund categories in the picker. */
+export const REFUND_GROUP = 'Remboursements de dépenses'
+
+/**
+ * Refund of an expense: a supplier gives money back (a credit note, an
+ * overpayment, a cancelled order). The money in reduces the charge it
+ * refunds, with the same VAT treatment taken back (PCG 2025, règlement ANC
+ * n° 2022-06: the transfers of charges of account 79 are removed, a refund is
+ * no longer income but a reduction of the charge). Expenses whose
+ * accounting depends on the purchase (durable equipment that may be a fixed
+ * asset, gifts with a VAT ceiling per person) are left to the accountant.
+ */
+export const REFUND_CATEGORIES: readonly SimpleCategory[] = SIMPLE_CATEGORIES.filter(
+  (c) => c.kind === 'expense' && c.question?.id !== 'durable' && c.posting.vatRule !== 'gift',
+).map((c) => ({
+  ...c,
+  id: `${REFUND_PREFIX}${c.id}`,
+  label: `Remboursement : ${c.label}`,
+  group: REFUND_GROUP,
+  kind: 'refund' as const,
+  hint: `Un fournisseur vous rend de l’argent sur une dépense de ce type (${c.label.toLowerCase()}).`,
+  keywords: ['remboursement', 'rembourse', 'avoir', ...c.keywords],
+  notePrompt: undefined,
+  source: `${c.source}; règlement ANC n° 2022-06 (suppression des transferts de charges : le remboursement diminue la charge)`,
+}))
+
+/** Every category: the catalogue and the refunds of its expenses. */
+export const ALL_CATEGORIES: readonly SimpleCategory[] = [...SIMPLE_CATEGORIES, ...REFUND_CATEGORIES]
+
+const BY_ID = new Map(ALL_CATEGORIES.map((c) => [c.id, c]))
 
 export function findCategory(id: string | null | undefined): SimpleCategory | null {
   return id ? (BY_ID.get(id) ?? null) : null
 }
 
-export const CATEGORY_IDS = SIMPLE_CATEGORIES.map((c) => c.id)
+/** The refund category of an expense category, null when it has none. */
+export function refundOf(expenseId: string | null | undefined): SimpleCategory | null {
+  return expenseId ? findCategory(`${REFUND_PREFIX}${expenseId}`) : null
+}
+
+export const CATEGORY_IDS = ALL_CATEGORIES.map((c) => c.id)
 
 /** Groups of the picker, in catalogue order. */
-export const CATEGORY_GROUPS: readonly string[] = [...new Set(SIMPLE_CATEGORIES.map((c) => c.group))]
+export const CATEGORY_GROUPS: readonly string[] = [...new Set(ALL_CATEGORIES.map((c) => c.group))]
 
-/** Categories offered first for a bank side: expenses for money out, income for money in, movements for both. */
+/**
+ * Categories offered for a bank side: expenses for money out; income,
+ * refunds of expenses and the movements for money in; movements for both.
+ */
 export function categoriesForSide(side: 'debit' | 'credit'): SimpleCategory[] {
-  const wanted: CategoryKind = side === 'debit' ? 'expense' : 'income'
-  return SIMPLE_CATEGORIES.filter((c) => c.kind === wanted || c.kind === 'other')
+  return ALL_CATEGORIES.filter((c) => c.kind === 'other' || (side === 'debit' ? c.kind === 'expense' : c.kind === 'income' || c.kind === 'refund'))
 }
 
 /** Lowercase, without accents: how the picker compares what the user types. */

@@ -49,6 +49,8 @@ export interface PeriodRef {
 export interface GroupViewMember {
   id: string
   name: string
+  /** For links into the company's own pages. */
+  slug: string
   siren: string | null
   role: 'holding' | 'subsidiary'
   /** The holding's stake in basis points (6000 = 60 %), for a subsidiary. */
@@ -136,6 +138,7 @@ export async function getGroupView(holdingId: string, query: GroupViewQuery, acc
   const members: GroupViewMember[] = reads.map(({ ref, books }) => ({
     id: ref.id,
     name: ref.name,
+    slug: ref.slug,
     siren: ref.siren,
     role: ref.role,
     ownershipBp: ref.stake?.percentBp ?? null,

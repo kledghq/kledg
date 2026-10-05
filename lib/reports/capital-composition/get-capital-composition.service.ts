@@ -5,7 +5,7 @@
  * of a fiscal year next to the capital of the company's information.
  *
  * Read with reports:read. Personal data of natural persons (birth, address,
- * contact) is never returned: names only. The fiscal year is the company's
+ * contact) is never returned: names and photos only. The fiscal year is the company's
  * (404 otherwise).
  */
 
@@ -48,7 +48,7 @@ export async function getCapitalComposition(companyId: string, query: CapitalCom
       sharePercentage: true,
       numberOfShares: true,
       capitalAmount: true,
-      person: { select: { firstName: true, name: true, usualName: true } },
+      person: { select: { firstName: true, name: true, usualName: true, photo: true } },
       companyShareholder: { select: { name: true, siren: true } },
     },
     orderBy: { createdAt: 'asc' },
@@ -76,6 +76,7 @@ export async function getCapitalComposition(companyId: string, query: CapitalCom
         id: s.id,
         kind: s.type,
         name: (s.type === 'PHYSICAL' ? personName : (s.companyShareholder?.name ?? s.name)) || 'Actionnaire sans nom',
+        photo: s.type === 'PHYSICAL' ? (s.person?.photo ?? null) : null,
         siren: s.type === 'LEGAL' ? (s.companyShareholder?.siren ?? (s.siret ? s.siret.slice(0, 9) : null)) : null,
         shares: s.numberOfShares,
         percentHundredths: toCents(s.sharePercentage) ?? 0,

@@ -191,6 +191,11 @@ export async function unpostInvoice(companyId: string, invoiceId: string): Promi
   const number = await prisma.$transaction(async (tx) => {
     const locked = await lockInvoice(tx, companyId, invoiceId)
     if (!locked.entryId) throw new ConflictError(`La facture n° ${locked.number} n’est pas comptabilisée.`)
+    // A customer payment confirmed in simple mode names the invoice, recorded on it or waiting for validation
+    const simplePayments = await tx.simpleModeEntry.count({ where: { companyId, invoiceId } })
+    if (simplePayments > 0) {
+      throw new ConflictError('Un règlement de cette facture a été confirmé dans les recettes à vérifier\u00a0: annulez son rapprochement avant de supprimer l’écriture de la facture.')
+    }
     const payments = await tx.invoicePayment.count({ where: { invoiceId } })
     if (payments > 0) throw new ConflictError('Des règlements sont enregistrés sur cette facture : retirez-les avant de supprimer son écriture.')
     const entry = await tx.accountingEntry.findFirst({ where: { id: locked.entryId, companyId }, select: { status: true, entryNumber: true } })

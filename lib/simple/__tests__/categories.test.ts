@@ -11,8 +11,13 @@
 import { describe, expect, it } from 'vitest'
 import { isOptionalPcgAccount, PCG_ACCOUNTS } from '@/lib/accounting/pcg-data'
 import {
+  ALL_CATEGORIES,
   ASSET_THRESHOLD_EXCL_TAX_CENTS,
   CATEGORY_GROUPS,
+  CATEGORY_IDS,
+  REFUND_CATEGORIES,
+  REFUND_GROUP,
+  refundOf,
   categoriesForSide,
   categoryOfAccount,
   findCategory,
@@ -82,25 +87,35 @@ const EXPECTED: Array<[string, string, number, string, string, string?]> = [
   ['virement-interne', '58', 0, 'none', 'other'],
   ['compte-courant-associe', '455', 0, 'none', 'other'],
   ['dividendes', '457', 0, 'none', 'other'],
-  ['ventes-prestations', '706', 2000, 'standard', 'income'],
-  ['ventes-marchandises', '707', 2000, 'standard', 'income'],
-  ['ventes-produits', '701', 2000, 'standard', 'income'],
+  ['ventes-prestations', '706', 2000, 'standard', 'income', 'sale-vat-rate'],
+  ['ventes-marchandises', '707', 2000, 'standard', 'income', 'sale-vat-rate'],
+  ['ventes-produits', '701', 2000, 'standard', 'income', 'sale-vat-rate'],
   ['paiement-client', '411', 0, 'none', 'other'],
   ['subvention', '741', 0, 'none', 'income'],
   ['interets-recus', '768', 0, 'none', 'income'],
   ['indemnites-recues', '758', 0, 'none', 'income'],
+  ['versement-associe', '455', 0, 'none', 'other', 'owner-money'],
   ['apport-capital', '1013', 0, 'none', 'other'],
   ['emprunt-recu', '164', 0, 'none', 'other'],
-  ['remboursement-tva', '4458', 0, 'none', 'other'],
+  ['remboursement-tva', '44567', 0, 'none', 'other'],
+  ['depot-garantie-rendu', '275', 0, 'none', 'other'],
+  ['depot-especes', '53', 0, 'none', 'other'],
 ]
 
 const seeded = new Set(PCG_ACCOUNTS.filter((a) => !isOptionalPcgAccount(a.code)).map((a) => a.code))
+/**
+ * Detailed accounts a category books to exactly, that Kledg creates when it
+ * needs them: 44567 Crédit de TVA à reporter, created by the VAT settlement
+ * (lib/vat-returns/prepare-vat-settlement.service.ts) when a credit arises.
+ */
+const CREATED_WHEN_NEEDED = new Set(['44567'])
+const pcgCodes = new Set(PCG_ACCOUNTS.map((a) => a.code))
 const DASHES = /[–—]/
 
 describe('simple mode catalogue', () => {
-  it('has between 50 and 70 categories with unique ids, all tested below', () => {
+  it('has between 50 and 80 categories with unique ids, all tested below', () => {
     expect(SIMPLE_CATEGORIES.length).toBeGreaterThanOrEqual(50)
-    expect(SIMPLE_CATEGORIES.length).toBeLessThanOrEqual(70)
+    expect(SIMPLE_CATEGORIES.length).toBeLessThanOrEqual(80)
     expect(new Set(SIMPLE_CATEGORIES.map((c) => c.id)).size).toBe(SIMPLE_CATEGORIES.length)
     expect(SIMPLE_CATEGORIES.map((c) => c.id)).toEqual(EXPECTED.map((e) => e[0]))
   })
@@ -110,8 +125,11 @@ describe('simple mode catalogue', () => {
     expect(category.posting).toEqual({ account, vatRateBp: rateBp, vatRule: rule })
     expect(category.kind).toBe(kind)
     expect(category.question?.id).toBe(question)
-    // The account exists in every chart Kledg seeds
-    expect(seeded.has(account), account).toBe(true)
+    // The account exists in every chart Kledg seeds, or is a PCG account booked exactly
+    if (CREATED_WHEN_NEEDED.has(account)) {
+      expect(pcgCodes.has(account)).toBe(true)
+      expect(category.exactAccount).toBe(true)
+    } else expect(seeded.has(account), account).toBe(true)
     // Its source cites the PCG account
     expect(category.source).toContain(`compte ${account}`)
   })
@@ -129,7 +147,7 @@ describe('simple mode catalogue', () => {
   })
 
   it('writes plain French without dashes and a no-break space before colons and question marks', () => {
-    for (const category of SIMPLE_CATEGORIES) {
+    for (const category of ALL_CATEGORIES) {
       const texts = [category.label, category.hint, category.group, category.notePrompt ?? '', category.question?.text ?? '', category.question?.help ?? '', ...(category.question?.answers.map((a) => a.label) ?? [])]
       for (const text of texts) {
         expect(DASHES.test(text), text).toBe(false)
@@ -140,12 +158,28 @@ describe('simple mode catalogue', () => {
     }
   })
 
-  it('offers expenses and movements for money out, income and movements for money in', () => {
-    expect(categoriesForSide('debit').some((c) => c.kind === 'income')).toBe(false)
+  it('offers expenses and movements for money out, income, refunds and movements for money in', () => {
+    expect(categoriesForSide('debit').some((c) => c.kind === 'income' || c.kind === 'refund')).toBe(false)
     expect(categoriesForSide('credit').some((c) => c.kind === 'expense')).toBe(false)
-    expect(categoriesForSide('credit').map((c) => c.id)).toContain('ventes-prestations')
+    expect(categoriesForSide('credit').map((c) => c.id)).toEqual(expect.arrayContaining(['ventes-prestations', 'subvention', 'versement-associe', 'emprunt-recu', 'remboursement:telephone-internet']))
     expect(categoriesForSide('debit').map((c) => c.id)).toContain('tva-payee')
     expect(CATEGORY_GROUPS[0]).toBe('Locaux')
+    expect(CATEGORY_GROUPS[CATEGORY_GROUPS.length - 1]).toBe(REFUND_GROUP)
+  })
+
+  it('derives the refund of every expense whose booking does not depend on the purchase (règlement ANC n° 2022-06)', () => {
+    const expenses = SIMPLE_CATEGORIES.filter((c) => c.kind === 'expense')
+    expect(REFUND_CATEGORIES.length).toBe(expenses.length - 4)
+    // Durable equipment (may be a fixed asset) and gifts (VAT ceiling per person) stay with the accountant
+    for (const id of ['materiel-informatique', 'mobilier', 'outillage', 'cadeaux-clients']) expect(refundOf(id), id).toBeNull()
+    // Movements are already offered on both sides
+    expect(refundOf('tva-payee')).toBeNull()
+    const phone = refundOf('telephone-internet')!
+    expect(phone).toMatchObject({ id: 'remboursement:telephone-internet', label: 'Remboursement : Téléphone et internet', kind: 'refund', group: REFUND_GROUP, posting: findCategory('telephone-internet')!.posting })
+    expect(phone.source).toContain('règlement ANC n° 2022-06')
+    expect(refundOf('carburant')?.question?.id).toBe('vehicle')
+    expect(CATEGORY_IDS).toEqual(ALL_CATEGORIES.map((c) => c.id))
+    expect(new Set(CATEGORY_IDS).size).toBe(CATEGORY_IDS.length)
   })
 
   it('finds categories by any word, without accents', () => {
@@ -228,6 +262,38 @@ describe('questions, one test per branch', () => {
 
     it('asks before booking', () => {
       expect(at('carburant', 6_000)).toMatchObject({ status: 'pending', question: { id: 'vehicle' } })
+    })
+  })
+
+  describe('VAT rate of a sale (CGI art. 278, 279, 278-0 bis, 281 quater, 262 ter, 259 and 283, 2)', () => {
+    it.each([
+      ['standard', 2000, 'standard'],
+      ['intermediate', 1000, 'standard'],
+      ['reduced', 550, 'standard'],
+      ['super-reduced', 210, 'standard'],
+      ['none', 0, 'none'],
+    ])('a sale at %s collects %i bp', (answer, rateBp, rule) => {
+      for (const id of ['ventes-prestations', 'ventes-marchandises', 'ventes-produits']) {
+        expect(at(id, 12_000, { 'sale-vat-rate': answer })).toMatchObject({ status: 'ready', posting: { account: findCategory(id)!.posting.account, vatRateBp: rateBp, vatRule: rule }, kind: 'income' })
+      }
+    })
+
+    it('defaults to 20 %, so a sale is confirmed without a question, and keeps the answer for the customer', () => {
+      expect(at('ventes-prestations', 12_000)).toMatchObject({ status: 'ready', posting: { vatRateBp: 2000 }, answers: { 'sale-vat-rate': 'standard' } })
+      expect(findCategory('ventes-prestations')!.question).toMatchObject({ reusable: true, defaultAnswerId: 'standard' })
+    })
+  })
+
+  describe('money from a partner (PCG 455, 1013, 706; C. com. art. L223-32, L225-127)', () => {
+    it('asks whether it is a loan to the company, with no default', () => {
+      expect(findCategory('versement-associe')!.question!.text).toBe('Est-ce de l’argent que vous avez prêté à votre société ?')
+      expect(at('versement-associe', 500_000)).toMatchObject({ status: 'pending', question: { id: 'owner-money' } })
+    })
+
+    it('books a loan to the current account, a capital increase to the capital, a purchase as a sale', () => {
+      expect(at('versement-associe', 500_000, { 'owner-money': 'loan' })).toMatchObject({ status: 'ready', posting: { account: '455', vatRateBp: 0 }, kind: 'other' })
+      expect(at('versement-associe', 500_000, { 'owner-money': 'capital' })).toMatchObject({ status: 'ready', posting: { account: '1013', vatRateBp: 0 }, kind: 'other' })
+      expect(at('versement-associe', 12_000, { 'owner-money': 'sale' })).toMatchObject({ status: 'ready', posting: { account: '706', vatRateBp: 2000, vatRule: 'standard' }, kind: 'income' })
     })
   })
 

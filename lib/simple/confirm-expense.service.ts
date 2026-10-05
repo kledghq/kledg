@@ -11,7 +11,12 @@
  *   transaction date (ledger-accounts.ts), plus the bank line on 512
  *   (resolveBankLedgerAccount), in the BQ journal;
  * - a transaction rule the user accepts as suggested: the rule's own entry
- *   (prepareRuleEntry), exactly as "Appliquer la règle".
+ *   (prepareRuleEntry), exactly as "Appliquer la règle";
+ * - an open sales invoice a credit pays (invoice-receipts.service.ts): the
+ *   bank line and the customer line (411 of the invoice entry, with the
+ *   customer's auxiliary account) for the amount received. Once the entry
+ *   is validated, the payment is recorded on the invoice by the invoices
+ *   module, which letters it when its payments cover it.
  *
  * Draft or validated: with accountant review (simple-mode-settings.service.ts)
  * the entry stays a draft "à valider"; without it, it is validated at once
@@ -70,17 +75,20 @@ import { assetLifetimeFor, DEPRECIATION_EXPENSE_ACCOUNT } from './asset-lifetime
 import { accountantReviewRequired } from './simple-mode-settings.service'
 import { bankVatCentsOf, loadSuggestionSignals, suggestionFor } from './expenses-to-review.service'
 import { displayNameOf } from './payees'
-import type { Suggestion } from './suggest'
+import { fitsSide, type Suggestion } from './suggest'
+import { INVOICE_MESSAGES, invoiceToPay, recordValidatedInvoicePayments } from './invoice-receipts.service'
 
 /** Identical consecutive choices for a counterparty that teach a rule. */
 export const LEARN_AFTER = 3
 
 const answersSchema = z.record(z.string().max(40), z.string().max(40)).optional()
 
-/** Body of POST /api/simple/expenses/[id]/confirm. Neither category nor rule: the suggestion as proposed. */
+/** Body of POST /api/simple/expenses/[id]/confirm. Neither category, rule nor invoice: the suggestion as proposed. */
 export const ConfirmExpenseBodySchema = z.object({
   categoryId: z.string().min(1).max(64).optional(),
   ruleId: z.string().min(1).max(64).optional(),
+  /** Sales invoice a credit pays (money in). */
+  invoiceId: z.string().min(1).max(64).optional(),
   answers: answersSchema,
   note: z.string().trim().max(1000, 'Note trop longue : 1 000 caractères au plus').optional(),
   /** false: never create or update a rule from this choice. */
@@ -116,11 +124,21 @@ export interface ConfirmResult {
   learnedRule: { id: string; name: string; created: boolean } | null
   /** Fixed asset created with the entry (durable equipment). */
   fixedAsset: { id: string; label: string; years: number; amountCents: number } | null
+  /**
+   * Sales invoice the credit pays: whether the payment is recorded on it
+   * (validated entry) or waits for the accountant's validation, whether it
+   * is lettered, what is left to pay, and why not yet when it is not.
+   */
+  invoice: { id: string; number: string; customerName: string; recorded: boolean; lettered: boolean; remainingCents: number | null; pending: string | null } | null
 }
 
 export const MESSAGES = {
   unknownCategory: 'Catégorie inconnue : choisissez-en une dans la liste.',
-  nothingToConfirm: 'Kledg ne propose pas de catégorie pour cette dépense : choisissez-la avec « Modifier ».',
+  nothingToConfirm: 'Kledg ne propose pas de catégorie pour cette opération : choisissez-la avec « Modifier ».',
+  wrongSide: (label: string, side: 'debit' | 'credit') =>
+    side === 'debit'
+      ? `« ${label} » est une entrée d’argent, et cette opération une sortie : choisissez une catégorie de dépense.`
+      : `« ${label} » est une dépense, et cette opération une entrée d’argent : choisissez une recette, ou le remboursement de cette dépense.`,
   journalMissing: "Le journal de banque (BQ) n'existe pas : demandez à votre comptable de le créer dans Journaux.",
 } as const
 
@@ -138,6 +156,8 @@ interface Prepared {
   learnable: { category: SimpleCategory; posting: Posting; codes: Map<string, string> } | null
   /** The fixed asset to create with the entry (durable equipment). */
   asset: PreparedAsset | null
+  /** The sales invoice the credit pays. */
+  invoice: { id: string; number: string; customerName: string } | null
 }
 
 interface PreparedAsset {
@@ -160,6 +180,8 @@ async function recoveryRatioFor(companyId: string, day: string): Promise<number 
 
 /** A category books the same way every time, so a rule can repeat it. */
 function canLearn(category: SimpleCategory, posting: Posting, recoveryRatio: number | null): boolean {
+  // A refund reverses a charge and its VAT: rules book the charge side only
+  if (category.kind === 'refund') return false
   if (category.question && !category.question.reusable) return false
   if (posting.vatRule === 'fuel' || posting.vatRule === 'gift') return false
   if (recoveryRatio !== null && category.kind === 'income' && posting.vatRateBp > 0) return false
@@ -187,7 +209,7 @@ async function prepareCategory(
 
   const side = normalizeSide(transaction.side)
   const recoveryRatio = await recoveryRatioFor(companyId, day)
-  const plan = buildPostingLines({ category, posting: resolution.posting, side, amountCents, bankVatCents, recoveryRatio })
+  const plan = buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side, amountCents, bankVatCents, recoveryRatio })
 
   // Durable equipment: the asset line of the posting, with the category's depreciation accounts
   const lifetime = resolution.posting.account.startsWith('2') ? assetLifetimeFor(category.id) : null
@@ -195,7 +217,10 @@ async function prepareCategory(
   const depreciationCodes = lifetime && assetLine ? [lifetime.depreciationAccount, DEPRECIATION_EXPENSE_ACCOUNT] : []
 
   const accounts = await resolveLedgerAccounts(companyId, fiscalYear.id, [...plan.lines.map((l) => l.accountCode), ...depreciationCodes])
-  const missing = [...plan.lines.map((l) => l.accountCode), ...depreciationCodes].find((code) => !accounts.get(code))
+  // An exact account (the VAT credit 44567) is never replaced by its parent
+  const missing = [...plan.lines.map((l) => l.accountCode), ...depreciationCodes].find(
+    (code) => !accounts.get(code) || (category.exactAccount && code === category.posting.account && !accounts.get(code)!.code.startsWith(code)),
+  )
   if (missing) {
     throw new ValidationError(
       `La catégorie « ${category.label} » n'a pas de compte dans le plan comptable de l'exercice ${fiscalYear.year} : demandez à votre comptable de compléter le plan de comptes.`,
@@ -244,6 +269,63 @@ async function prepareCategory(
     vatNote: plan.vatNote,
     learnable: canLearn(category, resolution.posting, recoveryRatio) ? { category, posting: resolution.posting, codes } : null,
     asset,
+    invoice: null,
+  }
+}
+
+/**
+ * A credit that pays an open sales invoice: the bank line and the customer
+ * line of the invoice (same account code, in the fiscal year of the payment,
+ * with the customer's auxiliary account), so the invoices module accepts it
+ * as the payment (recordInvoicePayment: same account, opposite side, same
+ * tiers, at most what is left to pay).
+ */
+async function prepareInvoice(companyId: string, transaction: Awaited<ReturnType<typeof loadTransaction>>, invoiceId: string): Promise<Prepared> {
+  const side = normalizeSide(transaction.side)
+  if (side !== 'credit') throw new ValidationError(INVOICE_MESSAGES.moneyOut)
+  const amountCents = Math.abs(toCents(transaction.amount) ?? 0)
+  const invoice = await invoiceToPay(companyId, invoiceId, amountCents)
+
+  const day = toIsoDateUtc(transaction.date)
+  const dateCheck = checkEntryDate(await fiscalYearPeriods(companyId), day)
+  if (dateCheck.error !== null) throw new ValidationError(dateCheck.error)
+  const fiscalYear = dateCheck.fiscalYear
+  const customerAccount = await prisma.account.findFirst({ where: { companyId, fiscalYearId: fiscalYear.id, code: invoice.customerAccountCode }, select: { id: true } })
+  if (!customerAccount) {
+    throw new ValidationError(
+      `Le compte clients de la facture n° ${invoice.number} n'existe pas dans le plan comptable de l'exercice ${fiscalYear.year} : demandez à votre comptable de compléter le plan de comptes.`,
+    )
+  }
+  const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
+  if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
+  const journal = await prisma.journal.findFirst({ where: { companyId, code: 'BQ' }, select: { id: true } })
+  if (!journal) throw new ValidationError(MESSAGES.journalMissing)
+
+  const description = transaction.label?.trim() || displayNameOf(counterpartyOf(transaction), transaction.label)
+  const lineDescription = `Facture n° ${invoice.number}, ${invoice.customerName}`
+  return {
+    fiscalYearId: fiscalYear.id,
+    journalId: journal.id,
+    date: isoDateToUtc(day),
+    description,
+    lines: [
+      { accountId: bank.id, ...bankLineOf({ amountCents, side }), description },
+      {
+        accountId: customerAccount.id,
+        debitCents: 0,
+        creditCents: amountCents,
+        description: lineDescription,
+        auxiliaryAccountNumber: invoice.auxiliaryAccountNumber,
+        auxiliaryAccountLabel: invoice.customerName,
+      },
+    ],
+    categoryId: null,
+    ruleId: null,
+    answers: null,
+    vatNote: null,
+    learnable: null,
+    asset: null,
+    invoice: { id: invoice.id, number: invoice.number, customerName: invoice.customerName },
   }
 }
 
@@ -265,6 +347,7 @@ async function prepareRule(companyId: string, transactionId: string, ruleId: str
     vatNote: null,
     learnable: null,
     asset: null,
+    invoice: null,
   }
 }
 
@@ -355,13 +438,22 @@ async function learnRule(
   return rule
 }
 
-/** Which category or rule the request confirms: the one given, else the suggestion. */
-function choice(input: ConfirmExpenseInput, suggestion: Suggestion | null): { categoryId: string | null; ruleId: string | null; answers: Answers } {
-  if (input.ruleId) return { categoryId: input.categoryId ?? null, ruleId: input.ruleId, answers: {} }
-  if (input.categoryId) return { categoryId: input.categoryId, ruleId: null, answers: input.answers ?? {} }
+interface Choice {
+  categoryId: string | null
+  ruleId: string | null
+  invoiceId: string | null
+  answers: Answers
+}
+
+/** Which invoice, category or rule the request confirms: the one given, else the suggestion. */
+function choice(input: ConfirmExpenseInput, suggestion: Suggestion | null): Choice {
+  if (input.invoiceId) return { categoryId: null, ruleId: null, invoiceId: input.invoiceId, answers: {} }
+  if (input.ruleId) return { categoryId: input.categoryId ?? null, ruleId: input.ruleId, invoiceId: null, answers: {} }
+  if (input.categoryId) return { categoryId: input.categoryId, ruleId: null, invoiceId: null, answers: input.answers ?? {} }
+  if (suggestion?.invoice) return { categoryId: null, ruleId: null, invoiceId: suggestion.invoice.invoiceId, answers: {} }
   if (!suggestion || (!suggestion.categoryId && !suggestion.ruleId)) throw new ValidationError(MESSAGES.nothingToConfirm)
-  if (suggestion.ruleId) return { categoryId: suggestion.categoryId, ruleId: suggestion.ruleId, answers: {} }
-  return { categoryId: suggestion.categoryId, ruleId: null, answers: { ...suggestion.answers, ...(input.answers ?? {}) } }
+  if (suggestion.ruleId) return { categoryId: suggestion.categoryId, ruleId: suggestion.ruleId, invoiceId: null, answers: {} }
+  return { categoryId: suggestion.categoryId, ruleId: null, invoiceId: null, answers: { ...suggestion.answers, ...(input.answers ?? {}) } }
 }
 
 /** Confirms one transaction of the company (see the module header). */
@@ -370,7 +462,7 @@ export async function confirmExpense(companyId: string, transactionId: string, i
   if (transaction.reconciled) throw new ConflictError(RECONCILIATION_MESSAGES.alreadyReconciled)
 
   let suggestion: Suggestion | null = null
-  if (!input.categoryId && !input.ruleId) {
+  if (!input.categoryId && !input.ruleId && !input.invoiceId) {
     const withAccount = await prisma.bankTransaction.findUniqueOrThrow({ where: { id: transaction.id }, include: { bankAccount: { select: { name: true, iban: true } } } })
     suggestion = suggestionFor(withAccount, await loadSuggestionSignals(companyId))
   }
@@ -381,10 +473,14 @@ export async function confirmExpense(companyId: string, transactionId: string, i
   }
   const category = chosen.categoryId ? findCategory(chosen.categoryId) : null
   if (chosen.categoryId && !category) throw new ValidationError(MESSAGES.unknownCategory)
+  const side = normalizeSide(transaction.side)
+  if (category && !chosen.ruleId && !fitsSide(category, side)) throw new ValidationError(MESSAGES.wrongSide(category.label, side))
 
-  const prepared = chosen.ruleId
-    ? await prepareRule(companyId, transactionId, chosen.ruleId, category?.id ?? null)
-    : await prepareCategory(companyId, transaction, category!, chosen.answers)
+  const prepared = chosen.invoiceId
+    ? await prepareInvoice(companyId, transaction, chosen.invoiceId)
+    : chosen.ruleId
+      ? await prepareRule(companyId, transactionId, chosen.ruleId, category?.id ?? null)
+      : await prepareCategory(companyId, transaction, category!, chosen.answers)
 
   const needsReview = await accountantReviewRequired(companyId)
   const status = actor.source === 'web' && !needsReview && actor.canValidate ? 'validated' : 'draft'
@@ -439,12 +535,26 @@ export async function confirmExpense(companyId: string, transactionId: string, i
           source: actor.source,
           createdById: actor.userId,
           fixedAssetId: fixedAsset?.id ?? null,
+          invoiceId: prepared.invoice?.id ?? null,
         },
         select: { id: true },
       })
       originId = origin.id
     },
   })
+
+  // A validated payment is recorded on its invoice now; a draft one when the accountant validates it
+  let invoice: ConfirmResult['invoice'] = null
+  if (prepared.invoice) {
+    const recorded = entry.status === 'validated' ? (await recordValidatedInvoicePayments(companyId, [entry.id]))[0] : undefined
+    invoice = {
+      ...prepared.invoice,
+      recorded: recorded?.recorded ?? false,
+      lettered: recorded?.lettered ?? false,
+      remainingCents: recorded?.remainingCents ?? null,
+      pending: recorded ? recorded.pending : 'Le paiement sera enregistré sur la facture quand votre comptable aura validé l’écriture.',
+    }
+  }
 
   if (prepared.ruleId) {
     await prisma.transactionRule.updateMany({ where: { id: prepared.ruleId, companyId }, data: { usageCount: { increment: 1 }, lastUsedAt: new Date() } })
@@ -464,7 +574,18 @@ export async function confirmExpense(companyId: string, transactionId: string, i
   await writeAuditLog('info', `Simple mode expense confirmed: ${prepared.description}`, {
     action: 'SIMPLE_MODE_CONFIRM',
     companyId,
-    metadata: { transactionId, entryId: entry.id, entryNumber: entry.entryNumber, status: entry.status, categoryId: prepared.categoryId, ruleId: prepared.ruleId, needsReview, source: actor.source, fixedAssetId: fixedAsset?.id ?? null },
+    metadata: {
+      transactionId,
+      entryId: entry.id,
+      entryNumber: entry.entryNumber,
+      status: entry.status,
+      categoryId: prepared.categoryId,
+      ruleId: prepared.ruleId,
+      invoiceId: prepared.invoice?.id ?? null,
+      needsReview,
+      source: actor.source,
+      fixedAssetId: fixedAsset?.id ?? null,
+    },
   })
   return {
     transactionId,
@@ -478,6 +599,7 @@ export async function confirmExpense(companyId: string, transactionId: string, i
     vatNote: prepared.vatNote,
     learnedRule,
     fixedAsset,
+    invoice,
   }
 }
 
@@ -523,9 +645,11 @@ export async function confirmHighConfidenceExpenses(companyId: string, transacti
         await confirmExpense(
           companyId,
           id,
-          suggestion.ruleId
-            ? { ruleId: suggestion.ruleId, categoryId: suggestion.categoryId ?? undefined }
-            : { categoryId: suggestion.categoryId ?? undefined, answers: suggestion.answers },
+          suggestion.invoice
+            ? { invoiceId: suggestion.invoice.invoiceId }
+            : suggestion.ruleId
+              ? { ruleId: suggestion.ruleId, categoryId: suggestion.categoryId ?? undefined }
+              : { categoryId: suggestion.categoryId ?? undefined, answers: suggestion.answers },
           actor,
         ),
       )

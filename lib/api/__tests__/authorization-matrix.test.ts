@@ -498,6 +498,16 @@ const ROUTE_MODULES = {
   groupView: () => import('@/app/api/group/view/route'),
   groupParticipations: () => import('@/app/api/group/participations/route'),
   groupExport: () => import('@/app/api/group/export/route'),
+  groupSummary: () => import('@/app/api/group/summary/route'),
+  groupAlerts: () => import('@/app/api/group/alerts/route'),
+  groupCompanies: () => import('@/app/api/group/companies/route'),
+  groupIndicators: () => import('@/app/api/group/indicators/route'),
+  groupEvolution: () => import('@/app/api/group/evolution/route'),
+  groupTreasury: () => import('@/app/api/group/treasury/route'),
+  groupPersons: () => import('@/app/api/group/persons/route'),
+  groupDeadlines: () => import('@/app/api/group/deadlines/route'),
+  groupTransactions: () => import('@/app/api/group/transactions/route'),
+  groupLedger: () => import('@/app/api/group/ledger/route'),
   provisions: () => import('@/app/api/provisions/route'),
   provision: () => import('@/app/api/provisions/[id]/route'),
   provisionAssessment: () => import('@/app/api/provisions/[id]/assessment/route'),
@@ -696,6 +706,7 @@ const WRITES: Call[] = [
   { label: 'update budget line', route: 'budgetLine', method: 'PATCH', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }), body: () => ({ amounts: [{ month: '2026-02', amountCents: 5_000 }] }) },
   { label: 'delete budget line', route: 'budgetLine', method: 'DELETE', path: () => `/api/budget-lines/${ids.aBudgetLine}`, params: p({ id: () => ids.aBudgetLine }) },
   { label: 'confirm a simple mode expense', route: 'simpleConfirm', method: 'POST', path: () => `/api/simple/expenses/${ids.aTransaction}/confirm`, params: p({ id: () => ids.aTransaction }), body: () => ({ categoryId: 'paiement-client' }) },
+  { label: 'confirm a simple mode income with its invoice', route: 'simpleConfirm', method: 'POST', path: () => `/api/simple/expenses/${ids.aTransaction}/confirm`, params: p({ id: () => ids.aTransaction }), body: () => ({ invoiceId: ids.aPostedInvoice }) },
   { label: 'confirm simple mode expenses in bulk', route: 'simpleConfirmAll', method: 'POST', path: () => '/api/simple/expenses/confirm-all', body: () => ({ companyId: A(), transactionIds: [ids.aTransaction] }) },
   { label: 'send a simple mode receipt', route: 'simpleReceipt', method: 'POST', path: () => `/api/simple/expenses/${ids.aTransaction}/receipt`, params: p({ id: () => ids.aTransaction }), form: () => ({ note: 'sans fichier' }) },
   { label: 'update simple mode settings', route: 'simpleSettings', method: 'PUT', path: () => `/api/companies/${A()}/simple-mode-settings`, params: p({ id: A }), body: () => ({ accountantReview: true }) },
@@ -799,6 +810,7 @@ const READS: Call[] = [
   { label: 'read budget', route: 'budget', method: 'GET', path: () => `/api/budgets/${ids.aBudget}`, params: p({ id: () => ids.aBudget }) },
   { label: 'budget against the books', route: 'budgetReport', method: 'GET', path: () => `/api/budgets/${ids.aBudget}/report`, params: p({ id: () => ids.aBudget }) },
   { label: 'list simple mode expenses', route: 'simpleExpenses', method: 'GET', path: () => `/api/simple/expenses?companyId=${A()}` },
+  { label: 'list simple mode income', route: 'simpleExpenses', method: 'GET', path: () => `/api/simple/expenses?companyId=${A()}&side=credit` },
   { label: 'list simple mode entries', route: 'simpleEntries', method: 'GET', path: () => `/api/simple/entries?companyId=${A()}` },
   { label: 'read simple mode settings', route: 'simpleSettings', method: 'GET', path: () => `/api/companies/${A()}/simple-mode-settings`, params: p({ id: A }) },
   { label: 'list detected subscriptions', route: 'subscriptions', method: 'GET', path: () => `/api/subscriptions?companyId=${A()}` },
@@ -808,6 +820,16 @@ const READS: Call[] = [
   { label: 'list subsidiaries of a holding', route: 'feeSubsidiaries', method: 'GET', path: () => `/api/management-fees/subsidiaries?companyId=${A()}` },
   { label: 'group view', route: 'groupView', method: 'GET', path: () => `/api/group/view?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'group participations', route: 'groupParticipations', method: 'GET', path: () => `/api/group/participations?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space summary', route: 'groupSummary', method: 'GET', path: () => `/api/group/summary?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space alerts', route: 'groupAlerts', method: 'GET', path: () => `/api/group/alerts?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space companies', route: 'groupCompanies', method: 'GET', path: () => `/api/group/companies?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space indicators', route: 'groupIndicators', method: 'GET', path: () => `/api/group/indicators?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space evolution', route: 'groupEvolution', method: 'GET', path: () => `/api/group/evolution?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space treasury', route: 'groupTreasury', method: 'GET', path: () => `/api/group/treasury?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space persons', route: 'groupPersons', method: 'GET', path: () => `/api/group/persons?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space deadlines', route: 'groupDeadlines', method: 'GET', path: () => `/api/group/deadlines?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space transactions', route: 'groupTransactions', method: 'GET', path: () => `/api/group/transactions?companyId=${A()}&fiscalYearId=${ids.aFy}` },
+  { label: 'group space ledger', route: 'groupLedger', method: 'GET', path: () => `/api/group/ledger?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'list provisions', route: 'provisions', method: 'GET', path: () => `/api/provisions?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'list investment grants', route: 'investmentGrants', method: 'GET', path: () => `/api/investment-grants?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'year-end inventory', route: 'yearEnd', method: 'GET', path: () => `/api/year-end?companyId=${A()}&fiscalYearId=${ids.aFy}` },
@@ -987,6 +1009,21 @@ describe.skipIf(!available)('authorization matrix', () => {
       })
       expect(crossPayment.status).toBe(404)
       expect(await prisma.invoicePayment.count()).toBe(0)
+    })
+
+    it("cannot settle company B's invoice from the simple mode income of company A", async () => {
+      await reseed()
+      const response = await call('accountant', {
+        label: 'cross simple income',
+        route: 'simpleConfirm',
+        method: 'POST',
+        path: () => `/api/simple/expenses/${ids.aTransaction}/confirm`,
+        params: p({ id: () => ids.aTransaction }),
+        body: () => ({ invoiceId: ids.bPostedInvoice }),
+      })
+      expect(response.status).toBe(404)
+      expect((await prisma.bankTransaction.findUnique({ where: { id: ids.aTransaction } }))?.reconciled).toBe(false)
+      expect(await prisma.simpleModeEntry.count()).toBe(0)
     })
 
     it('reads the document route of an invoice without a Qonto document as 404, never another company', async () => {

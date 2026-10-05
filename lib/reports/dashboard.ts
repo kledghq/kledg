@@ -122,7 +122,7 @@ interface ClassTotals {
  * the validated entries dated within [startDate, endDate], closing entries
  * excluded, per calendar month (UTC), summed in cents by PostgreSQL.
  */
-async function monthlyClassTotals(
+export async function monthlyClassTotals(
   companyId: string,
   startDate: Date,
   endDate: Date

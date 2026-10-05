@@ -12,6 +12,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import { findNavEntry, findSubPageTitle, navGroupsFor } from '@/components/layout/nav-config'
+import { findGroupNavEntry, groupRelativePath } from '@/components/layout/group-nav-config'
 import { SIMPLE_HOME_PATH, type DisplayMode } from '@/lib/appearance/display-mode'
 import { logger } from '@/lib/logger'
 import { displayCompanyName } from '@/lib/companies/legal-forms'
@@ -47,6 +48,10 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
   }, [companyId])
 
   const relativePath = companyId ? pathname.replace(`/${companyId}`, '') || '/' : '/'
+  // The group space: "Groupe <holding> > <page>", its own navigation.
+  const groupPath = companyId ? groupRelativePath(relativePath) : null
+  const groupEntry = groupPath ? findGroupNavEntry(groupPath) : null
+  const groupName = companyName ? `Groupe ${companyName}` : null
   const entry = findNavEntry(relativePath, navGroupsFor(mode))
   const isEntryPage = entry && relativePath === entry.url
   // The company's home: the dashboard, or the simple home in simple mode
@@ -54,19 +59,19 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
   const isHome = relativePath === homePath
   // Pages reached from another page (Connecter une banque, Configuration du bilan) have their own title.
   const subPage = isEntryPage || isHome ? null : findSubPageTitle(relativePath)
-  const pageTitle = isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
+  const pageTitle = groupPath ? (groupEntry?.title ?? "Vue d'ensemble") : isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
 
-  // Tab titles name the page and the company: "Journaux · Atelier Lumen · Kledg".
+  // Tab titles name the page and the company: "Journaux · Atelier Lumen · Kledg" ("Trésorerie · Groupe Atelier Lumen · Kledg").
   useEffect(() => {
     if (!companyId) return
-    const title = [pageTitle, companyName, 'Kledg'].filter(Boolean).join(' · ')
+    const title = [pageTitle, groupPath ? groupName : companyName, 'Kledg'].filter(Boolean).join(' · ')
     document.title = title
     // Next applies the root metadata title after a client navigation: set it again.
     const timeout = setTimeout(() => {
       document.title = title
     }, 300)
     return () => clearTimeout(timeout)
-  }, [companyId, companyName, pageTitle, pathname])
+  }, [companyId, companyName, groupName, groupPath, pageTitle, pathname])
 
   if (!companyId) {
     return (
@@ -80,6 +85,34 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
     )
   }
 
+  if (groupPath) {
+    const isOverview = groupPath === '/'
+    return (
+      <Breadcrumb className="min-w-0">
+        <BreadcrumbList className="flex-nowrap">
+          <BreadcrumbItem className={isOverview ? 'min-w-0' : 'hidden min-w-0 md:inline-flex'}>
+            {isOverview ? (
+              <BreadcrumbPage className="truncate">{groupName ?? <NamePlaceholder />}</BreadcrumbPage>
+            ) : (
+              <BreadcrumbLink asChild>
+                <Link href={`/${companyId}/group`} className="max-w-56 truncate">
+                  {groupName ?? <NamePlaceholder />}
+                </Link>
+              </BreadcrumbLink>
+            )}
+          </BreadcrumbItem>
+          {!isOverview && groupEntry ? (
+            <>
+              <BreadcrumbSeparator className="hidden md:block" />
+              <BreadcrumbItem className="min-w-0">
+                <BreadcrumbPage className="truncate">{groupEntry.title}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </>
+          ) : null}
+        </BreadcrumbList>
+      </Breadcrumb>
+    )
+  }
 
   return (
     <Breadcrumb className="min-w-0">
