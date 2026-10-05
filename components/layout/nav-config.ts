@@ -23,6 +23,7 @@ import {
   FileText,
   FolderSearch,
   Gauge,
+  Divide,
   HandCoins,
   Hourglass,
   House,
@@ -57,6 +58,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import type { DisplayMode } from "@/lib/appearance/display-mode"
+import type { NavFeature } from "@/lib/companies/nav-features"
 
 export interface NavItem {
   title: string
@@ -64,6 +66,12 @@ export interface NavItem {
   icon: LucideIcon
   /** Shown only in a holding: a company recorded as shareholder of another company (lib/management-fees/holding.ts): Frais de gestion, Vue groupe. */
   holdingOnly?: boolean
+  /**
+   * Shown only to companies that have this feature (lib/companies/nav-features.ts):
+   * training (an establishment is an organisme de formation), vatCoefficient
+   * (VAT deducted by a coefficient). The page stays reachable by URL.
+   */
+  feature?: NavFeature
   /** A count shown next to the entry (simple mode, NavCounts of nav-main.tsx). */
   count?: NavCountKey
 }
@@ -144,6 +152,7 @@ export const navGroups: NavGroup[] = [
       { title: "FEC", url: "/reports/fec", icon: FileCode },
       { title: "Échéances", url: "/echeances", icon: CalendarClock },
       { title: "Déclarations de TVA", url: "/declarations-tva", icon: Percent },
+      { title: "Coefficient de déduction de TVA", url: "/coefficient-tva", icon: Divide, feature: "vatCoefficient" },
       { title: "Impôt sur les sociétés", url: "/impot-societes", icon: Calculator },
       { title: "Rémunération et dividendes", url: "/remuneration", icon: PiggyBank },
       { title: "Impôts locaux (CFE, CVAE)", url: "/impots-locaux", icon: MapPinned },

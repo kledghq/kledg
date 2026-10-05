@@ -6,7 +6,7 @@
  *   ann. II art. 206, IV, 2, 5°), staff lodging (2°) and passenger vehicles
  *   (6°), 80 % on passenger car fuel (CGI art. 298, 4, 1°, a), gifts up to
  *   73 € TTC (3°; ann. IV art. 28-00 A); prorata of an exempt company
- *   (lib/accounting/vat-recovery-ratio.ts);
+ *   (its provisional coefficient de déduction, lib/vat-deduction/coefficient.ts);
  * - 44562 on fixed assets, 44566 otherwise, 44571 collected (PCG art. 944-44);
  * - counterpart lines always sum to the bank amount, on the opposite side.
  */
@@ -128,14 +128,16 @@ describe('expense VAT lines', () => {
     expect(exclTaxCents(60_000, 2000)).toBe(50_000)
   })
 
-  it('applies the prorata of a company exempt from VAT, nothing for a franchise', () => {
-    expect(lines(plan('telephone-internet', 12_000, { recoveryRatio: 0.5 }))).toEqual([
+  it('applies the coefficient de déduction of a partly exempt company, nothing for a franchise', () => {
+    const partial = plan('telephone-internet', 12_000, { recoveryRatio: 0.5 })
+    expect(lines(partial)).toEqual([
       ['626', 11_000, 0],
       ['44566', 1_000, 0],
     ])
+    expect(partial.vatNote).toBe('Coefficient de déduction provisoire\u00a0: 50 % de la TVA récupérable (CGI ann. II art. 206)')
     const franchise = plan('telephone-internet', 12_000, { recoveryRatio: 0 })
     expect(lines(franchise)).toEqual([['626', 12_000, 0]])
-    expect(franchise.vatNote).toMatch(/exonérée/)
+    expect(franchise.vatNote).toMatch(/0 % de la TVA récupérable/)
   })
 
   it('books a refund (money in) on the other side', () => {

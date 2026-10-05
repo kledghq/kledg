@@ -180,8 +180,8 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
 
   const l19 = lineOf(L.L19, 'computed', { amountCents: m.deductibleFixedAssetsCents }, 'TVA déductible sur immobilisations : débit net du compte 44562.')
   const l20 = lineOf(L.L20, 'computed', { amountCents: m.deductibleOtherCents }, 'TVA déductible sur autres biens et services : débit net du compte 44566, TVA autoliquidée comprise.')
-  const l21Cents = m.salesCreditNotes.vatCents + m.autoliquidationReversalCents + m.transferredDeductibleCents
-  const l21 = lineOf(L.L21, 'computed', { amountCents: l21Cents }, 'TVA des avoirs clients (débit net de 44571), TVA autoliquidée annulée (débit net de 4452) et TVA transférée (44563).')
+  const l21Cents = m.salesCreditNotes.vatCents + m.autoliquidationReversalCents + m.transferredDeductibleCents + m.coefficientComplementCents
+  const l21 = lineOf(L.L21, 'computed', { amountCents: l21Cents }, 'TVA des avoirs clients (débit net de 44571), TVA autoliquidée annulée (débit net de 4452), TVA transférée (44563) et complément de déduction de la régularisation du coefficient de déduction.')
   const l22 = lineOf(L.L22, 'computed', { amountCents: input.creditCarriedCents }, 'Crédit de TVA reporté : solde débiteur du compte 44567 au début de la période, à comparer avec la ligne 27 de la déclaration précédente.')
   const l2C = manual(L.L2C, 'Excédents de déclarations antérieures, acompte congés : à remplir à la main.')
   const deductibleEuros = sum([l19, l20, l21, l22].map((l) => l.amount ?? 0))
@@ -248,8 +248,8 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
   const l20 = lineOf(L.L20, 'computed', { amountCents: m.deductibleOtherCents }, 'TVA déductible sur autres biens et services : débit net du compte 44566, TVA autoliquidée comprise.')
   const l23 = lineOf(L.L23, 'computed', { amountCents: m.deductibleFixedAssetsCents }, 'TVA déductible sur immobilisations : débit net du compte 44562.')
   const l24 = lineOf(L.L24, 'computed', { amountCents: input.creditCarriedCents }, 'Crédit antérieur : solde débiteur du compte 44567 au début de l’année, à comparer avec la ligne 51 de la CA12 précédente.')
-  const l25Cents = m.salesCreditNotes.vatCents + m.autoliquidationReversalCents + m.transferredDeductibleCents
-  const l25 = lineOf(L.L25, 'computed', { amountCents: l25Cents }, 'TVA des avoirs clients (débit net de 44571), TVA autoliquidée annulée (débit net de 4452) et TVA transférée (44563).')
+  const l25Cents = m.salesCreditNotes.vatCents + m.autoliquidationReversalCents + m.transferredDeductibleCents + m.coefficientComplementCents
+  const l25 = lineOf(L.L25, 'computed', { amountCents: l25Cents }, 'TVA des avoirs clients (débit net de 44571), TVA autoliquidée annulée (débit net de 4452), TVA transférée (44563) et complément de déduction de la régularisation du coefficient de déduction.')
   const deductibleEuros = (l20.amount ?? 0) + (l23.amount ?? 0) + (l24.amount ?? 0) + (l25.amount ?? 0)
   const deductibleCents = m.deductibleOtherCents + m.deductibleFixedAssetsCents + input.creditCarriedCents + l25Cents
 

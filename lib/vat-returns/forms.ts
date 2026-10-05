@@ -159,7 +159,7 @@ export const NOT_FROM_THE_BOOKS: Record<VatForm, string[]> = {
     'Les autres opérations imposables de la ligne A2 (cessions d’immobilisations, livraisons à soi-même, sous-traitance du BTP en autoliquidation) : Kledg les compte en A1.',
     'Les achats auprès d’un assujetti non établi en France de l’article 283-1 (ligne B4) et les importations (A4, I1 à I6) : Kledg ne les distingue pas.',
     'Les régimes particuliers : TVA sur la marge (biens d’occasion, agences de voyage, terrains à bâtir), opérations dans les DOM ou en Corse, produits pétroliers, droits d’auteur, anciens taux.',
-    'Le coefficient de déduction des assujettis partiels (ligne 22A) et les déductions limitées (véhicules de tourisme, logement) : Kledg reprend la TVA comptabilisée en 4456.',
+    'Les déductions limitées (véhicules de tourisme, logement) : Kledg reprend la TVA comptabilisée en 4456. Le coefficient de taxation d’un assujetti partiel (ligne 22A) est celui de la page Coefficient de déduction de TVA.',
     'Les taxes assimilées de l’annexe 3310 A (ligne 29), l’accise sur les énergies (lignes X à Z), les régularisations des lignes 5B et 2C, la demande de remboursement (ligne 26).',
   ],
   CA12: [
@@ -168,7 +168,7 @@ export const NOT_FROM_THE_BOOKS: Record<VatForm, string[]> = {
     'Les cessions d’immobilisations (ligne 11) et les livraisons à soi-même (ligne 12) : Kledg les compte avec les ventes au taux correspondant.',
     'Les achats auprès d’un assujetti non établi en France de l’article 283-1 (ligne AB) : Kledg ne les distingue pas des acquisitions intracommunautaires, placées sur les lignes de taux.',
     'Les régimes particuliers : TVA sur la marge, opérations dans les DOM ou en Corse, produits pétroliers, anciens taux.',
-    'La déduction forfaitaire (ligne 21), le coefficient de déduction (ligne 25A) et les déductions limitées : Kledg reprend la TVA comptabilisée en 4456.',
+    'La déduction forfaitaire (ligne 21) et les déductions limitées : Kledg reprend la TVA comptabilisée en 4456. Le coefficient de taxation d’un assujetti partiel (ligne 25A) est celui de la page Coefficient de déduction de TVA.',
     'Les remboursements provisionnels (ligne 17), les sommes des lignes AD et AE, les taxes assimilées (lignes 36 à 94), l’accise sur les énergies, la demande de remboursement (cadre VII).',
     'Les acomptes restant dus (colonne 2 de la ligne 30) : Kledg reprend les acomptes payés, comptabilisés au compte 44581.',
   ],
