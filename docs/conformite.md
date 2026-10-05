@@ -126,14 +126,13 @@ Droits des personnes, page Informations, **Données personnelles** (`/api/compan
 - **Rectification** (art. 16) : chaque donnée de la fiche (`PATCH`).
 - **Effacement** (art. 17) : la fiche, les coordonnées, la photo, les données de naissance et l'adresse sont effacées. L'effacement ne s'étend pas à ce que la loi oblige à conserver (art. 17, 3, b, obligation légale, et e, constatation et défense de droits en justice) : **les écritures comptables, les notes de frais et les factures restent 10 ans** avec le nom qu'elles portent (Code de commerce, art. L123-22) ; **les procès-verbaux des comptes approuvés** restent tels qu'ils ont été adoptés, car ce sont les décisions des associés que la société conserve avec ses registres (Code de commerce, art. R221-3, R223-24, R225-106) et la décision d'affectation du résultat justifie des écritures. Dans l'approbation d'un exercice pas encore approuvée, son nom (président de séance, secrétaire, dirigeants, mandataires) est remplacé par « Personne effacée ». Un associé ne s'efface qu'une fois sa participation retirée. La réponse liste ce qui est conservé et pourquoi.
 
-## Points à faire valider par un professionnel
+## Ce qui reste à la société
 
-Kledg applique les textes tels que nous les lisons ; ces points relèvent de l'appréciation d'un expert-comptable ou d'un avocat :
+Kledg applique les textes tels qu'ils sont cités dans ce document, avec leurs sources. Restent du ressort de la société et de son expert-comptable :
 
-- le rythme de clôture des périodes adapté à la société, et la description de ses procédures comptables ;
-- la numérotation des à-nouveaux dans une séquence unique par exercice quand l'exercice précédent est clôturé tard (BOFiP § 110) ;
-- l'archivage probant des pièces justificatives hors de Kledg ;
-- la déclaration trimestrielle de TVA des anciennes sociétés au réel simplifié à partir de 2027 ;
+- le choix du rythme de clôture des périodes (ou de la clôture automatique) et la description écrite de ses procédures (modèle ci-dessus) ;
+- l'archivage probant des pièces justificatives hors de Kledg ;
+- les cas que la mise en page par défaut des états ne peut pas connaître (par exemple des travaux d'une société hors du secteur construction qui fournit pourtant les matériaux) : l'éditeur de mise en page permet de déplacer un compte.
 
 ## Sources
 
