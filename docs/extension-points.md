@@ -92,6 +92,13 @@ and exports (all GET) keep working. A fork makes a company read-only this
 way (an unpaid subscription, a legal hold) without hiding any data. Kledg
 answers null.
 
+`lib/instance/route-coverage.ts` (`INSTANCE_ROUTE_COVERAGE`) declares the
+MCP coverage of the instance's own routes: for each `METHOD /api/path`, the
+MCP tools doing the same, or a French reason why it stays out of the MCP
+server. The MCP coverage guard (`lib/mcp/__tests__/route-coverage.test.ts`)
+reads it with Kledg's own map, so a fork never edits `lib/mcp/route-coverage.ts`.
+Kledg declares none.
+
 `SELF_AUTHENTICATED_API_ROUTES` maps API paths to the reason they are
 safe without a session (an API key, a `CRON_SECRET` bearer token). A path
 covers itself and the paths under it, matched on segments: `/api/demo`
