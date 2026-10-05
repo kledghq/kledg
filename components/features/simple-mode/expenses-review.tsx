@@ -18,6 +18,7 @@ import type { Answers } from '@/lib/simple/posting'
 import type { ExpenseToReview, ExpensesToReview } from '@/lib/simple/expenses-to-review.service'
 import type { ConfirmAllResult, ConfirmResult } from '@/lib/simple/confirm-expense.service'
 import { CategoryDialog, type CategoryChoice } from './category-dialog'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 
 /** Event that makes the simple navigation reload its counts (components/layout/app-sidebar.tsx). */
 const COUNTS_REFRESH_EVENT = 'simple:counts-refresh'
@@ -41,6 +42,8 @@ const COPY = {
     many: (n: number) => (n > 1 ? `${n} dépenses classées` : '1 dépense classée'),
     shown: (shown: number, count: number) => `${shown} dépenses affichées sur ${count}. Les suivantes apparaîtront une fois celles-ci classées.`,
     things: 'ces dépenses',
+    undone: 'Dépense remise à vérifier',
+    undoError: "La confirmation n'a pas été annulée. Réessayez dans un instant.",
   },
   credit: {
     title: 'Recettes à vérifier',
@@ -57,6 +60,8 @@ const COPY = {
     many: (n: number) => (n > 1 ? `${n} recettes classées` : '1 recette classée'),
     shown: (shown: number, count: number) => `${shown} recettes affichées sur ${count}. Les suivantes apparaîtront une fois celles-ci classées.`,
     things: 'ces recettes',
+    undone: 'Recette remise à vérifier',
+    undoError: "La confirmation n'a pas été annulée. Réessayez dans un instant.",
   },
 } as const
 
@@ -162,7 +167,30 @@ export function ExpensesReview({ companyId, side = 'debit' }: { companyId: strin
     )
   }
 
-  const toastFor = (result: ConfirmResult) => toast.success(confirmedMessage(result, side))
+  /**
+   * "Annuler" in the toast of a confirmation left as a draft: the
+   * reconciliation is undone through DELETE /api/transactions/[id]/reconcile
+   * (same permission, audit log), which deletes the draft entry with its
+   * simple mode record and fixed asset, and the line comes back to review.
+   * A validated entry is definitive (PCG art. 1031-3): no undo is offered.
+   */
+  const undo = async (result: ConfirmResult) => {
+    try {
+      const response = await fetch(`/api/transactions/${encodeURIComponent(result.transactionId)}/reconcile`, { method: 'DELETE' })
+      if (!response.ok) throw new Error(await responseError(response, copy.undoError))
+      toast.success(copy.undone)
+      window.dispatchEvent(new Event(COUNTS_REFRESH_EVENT))
+      setVersion((v) => v + 1)
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+
+  const toastFor = (result: ConfirmResult) => {
+    const message = confirmedMessage(result, side)
+    if (result.status === 'draft') toast.success(message, { action: { label: 'Annuler', onClick: () => void undo(result) } })
+    else toast.success(message)
+  }
 
   const confirm = async (expense: ExpenseToReview, body: { categoryId?: string; ruleId?: string; invoiceId?: string; answers?: Answers; note?: string }) => {
     setBusyFor(expense.id, true)
@@ -382,6 +410,10 @@ function ExpenseRow({ expense, note, onNote, busy, canConfirm, onConfirm, onEdit
         </div>
         <div className="col-span-2 flex items-center justify-end gap-2 lg:col-span-1">
           {expense.hasReceipt ? <Paperclip role="img" aria-label="Justificatif joint" className="text-muted-foreground size-4" /> : null}
+          <ProposeWithAiButton
+            icon
+            target={{ kind: 'simple_expense', id: expense.id, side: expense.side === 'credit' ? 'credit' : 'debit', date: expense.date, label: expense.label || expense.name, amountCents: expense.amountCents }}
+          />
           {question ? null : classified ? (
             <>
               <Button size="sm" variant="outline" onClick={onEdit} disabled={!canConfirm || blocked || busy}>

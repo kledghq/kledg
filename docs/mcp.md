@@ -85,6 +85,14 @@ Le bouton **Révoquer** d'un assistant autorisé supprime, pour votre compte :
 
 Le nettoyage est fait par la base de données (déclencheurs sur la table des autorisations), quel que soit le chemin de la révocation. Les autres utilisateurs du même assistant ne sont pas concernés. Pour rétablir l'accès, reconnectez l'assistant : la page d'autorisation s'affiche de nouveau.
 
+## Proposer avec l'IA
+
+Sur les objets où un assistant aide (une transaction à rapprocher, un brouillon d'écriture, une facture, un justificatif manquant, une dépense ou une recette à classer en mode simple, une déclaration de TVA, ce qui bloque la clôture d'un exercice), le bouton **Proposer avec l'IA** ouvre votre assistant dans un nouvel onglet avec une demande préparée, par exemple : « Avec Kledg (société « Atelier Lumen », id …), propose l'écriture pour la transaction … du 29/09/2026, « PRLV SEPA FREE PRO », débit de 47,99 €. Lis-la avec get_transaction_details… ». La demande nomme la société et l'objet par leurs identifiants et les outils à appeler ; Kledg n'appelle aucun modèle : c'est votre assistant qui lit les données, avec l'accès que vous lui avez donné. Claude préremplit le champ sans l'envoyer ; ChatGPT peut envoyer la demande dès l'ouverture.
+
+- **Quand il s'affiche** : seulement si vous avez connecté un assistant qui atteint la société (`lib/ai-access/company-assistants.service.ts`) : un assistant autorisé (consentement toujours présent, client non désactivé) ou une clé API active et non expirée, dont l'accès couvre toutes vos sociétés ou celle-ci. Sans assistant, pas de bouton.
+- **Quelle application** : Claude (`https://claude.ai/new?q=`) ou ChatGPT (`https://chatgpt.com/?q=`) pour un assistant reconnu par son identifiant vérifié ; la demande est aussi copiée dans le presse-papiers, au cas où le champ resterait vide. Pour une clé API, Claude Code ou un client non vérifié, la demande est copiée. Avec plusieurs assistants, la flèche à côté du bouton permet de choisir ; le dernier choix est retenu pour votre compte dans ce navigateur.
+- **Données** : la demande ne contient que des identifiants, des dates, des montants et des libellés cités entre « » (sans guillemets, sauts de ligne ni caractères de contrôle, tronqués) : un libellé bancaire ne peut pas y ajouter d'instruction. Jamais de secret. Les modèles sont dans `lib/ai-assist/prompts.ts`, testés avec les outils qu'ils nomment.
+
 ## Outils
 
 ### Conventions communes

@@ -6,6 +6,9 @@ import { isGlobalAdmin, getUserRolesForCompany } from '@/lib/rbac/authorize'
 import { PATH_HEADER } from '@/lib/request-path'
 import { grantedPermissions, roleLabelOf } from '@/lib/rbac/granted-permissions'
 import { CompanyAccessProvider } from '@/components/features/companies/company-access'
+import { AiAssistProvider } from '@/components/features/ai-assist/ai-assist-context'
+import { logger } from '@/lib/logger'
+import { companyAssistants } from '@/lib/ai-access/company-assistants.service'
 
 /**
  * The [companyId] segment is the company slug (/atelier-lumen/entries); a raw
@@ -26,8 +29,8 @@ export default async function CompanyLayout({
   }
 
   const company =
-    (await prisma.company.findUnique({ where: { slug: ref }, select: { id: true, slug: true } })) ??
-    (await prisma.company.findUnique({ where: { id: ref }, select: { id: true, slug: true } }))
+    (await prisma.company.findUnique({ where: { slug: ref }, select: { id: true, slug: true, name: true } })) ??
+    (await prisma.company.findUnique({ where: { id: ref }, select: { id: true, slug: true, name: true } }))
 
   if (!company) {
     redirect('/companies')
@@ -48,10 +51,16 @@ export default async function CompanyLayout({
     permanentRedirect(target)
   }
 
+  // The assistants the user connected to this company, for "Proposer avec l'IA" (none, or the lookup failing: no button, the page still loads)
+  const assistants = await companyAssistants(user.id, company.id).catch((error: unknown) => {
+    logger.warn('[ai-assist] assistants of the company not read', error)
+    return []
+  })
+
   // What the role may do, for the pages to disable what it cannot (the API still checks every request)
   return (
     <CompanyAccessProvider value={{ granted: grantedPermissions(roles, admin), roleLabel: roleLabelOf(roles, admin) }}>
-      {children}
+      <AiAssistProvider value={{ companyId: company.id, companyName: company.name, userId: user.id, apps: assistants }}>{children}</AiAssistProvider>
     </CompanyAccessProvider>
   )
 }

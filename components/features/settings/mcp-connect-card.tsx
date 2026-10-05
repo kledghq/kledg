@@ -7,8 +7,7 @@ import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { StatusBadge } from '@/components/shared'
+import { SegmentedControl, StatusBadge } from '@/components/shared'
 import { ClaudeLogo, OpenAILogo } from './assistant-logos'
 import type { AssistantKind } from './use-assistant-connections'
 
@@ -59,7 +58,7 @@ export function isLocalOrigin(origin: string): boolean {
   )
 }
 
-function TabLabel({ children, connected }: { children: React.ReactNode; connected: boolean }) {
+function ClientLabel({ children, connected }: { children: React.ReactNode; connected: boolean }) {
   return (
     <span className="flex items-center gap-1.5">
       {children}
@@ -78,8 +77,9 @@ function Connected({ label }: { label: string }) {
 
 /**
  * How to connect this instance's MCP endpoint to Claude, ChatGPT or Claude
- * Code (with a key from the Clés API page). Tabs of assistants already
- * connected carry a dot and a badge.
+ * Code (with a key from the Clés API page): one assistant at a time, chosen
+ * with a segmented control (no tabs). Assistants already connected carry a
+ * dot and a badge.
  */
 export function McpConnectCard({
   connected,
@@ -94,6 +94,7 @@ export function McpConnectCard({
   const claude = connected.has('claude')
   const chatgpt = connected.has('chatgpt')
   const claudeCode = connected.has('claude-code') || hasApiKey
+  const [client, setClient] = useState<Exclude<AssistantKind, 'other'>>('claude')
 
   return (
     <Card>
@@ -120,28 +121,42 @@ export function McpConnectCard({
             </AlertDescription>
           </Alert>
         ) : null}
-        <Tabs defaultValue="claude">
-          <TabsList>
-            <TabsTrigger value="claude">
-              <TabLabel connected={claude}>
-                <ClaudeLogo className="size-3.5" />
-                Claude
-              </TabLabel>
-            </TabsTrigger>
-            <TabsTrigger value="chatgpt">
-              <TabLabel connected={chatgpt}>
-                <OpenAILogo className="size-3.5" />
-                ChatGPT
-              </TabLabel>
-            </TabsTrigger>
-            <TabsTrigger value="claude-code">
-              <TabLabel connected={claudeCode}>
-                <ClaudeLogo className="size-3.5" />
-                Claude Code
-              </TabLabel>
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="claude" className="text-muted-foreground space-y-3 pt-2 text-sm">
+        <SegmentedControl
+          label="Assistant à connecter"
+          value={client}
+          onValueChange={setClient}
+          options={[
+            {
+              value: 'claude',
+              label: (
+                <ClientLabel connected={claude}>
+                  <ClaudeLogo className="size-3.5" />
+                  Claude
+                </ClientLabel>
+              ),
+            },
+            {
+              value: 'chatgpt',
+              label: (
+                <ClientLabel connected={chatgpt}>
+                  <OpenAILogo className="size-3.5" />
+                  ChatGPT
+                </ClientLabel>
+              ),
+            },
+            {
+              value: 'claude-code',
+              label: (
+                <ClientLabel connected={claudeCode}>
+                  <ClaudeLogo className="size-3.5" />
+                  Claude Code
+                </ClientLabel>
+              ),
+            },
+          ]}
+        />
+        {client === 'claude' ? (
+          <div className="text-muted-foreground space-y-3 pt-2 text-sm">
             {claude && <Connected label="Claude est connecté" />}
             <p>Sur claude.ai ou dans l&apos;application Claude&nbsp;:</p>
             <ol className="list-decimal space-y-1.5 pl-5">
@@ -167,8 +182,10 @@ export function McpConnectCard({
               Claude apparaît ensuite dans les assistants autorisés ci-dessous, où vous pouvez réduire ou révoquer
               son accès à tout moment.
             </p>
-          </TabsContent>
-          <TabsContent value="chatgpt" className="text-muted-foreground space-y-3 pt-2 text-sm">
+          </div>
+        ) : null}
+        {client === 'chatgpt' ? (
+          <div className="text-muted-foreground space-y-3 pt-2 text-sm">
             {chatgpt && <Connected label="ChatGPT est connecté" />}
             <p>Dans ChatGPT&nbsp;:</p>
             <ol className="list-decimal space-y-1.5 pl-5">
@@ -185,8 +202,10 @@ export function McpConnectCard({
               </li>
             </ol>
             <p>ChatGPT apparaît ensuite dans les assistants autorisés ci-dessous.</p>
-          </TabsContent>
-          <TabsContent value="claude-code" className="text-muted-foreground space-y-3 pt-2 text-sm">
+          </div>
+        ) : null}
+        {client === 'claude-code' ? (
+          <div className="text-muted-foreground space-y-3 pt-2 text-sm">
             {claudeCode && <Connected label={hasApiKey ? 'Clé API active' : 'Claude Code est connecté'} />}
             <p>
               Créez une clé API sur la page{' '}
@@ -198,8 +217,8 @@ export function McpConnectCard({
             <CopyLine
               value={`claude mcp add --transport http kledg ${url} --header "Authorization: Bearer VOTRE_CLE"`}
             />
-          </TabsContent>
-        </Tabs>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

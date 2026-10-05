@@ -13,10 +13,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Amount, DateDisplay, PageHeader, StatusBadge, useConfirm } from '@/components/shared'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 import { responseError } from '@/hooks/use-cursor-list'
 import { formatVatRate } from '@/lib/invoices/amounts'
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_TONES, type InvoiceStatus } from '@/lib/invoices/status'
-import { invoiceOriginLabel, type InvoiceOriginCode } from '@/lib/invoices/origin'
+import { invoiceOriginLabel, qontoStanding, type InvoiceOriginCode } from '@/lib/invoices/origin'
 
 interface Detail {
   id: string
@@ -26,6 +27,8 @@ interface Detail {
   createdInQonto: boolean
   qontoPending: boolean
   qontoDraft: boolean
+  /** Id of the invoice at Qonto (created there or imported). */
+  qontoId?: string | null
   provisionalNumber: string | null
   typeCode: string
   issueDate: string
@@ -148,6 +151,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
   }
 
   const sale = invoice.direction === 'SALE'
+  const qonto = qontoStanding({ ...invoice, qontoId: invoice.qontoId ?? null })
   const posted = invoice.entry !== null
   const mayPost = can({ entries: ['create'] })
   const mayUpdate = can({ entries: ['update'] })
@@ -233,6 +237,10 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
         }
         actions={
           <>
+            <ProposeWithAiButton
+              size="default"
+              target={{ kind: 'invoice', id: invoice.id, direction: invoice.direction, number: invoice.number, date: invoice.issueDate, tiersName: invoice.tiers.name, totalInclTaxCents: invoice.totalInclTaxCents, posted }}
+            />
             {invoice.hasAttachment ? (
               <Button variant="outline" asChild>
                 <a href={`/api/invoices/${invoiceId}/attachment`} target="_blank" rel="noreferrer">
@@ -277,12 +285,18 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
       >
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge tone={INVOICE_STATUS_TONES[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</StatusBadge>
-          {sale && invoiceOriginLabel(invoice.origin, invoice.createdInQonto) ? (
+          {qonto.label ? (
+            <StatusBadge tone="info">{qonto.label}</StatusBadge>
+          ) : sale && invoiceOriginLabel(invoice.origin, invoice.createdInQonto) ? (
             <StatusBadge tone="info">{invoiceOriginLabel(invoice.origin, invoice.createdInQonto)}</StatusBadge>
-          ) : invoice.source === 'QONTO' ? (
-            <StatusBadge tone="info">Importée de Qonto</StatusBadge>
           ) : null}
-          {invoice.qontoDraft ? <StatusBadge tone="warning">Brouillon dans Qonto</StatusBadge> : null}
+          {qonto.draftLabel ? <StatusBadge tone="warning">{qonto.draftLabel}</StatusBadge> : null}
+          {qonto.qontoId ? (
+            // Qonto documents no web address for one client invoice: its id lets the user find it in Qonto.
+            <span className="text-muted-foreground text-sm" data-testid="qonto-id">
+              Identifiant Qonto&nbsp;: <span className="font-mono">{qonto.qontoId}</span>
+            </span>
+          ) : null}
           {!invoice.number && invoice.origin === 'AUTO' ? (
             <span className="text-muted-foreground text-sm" data-testid="draft-number-hint">
               Numéro attribué à l’émission{invoice.provisionalNumber ? ` (prochain prévu : ${invoice.provisionalNumber})` : ''}

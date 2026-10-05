@@ -11,9 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Amount, EmptyState, PageHeader, StatusBadge, formatAmount, formatDisplayDate } from '@/components/shared'
+import { Amount, EmptyState, PageHeader, SegmentedControl, StatusBadge, formatAmount, formatDisplayDate } from '@/components/shared'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { responseError } from '@/hooks/use-cursor-list'
 import type { SimpleModeEntryList, SimpleModeEntryView } from '@/lib/simple/simple-validation.service'
@@ -21,7 +20,7 @@ import type { SimpleModeSettings } from '@/lib/simple/simple-mode-settings.servi
 
 type Status = 'to-validate' | 'validated' | 'all'
 
-const STATUS_TABS: Array<{ value: Status; label: string }> = [
+const STATUS_FILTERS: Array<{ value: Status; label: string }> = [
   { value: 'to-validate', label: 'À valider' },
   { value: 'validated', label: 'Validées' },
   { value: 'all', label: 'Toutes' },
@@ -181,15 +180,7 @@ export function SimpleEntriesReview({ companyId }: { companyId: string }) {
       <ReviewSetting companyId={companyId} canUpdate={can({ settings: ['update'] })} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={status} onValueChange={(value) => setStatus(value as Status)}>
-          <TabsList>
-            {STATUS_TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value}>
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <SegmentedControl label="Saisies à afficher" value={status} onValueChange={setStatus} options={STATUS_FILTERS} />
         {summary ? (
           <p className="text-muted-foreground text-sm">
             Ce mois-ci&nbsp;: {summary.classifiedCount} classées, {summary.validatedCount} validées, {summary.toValidateCount} à valider.

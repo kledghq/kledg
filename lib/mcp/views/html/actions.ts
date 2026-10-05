@@ -9,7 +9,8 @@
  * records a pending action and returns the approvalUrl, the user approves
  * in Kledg (the view cannot), then "Exécuter" calls again with the
  * actionId; in automatic mode the dry run is shown and "Confirmer" runs
- * it. A direct tool asks for a confirmation click first. Other buttons
+ * it. A direct tool asks for a confirmation click first ("Rapprocher" on a
+ * bank transaction whose unique match the server found, item.match). Other buttons
  * send a message to the assistant (ui/message) or open a page of Kledg
  * (ui/open-link).
  */
@@ -28,6 +29,7 @@ export const ACTIONS_TEMPLATE: TemplateSource = {
 .k-list input[type=checkbox]{width:14px;height:14px;margin:2px 0 0;accent-color:var(--k-fg)}
 .k-list th.k-select,.k-list td.k-select{width:1%}
 .k-list tbody th{white-space:nowrap}
+.k-list .k-match{margin:4px 0 0;max-width:32ch;margin-left:auto;white-space:normal;text-align:end;font-size:12px;color:var(--k-muted)}
 `,
   js: String.raw`
 (function () {
@@ -193,7 +195,7 @@ export const ACTIONS_TEMPLATE: TemplateSource = {
     }
 
     function actionButton(action, ids) {
-      var cls = action.kind === 'link' ? 'k-btn k-btn-link' : action.kind === 'tool' && action.danger ? 'k-btn k-btn-danger' : action.kind === 'tool' && action.highImpact ? 'k-btn k-btn-primary' : 'k-btn';
+      var cls = action.kind === 'link' ? 'k-btn k-btn-link' : action.kind === 'tool' && action.danger ? 'k-btn k-btn-danger' : action.kind === 'tool' && (action.highImpact || action.primary) ? 'k-btn k-btn-primary' : 'k-btn';
       var button = el('button', { type: 'button', class: cls, 'data-action': action.kind, 'data-label': action.label }, action.label);
       button.addEventListener('click', function () { onAction(action, ids, button); });
       return button;
@@ -286,7 +288,10 @@ export const ACTIONS_TEMPLATE: TemplateSource = {
         });
         buttons.unshift(toggle);
       }
-      if (hasActions || hasBreakdown) cells.push(el('td', { class: 'k-cell-actions' }, el('div', { class: 'k-actions' }, buttons)));
+      var actionNodes = [el('div', { class: 'k-actions' }, buttons)];
+      // The match the server found for the row (the view never computes one)
+      if (item.match) actionNodes.push(el('p', { class: 'k-match' }, 'Correspondance\u00a0: ' + item.match.label + ', ' + K.euros(item.match.amount)));
+      if (hasActions || hasBreakdown) cells.push(el('td', { class: 'k-cell-actions' }, actionNodes));
       var row = el('tr', null, cells);
       rows[item.id] = row;
       body.appendChild(row);

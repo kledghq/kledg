@@ -90,35 +90,65 @@ export function scaleNets(nets: number[], target: number): number[] {
   return scaled
 }
 
+/** What a rule would book for a transaction: its counterpart lines and the entry around them. */
+export interface RuleSuggestion {
+  suggestion: Suggestion & { source: 'rule'; ruleId: string }
+  ruleName: string
+  /** Journal code of the entry the rule creates (BQ by default). */
+  journalCode: string
+  description: string
+  reference: string | null
+}
+
+/**
+ * The entry rule `ruleId` computes for `transaction`, as a suggestion
+ * (counterpart lines by account code, without the bank line); null when the
+ * rule cannot apply (no open fiscal year, missing journal or account, no
+ * counterpart line).
+ */
+export async function ruleSuggestion(companyId: string, transaction: Pick<BankTransaction, 'id'>, ruleId: string): Promise<RuleSuggestion | null> {
+  const prepared = await prepareRuleEntry(ruleId, transaction.id, companyId)
+  if (!prepared.ok) return null
+  const [accounts, journal] = await Promise.all([
+    prisma.account.findMany({
+      where: { id: { in: prepared.lines.map((l) => l.accountId) }, companyId },
+      select: { id: true, code: true, label: true },
+    }),
+    prisma.journal.findFirst({ where: { id: prepared.journalId, companyId }, select: { code: true } }),
+  ])
+  const byId = new Map(accounts.map((a) => [a.id, a]))
+  const lines = prepared.lines
+    .filter((l) => l.accountId !== prepared.bankAccountId && !isBankAccountCode(byId.get(l.accountId)?.code ?? '51'))
+    .map((l) => ({
+      accountCode: byId.get(l.accountId)!.code,
+      accountLabel: byId.get(l.accountId)!.label,
+      debitCents: l.debitCents,
+      creditCents: l.creditCents,
+      description: l.description ?? null,
+    }))
+  if (lines.length === 0 || !journal) return null
+  return {
+    suggestion: {
+      source: 'rule',
+      title: `Suggestion de la règle « ${prepared.ruleName} »`,
+      ruleId,
+      vatRatePercent: vatRateOf(lines),
+      lines,
+    },
+    ruleName: prepared.ruleName,
+    journalCode: journal.code,
+    description: prepared.description,
+    reference: prepared.reference,
+  }
+}
+
 async function fromRule(companyId: string, transaction: Transaction): Promise<Suggestion | null> {
   const matches = (await findMatchingRules(companyId, enrichTransaction(transaction))).filter((m) => m.matched)
   // Highest confidence first; the matcher already orders by rule priority
   matches.sort((a, b) => b.confidence - a.confidence)
   for (const match of matches) {
-    const prepared = await prepareRuleEntry(match.ruleId, transaction.id, companyId)
-    if (!prepared.ok) continue
-    const accounts = await prisma.account.findMany({
-      where: { id: { in: prepared.lines.map((l) => l.accountId) }, companyId },
-      select: { id: true, code: true, label: true },
-    })
-    const byId = new Map(accounts.map((a) => [a.id, a]))
-    const lines = prepared.lines
-      .filter((l) => l.accountId !== prepared.bankAccountId && !isBankAccountCode(byId.get(l.accountId)?.code ?? '51'))
-      .map((l) => ({
-        accountCode: byId.get(l.accountId)!.code,
-        accountLabel: byId.get(l.accountId)!.label,
-        debitCents: l.debitCents,
-        creditCents: l.creditCents,
-        description: l.description ?? null,
-      }))
-    if (lines.length === 0) continue
-    return {
-      source: 'rule',
-      title: `Suggestion de la règle « ${prepared.ruleName} »`,
-      ruleId: match.ruleId,
-      vatRatePercent: vatRateOf(lines),
-      lines,
-    }
+    const found = await ruleSuggestion(companyId, transaction, match.ruleId)
+    if (found) return found.suggestion
   }
   return null
 }

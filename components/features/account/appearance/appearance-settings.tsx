@@ -29,7 +29,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SegmentedControl } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import { accountApi } from '../account-api'
 import { ActionNotice } from '../action-notice'
@@ -282,12 +282,15 @@ export function AppearanceSettings({ initial }: { initial: AppearanceView }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <Tabs value={theme} onValueChange={(value) => setEditedTheme(value as ChartTheme)}>
-                  <TabsList aria-label="Thème des couleurs à régler">
-                    <TabsTrigger value="light">Thème clair</TabsTrigger>
-                    <TabsTrigger value="dark">Thème sombre</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                <SegmentedControl
+                  label="Thème des couleurs à régler"
+                  value={theme}
+                  onValueChange={setEditedTheme}
+                  options={[
+                    { value: 'light', label: 'Thème clair' },
+                    { value: 'dark', label: 'Thème sombre' },
+                  ]}
+                />
               </div>
               <ul className="divide-y rounded-md border">
                 {CHART_SERIES.map((series) => (

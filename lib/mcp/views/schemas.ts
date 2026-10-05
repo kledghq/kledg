@@ -160,12 +160,29 @@ export const viewAction = z.discriminatedUnion('kind', [
     confirm: text.optional(),
     /** Destroys something (a draft): drawn in red. */
     danger: z.boolean().optional(),
+    /** The main action of its row: drawn filled. */
+    primary: z.boolean().optional(),
   }),
   /** Sends a message to the assistant as the user (ui/message), who then works with the tools. */
   z.object({ kind: z.literal('message'), label, prompt: text }),
   /** Opens a page of Kledg (ui/open-link). */
   z.object({ kind: z.literal('link'), label, url: viewLink.shape.url }),
 ])
+
+const entityId = z.string().min(1).max(100)
+
+export const reconciliationMatch = z.object({
+  kind: z.enum(['entry', 'rule']),
+  /** The existing entry and its matching bank line (entry), null for a rule. */
+  entryId: entityId.nullable(),
+  lineId: entityId.nullable(),
+  /** The rule whose draft entry would be created (rule), null for an entry. */
+  ruleId: entityId.nullable(),
+  label,
+  /** Signed like the transaction: money out negative. */
+  amount,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+})
 
 export const actionsView = z.object({
   view: z.literal('actions'),
@@ -188,6 +205,13 @@ export const actionsView = z.object({
           .optional(),
         /** Whether the bulk action can take this item. */
         selectable: z.boolean().optional(),
+        /**
+         * The one reconciliation the server found for a bank transaction
+         * (lib/reconciliation/unique-match.ts): an existing entry, or the
+         * entry of the only matching rule. Shown under the row's buttons;
+         * the view never computes it.
+         */
+        match: reconciliationMatch.optional(),
         actions: z.array(viewAction).max(6),
       }),
     )
@@ -265,6 +289,7 @@ export type StatementRow = z.infer<typeof statementRow>
 export type ChartView = z.infer<typeof chartView>
 export type ActionsView = z.infer<typeof actionsView>
 export type ViewAction = z.infer<typeof viewAction>
+export type ReconciliationMatch = z.infer<typeof reconciliationMatch>
 export type DocumentView = z.infer<typeof documentView>
 export type OrganigramView = z.infer<typeof organigramView>
 export type ViewData = StatementView | ChartView | ActionsView | DocumentView | OrganigramView

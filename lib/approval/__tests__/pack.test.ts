@@ -179,6 +179,14 @@ describe('deadlines', () => {
     expect(late.warnings.join(' ')).toMatch(/moins de 15 jours avant l'assemblée : envoyez-la au plus tard le 25 juin 2026/)
     expect(late.warnings.join(' ')).toMatch(/délai de dépôt au greffe est dépassé depuis le 31 juillet 2026/)
   })
+
+  it('warns about draft entries in correct French, singular and plural', () => {
+    const one = buildApprovalPack(contextFor('SARL', { draftEntries: 1 }), complete())
+    expect(one.warnings).toContain("1 écriture en brouillon sur l'exercice n'est pas comptée dans le résultat.")
+    const three = buildApprovalPack(contextFor('SARL', { draftEntries: 3 }), complete())
+    expect(three.warnings).toContain("3 écritures en brouillon sur l'exercice ne sont pas comptées dans le résultat.")
+    expect([...one.warnings, ...three.warnings].join(' ')).not.toMatch(/\bne est\b/)
+  })
 })
 
 describe('missing data is listed, never invented', () => {

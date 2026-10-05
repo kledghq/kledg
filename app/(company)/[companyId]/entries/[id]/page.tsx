@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 import { Amount, DateDisplay, EmptyState, PageHeader, StatusBadge, formatDisplayDate } from '@/components/shared'
 import { ReverseEntryDialog } from '@/components/features/accounting/reverse-entry-dialog'
 import { logger } from '@/lib/logger'
@@ -217,6 +218,12 @@ export default function EntryDetailPage() {
         actions={
           <>
             {backToList}
+            {!isValidated ? (
+              <ProposeWithAiButton
+                size="default"
+                target={{ kind: 'draft_entry', id: entry.id, date: entry.date.slice(0, 10), label: entry.description || entry.lines[0]?.description || '', journalCode: entry.journal.code }}
+              />
+            ) : null}
             {!isValidated ? (
               <Button variant="outline" asChild>
                 <Link href={`/${companyId}/entries/${entryId}/edit`}>

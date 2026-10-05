@@ -33,12 +33,6 @@ import * as z from 'zod'
 import { CalendarPlus, Plus, AlertCircle, Loader2, CheckCircle2, XCircle, AlertTriangle, Info, ExternalLink } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
 import { FiscalYearsTable } from '@/components/features/accounting/fiscal-years-table'
 import { ResultAllocationDialog } from '@/components/features/accounting/result-allocation-dialog'
 import {
@@ -56,6 +50,7 @@ import { logger } from '@/lib/logger'
 import { Amount, ConfirmDeleteDialog, EmptyState, PageHeader, formatAmount, formatDisplayDate } from '@/components/shared'
 import { OpeningBalanceNotice } from '@/components/features/accounting/opening-balance-notice'
 import { PeriodLockCard } from '@/components/features/accounting/period-lock-card'
+import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 import { plural, pluralWord } from '@/lib/utils/plural'
 import { docsUrl } from '@/lib/docs-links'
 import { defaultFiscalYearDates } from '@/lib/accounting/default-fiscal-year-dates'
@@ -582,6 +577,12 @@ export default function FiscalYearsPage() {
                     <li key={index} className="text-sm">{error}</li>
                   ))}
                 </ul>
+                {closingFiscalYearId ? (
+                  <ProposeWithAiButton
+                    className="mt-3"
+                    target={{ kind: 'closing_check', fiscalYearId: closingFiscalYearId, year: fiscalYears.find((fy) => fy.id === closingFiscalYearId)?.year ?? 0, checks: closingErrors }}
+                  />
+                ) : null}
               </AlertDescription>
             </Alert>
           )}

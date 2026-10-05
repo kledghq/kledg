@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Amount, EmptyState, PageHeader, StatCard, formatDisplayDate, useConfirm } from '@/components/shared'
 import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
@@ -136,7 +135,9 @@ export function BudgetPage({ companyId }: { companyId: string }) {
   const [budget, setBudget] = React.useState<BudgetDetail | null>(null)
   const [report, setReport] = React.useState<BudgetReport | null>(null)
   const [throughMonth, setThroughMonth] = React.useState('')
-  const [tab, setTab] = React.useState('suivi')
+  // After creating a budget, its lines (the Saisie section) are brought into view once loaded
+  const linesRef = React.useRef<HTMLElement>(null)
+  const revealLines = React.useRef(false)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [version, setVersion] = React.useState(0)
@@ -146,6 +147,12 @@ export function BudgetPage({ companyId }: { companyId: string }) {
   const openEditor = (line: BudgetLineView | null) => setEditor((current) => ({ open: true, line, session: current.session + 1 }))
 
   const refresh = React.useCallback(() => setVersion((n) => n + 1), [])
+
+  React.useEffect(() => {
+    if (!revealLines.current || !budget || !linesRef.current) return
+    revealLines.current = false
+    linesRef.current.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [budget])
 
   React.useEffect(() => {
     if (!companyId || !fiscalYearId) return
@@ -191,7 +198,7 @@ export function BudgetPage({ companyId }: { companyId: string }) {
       })
       if (!response.ok) throw new Error(await responseError(response, "Le budget n'a pas été créé. Réessayez dans un instant."))
       toast.success('Budget créé')
-      setTab('saisie')
+      revealLines.current = true
       refresh()
     } catch (e) {
       toast.error((e as Error).message)
@@ -347,40 +354,41 @@ export function BudgetPage({ companyId }: { companyId: string }) {
             </p>
           ) : null}
 
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
-              <TabsTrigger value="suivi">Suivi</TabsTrigger>
-              <TabsTrigger value="saisie">Saisie</TabsTrigger>
-            </TabsList>
-            <TabsContent value="suivi" className="mt-4">
-              {report ? <BudgetComparison report={report} /> : null}
-            </TabsContent>
-            <TabsContent value="saisie" className="mt-4">
-              <Card>
-                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-                  <div className="space-y-1.5">
-                    <CardTitle>Lignes du budget</CardTitle>
-                    <CardDescription>
-                      {budget.lineCount === 0
-                        ? 'Ajoutez une ligne par compte ou groupe de comptes à suivre.'
-                        : `${budget.lineCount} ligne${budget.lineCount > 1 ? 's' : ''}, montants saisis par mois et éléments récurrents.`}
-                    </CardDescription>
-                  </div>
-                  {editable ? (
-                    <Button size="sm" onClick={() => openEditor(null)}>
-                      <Plus aria-hidden />
-                      Ajouter une ligne
-                    </Button>
-                  ) : null}
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {!canManage ? <p className="text-muted-foreground text-sm">{denied('modifier le budget')}</p> : null}
-                  <LinesTable lines={budget.lines} side="charges" editable={editable} onEdit={openEditor} onDelete={deleteLine} />
-                  <LinesTable lines={budget.lines} side="produits" editable={editable} onEdit={openEditor} onDelete={deleteLine} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          {/* Suivi and Saisie stacked (no tabs): the comparison first, the lines it is built from below */}
+          <section aria-labelledby="budget-suivi-title" className="space-y-4">
+            <h2 id="budget-suivi-title" className="text-base font-semibold">
+              Suivi
+            </h2>
+            {report ? <BudgetComparison report={report} /> : null}
+          </section>
+          <section ref={linesRef} aria-labelledby="budget-saisie-title" className="scroll-mt-20 space-y-4">
+            <h2 id="budget-saisie-title" className="text-base font-semibold">
+              Saisie
+            </h2>
+            <Card>
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1.5">
+                  <CardTitle>Lignes du budget</CardTitle>
+                  <CardDescription>
+                    {budget.lineCount === 0
+                      ? 'Ajoutez une ligne par compte ou groupe de comptes à suivre.'
+                      : `${budget.lineCount} ligne${budget.lineCount > 1 ? 's' : ''}, montants saisis par mois et éléments récurrents.`}
+                  </CardDescription>
+                </div>
+                {editable ? (
+                  <Button size="sm" onClick={() => openEditor(null)}>
+                    <Plus aria-hidden />
+                    Ajouter une ligne
+                  </Button>
+                ) : null}
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {!canManage ? <p className="text-muted-foreground text-sm">{denied('modifier le budget')}</p> : null}
+                <LinesTable lines={budget.lines} side="charges" editable={editable} onEdit={openEditor} onDelete={deleteLine} />
+                <LinesTable lines={budget.lines} side="produits" editable={editable} onEdit={openEditor} onDelete={deleteLine} />
+              </CardContent>
+            </Card>
+          </section>
 
           {editable ? (
             <BudgetLineSheet

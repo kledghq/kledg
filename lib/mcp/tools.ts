@@ -13,7 +13,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { companyGuard, type McpAccess } from '@/lib/mcp/company-access'
+import { companyGuard, type CompanyGuard, type McpAccess } from '@/lib/mcp/company-access'
 import { getTrialBalance } from '@/lib/reports/trial-balance/get-trial-balance.service'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
 import { generateIncomeStatement } from '@/lib/reports/income-statement/generate-income-statement.service'
@@ -24,6 +24,7 @@ import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
 import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
 import { writeAuditLog } from '@/lib/audit'
 import { NotFoundError } from '@/lib/accounting/errors'
+import { uniqueReconciliationMatches, type UniqueMatch } from '@/lib/reconciliation/unique-match'
 import { day, fail, json, run } from '@/lib/mcp/tool-result'
 import { registerFullControlTools } from '@/lib/mcp/full-control'
 import { getAgedBalance } from '@/lib/reports/third-parties/get-third-party-reports.service'
@@ -71,6 +72,29 @@ import {
 } from '@/lib/mcp/views/builders'
 
 const MAX_ROWS = 200
+
+/**
+ * The unique reconciliation of each unreconciled transaction, for the
+ * "Rapprocher" button of the view: computed only for a connection with full
+ * control whose user may reconcile in the company (the right
+ * reconcile_transaction checks), else empty, so the view keeps "Proposer
+ * une écriture".
+ */
+async function reconcileMatchesFor(
+  access: McpAccess,
+  guard: CompanyGuard,
+  companyId: string,
+  transactions: ReadonlyArray<{ id: string; reconciled: boolean }>,
+): Promise<Map<string, UniqueMatch>> {
+  if (!access.canAdmin) return new Map()
+  try {
+    await guard.requireFullControl(companyId, { banking: ['reconcile'] })
+  } catch {
+    // No right to reconcile, or a read-only (archived) company: no button
+    return new Map()
+  }
+  return uniqueReconciliationMatches(companyId, transactions.filter((t) => !t.reconciled).map((t) => t.id))
+}
 
 /** Bucket amounts of the aged balance in euros, for the assistants. */
 function agedEuros(buckets: BucketAmounts) {
@@ -477,7 +501,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           },
         })
         const result = transactions.map((t) => ({ ...t, date: day(t.date), bankAccount: t.bankAccount.name }))
-        return withView(json(result), () => bankTransactionsList(args.companyId, access, args, result))
+        return withView(json(result), async () =>
+          bankTransactionsList(args.companyId, access, args, result, await reconcileMatchesFor(access, guard, args.companyId, result)),
+        )
       }),
   )
 
@@ -696,7 +722,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
       title: 'Facture',
       description: describeTool({
         summary:
-          'One invoice with its lines (quantity, unit price excluding tax, VAT rate, account), VAT breakdown per rate, entry, payments recorded from the bank and status.',
+          'One invoice with its lines (quantity, unit price excluding tax, VAT rate, account), VAT breakdown per rate, entry, payments recorded from the bank and status. Qonto: createdInQonto (Kledg created it in Qonto, as opposed to imported from Qonto), qontoDraft (still a draft in Qonto: no number, not postable until finalized there) and qontoId (its id at Qonto).',
         access: 'read',
         permission: { entries: ['read'] },
         amounts: 'euros',
@@ -741,6 +767,10 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           entry: invoice.entry,
           payments: invoice.payments.map((p) => ({ amount: fromCents(p.amountCents), entryNumber: p.entry.entryNumber, date: p.entry.date })),
           source: invoice.source,
+          origin: invoice.origin,
+          createdInQonto: invoice.createdInQonto,
+          qontoDraft: invoice.qontoDraft,
+          qontoId: invoice.qontoId,
         }
         return withView(json(out), () => invoiceDocument(args.companyId, out))
       }),

@@ -10,8 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Amount, EmptyState, PageHeader, StatCard, StatusBadge, formatAmount, formatDisplayDate, type StatusTone } from '@/components/shared'
+import { Amount, EmptyState, PageHeader, SegmentedControl, StatCard, StatusBadge, formatAmount, formatDisplayDate, type StatusTone } from '@/components/shared'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { responseError } from '@/hooks/use-cursor-list'
 import { CADENCE_LABELS, CHARGE_REASON_LABELS, STATUS_LABELS, type SubscriptionStatus } from '@/lib/subscriptions/detect'
@@ -246,15 +245,12 @@ export function SubscriptionsPage({ companyId }: { companyId: string }) {
 
           <Card>
             <CardContent className="space-y-4">
-              <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-                <TabsList className="max-w-full overflow-x-auto">
-                  {FILTERS.map((f) => (
-                    <TabsTrigger key={f.value} value={f.value}>
-                      {f.label} <span className="text-muted-foreground num ml-1">{items.filter(f.matches).length}</span>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
+              <SegmentedControl
+                label="Abonnements à afficher"
+                value={filter}
+                onValueChange={setFilter}
+                options={FILTERS.map((f) => ({ value: f.value, label: f.label, count: items.filter(f.matches).length }))}
+              />
 
               {filter === 'charges' ? (
                 <p className="text-muted-foreground max-w-prose text-sm">
