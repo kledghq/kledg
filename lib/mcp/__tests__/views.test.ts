@@ -190,6 +190,35 @@ describe('MCP view rendering (simulated host)', () => {
     }
   })
 
+  it('draws Sankey labels outside the flows, one slot each, long names cut with the full text in a title', async () => {
+    const sample = viewSamples().find((s) => s.tool === 'get_tiers_flows')!
+    const data = JSON.parse(JSON.stringify(sample.data))
+    data.chart.nodes[0].label = 'Maison Dupont et Fils, décoration intérieure et ameublement sur mesure'
+    const view = mount('chart')
+    await view.open(data)
+    expect(view.errors).toEqual([])
+    const rects = [...view.document.querySelectorAll('rect.k-node')]
+    const labels = [...view.document.querySelectorAll('text.k-node-label')]
+    expect(labels).toHaveLength(rects.length)
+    const columns = labels.map((label, i) => ({ label, x: Number(rects[i].getAttribute('x')), y: Number(rects[i].getAttribute('y')), h: Number(rects[i].getAttribute('height')) }))
+    const minX = Math.min(...columns.map((c) => c.x))
+    const maxX = Math.max(...columns.map((c) => c.x))
+    for (const c of columns) {
+      const anchor = c.label.getAttribute('text-anchor')
+      const lx = Number(c.label.getAttribute('x'))
+      if (c.x === minX) expect(anchor === 'end' && lx < c.x).toBe(true)
+      else if (c.x === maxX) expect(anchor === 'start' && lx > c.x).toBe(true)
+      else expect(anchor === 'middle' && Number(c.label.getAttribute('y')) < c.y).toBe(true)
+      // Name and amount on two lines.
+      expect(c.label.querySelectorAll('tspan')).toHaveLength(2)
+    }
+    // Label slots of a side column never overlap: centres at least two lines apart.
+    const left = columns.filter((c) => c.x === minX).map((c) => c.y + c.h / 2).sort((a, b) => a - b)
+    for (let i = 1; i < left.length; i++) expect(left[i] - left[i - 1]).toBeGreaterThanOrEqual(28)
+    const first = columns.find((c) => c.label.querySelector('title')?.textContent?.startsWith('Maison Dupont et Fils'))!
+    expect(first.label.querySelector('tspan')?.textContent).toMatch(/\u2026$/)
+  })
+
   it('shows the error text of a failed tool and refuses data of another view', async () => {
     const failed = mount('statement')
     await failed.open(null, { isError: true, content: [{ type: 'text', text: 'Société introuvable.' }] })
@@ -250,7 +279,7 @@ describe('MCP actionable list', () => {
     const done = view.requests('tools/call')[2]
     expect(done.params).toEqual({ name: 'validate_entries', arguments: { companyId, entryIds: ['e_1'], actionId: 'act_1' } })
     await view.reply(done, { content: [{ type: 'text', text: JSON.stringify({ executed: true, result: { validated: 1 } }) }] })
-    expect(view.text()).toContain('Valider : fait.')
+    expect(view.text()).toContain('Valider\u00a0: fait.')
     const [context] = view.requests('ui/update-model-context')
     expect(JSON.stringify(context.params)).toContain('validate_entries')
     expect(view.errors).toEqual([])
@@ -268,9 +297,9 @@ describe('MCP actionable list', () => {
     await view.flush()
     const [dry] = view.requests('tools/call')
     expect(dry.params).toEqual({ name: 'validate_entries', arguments: { companyId, entryIds: ['e_1', 'e_2'], dryRun: true } })
-    await view.reply(dry, { content: [{ type: 'text', text: JSON.stringify({ dryRun: true, preview: { entries: [], warnings: ['Écriture BR-0041 : déjà validée.'] }, nextStep: '...' }) }] })
+    await view.reply(dry, { content: [{ type: 'text', text: JSON.stringify({ dryRun: true, preview: { entries: [], warnings: ['Écriture BR-0041\u00a0: déjà validée.'] }, nextStep: '...' }) }] })
     expect(view.text()).toContain('déjà validée')
-    button(view.document, 'Confirmer : valider la sélection').click()
+    button(view.document, 'Confirmer\u00a0: valider la sélection').click()
     await view.flush()
     const run = view.requests('tools/call')[1]
     expect(run.params).toEqual({ name: 'validate_entries', arguments: { companyId, entryIds: ['e_1', 'e_2'] } })

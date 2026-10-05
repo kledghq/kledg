@@ -291,7 +291,7 @@ export const RUNTIME_JS = String.raw`
     }
     var data = result.structuredContent;
     if (!data || typeof data !== 'object') {
-      showError('Pas de vue pour ce résultat : la réponse en texte reste dans la conversation.');
+      showError('Pas de vue pour ce résultat\u00a0: la réponse en texte reste dans la conversation.');
       return;
     }
     state.data = data;
@@ -309,7 +309,7 @@ export const RUNTIME_JS = String.raw`
       state.render(state.data, root, api);
     } catch (error) {
       clear(root);
-      showError('La vue n’a pas pu afficher ces données : la réponse en texte reste dans la conversation.');
+      showError('La vue n’a pas pu afficher ces données\u00a0: la réponse en texte reste dans la conversation.');
     }
     reportSize();
   }

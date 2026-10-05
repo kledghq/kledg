@@ -17,7 +17,7 @@
 import type { TemplateSource } from './page'
 
 export const ACTIONS_TEMPLATE: TemplateSource = {
-  title: 'Kledg : liste à traiter',
+  title: 'Kledg\u00a0: liste à traiter',
   css: `
 .k-list td.k-cell-actions{width:1%;white-space:nowrap}
 .k-list td.k-cell-actions .k-actions{flex-wrap:nowrap;justify-content:flex-end}
@@ -78,8 +78,8 @@ export const ACTIONS_TEMPLATE: TemplateSource = {
           if (e.entryNumber) parts.push('Écriture ' + e.entryNumber);
           if (e.description) parts.push(String(e.description));
           var line = parts.join(', ');
-          if (e.numberToAssign) line += ' : recevra le n° ' + e.numberToAssign;
-          if (e.problem) line += ' : ' + e.problem;
+          if (e.numberToAssign) line += '\u00a0: recevra le n° ' + e.numberToAssign;
+          if (e.problem) line += '\u00a0: ' + e.problem;
           return el('li', null, line);
         })));
       }
@@ -94,7 +94,7 @@ export const ACTIONS_TEMPLATE: TemplateSource = {
       var nodes = [el('p', null, message)];
       if (data.refresh) nodes.push(el('div', { class: 'k-actions' }, el('button', { type: 'button', class: 'k-btn', onclick: refresh }, 'Actualiser la liste')));
       setPanel('success', nodes);
-      api.updateContext('Depuis la vue Kledg, l’utilisateur a lancé « ' + action.label + ' » (' + action.tool + ') sur ' + ids.join(', ') + '. Résultat : ' + message);
+      api.updateContext('Depuis la vue Kledg, l’utilisateur a lancé « ' + action.label + ' » (' + action.tool + ') sur ' + ids.join(', ') + '. Résultat\u00a0: ' + message);
     }
 
     function refresh() {
@@ -121,28 +121,28 @@ export const ACTIONS_TEMPLATE: TemplateSource = {
     /** Runs a tool action, through its dry run when it is high impact. */
     function runTool(action, args, ids) {
       if (!action.highImpact) {
-        call(action, args, ids, function () { done(action, ids, action.label + ' : fait.'); });
+        call(action, args, ids, function () { done(action, ids, action.label + '\u00a0: fait.'); });
         return;
       }
       var automatic = data.executionMode === 'automatic';
       var previewArgs = automatic ? Object.assign({}, args, { dryRun: true }) : args;
       call(action, previewArgs, ids, function (result) {
-        if (result.executed) return done(action, ids, action.label + ' : fait.');
-        if (!result.dryRun) return done(action, ids, action.label + ' : fait.');
+        if (result.executed) return done(action, ids, action.label + '\u00a0: fait.');
+        if (!result.dryRun) return done(action, ids, action.label + '\u00a0: fait.');
         showPreview(result, null);
       });
 
       /** The dry run with its buttons; an error of the second call is shown under it, the buttons stay. */
       function showPreview(result, error) {
         lockButtons(false);
-        var nodes = [el('p', null, 'Aperçu : rien n’a encore été modifié.')].concat(previewNodes(result.preview));
+        var nodes = [el('p', null, 'Aperçu\u00a0: rien n’a encore été modifié.')].concat(previewNodes(result.preview));
         var buttons = [];
         var retry = function (message) { showPreview(result, message || 'L’action n’a pas abouti.'); };
-        var finish = function (r) { done(action, ids, r.executed ? action.label + ' : fait.' : 'Action envoyée.'); };
+        var finish = function (r) { done(action, ids, r.executed ? action.label + '\u00a0: fait.' : 'Action envoyée.'); };
         if (automatic) {
           buttons.push(el('button', { type: 'button', class: 'k-btn k-btn-primary', 'data-action': 'confirm', onclick: function () {
             call(action, args, ids, finish, retry);
-          } }, 'Confirmer : ' + action.label.toLowerCase()));
+          } }, 'Confirmer\u00a0: ' + action.label.toLowerCase()));
         } else {
           nodes.push(el('p', null, 'Cette action doit être approuvée par vous dans Kledg (l’assistant ne peut pas l’approuver). Approuvez-la, puis revenez exécuter.'));
           if (typeof result.approvalUrl === 'string') {

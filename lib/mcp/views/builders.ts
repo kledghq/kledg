@@ -129,7 +129,7 @@ export function balanceSheetStatement(ctx: StatementContext, current: BalanceShe
     total: { label: totalLabel, values: withPrevious ? [data.netTotal, prevTotal ?? 0] : [data.netTotal] },
   })
   const warnings = [...(current.warnings ?? [])]
-  if (current.imbalance) warnings.unshift(`Le bilan n'est pas équilibré : écart de ${euroText(current.imbalance)} entre l'actif et le passif.`)
+  if (current.imbalance) warnings.unshift(`Le bilan n'est pas équilibré\u00a0: écart de ${euroText(current.imbalance)} entre l'actif et le passif.`)
   return {
     view: 'statement',
     title: `Bilan, ${ctx.companyName}`,
@@ -181,14 +181,14 @@ export function incomeStatementStatement(ctx: StatementContext, current: IncomeS
 }
 
 const PCG_CLASSES: Record<string, string> = {
-  '1': 'Classe 1 : comptes de capitaux',
-  '2': "Classe 2 : comptes d'immobilisations",
-  '3': 'Classe 3 : comptes de stocks et en-cours',
-  '4': 'Classe 4 : comptes de tiers',
-  '5': 'Classe 5 : comptes financiers',
-  '6': 'Classe 6 : comptes de charges',
-  '7': 'Classe 7 : comptes de produits',
-  '8': 'Classe 8 : comptes spéciaux',
+  '1': 'Classe 1\u00a0: comptes de capitaux',
+  '2': "Classe 2\u00a0: comptes d'immobilisations",
+  '3': 'Classe 3\u00a0: comptes de stocks et en-cours',
+  '4': 'Classe 4\u00a0: comptes de tiers',
+  '5': 'Classe 5\u00a0: comptes financiers',
+  '6': 'Classe 6\u00a0: comptes de charges',
+  '7': 'Classe 7\u00a0: comptes de produits',
+  '8': 'Classe 8\u00a0: comptes spéciaux',
 }
 
 export function trialBalanceStatement(companyId: string, companyName: string, data: TrialBalanceData): StatementView {
@@ -217,7 +217,7 @@ export function trialBalanceStatement(companyId: string, companyName: string, da
   return {
     view: 'statement',
     title: `Balance générale, ${companyName}`,
-    subtitle: `Du ${formatIsoDateFr(data.period.startDate)} au ${formatIsoDateFr(data.period.endDate)} (exercice ${data.fiscalYear.year}). Solde : débit moins crédit.`,
+    subtitle: `Du ${formatIsoDateFr(data.period.startDate)} au ${formatIsoDateFr(data.period.endDate)} (exercice ${data.fiscalYear.year}). Solde\u00a0: débit moins crédit.`,
     columns: [{ label: 'Débit' }, { label: 'Crédit' }, { label: 'Solde' }],
     sections,
     totals: [{ label: 'Total général', values: [data.totals.debit, data.totals.credit, data.totals.balance], emphasis: true }],
@@ -367,7 +367,7 @@ export function entriesList(
         status: draft ? 'Brouillon' : 'Validée',
       },
       breakdown: e.lines.map((l) => ({
-        label: `${l.account} ${l.accountLabel}${l.label ? ` : ${l.label}` : ''}`,
+        label: `${l.account} ${l.accountLabel}${l.label ? `\u00a0: ${l.label}` : ''}`,
         debit: num(l.debit) || null,
         credit: num(l.credit) || null,
       })),
@@ -378,7 +378,7 @@ export function entriesList(
   const notice = drafts.length
     ? fullControl
       ? access.executionMode === 'validation'
-        ? 'Valider ou supprimer passe par un aperçu, puis votre approbation dans Kledg : l’assistant ne peut pas approuver.'
+        ? 'Valider ou supprimer passe par un aperçu, puis votre approbation dans Kledg\u00a0: l’assistant ne peut pas approuver.'
         : 'Valider ou supprimer montre d’abord un aperçu ; rien ne change avant votre confirmation.'
       : 'Les brouillons se valident dans Kledg (cette connexion n’a pas le contrôle total).'
     : undefined
@@ -482,7 +482,7 @@ export function bankTransactionsList(
       { label: 'Encaissements', value: toEuros(open.filter((t) => t.side !== 'debit').reduce((s, t) => s + signed(t), 0)), format: 'euros' },
       { label: 'Décaissements', value: toEuros(open.filter((t) => t.side === 'debit').reduce((s, t) => s + signed(t), 0)), format: 'euros' },
     ],
-    empty: 'Aucune transaction à rapprocher : tout est à jour.',
+    empty: 'Aucune transaction à rapprocher\u00a0: tout est à jour.',
     links: [{ label: 'Ouvrir le rapprochement dans Kledg', url: kledgPageUrl(companyId, 'reconciliation') }],
   }
 }
@@ -505,7 +505,7 @@ export function missingReceiptsList(companyId: string, access: Pick<McpAccess, '
         ? `Transactions sans justificatif du ${formatIsoDateFr(result.period.startDate)} au ${formatIsoDateFr(result.period.endDate)}`
         : 'Transactions sans justificatif',
     notice: 'Chaque pièce justificative se conserve 10 ans (Code de commerce, art. L123-22). Les justificatifs se joignent à la banque (Qonto) puis se synchronisent dans Kledg.',
-    ...(result.truncated && { warnings: [`Liste limitée : ${result.count} transactions au total, les plus récentes affichées.`] }),
+    ...(result.truncated && { warnings: [`Liste limitée\u00a0: ${result.count} transactions au total, les plus récentes affichées.`] }),
     executionMode: executionModeOf(access),
     columns: [
       { key: 'date', label: 'Date', format: 'date' },
@@ -531,7 +531,7 @@ export function missingReceiptsList(companyId: string, access: Pick<McpAccess, '
       { label: 'Montant concerné', value: result.total, format: 'euros' },
       ...(result.threshold > 0 ? [{ label: 'Seuil', value: result.threshold, format: 'euros' as const }] : []),
     ],
-    empty: 'Aucun justificatif manquant au-dessus du seuil : tout est en ordre.',
+    empty: 'Aucun justificatif manquant au-dessus du seuil\u00a0: tout est en ordre.',
     links: [{ label: 'Ouvrir les justificatifs manquants dans Kledg', url: kledgPageUrl(companyId, 'banking/missing-receipts') }],
   }
 }
@@ -644,7 +644,7 @@ export function expenseReportDocument(companyId: string, report: ExpenseReportLi
     kind: 'expense_report',
     title: `Note de frais${report.number ? ` n° ${report.number}` : ''}`,
     subtitle: [report.label, `du ${formatIsoDateFr(report.periodStart)} au ${formatIsoDateFr(report.periodEnd)}`].filter(Boolean).join(', '),
-    ...(report.returnNote && { notice: `Renvoyée avec ce motif : ${report.returnNote}` }),
+    ...(report.returnNote && { notice: `Renvoyée avec ce motif\u00a0: ${report.returnNote}` }),
     status: { label: EXPENSE_STATUS_LABELS[report.status as ExpenseReportStatus] ?? report.status, tone: TONES[EXPENSE_STATUS_TONES[report.status as ExpenseReportStatus]] ?? 'neutral' },
     parties: [
       {
@@ -673,7 +673,7 @@ export function expenseReportDocument(companyId: string, report: ExpenseReportLi
         ],
         rows: report.lines.map((l) => [
           l.date,
-          l.kind === 'MILEAGE' ? `Indemnités kilométriques${l.mileage ? `, ${num(l.mileage.distanceKm)} km` : ''}${l.label ? ` : ${l.label}` : ''}` : [l.supplier, l.label].filter(Boolean).join(' : ') || null,
+          l.kind === 'MILEAGE' ? `Indemnités kilométriques${l.mileage ? `, ${num(l.mileage.distanceKm)} km` : ''}${l.label ? `\u00a0: ${l.label}` : ''}` : [l.supplier, l.label].filter(Boolean).join('\u00a0: ') || null,
           l.categoryLabel,
           l.accountCode,
           l.amountPaid,
@@ -697,7 +697,7 @@ const pct = (bp: number | null | undefined) => (bp === null || bp === undefined 
 
 export function groupStructureOrganigram(companyId: string, report: GroupStructureReport): OrganigramView {
   const warnings = [...report.warnings]
-  if (report.unreachable.length) warnings.push(`${plural(report.unreachable.length, 'filiale non accessible', 'filiales non accessibles')} à cette connexion : ni nom ni pourcentage.`)
+  if (report.unreachable.length) warnings.push(`${plural(report.unreachable.length, 'filiale non accessible', 'filiales non accessibles')} à cette connexion\u00a0: ni nom ni pourcentage.`)
   return {
     view: 'organigram',
     title: `Structure du groupe ${report.holding.name}`,

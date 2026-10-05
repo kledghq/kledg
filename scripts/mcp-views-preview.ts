@@ -49,8 +49,8 @@ function hostPage(title: string, tool: string, template: string, data: unknown):
 <body>
 <div class="wrap">
 <h1>${title}</h1>
-<p>Résultat de l'outil <code>${tool}</code> rendu par le modèle de vue, comme dans Claude ou ChatGPT. Hôte simulé : les boutons appellent des outils fictifs, rien n'est envoyé.</p>
-<div class="bar">Thème de l'hôte : <button type="button" data-theme="light">Clair</button><button type="button" data-theme="dark">Sombre</button> <a href="index.html">Tous les aperçus</a></div>
+<p>Résultat de l'outil <code>${tool}</code> rendu par le modèle de vue, comme dans Claude ou ChatGPT. Hôte simulé\u00a0: les boutons appellent des outils fictifs, rien n'est envoyé.</p>
+<div class="bar">Thème de l'hôte\u00a0: <button type="button" data-theme="light">Clair</button><button type="button" data-theme="dark">Sombre</button> Largeur\u00a0: <button type="button" data-width="360">Étroite</button><button type="button" data-width="">Pleine</button> <a href="index.html">Tous les aperçus</a></div>
 <div class="bubble"><iframe id="view" sandbox="allow-scripts" title="${title}"></iframe></div>
 <div id="log"></div>
 </div>
@@ -62,7 +62,7 @@ function hostPage(title: string, tool: string, template: string, data: unknown):
   var log = document.getElementById('log');
   var theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   var counter = 0;
-  function note(text) { log.textContent = 'Hôte : ' + text + '\\n' + log.textContent; }
+  function note(text) { log.textContent = 'Hôte\u00a0: ' + text + '\\n' + log.textContent; }
   function send(message) { frame.contentWindow.postMessage(message, '*'); }
   function reply(id, result) { send({ jsonrpc: '2.0', id: id, result: result }); }
   function text(value) { return { content: [{ type: 'text', text: JSON.stringify(value) }] }; }
@@ -100,10 +100,10 @@ function hostPage(title: string, tool: string, template: string, data: unknown):
       note('ouvrirait ' + m.params.url);
       reply(m.id, {});
     } else if (m.method === 'ui/message') {
-      note('message envoyé à l assistant : ' + m.params.content[0].text);
+      note('message envoyé à l assistant\u00a0: ' + m.params.content[0].text);
       reply(m.id, {});
     } else if (m.method === 'ui/update-model-context') {
-      note('contexte transmis à l assistant : ' + m.params.content[0].text);
+      note('contexte transmis à l assistant\u00a0: ' + m.params.content[0].text);
       reply(m.id, {});
     } else if (m.id !== undefined) {
       send({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'Non simulé' } });
@@ -113,6 +113,12 @@ function hostPage(title: string, tool: string, template: string, data: unknown):
     b.addEventListener('click', function () {
       theme = b.getAttribute('data-theme');
       send({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { theme: theme } });
+    });
+  });
+  document.querySelectorAll('[data-width]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var width = b.getAttribute('data-width');
+      frame.parentNode.style.maxWidth = width ? width + 'px' : '';
     });
   });
   frame.srcdoc = template;
@@ -135,7 +141,7 @@ writeFileSync(
   path.join(out, 'index.html'),
   `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Vues MCP de Kledg</title><style>${STYLE}</style></head>
-<body><div class="wrap"><h1>Vues MCP de Kledg : aperçus</h1><p>Données fictives, modèles réels (lib/mcp/views). Chaque page simule l'hôte MCP Apps.</p><ul>${items.join('')}</ul></div></body></html>
+<body><div class="wrap"><h1>Vues MCP de Kledg\u00a0: aperçus</h1><p>Données fictives, modèles réels (lib/mcp/views). Chaque page simule l'hôte MCP Apps.</p><ul>${items.join('')}</ul></div></body></html>
 `,
 )
 console.log(`${samples.length} previews written to ${out}`)

@@ -57,7 +57,7 @@ export const VIEWS: Record<ViewName, ViewDefinition> = {
   statement: {
     uri: uriOf('statement'),
     title: 'État financier',
-    description: 'Bilan, compte de résultat ou balance générale en tableau : sections, sous-totaux, totaux, colonnes N et N-1.',
+    description: 'Bilan, compte de résultat ou balance générale en tableau\u00a0: sections, sous-totaux, totaux, colonnes N et N-1.',
     source: STATEMENT_TEMPLATE,
   },
   chart: {

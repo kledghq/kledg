@@ -349,7 +349,7 @@ export function viewSamples(): ViewSample[] {
   return [
     { name: 'bilan', tool: 'get_balance_sheet', data: balanceSheetStatement(ctx, bs, bsPrev), expect: ['Bilan, Atelier Lumen SAS', 'Total actif', '114\u00a0650,40\u00a0€', 'Exercice 2024'] },
     { name: 'compte-de-resultat', tool: 'get_income_statement', data: incomeStatementStatement(ctx, is, isPrev), expect: ['Compte de résultat', 'Résultat net (bénéfice)', '50\u00a0450,40\u00a0€'] },
-    { name: 'balance-generale', tool: 'get_trial_balance', data: trialBalanceStatement(COMPANY, 'Atelier Lumen SAS', trialBalance()), expect: ['Balance générale', 'Classe 4 : comptes de tiers', 'Total général', '411000'] },
+    { name: 'balance-generale', tool: 'get_trial_balance', data: trialBalanceStatement(COMPANY, 'Atelier Lumen SAS', trialBalance()), expect: ['Balance générale', 'Classe 4\u00a0: comptes de tiers', 'Total général', '411000'] },
     { name: 'flux-tiers', tool: 'get_tiers_flows', data: tiersFlowsChart(COMPANY, tiersFlows(), 'all'), expect: ['Flux avec les clients et fournisseurs', 'Maison Dupont', 'Facturé aux clients', '229\u00a0700,00\u00a0€'] },
     { name: 'flux-groupe', tool: 'get_group_view', data: groupFlowsChart(HOLDING.id, groupView()), expect: ['Flux entre les sociétés du groupe', 'Frais de gestion', 'Dividendes', 'Studio Lumen'] },
     { name: 'tresorerie-groupe', tool: 'get_group_treasury', data: groupTreasuryChart(HOLDING.id, groupTreasury()), expect: ['Trésorerie du groupe Lumen Holding', 'Soldes bancaires (EUR)', 'déc.\u00a02025'] },
@@ -368,7 +368,7 @@ export function viewSamples(): ViewSample[] {
           ],
           threshold: { value: 15000, label: 'Seuil de sécurité' },
         },
-        summary: 'Solde bancaire prévu du 01/12/2025 au 01/03/2026 : au plus bas 9 600,00 € le 15/01/2026, sous le seuil de sécurité de 15 000,00 €.',
+        summary: 'Solde bancaire prévu du 01/12/2025 au 01/03/2026\u00a0: au plus bas 9 600,00 € le 15/01/2026, sous le seuil de sécurité de 15 000,00 €.',
         warnings: ['Le solde passe sous le seuil de sécurité autour du 15/01/2026.'],
       },
       expect: ['Prévision de trésorerie', 'Seuil de sécurité (15\u00a0000,00\u00a0€)', '15/01/2026'],

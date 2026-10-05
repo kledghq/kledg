@@ -8,7 +8,7 @@
 import type { TemplateSource } from './page'
 
 export const DOCUMENT_TEMPLATE: TemplateSource = {
-  title: 'Kledg : document',
+  title: 'Kledg\u00a0: document',
   css: `
 .k-doc{border:1px solid var(--k-border);border-radius:var(--k-radius);padding:16px;background:var(--k-bg)}
 .k-doc-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:8px 16px;margin-bottom:16px}

@@ -13,7 +13,7 @@ import type { TemplateSource } from './page'
 const colorClasses = CHART_COLORS.map((c) => `.k-s-${c}{stroke:var(--k-chart-${c})}.k-f-${c}{fill:var(--k-chart-${c})}.k-bg-${c}{background:var(--k-chart-${c})}`).join('\n')
 
 export const CHART_TEMPLATE: TemplateSource = {
-  title: 'Kledg : graphique',
+  title: 'Kledg\u00a0: graphique',
   css: `
 .k-chart{width:100%;height:auto;display:block;overflow:visible}
 .k-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
@@ -26,6 +26,9 @@ export const CHART_TEMPLATE: TemplateSource = {
 .k-node{fill:var(--k-fg)}
 .k-node-value{fill:var(--k-muted)}
 .k-node-label{paint-order:stroke;stroke:var(--k-bg);stroke-width:3px;stroke-linejoin:round}
+.k-node-name{font-weight:500}
+.k-sankey{width:100%}
+.k-sankey .k-chart{width:100%;max-width:100%;height:auto}
 ${colorClasses}
 `,
   js: String.raw`
@@ -133,7 +136,7 @@ ${colorClasses}
       }
       graph.appendChild(s('path', { class: 'k-line k-s-' + serie.color, d: d }));
       points.forEach(function (p) {
-        graph.appendChild(s('circle', { class: 'k-point k-f-' + serie.color, cx: x(index[p.x]), cy: y(p.y), r: points.length > 40 ? 2 : 3 }, s('title', null, serie.name + ', ' + xLabel(p.x, chart.x) + ' : ' + K.euros(p.y))));
+        graph.appendChild(s('circle', { class: 'k-point k-f-' + serie.color, cx: x(index[p.x]), cy: y(p.y), r: points.length > 40 ? 2 : 3 }, s('title', null, serie.name + ', ' + xLabel(p.x, chart.x) + '\u00a0: ' + K.euros(p.y))));
       });
     });
     root.appendChild(graph);
@@ -154,46 +157,83 @@ ${colorClasses}
     root.appendChild(dataTable(data.title, headers, rows));
   }
 
-  function sankey(data, chart, root) {
+  /** Width of a label in px: measured by the browser, estimated where it cannot (no layout). */
+  function textWidth(text, cls) {
+    var probe = document.getElementById('k-svg-ns');
+    var node = s('text', { class: cls || null }, text);
+    probe.appendChild(node);
+    var width = typeof node.getComputedTextLength === 'function' ? node.getComputedTextLength() : 0;
+    probe.removeChild(node);
+    return width > 0 ? width : text.length * 6.4;
+  }
+
+  /** The text, cut with an ellipsis to fit max px (the full text goes in the title). */
+  function fit(text, max, cls) {
+    if (textWidth(text, cls) <= max) return text;
+    var cut = text;
+    while (cut.length > 1 && textWidth(cut + '…', cls) > max) cut = cut.slice(0, -1);
+    return cut.replace(/\s+$/, '') + '…';
+  }
+
+  /**
+   * Sankey laid out for its actual width: labels of the first column on the
+   * left of their nodes, of the last column on the right, of a middle column
+   * in a band above the flows; each node gets a slot at least as tall as its
+   * two-line label (name, amount), so labels never overlap the flows nor each
+   * other; names too long for the width are cut, in full in their title.
+   */
+  function drawSankey(data, chart, holder, available) {
+    var NW = 10, GAP = 10, LINE = 14, LABEL_H = 2 * LINE + 2, PAD = 6;
+    var W = Math.max(300, Math.min(960, Math.floor(available || 640)));
     var nodes = chart.nodes.map(function (n, i) { return { i: i, label: n.label, column: n.column, inflow: 0, outflow: 0, inUsed: 0, outUsed: 0 }; });
     var links = chart.links.filter(function (l) { return nodes[l.source] && nodes[l.target] && l.source !== l.target; });
-    if (!links.length) {
-      root.appendChild(el('p', { class: 'k-empty' }, 'Aucun flux sur la période.'));
-      return;
-    }
     links.forEach(function (l) { nodes[l.source].outflow += l.value; nodes[l.target].inflow += l.value; });
     var used = nodes.filter(function (n) { return n.inflow > 0 || n.outflow > 0; });
     var columns = [];
-    used.forEach(function (n) { (columns[n.column] = columns[n.column] || []).push(n); });
-    var columnIndexes = [];
-    columns.forEach(function (c, i) { if (c && c.length) columnIndexes.push(i); });
-    var maxCount = 0;
-    columnIndexes.forEach(function (i) { maxCount = Math.max(maxCount, columns[i].length); });
-    var W = 640, NW = 10, GAP = 18, T = 24, B = 12;
-    var H = Math.max(220, maxCount * 46 + T + B);
-    var scale = Infinity;
-    columnIndexes.forEach(function (i) {
-      var total = 0;
-      columns[i].forEach(function (n) { n.value = Math.max(n.inflow, n.outflow); total += n.value; });
-      var room = H - T - B - (columns[i].length - 1) * GAP;
-      scale = Math.min(scale, room / total);
-    });
-    var first = columnIndexes[0];
-    var last = columnIndexes[columnIndexes.length - 1];
-    var span = Math.max(1, last - first);
-    columnIndexes.forEach(function (i) {
-      var height = 0;
-      columns[i].forEach(function (n) { n.h = Math.max(2, n.value * scale); height += n.h; });
-      height += (columns[i].length - 1) * GAP;
-      var top = T + (H - T - B - height) / 2;
-      columns[i].forEach(function (n) {
-        n.x = 8 + ((i - first) * (W - 16 - NW)) / span;
-        n.y = top;
-        top += n.h + GAP;
-      });
-    });
+    used.forEach(function (n) { n.value = Math.max(n.inflow, n.outflow); (columns[n.column] = columns[n.column] || []).push(n); });
+    var indexes = [];
+    columns.forEach(function (c, i) { if (c && c.length) indexes.push(i); });
+    var first = indexes[0], last = indexes[indexes.length - 1];
+    var middle = indexes.length > 2;
 
-    var graph = s('svg', { class: 'k-chart', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': data.summary });
+    // Labels: as wide as the longest of each side, within what the width leaves to the flows.
+    var sideMax = Math.max(70, Math.min(220, (W - 2 * NW - (middle ? 200 : 140)) / 2));
+    used.forEach(function (n) {
+      n.amount = K.euros(n.value);
+      var room = n.column === first || n.column === last ? sideMax : Math.min(220, W / 3);
+      n.name = fit(n.label, room, 'k-node-name');
+      n.labelWidth = Math.min(room, Math.max(textWidth(n.name, 'k-node-name'), textWidth(n.amount)));
+    });
+    var widest = function (column) { return (columns[column] || []).reduce(function (w, n) { return Math.max(w, n.labelWidth); }, 0); };
+    var left = Math.ceil(widest(first)) + PAD + 2;
+    var right = Math.ceil(widest(last)) + PAD + 2;
+    var T = middle ? LABEL_H + 14 : 6, B = 6;
+
+    var maxCount = 0;
+    indexes.forEach(function (i) { maxCount = Math.max(maxCount, columns[i].length); });
+    var bands = Math.max(200, maxCount * (LABEL_H + GAP));
+    var scale = Infinity;
+    indexes.forEach(function (i) {
+      var total = columns[i].reduce(function (t, n) { return t + n.value; }, 0);
+      scale = Math.min(scale, (bands - (columns[i].length - 1) * GAP) / total);
+    });
+    var height = 0;
+    indexes.forEach(function (i) {
+      var top = T;
+      var span = Math.max(1, last - first);
+      columns[i].forEach(function (n) {
+        n.h = Math.max(2, n.value * scale);
+        // Side labels need their slot; a middle label sits in the band above.
+        var slot = n.column === first || n.column === last ? Math.max(n.h, LABEL_H) : n.h;
+        n.x = left + ((i - first) * (W - left - right - NW)) / span;
+        n.y = top + (slot - n.h) / 2;
+        top += slot + GAP;
+      });
+      height = Math.max(height, top - GAP);
+    });
+    var H = Math.ceil(height + B);
+
+    var graph = s('svg', { class: 'k-chart', viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'img', 'aria-label': data.summary });
     links.forEach(function (l) {
       var a = nodes[l.source], b = nodes[l.target];
       var w = Math.max(1, l.value * scale);
@@ -203,30 +243,56 @@ ${colorClasses}
       b.inUsed += w;
       var x0 = a.x + NW, x1 = b.x, mid = (x0 + x1) / 2;
       var d = 'M' + x0.toFixed(1) + ' ' + sy.toFixed(1) + ' C' + mid.toFixed(1) + ' ' + sy.toFixed(1) + ' ' + mid.toFixed(1) + ' ' + ty.toFixed(1) + ' ' + x1.toFixed(1) + ' ' + ty.toFixed(1);
-      graph.appendChild(s('path', { class: 'k-link k-s-' + l.color, d: d, 'stroke-width': w.toFixed(1) }, s('title', null, a.label + ' vers ' + b.label + (l.kind ? ' (' + l.kind + ')' : '') + ' : ' + K.euros(l.value))));
+      graph.appendChild(s('path', { class: 'k-link k-s-' + l.color, d: d, 'stroke-width': w.toFixed(1) }, s('title', null, a.label + ' vers ' + b.label + (l.kind ? ' (' + l.kind + ')' : '') + ' : ' + K.euros(l.value))));
     });
     used.forEach(function (n) {
-      graph.appendChild(s('rect', { class: 'k-node', x: n.x, y: n.y, width: NW, height: n.h, rx: 1 }, s('title', null, n.label + ' : ' + K.euros(n.value))));
-      var isFirst = n.column === first, isLast = n.column === last;
-      var anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
-      var tx = isFirst ? n.x + NW + 6 : isLast ? n.x - 6 : n.x + NW / 2;
-      var ty = isFirst || isLast ? n.y + n.h / 2 : n.y - 8;
-      graph.appendChild(s('text', { class: 'k-node-label', x: tx, y: ty, 'text-anchor': anchor, 'dominant-baseline': 'central' }, [n.label + ' ', s('tspan', { class: 'k-node-value' }, K.euros(n.value))]));
+      var title = n.label + ' : ' + n.amount;
+      graph.appendChild(s('rect', { class: 'k-node', x: n.x, y: n.y, width: NW, height: n.h, rx: 1 }, s('title', null, title)));
+      var side = n.column === first ? 'left' : n.column === last ? 'right' : 'top';
+      var anchor = side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle';
+      var x = side === 'left' ? n.x - PAD : side === 'right' ? n.x + NW + PAD : n.x + NW / 2;
+      var y = side === 'top' ? n.y - 10 - LINE : n.y + n.h / 2 - LINE / 2 + 1;
+      graph.appendChild(s('text', { class: 'k-node-label', x: x, y: y, 'text-anchor': anchor, 'dominant-baseline': 'central' }, [
+        s('title', null, title),
+        s('tspan', { class: 'k-node-name', x: x }, n.name),
+        s('tspan', { class: 'k-node-value', x: x, dy: LINE }, n.amount),
+      ]));
     });
-    root.appendChild(graph);
+    holder.appendChild(graph);
+  }
+
+  function sankey(data, chart, root, api) {
+    var hasLinks = chart.links.some(function (l) { return chart.nodes[l.source] && chart.nodes[l.target] && l.source !== l.target; });
+    if (!hasLinks) {
+      root.appendChild(el('p', { class: 'k-empty' }, 'Aucun flux sur la période.'));
+      return;
+    }
+    var holder = el('div', { class: 'k-sankey' });
+    root.appendChild(holder);
+    var drawnWidth = 0;
+    var redraw = function () {
+      var width = holder.clientWidth || 640;
+      if (drawnWidth && Math.abs(width - drawnWidth) < 8) return;
+      drawnWidth = width;
+      K.clear(holder);
+      drawSankey(data, chart, holder, width);
+      api.resized();
+    };
+    redraw();
+    if (typeof ResizeObserver === 'function') new ResizeObserver(redraw).observe(holder);
     if (Array.isArray(chart.legend) && chart.legend.length) root.appendChild(legend(chart.legend));
     root.appendChild(el('p', { class: 'k-sr' }, data.summary));
-    var rows = links.map(function (l) {
-      return [{ text: nodes[l.source].label }, { text: nodes[l.target].label }, { text: l.kind || '' }, { text: K.euros(l.value), numeric: true }];
+    var rows = chart.links.filter(function (l) { return chart.nodes[l.source] && chart.nodes[l.target]; }).map(function (l) {
+      return [{ text: chart.nodes[l.source].label }, { text: chart.nodes[l.target].label }, { text: l.kind || '' }, { text: K.euros(l.value), numeric: true }];
     });
     root.appendChild(dataTable(data.title, [{ label: 'De' }, { label: 'Vers' }, { label: 'Nature' }, { label: 'Montant', numeric: true }], rows));
   }
 
-  K.view('chart', function (data, root) {
+  K.view('chart', function (data, root, api) {
     K.header(data).forEach(function (n) { root.appendChild(n); });
     var figures = K.figures(data.figures);
     if (figures) root.appendChild(figures);
-    if (data.chart.kind === 'sankey') sankey(data, data.chart, root);
+    if (data.chart.kind === 'sankey') sankey(data, data.chart, root, api);
     else lineChart(data, data.chart, root);
     K.footer(data).forEach(function (n) { root.appendChild(n); });
   });

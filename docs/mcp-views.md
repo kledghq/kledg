@@ -91,7 +91,7 @@ guard test compares the flow colours with the CSS), light and dark through
 `prefers-color-scheme` and the host's `theme`. Amounts in French with
 non-breaking spaces (`1 234,56 €`), dates `dd/mm/yyyy`. Tables have
 `caption` and `th` scopes; charts are `role="img"` with an `aria-label`
-summary and a "Voir les données" table; the organigramme also writes each
+summary and a "Voir les données" table; the Sankey is laid out at the view's real width, with the first column's labels on the left of their nodes, the last column's on the right and a middle node's above the flows, one slot per label so labels never overlap the flows or each other, and long names cut with an ellipsis (full text in the tooltip); the organigramme also writes each
 holder in words and lists the holdings in a table.
 
 ## Security

@@ -10,7 +10,7 @@
 import type { TemplateSource } from './page'
 
 export const ORGANIGRAM_TEMPLATE: TemplateSource = {
-  title: 'Kledg : organigramme',
+  title: 'Kledg\u00a0: organigramme',
   css: `
 .k-org{position:relative;padding:4px 0}
 .k-org-level{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:0 0 36px;padding:0;list-style:none;position:relative;z-index:1}
@@ -53,11 +53,11 @@ export const ORGANIGRAM_TEMPLATE: TemplateSource = {
       levels[level].sort(function (a, b) { return a.order - b.order; }).forEach(function (n) {
         var meta = [];
         if (n.legalType) meta.push(el('span', { class: 'k-org-meta' }, n.legalType));
-        if (typeof n.interestPercent === 'number' && n.kind !== 'holding') meta.push(el('span', { class: 'k-org-meta' }, 'Détenue par le groupe : ' + K.percent(n.interestPercent)));
+        if (typeof n.interestPercent === 'number' && n.kind !== 'holding') meta.push(el('span', { class: 'k-org-meta' }, 'Détenue par le groupe\u00a0: ' + K.percent(n.interestPercent)));
         if (n.holders.length) {
-          meta.push(el('span', { class: 'k-org-meta' }, 'Associés : ' + n.holders.map(function (h) { return h.label + (typeof h.percent === 'number' ? ' (' + K.percent(h.percent) + ')' : ''); }).join(', ')));
+          meta.push(el('span', { class: 'k-org-meta' }, 'Associés\u00a0: ' + n.holders.map(function (h) { return h.label + (typeof h.percent === 'number' ? ' (' + K.percent(h.percent) + ')' : ''); }).join(', ')));
         }
-        if (n.officers.length) meta.push(el('span', { class: 'k-org-meta' }, 'Dirigeants : ' + n.officers.join(', ')));
+        if (n.officers.length) meta.push(el('span', { class: 'k-org-meta' }, 'Dirigeants\u00a0: ' + n.officers.join(', ')));
         var card = el('li', { class: 'k-org-card k-' + n.kind, 'data-node': n.id }, [
           el('span', { class: 'k-org-kind' }, KINDS[n.kind] || n.kind),
           el('span', { class: 'k-org-name' }, n.label),

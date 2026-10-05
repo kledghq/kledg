@@ -8,7 +8,7 @@
 import type { TemplateSource } from './page'
 
 export const STATEMENT_TEMPLATE: TemplateSource = {
-  title: 'Kledg : état financier',
+  title: 'Kledg\u00a0: état financier',
   css: `
 .k-statement th.k-label{min-width:220px}
 .k-statement .k-code{color:var(--k-muted);font-family:var(--k-mono);font-size:12px;margin-right:8px}
