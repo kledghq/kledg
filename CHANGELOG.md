@@ -4,6 +4,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.2.0] - 2026-10-05
+
 ### Ajouté
 
 - **Effacement d'une personne et approbation des comptes** : son nom est remplacé par « Personne effacée » dans l'approbation d'un exercice pas encore approuvé ; les procès-verbaux des comptes approuvés restent tels qu'ils ont été adoptés (Code de commerce, art. R221-3, R223-24, R225-106 et L123-22 ; RGPD, art. 17, 3, b et e), et la réponse le dit.

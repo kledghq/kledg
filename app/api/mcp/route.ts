@@ -1,3 +1,4 @@
+import pkg from '@/package.json'
 import { createMcpHandler } from 'mcp-handler'
 import { withMcpUser, type McpAccess } from '@/lib/mcp/auth'
 import { registerKledgTools } from '@/lib/mcp/tools'
@@ -28,7 +29,7 @@ const handler = withMcpUser((request, access) => {
       registerKledgPrompts(server, access)
     },
     {
-      serverInfo: { name: 'kledg', version: '0.1.0' },
+      serverInfo: { name: 'kledg', version: pkg.version },
       instructions: instructionsFor(access),
     },
   )
