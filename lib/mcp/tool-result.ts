@@ -6,7 +6,8 @@
 
 import { handleError } from '@/lib/accounting/errors'
 
-export type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean }
+/** structuredContent: the data of the tool's view, when it has one (lib/mcp/views). */
+export type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean; structuredContent?: Record<string, unknown> }
 
 // Prisma Decimal values serialize as strings; numbers are easier for models.
 // JSON.stringify calls toJSON() before the replacer, so read the raw holder value.

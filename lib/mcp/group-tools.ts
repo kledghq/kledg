@@ -23,6 +23,12 @@ import { z } from "zod";
 import type { CompanyGuard, McpAccess } from "@/lib/mcp/company-access";
 import { json, run } from "@/lib/mcp/tool-result";
 import { describeTool, READ_ONLY } from "@/lib/mcp/tool-meta";
+import { viewMeta, withView } from "@/lib/mcp/views";
+import {
+  groupFlowsChart,
+  groupStructureOrganigram,
+  groupTreasuryChart,
+} from "@/lib/mcp/views/builders";
 import type { GroupAccess } from "@/lib/management-fees/access";
 import type { KeyFigures } from "@/lib/group/combine";
 import { getGroupView } from "@/lib/group/get-group-view.service";
@@ -127,6 +133,7 @@ export function registerGroupTools(
       }),
       inputSchema: input,
       annotations: READ_ONLY,
+      _meta: viewMeta("chart"),
     },
     (args) =>
       run(async () => {
@@ -137,7 +144,7 @@ export function registerGroupTools(
           group,
         );
         const names = new Map(view.members.map((m) => [m.id, m.name]));
-        return json({
+        const result = json({
           notice: INDICATIVE_NOTICE,
           holding: view.holding,
           fiscalYear: view.fiscalYear,
@@ -196,6 +203,7 @@ export function registerGroupTools(
           investmentsNotEliminated: fromCents(view.titresParticipationCents),
           warnings: view.warnings,
         });
+        return withView(result, () => groupFlowsChart(args.companyId, view));
       }),
   );
 
@@ -400,13 +408,14 @@ export function registerGroupTools(
       }),
       inputSchema: input,
       annotations: READ_ONLY,
+      _meta: viewMeta("chart"),
     },
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { reports: ["read"] });
         const report = await getGroupTreasury(args.companyId, { fiscalYearId: args.fiscalYearId }, group);
         const names = new Map(report.companies.map((c) => [c.company.id, c.company.name]));
-        return json({
+        const result = json({
           holding: report.holding,
           fiscalYear: report.fiscalYear,
           companies: report.companies.map((c) => ({
@@ -427,6 +436,7 @@ export function registerGroupTools(
           notAccessibleSubsidiaries: report.unreachable.length,
           warnings: report.warnings,
         });
+        return withView(result, () => groupTreasuryChart(args.companyId, report));
       }),
   );
 
@@ -648,13 +658,14 @@ export function registerGroupTools(
       }),
       inputSchema: holdingOnly,
       annotations: READ_ONLY,
+      _meta: viewMeta("organigram"),
     },
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { reports: ["read"] });
         const report = await getGroupStructure(args.companyId, group);
         const labels = new Map(report.nodes.map((n) => [n.id, n.label]));
-        return json({
+        const result = json({
           holding: report.holding,
           nodes: report.nodes.map((n) => ({
             id: n.id,
@@ -676,6 +687,7 @@ export function registerGroupTools(
           notAccessibleSubsidiaries: report.unreachable.length,
           warnings: report.warnings,
         });
+        return withView(result, () => groupStructureOrganigram(args.companyId, report));
       }),
   );
 
