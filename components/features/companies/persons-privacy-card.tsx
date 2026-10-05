@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Download, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,21 +33,34 @@ export function PersonsPrivacyCard({ companyId, canEdit }: PersonsPrivacyCardPro
   const [toErase, setToErase] = useState<ListedPerson | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const load = useCallback(async () => {
-    setError(null)
-    try {
-      const response = await fetch(`/api/companies/${companyId}/persons`)
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Les personnes n’ont pas pu être chargées.')
-      setPersons(data as ListedPerson[])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Les personnes n’ont pas pu être chargées.')
-    }
-  }, [companyId])
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+    const failed = 'Les personnes n’ont pas pu être chargées. Réessayez.'
+    fetch(`/api/companies/${companyId}/persons`)
+      .then(async (response) => {
+        const data = (await response.json().catch(() => null)) as ListedPerson[] | { error?: string } | null
+        if (!response.ok || !Array.isArray(data)) throw new Error((data && !Array.isArray(data) && data.error) || failed)
+        return data
+      })
+      .then(
+        (list) => {
+          if (!cancelled) setPersons(list)
+        },
+        (e: unknown) => {
+          if (!cancelled) setError(e instanceof Error && e.message !== 'Failed to fetch' ? e.message : failed)
+        },
+      )
+    return () => {
+      cancelled = true
+    }
+  }, [companyId, attempt])
+
+  const reload = () => {
+    setError(null)
+    setAttempt((n) => n + 1)
+  }
 
   const exportPerson = async (person: ListedPerson) => {
     const response = await fetch(`/api/companies/${companyId}/persons/${person.id}`)
@@ -77,7 +90,7 @@ export function PersonsPrivacyCard({ companyId, canEdit }: PersonsPrivacyCardPro
       }
       toast.success(`Données de ${toErase.firstName} ${toErase.name} effacées`)
       setToErase(null)
-      await load()
+      reload()
     } finally {
       setBusy(false)
     }
@@ -98,7 +111,7 @@ export function PersonsPrivacyCard({ companyId, canEdit }: PersonsPrivacyCardPro
         {error ? (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-destructive">{error}</span>
-            <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
+            <Button type="button" variant="outline" size="sm" onClick={reload}>
               Réessayer
             </Button>
           </div>
