@@ -505,14 +505,23 @@ export function StatementImportDialog({
 
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Compte bancaire" htmlFor="statement-account" className="min-w-0">
+            <Field
+              label="Compte bancaire"
+              htmlFor="statement-account"
+              className="min-w-0"
+              hint={
+                accounts.length === 0
+                  ? 'Aucun compte bancaire pour l’instant\u00a0: ajoutez d’abord le compte avec «\u00a0Ajouter un compte bancaire\u00a0», puis importez son relevé.'
+                  : undefined
+              }
+            >
               <Select
                 value={bankAccountId}
                 onValueChange={(value) => {
                   setBankAccountId(value)
                   setPreview(null)
                 }}
-                disabled={loading || importing}
+                disabled={loading || importing || accounts.length === 0}
               >
                 <SelectTrigger id="statement-account" className="w-full min-w-0 overflow-hidden">
                   <SelectValue placeholder="Choisir un compte" />

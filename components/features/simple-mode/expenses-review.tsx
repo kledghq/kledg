@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { CheckCircle2, Paperclip, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Paperclip, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -102,7 +102,7 @@ function confirmedMessage(result: ConfirmResult, side: Side): string {
  * "Dépenses à vérifier" and "Recettes à vérifier" of simple mode
  * (docs/categories-simples.md): each bank line not yet classified, money
  * out or money in, with what Kledg proposes and why: a category, or for
- * money in the sales invoice it pays. "OK" confirms it, "Modifier" picks
+ * money in the sales invoice it pays. "Confirmer" confirms it, "Modifier" (or "Choisir la catégorie" when nothing is proposed) picks
  * another category, a question is answered in one click, "Tout confirmer"
  * confirms the sure ones.
  */
@@ -231,18 +231,23 @@ export function ExpensesReview({ companyId, side = 'debit' }: { companyId: strin
   const bulkCount = data?.bulkConfirmableIds.length ?? 0
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    // The company layout already pads the page: no padding of its own, like every other page
+    <div className="space-y-6">
       <div className="space-y-2">
-        <Link href={`/${companyId}/simple`} className="text-link text-sm underline-offset-4 hover:underline">
+        <Link href={`/${companyId}/simple`} className="text-link inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline">
+          <ArrowLeft aria-hidden className="size-3.5" />
           Accueil
         </Link>
         <PageHeader
           title={copy.title}
           description={copy.description}
           actions={
-            <Button onClick={confirmAll} loading={bulkBusy} disabled={!canConfirm || bulkCount === 0}>
-              Tout confirmer ({bulkCount})
-            </Button>
+            // Only when there is something to confirm at once: a disabled "Tout confirmer (0)" was the loudest thing on the page
+            bulkCount > 0 ? (
+              <Button onClick={confirmAll} loading={bulkBusy} disabled={!canConfirm}>
+                Tout confirmer ({bulkCount})
+              </Button>
+            ) : undefined
           }
         />
       </div>
@@ -376,18 +381,21 @@ function ExpenseRow({ expense, note, onNote, busy, canConfirm, onConfirm, onEdit
           <Amount value={expense.amountCents / 100} />
         </div>
         <div className="col-span-2 flex items-center justify-end gap-2 lg:col-span-1">
-          {expense.hasReceipt ? <Paperclip aria-label="Justificatif joint" className="text-muted-foreground size-4" /> : null}
-          {question ? null : (
+          {expense.hasReceipt ? <Paperclip role="img" aria-label="Justificatif joint" className="text-muted-foreground size-4" /> : null}
+          {question ? null : classified ? (
             <>
               <Button size="sm" variant="outline" onClick={onEdit} disabled={!canConfirm || blocked || busy}>
                 Modifier
               </Button>
-              {classified ? (
-                <Button size="sm" onClick={() => onConfirm()} loading={busy} disabled={!canConfirm || blocked}>
-                  OK
-                </Button>
-              ) : null}
+              <Button size="sm" onClick={() => onConfirm()} loading={busy} disabled={!canConfirm || blocked}>
+                Confirmer
+              </Button>
             </>
+          ) : (
+            // Nothing proposed: choosing the category is the one thing to do, so it is the primary action
+            <Button size="sm" onClick={onEdit} disabled={!canConfirm || blocked || busy}>
+              Choisir la catégorie
+            </Button>
           )}
         </div>
       </div>

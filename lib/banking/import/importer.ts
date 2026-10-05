@@ -94,6 +94,13 @@ export interface KeptProbable {
 const clean = (s: string | undefined | null) => (s ?? '').replace(/\s/g, '').toUpperCase()
 
 /**
+ * External id given to an account added by hand ("Ajouter un compte
+ * bancaire"): a random id that no bank file can name, so it never identifies
+ * the account in a statement.
+ */
+export const MANUAL_ACCOUNT_ID_PREFIX = 'manual:'
+
+/**
  * Keeps the transactions of the target account when the file names its
  * accounts (OFX, camt.053), and rejects other currencies.
  */
@@ -103,7 +110,9 @@ export function selectAccountTransactions(parsed: ParseResult, account: TargetAc
   let transactions = parsed.transactions
 
   const named = [...new Set(transactions.map((t) => clean(t.account)).filter(Boolean))]
-  const own = new Set([clean(account.iban), clean(account.externalAccountId)].filter(Boolean))
+  // A manual account is only known by its IBAN: without one, any account the file names may be it
+  const externalId = account.externalAccountId.startsWith(MANUAL_ACCOUNT_ID_PREFIX) ? '' : account.externalAccountId
+  const own = new Set([clean(account.iban), clean(externalId)].filter(Boolean))
   // A French IBAN contains the domestic account number (OFX ACCTID) before the RIB key
   const matches = (id: string) => own.has(id) || [...own].some((o) => Math.min(o.length, id.length) >= 8 && (o.includes(id) || id.includes(o)))
   if (named.length > 0 && own.size > 0) {

@@ -6,7 +6,7 @@ const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
 
 import { CreateUserForm } from '../create-user-form'
-import { McpConnectCard } from '../mcp-connect-card'
+import { isLocalOrigin, McpConnectCard } from '../mcp-connect-card'
 import { putAccess, useAiAccessGrants, useMyCompanies } from '../use-ai-access'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -85,6 +85,26 @@ describe('McpConnectCard', () => {
     await expect(navigator.clipboard.readText()).resolves.toBe(url)
     expect(toast.success).toHaveBeenCalledWith('Copié')
     expect(screen.queryByText('Claude est connecté')).toBeNull()
+  })
+
+  it('warns that claude.ai and ChatGPT cannot reach a local address', async () => {
+    render(<McpConnectCard connected={new Set()} hasApiKey={false} />)
+    // jsdom runs on localhost
+    expect(await screen.findByText('Adresse locale')).toBeInTheDocument()
+    expect(screen.getByText(/ne peuvent pas joindre cette adresse/)).toBeInTheDocument()
+  })
+
+  it('tells local addresses from public ones', () => {
+    expect(['http://localhost:3000', 'http://127.0.0.1:3000', 'http://kledg.local', 'http://192.168.1.20', 'http://10.0.0.5', 'http://172.20.0.2'].map(isLocalOrigin)).toEqual([true, true, true, true, true, true])
+    expect(['https://compta.example.fr', 'https://app.kledg.com', 'http://172.40.0.2', 'pas une url'].map(isLocalOrigin)).toEqual([false, false, false, false])
+  })
+
+  it('says when the browser refuses to copy', async () => {
+    const user = userEvent.setup()
+    render(<McpConnectCard connected={new Set()} hasApiKey={false} />)
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'))
+    await user.click(screen.getAllByRole('button', { name: 'Copier' })[0]!)
+    expect(toast.error).toHaveBeenCalledWith('Copie impossible dans ce navigateur\u00a0: sélectionnez le texte puis copiez-le.')
   })
 
   it('marks connected assistants and gives the Claude Code command with the key placeholder', async () => {

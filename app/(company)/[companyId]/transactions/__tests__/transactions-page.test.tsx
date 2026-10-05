@@ -44,6 +44,7 @@ import TransactionsPage from '../page'
 
 let transactions: Array<{ id: string; label: string }>
 let syncReply: { status: number; body: unknown }
+let connections: Array<{ provider: string; integration: unknown }>
 let fetchMock: ReturnType<typeof vi.fn>
 const respond = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -51,11 +52,13 @@ const respond = (status: number, body: unknown) =>
 beforeEach(() => {
   transactions = [{ id: 't1', label: 'LOYER OCTOBRE' }]
   syncReply = { status: 200, body: { success: true, totalItemsSynced: 14 } }
+  connections = [{ provider: 'QONTO', integration: { id: 'i1' } }]
   fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost')
     const method = init?.method ?? 'GET'
     if (url.pathname === '/api/companies/c1/fiscal-years') return respond(200, [{ id: 'fy-2026', year: 2026, isClosed: false }])
     if (url.pathname === '/api/banking/accounts') return respond(200, { accounts: [] })
+    if (url.pathname === '/api/banking/connections') return respond(200, { connections })
     if (url.pathname === '/api/transactions' && url.searchParams.get('categoriesOnly')) return respond(200, { categories: { cashflowCategories: [], cashflowSubcategories: [], categories: [], operationTypes: [] } })
     if (url.pathname === '/api/transactions') return respond(200, { transactions, balanceBefore: 1520.4 })
     if (method === 'POST' && url.pathname === '/api/integrations/sync') return respond(syncReply.status, syncReply.body)
@@ -124,7 +127,7 @@ describe('transactions page', () => {
     const user = userEvent.setup()
     render(<TransactionsPage />)
     await screen.findByText('LOYER OCTOBRE')
-    await user.click(screen.getByRole('combobox', { name: 'Période à synchroniser' }))
+    await user.click(await screen.findByRole('combobox', { name: 'Période à synchroniser' }))
     await user.click(await screen.findByRole('option', { name: '6 derniers mois' }))
     await user.click(screen.getByRole('button', { name: /Synchroniser/ }))
 
@@ -139,8 +142,17 @@ describe('transactions page', () => {
     const user = userEvent.setup()
     render(<TransactionsPage />)
     await screen.findByText('LOYER OCTOBRE')
-    await user.click(screen.getByRole('button', { name: /Synchroniser/ }))
+    await user.click(await screen.findByRole('button', { name: /Synchroniser/ }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('La synchronisation a échoué : Qonto : identifiants refusés'))
     expect(posts('/api/banking/attachments/sync')).toHaveLength(0)
+  })
+
+  it('offers no bank sync when the accounts are only fed by statement files', async () => {
+    connections = [{ provider: 'MANUAL', integration: null }]
+    render(<TransactionsPage />)
+    await screen.findByText('LOYER OCTOBRE')
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith('/api/banking/connections'))).toBe(true))
+    expect(screen.queryByRole('button', { name: /Synchroniser/ })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Période à synchroniser' })).toBeNull()
   })
 })

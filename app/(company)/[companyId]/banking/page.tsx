@@ -245,8 +245,9 @@ export default function BankingPage() {
           title="Aucun compte bancaire"
           description="Les opérations bancaires sont la source de la plupart des écritures. Connectez votre banque pour les recevoir chaque jour, ou ajoutez un compte puis importez un relevé (CSV, OFX ou Excel) exporté depuis votre banque."
           action={<ConnectBankButton companyId={companyId} size="sm" />}
+          secondaryAction={<ManualAccountDialog companyId={companyId} onCreated={load} size="sm" />}
           docsHref={docsUrl('importStatement')}
-          docsLabel="Importer un relevé"
+          docsLabel="Exporter un relevé depuis sa banque"
         />
       ) : (
         <>

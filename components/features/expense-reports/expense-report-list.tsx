@@ -144,6 +144,16 @@ export function ExpenseReportList({ companyId, mine }: { companyId: string; mine
                   ? 'Saisissez vos dépenses avec leur justificatif et vos trajets\u00a0: Kledg calcule la TVA récupérable et les indemnités kilométriques.'
                   : 'Les notes de frais déposées par les membres de la société apparaissent ici pour être validées et comptabilisées.'
               }
+              action={
+                maySubmit ? (
+                  <Button size="sm" asChild>
+                    <Link href={`${base}/new`}>
+                      <Plus aria-hidden />
+                      Nouvelle note de frais
+                    </Link>
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
             <>
