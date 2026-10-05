@@ -59,7 +59,7 @@ describe('FEC export page', () => {
     await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
     expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('123456789FEC20251231.txt')
     expect(toast.success).toHaveBeenCalledWith('FEC exporté')
-    expect(await screen.findByText('Fichier conforme')).toBeInTheDocument()
+    expect(await screen.findByText('Aucune anomalie détectée par Kledg')).toBeInTheDocument()
     expect(screen.getByText('123456789FEC20251231.txt : 42 écritures, 96 lignes.')).toBeInTheDocument()
   })
 

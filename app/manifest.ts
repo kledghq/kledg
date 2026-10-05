@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'Kledg',
     short_name: 'Kledg',
-    description: 'Comptabilité open source pour les sociétés françaises, conforme au PCG 2026.',
+    description: 'Comptabilité open source pour les sociétés françaises, tenue selon le plan comptable général.',
     lang: 'fr',
     dir: 'ltr',
     start_url: '/',

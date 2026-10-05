@@ -97,15 +97,28 @@ Non utilisés : Qonto ne publie pas de liste des fournisseurs (ils viennent des
 
 ## Facturation électronique
 
-La réforme rend chaque société capable de **recevoir** des factures électroniques par une plateforme agréée depuis le 1er septembre 2026 ; l'émission devient obligatoire pour les PME le 1er septembre 2027 (CGI art. 289 bis). Kledg ne se connecte à aucune plateforme (PDP) pour l'instant, mais son modèle accueille un import Factur-X, UBL ou CII :
+**Kledg n'est pas une plateforme agréée** (PA, longtemps appelée plateforme de dématérialisation partenaire) et ne se connecte à aucune : il ne reçoit, n'émet ni ne transmet de facture électronique, et ne fait pas d'e-reporting. Calendrier de la réforme (CGI art. 289 bis et 290, tels que modifiés par la loi n° 2026-103 de finances pour 2026, qui n'a pas changé les dates ; [impots.gouv.fr](https://www.impots.gouv.fr/professionnel/questions/partir-de-quand-suis-je-concerne-par-la-reforme-de-la-facturation)) :
 
-- **Parties** : SIREN et numéro de TVA du vendeur et de l'acheteur, figés sur la facture tels que le document les porte (EN 16931 BT-30, BT-31, BT-47, BT-48), indépendamment de la fiche du tiers.
-- **Type de document** : code UNTDID 1001 (`typeCode` : 380 facture, 381 avoir ; BT-3).
-- **Détail de la TVA** par taux, enregistré (`invoice_vat_breakdowns`, BG-23 : base BT-116, taux BT-119, taxe BT-117), calculé par la règle EN 16931 pour une facture saisie, repris tel quel pour une facture importée.
-- **Lignes** : quantité, prix unitaire net, taux, total net (BG-25 : BT-129, BT-146, BT-152, BT-131) et nature bien ou prestation (mention exigée par la réforme, CGI ann. II art. 242 nonies A, I, 8° bis).
-- **Source et identifiant externe** (`source`, `externalId`, unique) : un import électronique ajoutera une source et retrouvera ses factures par leur identifiant de plateforme, comme Qonto aujourd'hui.
+| Date | Obligation |
+| --- | --- |
+| 1er septembre 2026 | Toutes les sociétés assujetties à la TVA doivent pouvoir **recevoir** leurs factures électroniques, par une plateforme agréée de leur choix. Les grandes entreprises et les ETI **émettent** et transmettent les données de transaction (e-reporting). |
+| 1er septembre 2027 | Les PME et les microentreprises émettent à leur tour et transmettent leurs données de transaction. |
 
-Pour la suite : une source `EINVOICE`, un analyseur des formats (XML CII et UBL, PDF/A-3 Factur-X) qui produit les mêmes lignes et le même détail de TVA, puis le statut de cycle de vie renvoyé à la plateforme.
+Ce que cela veut dire pour une société qui tient ses comptes dans Kledg :
+
+- Choisissez une plateforme agréée (liste publiée par la DGFiP sur impots.gouv.fr) pour recevoir vos factures fournisseurs, et pour émettre vos factures de vente quand l'émission vous devient obligatoire. Le portail public (Chorus Pro) ne sert plus aux échanges entre entreprises.
+- Kledg enregistre ensuite ces factures en comptabilité : saisie, import Qonto, ou, plus tard, import du fichier. **Kledg n'importe pas encore de fichier Factur-X, UBL ou CII.**
+- Les mentions de la réforme (SIREN du client, adresse de livraison si elle diffère, catégorie de l'opération, option pour le paiement de la TVA d'après les débits, CGI ann. II art. 242 nonies A, I, 1°, 7° bis, 8° bis et 11° bis) sont portées par le document émis par votre outil de facturation ou votre plateforme. Kledg garde celles dont la comptabilité a besoin.
+
+Le modèle de facture de Kledg est déjà aligné sur la norme EN 16931, pour qu'un import électronique produise les mêmes données qu'une saisie :
+
+- **Parties** : SIREN et numéro de TVA du vendeur et de l'acheteur, figés sur la facture tels que le document les porte (EN 16931 BT-30, BT-31, BT-47, BT-48), indépendamment de la fiche du tiers.
+- **Type de document** : code UNTDID 1001 (`typeCode` : 380 facture, 381 avoir ; BT-3).
+- **Détail de la TVA** par taux, enregistré (`invoice_vat_breakdowns`, BG-23 : base BT-116, taux BT-119, taxe BT-117), calculé par la règle EN 16931 pour une facture saisie, repris tel quel pour une facture importée.
+- **Lignes** : quantité, prix unitaire net, taux, total net (BG-25 : BT-129, BT-146, BT-152, BT-131) et nature bien ou prestation (CGI ann. II art. 242 nonies A, I, 8° bis).
+- **Source et identifiant externe** (`source`, `externalId`, unique) : un import électronique retrouvera ses factures par leur identifiant de plateforme, comme Qonto aujourd'hui.
+
+Pour la suite : une source `EINVOICE`, un analyseur des formats (XML CII et UBL, PDF/A-3 Factur-X) qui produit les mêmes lignes et le même détail de TVA, à partir des factures que la plateforme agréée de la société lui remet. Kledg ne deviendra pas lui-même une plateforme agréée.
 
 ## Reprise de données d'un autre logiciel
 
@@ -123,6 +136,8 @@ L'écriture d'une facture reprise est celle que `postInvoice` crée dans l'exerc
 
 ## Limites
 
-- Kledg n'émet ni n'envoie de facture, et ne gère ni acompte, ni retenue de garantie, ni facture en devise.
+- Kledg n'émet ni n'envoie de facture, et ne gère ni acompte, ni retenue de garantie, ni facture en devise. Il ne produit donc pas les mentions obligatoires d'une facture (CGI ann. II art. 242 nonies A, Code de commerce art. L441-9) : votre outil de facturation en a la charge.
+- Un avoir (381) n'enregistre pas la référence de la facture qu'il rectifie, que le document de l'avoir doit porter (BOI-TVA-DECLA-30-20-20-20) : indiquez-la dans le libellé.
+- Les factures de frais de gestion sont numérotées par Kledg dans la série de la convention. Supprimer un brouillon qui n'est pas le dernier de la série laisse un trou dans la numérotation (CGI ann. II art. 242 nonies A, I, 7°) : annulez plutôt une facture émise par un avoir.
 - Une facture d'achat importée de Qonto n'a qu'une ligne par taux : Qonto ne fournit pas les lignes des factures fournisseurs.
 - La TVA des achats de prestations sous le régime des encaissements est passée à la date de la facture (voir plus haut).

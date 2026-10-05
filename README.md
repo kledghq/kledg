@@ -54,7 +54,7 @@ Le guide complet est dans [docs/self-hosting.md](docs/self-hosting.md).
 | Banque | Import de relevés, synchronisation Qonto et Revolut Business en direct, autres banques via Ponto (optionnelles), règles d'affectation automatiques, rapprochement |
 | Immobilisations | Fiche immobilisation, plan d'amortissement linéaire, tableau des amortissements |
 | États | Bilan, compte de résultat, balance, grand livre, journal, exports PDF et Excel |
-| Données | Export FEC conforme, import FEC, CSV et Excel |
+| Données | Export FEC au format de l'article A47 A-1 du LPF, contrôlé à l'export, import FEC, CSV et Excel |
 | Assistants IA | Serveur MCP pour Claude, ChatGPT et Claude Code (OAuth ou clé API) |
 
 **Prochainement** : TVA, IS, liasse fiscale, CFE et CVAE, tiers et factures, notes de frais, IA intégrée.

@@ -101,8 +101,9 @@ export default function FECExportPage() {
         <CardHeader>
           <CardTitle>Exporter un exercice</CardTitle>
           <CardDescription>
-            Un FEC par exercice, conforme à l&apos;article A47 A-1 du livre des procédures fiscales&nbsp;: écritures validées
-            dans l&apos;ordre de validation, à-nouveaux en tête, fichier nommé SirenFECAAAAMMJJ.
+            Un FEC par exercice, au format de l&apos;article A47 A-1 du livre des procédures fiscales&nbsp;: écritures validées
+            dans l&apos;ordre de validation, à-nouveaux en tête, fichier nommé SirenFECAAAAMMJJ. Kledg contrôle le fichier
+            à l&apos;export&nbsp;; avant de le remettre, vous pouvez aussi le tester avec Test Compta Demat de la DGFiP.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -122,7 +123,7 @@ export default function FECExportPage() {
             <Alert variant={report.valid ? 'default' : 'destructive'}>
               {report.valid ? <CheckCircle2 aria-hidden /> : <AlertTriangle aria-hidden />}
               <AlertTitle>
-                {report.valid ? 'Fichier conforme' : `${plural(report.errors.length, 'anomalie')} dans le fichier`}
+                {report.valid ? 'Aucune anomalie détectée par Kledg' : `${plural(report.errors.length, 'anomalie')} dans le fichier`}
               </AlertTitle>
               <AlertDescription>
                 <p>

@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: { default: "Kledg", template: "%s · Kledg" },
-  description: "Comptabilité open source pour les sociétés françaises, conforme au PCG 2026.",
+  description: "Comptabilité open source pour les sociétés françaises, tenue selon le plan comptable général.",
   robots: { index: false, follow: false },
   applicationName: "Kledg",
   // Installed on iOS (home screen): standalone window, name under the icon,
