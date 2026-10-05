@@ -146,6 +146,15 @@ export function profitTitle(cents: number, yearStartDay: string): string {
 
 export const PROFIT_HINT = "Avant impôt sur les sociétés";
 
+/** Next to the profit: the IS the worksheet estimates from the entries so far (lib/corporate-tax). */
+export const CORPORATE_TAX_TITLE = "Impôt sur les sociétés estimé";
+
+/** "Estimation sur le bénéfice depuis janvier, à confirmer à la clôture". */
+export function corporateTaxHint(yearStartDay: string): string {
+  const month = MONTHS[Number(yearStartDay.slice(5, 7)) - 1];
+  return `Estimation sur le bénéfice depuis ${month}, à confirmer à la clôture`;
+}
+
 function plural(count: number, singular: string, pluralForm: string): string {
   return `${count} ${count > 1 ? pluralForm : singular}`;
 }

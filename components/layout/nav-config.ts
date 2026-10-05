@@ -23,6 +23,7 @@ import {
   House,
   Info,
   Landmark,
+  Calculator,
   LayoutDashboard,
   LineChart,
   Link2,
@@ -133,6 +134,7 @@ export const navGroups: NavGroup[] = [
       { title: "FEC", url: "/reports/fec", icon: FileCode },
       { title: "Échéances", url: "/echeances", icon: CalendarClock },
       { title: "Déclarations de TVA", url: "/declarations-tva", icon: Percent },
+      { title: "Impôt sur les sociétés", url: "/impot-societes", icon: Calculator },
     ],
   },
   {

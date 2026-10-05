@@ -15,6 +15,7 @@ import { registerExpenseReportDraftTools } from './expense-reports'
 import { registerApprovalDraftTools } from './approval'
 import { registerSimpleModeDraftTools } from './simple-mode'
 import { registerVatReturnDraftTools } from './vat-returns'
+import { registerCorporateTaxDraftTools } from './corporate-tax'
 
 export function registerDraftTools(server: McpServer, access: McpAccess, guard: CompanyGuard): void {
   if (!access.canWrite) return
@@ -25,4 +26,5 @@ export function registerDraftTools(server: McpServer, access: McpAccess, guard: 
   registerApprovalDraftTools(register)
   registerSimpleModeDraftTools(register)
   registerVatReturnDraftTools(register)
+  registerCorporateTaxDraftTools(register)
 }

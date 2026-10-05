@@ -22,6 +22,8 @@ import {
   monthChangeLabel,
   overdueLabel,
   profitTitle,
+  CORPORATE_TAX_TITLE,
+  corporateTaxHint,
   situationSentence,
   vatTitle,
   vatReturnHint,
@@ -114,6 +116,7 @@ export function SimpleHome({
     receivables,
     vat,
     profit,
+    corporateTax,
     fiscalYear,
     accountants,
     validation,
@@ -192,6 +195,13 @@ export function SimpleHome({
             value={<Amount value={euros(Math.abs(profit.beforeTaxCents))} />}
             valueClassName={cn(profit.beforeTaxCents < 0 && "text-destructive")}
             hint={PROFIT_HINT}
+          />
+        ) : null}
+        {corporateTax && fiscalYear ? (
+          <StatCard
+            label={CORPORATE_TAX_TITLE}
+            value={<Amount value={euros(corporateTax.estimateCents)} />}
+            hint={corporateTaxHint(fiscalYear.startDate)}
           />
         ) : null}
       </section>

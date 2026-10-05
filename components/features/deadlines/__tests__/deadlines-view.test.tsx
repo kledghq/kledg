@@ -33,7 +33,7 @@ const VIEW = {
     deadline({ id: 'cfe-2025', date: '2026-04-15', legalDate: '2026-04-15', label: 'Solde de CFE 2025', form: 'CFE', category: 'cfe', ruleId: 'cfe' }),
     deadline({ id: 'tva-ca3:2026-04', date: '2026-05-07', legalDate: '2026-05-07', label: "Déclaration de TVA d'avril 2026", form: 'CA3', category: 'tva', ruleId: 'tva-ca3', estimated: true }),
     deadline({
-      id: 'is-ac2',
+      id: 'is-acompte:2026-12-31:2',
       date: '2026-05-15',
       legalDate: '2026-05-15',
       label: "Deuxième acompte d'IS",
@@ -42,7 +42,7 @@ const VIEW = {
       ruleId: 'is-acompte',
       condition: "Si l'IS de l'exercice précédent dépasse 3 000 €",
     }),
-    deadline({ id: 'liasse', date: '2026-06-01', legalDate: '2026-05-30', label: 'Liasse fiscale 2025', form: '2065', category: 'liasse', ruleId: 'liasse', extendedDate: '2026-06-16', projected: true }),
+    deadline({ id: 'liasse:2025-12-31', date: '2026-06-01', legalDate: '2026-05-30', label: 'Liasse fiscale 2025', form: '2065', category: 'liasse', ruleId: 'liasse', extendedDate: '2026-06-16', projected: true }),
   ],
   rules: [
     { id: 'liasse', category: 'liasse', form: '2065', summary: "Le 2e jour ouvré suivant le 1er mai pour un exercice clos le 31 décembre.", sources: [{ label: 'CGI, art. 223', url: 'https://www.legifrance.gouv.fr/' }] },
@@ -140,5 +140,15 @@ describe('deadlines page', () => {
     expect(within(item).getByRole('link', { name: /Préparer la déclaration/ })).toHaveAttribute('href', '/c1/declarations-tva?periode=2026-04')
     const cfe = screen.getByText('Solde de CFE 2025').closest('li') as HTMLElement
     expect(within(cfe).queryByRole('link', { name: /Préparer la déclaration/ })).not.toBeInTheDocument()
+  })
+
+  it('links the IS deadlines to the corporate tax worksheet that computes them', async () => {
+    render(<DeadlinesPage companyId="c1" />)
+    const acompte = (await screen.findByText("Deuxième acompte d'IS")).closest('li') as HTMLElement
+    expect(within(acompte).getByRole('link', { name: /Voir le calcul de l’acompte/ })).toHaveAttribute('href', '/c1/impot-societes?echeance=is-acompte%3A2026-12-31%3A2')
+    const liasse = screen.getByText('Liasse fiscale 2025').closest('li') as HTMLElement
+    expect(within(liasse).getByRole('link', { name: /Préparer le résultat fiscal/ })).toHaveAttribute('href', '/c1/impot-societes?echeance=liasse%3A2025-12-31')
+    const cfe = screen.getByText('Solde de CFE 2025').closest('li') as HTMLElement
+    expect(within(cfe).queryByRole('link', { name: /impôt|résultat fiscal|acompte/ })).not.toBeInTheDocument()
   })
 })

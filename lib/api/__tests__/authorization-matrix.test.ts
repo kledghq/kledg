@@ -305,6 +305,11 @@ async function seed() {
   await prisma.vatReturnFiling.create({
     data: { companyId: ids.aCompany, form: 'CA3', periodKey: '2026-03', periodStart: new Date('2026-03-01T00:00:00Z'), periodEnd: new Date('2026-03-31T00:00:00Z'), filedOn: new Date('2026-04-20T00:00:00Z'), amountDue: 100, creditAmount: 0 },
   })
+  // An IS company whose 2026 return is recorded as filed, so removing the record is allowed by role (not a 404)
+  await prisma.company.update({ where: { id: ids.aCompany }, data: { legalType: 'SAS', corporateTaxRegime: 'simplified' } })
+  await prisma.corporateTaxReturn.create({
+    data: { companyId: ids.aCompany, fiscalYearId: ids.aFy, filedOn: new Date('2027-01-15T00:00:00Z'), resultBeforeDeficits: 0, deficitsImputed: 0, corporateTax: 0, reducedRate: false },
+  })
   const members: Array<[string, string, string]> = [
     ['u-cadmin', 'org-a', 'companyAdmin'],
     ['u-accountant', 'org-a', 'accountant'],
@@ -370,6 +375,11 @@ const ROUTE_MODULES = {
   vatReturnExport: () => import('@/app/api/companies/[id]/vat-returns/export/route'),
   vatSettlement: () => import('@/app/api/companies/[id]/vat-returns/settlement/route'),
   vatFiling: () => import('@/app/api/companies/[id]/vat-returns/filing/route'),
+  corporateTax: () => import('@/app/api/companies/[id]/corporate-tax/route'),
+  corporateTaxExport: () => import('@/app/api/companies/[id]/corporate-tax/export/route'),
+  corporateTaxInputs: () => import('@/app/api/companies/[id]/corporate-tax/inputs/route'),
+  corporateTaxFiling: () => import('@/app/api/companies/[id]/corporate-tax/filing/route'),
+  corporateTaxEntries: () => import('@/app/api/companies/[id]/corporate-tax/entries/route'),
   users: () => import('@/app/api/users/route'),
   reconciliation: () => import('@/app/api/banking/reconciliation/route'),
   selectAccount: () => import('@/app/api/banking/select-account/route'),
@@ -588,6 +598,11 @@ const WRITES: Call[] = [
   { label: 'prepare VAT settlement', route: 'vatSettlement', method: 'POST', path: () => `/api/companies/${A()}/vat-returns/settlement`, params: p({ id: A }), body: () => ({ period: '2026-03' }) },
   { label: 'record VAT filing', route: 'vatFiling', method: 'PUT', path: () => `/api/companies/${A()}/vat-returns/filing`, params: p({ id: A }), body: () => ({ period: '2026-03', filedOn: '2026-04-20', amountDueCents: 100, creditCents: 0 }) },
   { label: 'delete VAT filing', route: 'vatFiling', method: 'DELETE', path: () => `/api/companies/${A()}/vat-returns/filing?period=2026-03`, params: p({ id: A }) },
+  { label: 'export corporate tax', route: 'corporateTaxExport', method: 'GET', path: () => `/api/companies/${A()}/corporate-tax/export?fiscalYearId=${ids.aFy}&format=csv`, params: p({ id: A }) },
+  { label: 'save corporate tax inputs', route: 'corporateTaxInputs', method: 'PUT', path: () => `/api/companies/${A()}/corporate-tax/inputs`, params: p({ id: A }), body: () => ({ fiscalYearId: ids.aFy, capitalPaidUp: true }) },
+  { label: 'record corporate tax filing', route: 'corporateTaxFiling', method: 'PUT', path: () => `/api/companies/${A()}/corporate-tax/filing`, params: p({ id: A }), body: () => ({ fiscalYearId: ids.aFy, filedOn: '2027-01-15', resultBeforeDeficitsCents: 0, deficitsImputedCents: 0, corporateTaxCents: 0, reducedRate: false }) },
+  { label: 'delete corporate tax filing', route: 'corporateTaxFiling', method: 'DELETE', path: () => `/api/companies/${A()}/corporate-tax/filing?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
+  { label: 'prepare corporate tax entry', route: 'corporateTaxEntries', method: 'POST', path: () => `/api/companies/${A()}/corporate-tax/entries`, params: p({ id: A }), body: () => ({ kind: 'charge', fiscalYearId: ids.aFy }) },
   { label: 'export approval document', route: 'approvalDocument', method: 'GET', path: () => `/api/companies/${A()}/fiscal-years/${ids.aFy}/approval/documents/decision?format=md`, params: p({ id: A, fiscalYearId: () => ids.aFy, document: () => 'decision' }) },
   { label: 'allocate result', route: 'resultAllocation', method: 'POST', path: () => `/api/companies/${A()}/fiscal-years/${ids.aFy}/result-allocation`, params: p({ id: A, fiscalYearId: () => ids.aFy }), body: () => ({ date: '2026-06-30' }) },
   { label: 'close fiscal year', route: 'close', method: 'POST', path: () => `/api/companies/${A()}/fiscal-years/${ids.aFy}/close`, params: p({ id: A, fiscalYearId: () => ids.aFy }), body: () => ({}) },
@@ -760,6 +775,7 @@ const READS: Call[] = [
   { label: 'tax regime history', route: 'taxRegimes', method: 'GET', path: () => `/api/companies/${A()}/tax-regimes?regimeType=vat`, params: p({ id: A }) },
   { label: 'deadlines of a fiscal year', route: 'deadlines', method: 'GET', path: () => `/api/deadlines?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'VAT return worksheet', route: 'vatReturns', method: 'GET', path: () => `/api/companies/${A()}/vat-returns`, params: p({ id: A }) },
+  { label: 'corporate tax worksheet', route: 'corporateTax', method: 'GET', path: () => `/api/companies/${A()}/corporate-tax?fiscalYearId=${ids.aFy}`, params: p({ id: A }) },
   { label: 'deadline settings', route: 'deadlineSettings', method: 'GET', path: () => `/api/companies/${A()}/deadline-settings`, params: p({ id: A }) },
   { label: 'dashboard deadlines widget', route: 'dashboardWidgets', method: 'GET', path: () => `/api/dashboard/widgets?companyId=${A()}&source=deadlines` },
   { label: 'list expense reports', route: 'expenseReports', method: 'GET', path: () => `/api/expense-reports?companyId=${A()}` },

@@ -161,6 +161,7 @@ model Company {
   accountsApprovals          AccountsApproval[]
   simpleModeEntries          SimpleModeEntry[]
   vatReturnFilings           VatReturnFiling[]
+  corporateTaxReturns        CorporateTaxReturn[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -255,6 +256,7 @@ model FiscalYear {
   provisionAssessments     ProvisionAssessment[]
   investmentGrantTransfers InvestmentGrantTransfer[]
   accountsApproval         AccountsApproval?
+  corporateTaxReturn       CorporateTaxReturn?
 
   @@unique([companyId, year])
   /// Target of composite foreign keys that keep a child row in the company of its fiscal year (budgets).
@@ -2516,4 +2518,49 @@ model VatReturnFiling {
   @@unique([companyId, periodKey])
   @@index([companyId])
   @@map("vat_return_filings")
+}
+
+/// The impôt sur les sociétés of a fiscal year (docs/impot-societes.md):
+/// Kledg prepares the tax result worksheet and the IS from the books; this
+/// row keeps what the books cannot tell (answers to the reduced rate
+/// questions, deficits carried forward, manual lines, acomptes paid) and,
+/// once the user filed the return on impots.gouv.fr, what was declared.
+/// The filed amounts drive the acomptes of the next fiscal year (CGI art.
+/// 1668). Kledg never files a return itself.
+model CorporateTaxReturn {
+  id                   String    @id @default(cuid())
+  companyId            String
+  fiscalYearId         String
+  /// Capital entièrement libéré (CGI art. 219, I, b); null: not answered.
+  capitalPaidUp        Boolean?
+  /// Capital held for 75 % at least by natural persons, directly or through companies meeting the same conditions; null: not answered.
+  naturalPersons75     Boolean?
+  /// Deficits carried forward available at the start of the year (CGI art. 209, I); null: derived from the previous year.
+  deficitsOpening      Decimal?  @db.Decimal(15, 2)
+  /// Lines the books cannot tell, JSON array of { id, kind: reintegration | deduction | credit, label, amountCents }.
+  manualLines          Json      @default("[]")
+  /// Acomptes paid for this fiscal year (2571), JSON array of { number, paidOn, amountCents }.
+  acomptesPaid         Json      @default("[]")
+  /// Filed on impots.gouv.fr: all five set, or none.
+  filedOn              DateTime?
+  /// Résultat fiscal avant imputation des déficits (2033-B 352/354, 2058-A XI/XJ): negative for a deficit.
+  resultBeforeDeficits Decimal?  @db.Decimal(15, 2)
+  /// Déficits antérieurs imputés (2033-B 360, 2058-A XL).
+  deficitsImputed      Decimal?  @db.Decimal(15, 2)
+  /// Impôt sur les sociétés at the rates of art. 219, before credits and contribution sociale.
+  corporateTax         Decimal?  @db.Decimal(15, 2)
+  /// The 15 % reduced rate was applied.
+  reducedRate          Boolean?
+  createdById          String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// On (fiscalYearId, companyId): the fiscal year is always one of the row's company.
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId, companyId], references: [id, companyId], onDelete: Cascade)
+
+  /// One row per fiscal year (a fiscal year belongs to one company).
+  @@unique([fiscalYearId, companyId])
+  @@index([companyId])
+  @@map("corporate_tax_returns")
 }

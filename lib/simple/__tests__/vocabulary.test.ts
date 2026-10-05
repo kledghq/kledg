@@ -12,6 +12,8 @@ import {
   monthChangeLabel,
   overdueLabel,
   profitTitle,
+  CORPORATE_TAX_TITLE,
+  corporateTaxHint,
   situationSentence,
   vatTitle,
   vatReturnHint,
@@ -46,6 +48,10 @@ describe('plain-language labels of the simple mode', () => {
     expect(vocabulary.jargonIn(vatReturnHint('année 2025'))).toEqual([])
     expect(profitTitle(1_534_710, '2026-01-01')).toBe('Bénéfice depuis janvier')
     expect(profitTitle(-100, '2026-07-01')).toBe('Perte depuis juillet')
+    // The IS estimated by the worksheet (lib/corporate-tax), worded as an estimate
+    expect(CORPORATE_TAX_TITLE).toBe('Impôt sur les sociétés estimé')
+    expect(corporateTaxHint('2026-01-01')).toBe('Estimation sur le bénéfice depuis janvier, à confirmer à la clôture')
+    expect(vocabulary.jargonIn(corporateTaxHint('2026-07-01'))).toEqual([])
   })
 
   it('counts the things to do with the right plural', () => {

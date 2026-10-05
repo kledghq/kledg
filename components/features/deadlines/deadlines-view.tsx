@@ -22,6 +22,7 @@ import { relativeDeadlineLabel, urgencyOf, type DeadlineUrgency } from '@/lib/de
 import { DEADLINE_CATEGORIES, DEADLINE_CATEGORY_LABELS, type Deadline, type DeadlineCategory, type DeadlineRule } from '@/lib/deadlines/types'
 import type { DeadlinesView } from '@/lib/deadlines/load-deadlines.service'
 import { periodKeyOfDeadline } from '@/lib/vat-returns/period-keys'
+import { corporateTaxPageOf } from '@/lib/corporate-tax/deadline-links'
 
 const TONES: Record<DeadlineUrgency, StatusTone> = { past: 'neutral', overdue: 'danger', today: 'warning', soon: 'warning', later: 'neutral' }
 
@@ -82,6 +83,7 @@ function RuleSource({ rule, deadline }: { rule: DeadlineRule | undefined; deadli
 
 function DeadlineItem({ deadline, rule, today, companyId }: { deadline: Deadline; rule: DeadlineRule | undefined; today: string; companyId: string }) {
   const vatPeriod = periodKeyOfDeadline(deadline)
+  const corporateTaxPage = corporateTaxPageOf(deadline)
   const urgency = urgencyOf(deadline.date, today)
   const status = (
     <StatusBadge tone={TONES[urgency]} className="shrink-0">
@@ -116,6 +118,15 @@ function DeadlineItem({ deadline, rule, today, companyId }: { deadline: Deadline
             className="text-link inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline pointer-coarse:-my-3 pointer-coarse:py-3"
           >
             {deadline.ruleId === 'tva-acompte' ? 'Voir le calcul de l’acompte' : 'Préparer la déclaration'}
+            <ArrowUpRight aria-hidden className="size-3.5" />
+          </Link>
+        ) : null}
+        {corporateTaxPage ? (
+          <Link
+            href={`/${companyId}/${corporateTaxPage}`}
+            className="text-link inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline pointer-coarse:-my-3 pointer-coarse:py-3"
+          >
+            {deadline.ruleId === 'is-acompte' ? 'Voir le calcul de l’acompte' : deadline.ruleId === 'is-solde' ? 'Préparer le relevé de solde' : 'Préparer le résultat fiscal'}
             <ArrowUpRight aria-hidden className="size-3.5" />
           </Link>
         ) : null}

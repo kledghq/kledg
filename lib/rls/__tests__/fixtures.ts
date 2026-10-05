@@ -401,6 +401,22 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('vat_return_filings'), companyId, form: 'CA3', periodKey: '2026-09', periodStart: day('2026-09-01'), periodEnd: day('2026-09-30'), filedOn: day('2026-10-15'), amountDue: 120, creditAmount: 0 },
       })
       record('vat_return_filings', p, id('vat_return_filings'))
+      // The impôt sur les sociétés of the fiscal year, filed (lib/corporate-tax)
+      await prisma.corporateTaxReturn.create({
+        data: {
+          id: id('corporate_tax_returns'),
+          companyId,
+          fiscalYearId: id('fiscal_years'),
+          capitalPaidUp: true,
+          naturalPersons75: true,
+          filedOn: day('2027-05-05'),
+          resultBeforeDeficits: 30_000,
+          deficitsImputed: 0,
+          corporateTax: 4_500,
+          reducedRate: true,
+        },
+      })
+      record('corporate_tax_returns', p, id('corporate_tax_returns'))
     }
     return keys
   })

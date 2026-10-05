@@ -17,6 +17,9 @@
  * - Bénéfice: the result of the fiscal year from its validated entries, as
  *   the income statement computes it (loadStatementAccounts, computeSig),
  *   before the impôt sur les bénéfices (comptes 69 except 691).
+ * - Impôt sur les sociétés estimé: the IS of the fiscal year from its
+ *   entries so far, as the worksheet computes it (lib/corporate-tax), shown
+ *   as an estimate; nothing for a company at the impôt sur le revenu.
  *
  * Each part is loaded only when the user's roles may read it (the same
  * permissions as the dashboard sources and their routes); otherwise it is
@@ -46,6 +49,7 @@ import { overdueCents } from "@/lib/reports/third-parties/third-party-balances";
 import { loadDeadlinesWidget } from "@/lib/deadlines/load-deadlines.service";
 import { DEADLINES_PERMISSION } from "@/lib/deadlines/permissions";
 import { vatReturnForDeadline } from "@/lib/vat-returns/vat-return-for-deadline.service";
+import { estimateCorporateTax } from "@/lib/corporate-tax/load-corporate-tax.service";
 import {
   listMissingReceipts,
   MissingReceiptsQuerySchema,
@@ -101,6 +105,13 @@ export interface SimpleHome {
     /** The result of the income statement (after that tax), for reference. */
     resultCents: number;
   } | null;
+  /**
+   * Impôt sur les sociétés of the fiscal year estimated from its entries so
+   * far, as the worksheet computes it (lib/corporate-tax); null without
+   * reports:read, without a fiscal year, or when the company is not subject
+   * to IS (impôt sur le revenu) or its regime is not set.
+   */
+  corporateTax: { estimateCents: number; reducedRate: boolean } | null;
   todo: {
     /** Null without banking:read. */
     expensesToCheck: number | null;
@@ -313,6 +324,7 @@ export async function loadSimpleHome(
     missingReceipts,
     accountants,
     validation,
+    corporateTax,
   ] = await Promise.all([
     canBank ? loadBank(companyId, todayDate, ctx) : skip<SimpleHome["bank"]>(),
     canReports && fy
@@ -340,6 +352,9 @@ export async function loadSimpleHome(
           accountantReview: v.accountantReview,
         }))
       : skip<NonNullable<SimpleHome["validation"]>>(),
+    canReports && fy
+      ? estimateCorporateTax(companyId, fy.id, ctx.now)
+      : skip<Awaited<ReturnType<typeof estimateCorporateTax>>>(),
   ]);
 
   return {
@@ -366,6 +381,12 @@ export async function loadSimpleHome(
         }
       : null,
     profit: result?.profit ?? null,
+    corporateTax: corporateTax
+      ? {
+          estimateCents: corporateTax.totalCents,
+          reducedRate: corporateTax.reducedRate,
+        }
+      : null,
     todo: {
       expensesToCheck,
       missingReceipts,

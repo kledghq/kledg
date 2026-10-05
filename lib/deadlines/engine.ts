@@ -181,9 +181,10 @@ export function vatFilingAt(company: DeadlineCompany, settings: Pick<DeadlineSet
   return { form: 'CA12' }
 }
 
-type CorporateTaxRegime = 'normal' | 'simplified'
+export type CorporateTaxRegime = 'normal' | 'simplified'
 
-function corporateTaxRegimeAt(company: DeadlineCompany, day: string): CorporateTaxRegime | null {
+/** The IS regime on a day (history row covering it, else the company field); null: not subject to IS, or not set. */
+export function corporateTaxRegimeAt(company: DeadlineCompany, day: string): CorporateTaxRegime | null {
   const regime = historyAt(company, 'corporateTax', day)?.regime ?? company.corporateTaxRegime
   return regime === 'normal' || regime === 'simplified' ? regime : null
 }
