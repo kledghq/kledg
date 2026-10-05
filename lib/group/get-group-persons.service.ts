@@ -24,9 +24,9 @@ import type { GroupAccess } from '@/lib/management-fees/access'
 import { listSubsidiaryIds } from '@/lib/management-fees/holding'
 import { officersOf } from './get-group-companies.service'
 import { normalizeName } from './match'
-import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink } from './members'
+import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink, type GroupMembers } from './members'
 import { computeInterests, companyKey, type OwnershipEdge } from './ownership'
-import { readIfAllowed, type UnreachableSubsidiary } from './perimeter'
+import { readIfAllowed, type GroupMemberRef, type UnreachableSubsidiary } from './perimeter'
 import { percentToBp } from './periods'
 
 export type HolderKind = 'person' | 'company' | 'other' | 'officer'
@@ -63,10 +63,12 @@ export interface GroupPersonsReport {
   warnings: string[]
 }
 
-interface HolderDraft {
+export interface HolderDraft {
   key: string
   kind: HolderKind
   name: string | null
+  /** A subsidiary of the holding the user does not read. */
+  hidden: boolean
   photo: string | null
   groupCompanyId: string | null
   titles: Array<{ companyId: string; title: string | null }>
@@ -81,9 +83,33 @@ export function personKey(person: { email: string | null; firstName: string; nam
 
 const fullName = (p: { firstName: string; name: string; usualName: string | null }) => `${p.firstName} ${p.usualName || p.name}`.trim()
 
-export async function getGroupPersons(holdingId: string, access: GroupAccess): Promise<GroupPersonsReport> {
-  const read = await readGroupMembers(holdingId, access, async (ref) => {
-    const [shareholders, approval] = await Promise.all([
+/** What the cap tables of the companies read say, with internal keys: shared by Associés et dirigeants and the structure diagram. */
+export interface CollectedHolders {
+  read: GroupMembers<MemberCapTable>
+  readable: Map<string, GroupMemberRef>
+  /** Every subsidiary of the holding, read or not (ids stay on the server). */
+  subsidiaries: Set<string>
+  drafts: Map<string, HolderDraft>
+  edges: OwnershipEdge[]
+}
+
+export interface MemberCapTable {
+  shareholders: Array<{
+    type: string
+    name: string | null
+    siret: string | null
+    sharePercentage: { toString(): string }
+    numberOfShares: number | null
+    companyShareholderId: string | null
+    person: { firstName: string; name: string; usualName: string | null; email: string | null; photo: string | null } | null
+  }>
+  officers: Array<{ name: string; title: string | null }>
+  company: { logo: string | null; legalType: string | null } | null
+}
+
+export async function collectGroupHolders(holdingId: string, access: GroupAccess): Promise<CollectedHolders> {
+  const read = await readGroupMembers(holdingId, access, async (ref): Promise<MemberCapTable> => {
+    const [shareholders, approval, company] = await Promise.all([
       prisma.shareholder.findMany({
         where: { companyId: ref.id },
         select: {
@@ -99,8 +125,9 @@ export async function getGroupPersons(holdingId: string, access: GroupAccess): P
         take: 500,
       }),
       prisma.accountsApproval.findFirst({ where: { companyId: ref.id }, orderBy: { fiscalYear: { endDate: 'desc' } }, select: { details: true } }),
+      prisma.company.findUnique({ where: { id: ref.id }, select: { logo: true, legalType: true } }),
     ])
-    return { shareholders, officers: officersOf(approval?.details) }
+    return { shareholders, officers: officersOf(approval?.details), company }
   })
   const readable = new Map(read.members.map((m) => [m.ref.id, m.ref]))
   const subsidiaries = new Set(await listSubsidiaryIds(holdingId))
@@ -124,19 +151,19 @@ export async function getGroupPersons(holdingId: string, access: GroupAccess): P
       const bp = percentToBp(row.sharePercentage.toString())
       let holder: HolderDraft
       if (row.type === 'PHYSICAL' && row.person) {
-        holder = draft(personKey(row.person), { kind: 'person', name: fullName(row.person), photo: row.person.photo, groupCompanyId: null })
+        holder = draft(personKey(row.person), { kind: 'person', name: fullName(row.person), photo: row.person.photo, groupCompanyId: null, hidden: false })
       } else if (row.companyShareholderId && readable.has(row.companyShareholderId)) {
         const company = readable.get(row.companyShareholderId)!
-        holder = draft(companyKey(company.id), { kind: 'company', name: company.name, photo: null, groupCompanyId: company.id })
+        holder = draft(companyKey(company.id), { kind: 'company', name: company.name, photo: null, groupCompanyId: company.id, hidden: false })
       } else if (row.companyShareholderId && subsidiaries.has(row.companyShareholderId)) {
         // A subsidiary the user does not read: counted in the chains, never named nor identified.
-        holder = draft(companyKey(row.companyShareholderId), { kind: 'company', name: null, photo: null, groupCompanyId: null })
+        holder = draft(companyKey(row.companyShareholderId), { kind: 'company', name: null, photo: null, groupCompanyId: null, hidden: true })
       } else if (row.companyShareholderId) {
         outside.add(row.companyShareholderId)
-        holder = draft(companyKey(row.companyShareholderId), { kind: 'company', name: row.name, photo: null, groupCompanyId: null })
+        holder = draft(companyKey(row.companyShareholderId), { kind: 'company', name: row.name, photo: null, groupCompanyId: null, hidden: false })
       } else {
         const siren = row.siret?.replace(/\s/g, '').slice(0, 9)
-        holder = draft(`other:${siren || normalizeName(row.name ?? '')}`, { kind: 'other', name: row.name || 'Actionnaire sans nom', photo: null, groupCompanyId: null })
+        holder = draft(`other:${siren || normalizeName(row.name ?? '')}`, { kind: 'other', name: row.name || 'Actionnaire sans nom', photo: null, groupCompanyId: null, hidden: false })
       }
       const shares = holder.shares.get(ref.id)
       holder.shares.set(ref.id, row.numberOfShares === null ? (shares ?? null) : (shares ?? 0) + row.numberOfShares)
@@ -145,7 +172,7 @@ export async function getGroupPersons(holdingId: string, access: GroupAccess): P
     for (const officer of value.officers) {
       const normalized = normalizeName(officer.name)
       const person = [...drafts.values()].find((d) => d.kind === 'person' && d.name && normalizeName(d.name) === normalized)
-      const holder = person ?? draft(`officer:${normalized}`, { kind: 'officer', name: officer.name, photo: null, groupCompanyId: null })
+      const holder = person ?? draft(`officer:${normalized}`, { kind: 'officer', name: officer.name, photo: null, groupCompanyId: null, hidden: false })
       holder.titles.push({ companyId: ref.id, title: officer.title })
     }
   }
@@ -158,7 +185,11 @@ export async function getGroupPersons(holdingId: string, access: GroupAccess): P
     const name = result.ok ? (result.value?.name ?? null) : result.unreachable.name
     holder.name = name ?? holder.name ?? 'Société actionnaire'
   }
+  return { read, readable, subsidiaries, drafts, edges }
+}
 
+export async function getGroupPersons(holdingId: string, access: GroupAccess): Promise<GroupPersonsReport> {
+  const { read, readable, drafts, edges } = await collectGroupHolders(holdingId, access)
   const interests = computeInterests(edges, [...readable.keys()])
   // Keys of the answer are positions: an internal key carries an email or a company id.
   const holders: GroupHolder[] = [...drafts.values()].map((d, index) => {

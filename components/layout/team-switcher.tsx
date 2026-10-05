@@ -23,7 +23,7 @@ import { logger } from '@/lib/logger'
 import { lastCompanyCookie } from '@/lib/last-company'
 import { companyInitials, displayCompanyName } from '@/lib/companies/legal-forms'
 import { CompanyNameWithForm } from '@/components/features/companies/legal-form-tag'
-import { PersonAvatar } from '@/components/shared/person-avatar'
+import { AvatarStack } from '@/components/shared/avatar-stack'
 import type { GroupSummary } from '@/lib/group/get-group-summary.service'
 
 function CompanyMark({ name, legalType, size = "md" }: { name?: string | null; legalType?: string | null; size?: "sm" | "md" }) {
@@ -67,7 +67,7 @@ const findCompany = (companies: SwitcherCompany[], ref: string | undefined) =>
  */
 /**
  * In the group space, `group` is set: the trigger shows the group as the
- * current selection (its main shareholder's photo, else the holding's logo,
+ * current selection (the holding's shareholders as an avatar stack, else its logo,
  * its name and how many companies it counts), and choosing a company opens
  * that company's own pages.
  */
@@ -383,18 +383,18 @@ export function TeamSwitcher({
   )
 }
 
-/** The group as the switcher's current selection: image, "Groupe <holding>", companies counted. */
+/** The group as the switcher's current selection: the holding's shareholders (or its logo), "Groupe <holding>", companies counted. */
 function GroupTrigger({ summary, collapsed }: { summary: GroupSummary | null; collapsed: boolean }) {
-  const photo = summary?.mainShareholder?.kind === "person" ? summary.mainShareholder.photo : null
-  const image = photo ?? summary?.holding.logo ?? null
+  const shareholders = summary?.shareholders ?? []
+  const logo = summary?.holding.logo ?? null
   const total = summary ? summary.readableCount + summary.unreadableCount : null
   return (
     <>
-      {photo && summary?.mainShareholder ? (
-        <PersonAvatar name={summary.mainShareholder.name} photo={photo} size="md" />
-      ) : image ? (
+      {shareholders.length > 0 ? (
+        <AvatarStack holders={collapsed ? shareholders.slice(0, 1) : shareholders} size="md" />
+      ) : logo ? (
         <span className="bg-background flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border">
-          <img src={image} alt="" className="size-8 object-contain" />
+          <img src={logo} alt="" className="size-8 object-contain" />
         </span>
       ) : (
         <span aria-hidden className="bg-foreground text-background flex size-8 shrink-0 items-center justify-center rounded-md">

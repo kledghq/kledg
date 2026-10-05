@@ -4,7 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
 
-import { findGroupNavEntry, groupNavGroups, groupRelativePath, GROUP_SPACE } from "@/components/layout/group-nav-config"
+import { findGroupNavEntry, groupNavGroupsFor, groupRelativePath, GROUP_SPACE } from "@/components/layout/group-nav-config"
+import type { DisplayMode } from "@/lib/appearance/display-mode"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -16,11 +17,12 @@ import {
 import type { GroupSummary } from "@/lib/group/get-group-summary.service"
 
 /**
- * The sidebar menu of the group space: only the group pages, prefixed with
- * /<holding>/group. One entry is active at a time (longest prefix), and the
+ * The sidebar menu of the group space: only the group views of the user's
+ * display mode (five views in expert mode, four plain pages in simple
+ * mode), prefixed with /<holding>/group. One entry is active at a time (longest prefix), and the
  * phone drawer closes after navigating, as in the company navigation.
  */
-export function GroupNav() {
+export function GroupNav({ mode = "expert" }: { mode?: DisplayMode }) {
   const pathname = usePathname() ?? ""
   const params = useParams()
   const companyId = params?.companyId as string | undefined
@@ -31,7 +33,7 @@ export function GroupNav() {
 
   return (
     <nav aria-label="Navigation du groupe">
-      {groupNavGroups.map((group, index) => (
+      {groupNavGroupsFor(mode).map((group, index) => (
         <SidebarGroup key={group.label ?? index} className="py-1">
           {group.label ? <SidebarGroupLabel>{group.label}</SidebarGroupLabel> : null}
           <SidebarMenu>

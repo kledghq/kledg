@@ -4,27 +4,25 @@ import { Lock } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { Amount, PageHeader, formatDisplayDate } from '@/components/shared'
+import { Amount, formatDisplayDate } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import { PARTICIPATION_KIND_LABELS } from '@/lib/group/labels'
 import type { ParticipationsReport } from '@/lib/group/get-participations.service'
-import { ExportButtons, GroupFiscalYear, LoadError, ownership, useGroupReport, useReportUrl } from './space'
+import { ExportButtons, LoadError, ownership, useGroupReport, useReportUrl, SectionIntro } from './space'
 
 const cents = (value: number | null | undefined, signed = false) =>
   value === null || value === undefined ? <span className="text-muted-foreground">-</span> : <Amount value={value / 100} className={cn(signed && value < 0 && 'text-destructive')} />
 
 /** Participations of the group space: the tableau des filiales et participations (2059-G-SD, 2033-G-SD). */
-export function GroupParticipationsPage() {
+export function GroupParticipationsSection() {
   const url = useReportUrl('participations')
   const report = useGroupReport<ParticipationsReport>(url, "Les participations ne se sont pas chargées. Réessayez dans un instant.")
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Participations"
+      <SectionIntro
         description="Les titres détenus par la holding et les chiffres de chaque filiale, pour le tableau des filiales et participations."
         actions={<ExportButtons report="participations" disabled={!report.data} />}
       />
-      <GroupFiscalYear />
       {report.error ? <LoadError message={report.error} onRetry={report.retry} /> : <ParticipationsTab report={report.data} loading={report.loading || !report.data} />}
     </div>
   )

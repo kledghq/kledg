@@ -12,8 +12,10 @@
  * The tools of the group space (docs/vue-groupe.md) follow the same rules:
  * get_group_companies, get_group_indicators, get_group_evolution,
  * get_group_treasury, get_group_shareholders, get_group_deadlines,
- * get_group_alerts, list_group_transactions and get_group_ledger. All read
- * only; aggregates are labelled as such, never as consolidated accounts.
+ * get_group_alerts, list_group_transactions, get_group_ledger, and the
+ * views Structure and Fiscalité: get_group_structure (organigramme) and
+ * simulate_tax_integration (IS of each company, régime mère-fille,
+ * indicative intégration fiscale). All read only; aggregates are labelled as such, never as consolidated accounts.
  */
 
 import type { McpServer } from "@modelcontextprotocol/server";
@@ -33,6 +35,8 @@ import { getGroupIndicators } from "@/lib/group/get-group-indicators.service";
 import { getGroupLedger } from "@/lib/group/get-group-ledger.service";
 import { getGroupPersons } from "@/lib/group/get-group-persons.service";
 import { getGroupTreasury } from "@/lib/group/get-group-treasury.service";
+import { getGroupStructure } from "@/lib/group/get-group-structure.service";
+import { getGroupTax } from "@/lib/group/get-group-tax.service";
 import {
   DEFAULT_GROUP_TRANSACTIONS_PAGE,
   listGroupTransactions,
@@ -44,7 +48,7 @@ import {
   INDICATIVE_NOTICE,
   PARTICIPATION_KIND_LABELS,
 } from "@/lib/group/labels";
-import { fromCents } from "@/lib/utils/money";
+import { fromCents, toCents } from "@/lib/utils/money";
 
 const input = z.object({
   companyId: z.string().describe("Holding company id, from list_companies."),
@@ -623,6 +627,152 @@ export function registerGroupTools(
             ? report.detail.lines.map((l) => ({ company: names.get(l.companyId), date: l.date, journal: l.journal, entry: l.entryNumber, label: l.label, debit: fromCents(l.debitCents), credit: fromCents(l.creditCents) }))
             : null,
           linesTruncated: report.detail?.truncated ?? false,
+          notAccessibleSubsidiaries: report.unreachable.length,
+          warnings: report.warnings,
+        });
+      }),
+  );
+
+  server.registerTool(
+    "get_group_structure",
+    {
+      title: "Structure du groupe",
+      description: describeTool({
+        summary:
+          "The organigramme of a holding's group: the people and companies holding shares, the holding and its subsidiaries as nodes by level, the holdings between them as edges with their percentage and their kind (filiale above 50 %, participation from 10 to 50 %, Code de commerce art. L233-1 and L233-2), the holding's direct, indirect (product of the percentages along the chains through the group) and total interest in each company, who holds each company directly and indirectly, and the officers of each company. A subsidiary the connection cannot read is a node \"Société non accessible\" without name, id or percentage.",
+        access: "read",
+        permission: { reports: ["read"] },
+        amounts: "none",
+        units: "Percentages in percent.",
+        never: NEVER_READ_ONLY,
+      }),
+      inputSchema: holdingOnly,
+      annotations: READ_ONLY,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { reports: ["read"] });
+        const report = await getGroupStructure(args.companyId, group);
+        const labels = new Map(report.nodes.map((n) => [n.id, n.label]));
+        return json({
+          holding: report.holding,
+          nodes: report.nodes.map((n) => ({
+            id: n.id,
+            name: n.label,
+            kind: n.kind,
+            level: n.level,
+            holdingInterest: n.holdingInterest
+              ? { directPercent: pct(n.holdingInterest.directBp), indirectPercent: pct(n.holdingInterest.indirectBp), totalPercent: pct(n.holdingInterest.totalBp) }
+              : null,
+            holders: n.holders.map((h) => ({ name: h.label, directPercent: pct(h.directBp), indirectPercent: pct(h.indirectBp), totalPercent: pct(h.totalBp) })),
+            officers: n.officers,
+          })),
+          holdings: report.edges.map((e) => ({
+            holder: labels.get(e.from),
+            company: labels.get(e.to),
+            percent: pct(e.bp),
+            kind: e.kind ? PARTICIPATION_KIND_LABELS[e.kind] : null,
+          })),
+          notAccessibleSubsidiaries: report.unreachable.length,
+          warnings: report.warnings,
+        });
+      }),
+  );
+
+  server.registerTool(
+    "simulate_tax_integration",
+    {
+      title: "Simulation d'intégration fiscale",
+      description: describeTool({
+        summary:
+          "Indicative simulation of a French tax consolidation (intégration fiscale, CGI art. 223 A to 223 U) for a holding's group and fiscal year: each company's own corporate tax (as its worksheet computes it), the régime mère-fille between them (CGI art. 145), the eligibility of each company (95 % held directly or through members, liable to IS, same twelve-month fiscal year, parent not held 95 % by another IS company; residence and option to confirm), the group result (sum of the members' tax results, 1 % instead of 5 % quote-part on dividends between members, management fees neutral, retraitements the books cannot show listed and counted only when given), pre-group deficits on each member's own profit, the group's IS with the reduced rate once and the contribution sociale once, against the sum of the separate taxes: the saving or the cost. To review with an accountant; every rule cites its source.",
+        access: "read",
+        permission: { reports: ["read"] },
+        amounts: "euros",
+        units: "Percentages in percent.",
+        never: NEVER_READ_ONLY,
+      }),
+      inputSchema: input.extend({
+        provisions: z.number().optional().describe("Euros, signed: provisions on another group company to reintegrate (positive) or reversals to deduct (negative)."),
+        assetSales: z.number().optional().describe("Euros, signed: gains on fixed asset sales between group companies to deduct (negative), losses to add back (positive)."),
+        waivers: z.number().optional().describe("Euros, signed: gap left by debt waivers and subsidies between group companies."),
+        financialCharges: z.number().optional().describe("Euros: reintegration under the group financial charges limit (art. 223 B bis)."),
+        other: z.number().optional().describe("Euros, signed: any other retraitement the accountant retains."),
+      }),
+      annotations: READ_ONLY,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { reports: ["read"] });
+        const cents = (value: number | undefined) => (value === undefined ? undefined : toCents(value) ?? undefined);
+        const report = await getGroupTax(
+          args.companyId,
+          {
+            fiscalYearId: args.fiscalYearId,
+            provisions: cents(args.provisions),
+            asset_sales: cents(args.assetSales),
+            waivers: cents(args.waivers),
+            financial_charges: cents(args.financialCharges),
+            other: cents(args.other),
+          },
+          group,
+        );
+        const sim = report.integration;
+        return json({
+          notice: sim.notice,
+          holding: report.holding,
+          fiscalYear: report.fiscalYear,
+          companies: report.companies.map((c) => ({
+            name: c.company.name,
+            role: c.company.role,
+            status: c.status,
+            taxResult: euros(c.resultBeforeDeficitsCents),
+            taxableProfit: euros(c.taxableProfitCents),
+            corporateTax: euros(c.corporateTaxCents),
+            reducedRate: c.reducedRateApplied,
+            socialContribution: euros(c.socialContributionCents),
+            total: euros(c.totalCents),
+            balanceToPay: euros(c.balanceCents),
+            balanceDue: c.balanceDue,
+          })),
+          parentSubsidiary: report.parentSubsidiary.map((p) => ({
+            parent: p.parent.name,
+            subsidiary: p.subsidiary.name,
+            stakePercent: pct(p.stakeBp),
+            eligible: p.eligible,
+            dividends: fromCents(p.dividendsCents),
+            appliedInParentTax: p.applied,
+          })),
+          integration: {
+            possible: sim.possible,
+            parentChecks: sim.checks.map((c) => ({ condition: c.label, status: c.status, detail: c.detail, source: c.source })),
+            members: sim.members.map((m) => ({
+              name: m.name,
+              groupInterestPercent: pct(m.interestBp),
+              member: m.member,
+              checks: m.checks.map((c) => ({ condition: c.label, status: c.status, detail: c.detail })),
+            })),
+            sumOfResults: fromCents(sim.sumOfResultsCents),
+            adjustments: sim.adjustments.map((a) => ({ label: a.label, amount: a.origin === "info" ? null : fromCents(a.amountCents), origin: a.origin, detail: a.detail, source: a.source })),
+            groupResultBeforeDeficits: fromCents(sim.resultBeforeDeficitsCents),
+            deficitsImputed: fromCents(sim.deficits.imputedCents),
+            groupDeficitCarriedForward: fromCents(sim.deficits.groupDeficitCents),
+            groupTurnover: fromCents(sim.turnoverCents),
+            groupTax: sim.group
+              ? {
+                  taxableProfit: fromCents(sim.group.taxableProfitCents),
+                  reducedRateApplied: sim.group.reducedRate.applied,
+                  corporateTax: fromCents(sim.group.corporateTaxCents),
+                  ifReducedRate: euros(sim.group.ifEligibleCents),
+                  socialContribution: fromCents(sim.group.socialContribution.cents),
+                  total: fromCents(sim.group.totalCents),
+                }
+              : null,
+            separateTotal: fromCents(sim.separateTotalCents),
+            saving: fromCents(sim.savingCents),
+            warnings: sim.warnings,
+            sources: sim.sources,
+          },
           notAccessibleSubsidiaries: report.unreachable.length,
           warnings: report.warnings,
         });

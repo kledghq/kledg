@@ -7,17 +7,19 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { Amount, DateDisplay, PageHeader, StatCard, formatAmount } from '@/components/shared'
+import { Amount, DateDisplay, StatCard, formatAmount } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import { FLOW_CATEGORY_LABELS } from '@/lib/group/labels'
 import type { GroupTreasuryReport } from '@/lib/group/get-group-treasury.service'
+import type { GroupDeadlinesReport } from '@/lib/group/get-group-deadlines.service'
+import { treasuryOutlook } from '@/lib/group/flows'
 import { TreasuryLineChart } from './charts'
-import { Cents, CompanyLink, ExportButtons, GroupFiscalYear, LoadError, PerimeterNotes, useGroupReport, useReportUrl } from './space'
+import { Cents, CompanyLink, ExportButtons, LoadError, PerimeterNotes, useGroupReport, useReportUrl, SectionIntro } from './space'
 
 const GROUP = 'group'
 
 /** Trésorerie of the group space: bank balances, monthly cash and current accounts between the companies. */
-export function GroupTreasuryPage() {
+export function GroupTreasurySection() {
   const report = useGroupReport<GroupTreasuryReport>(useReportUrl('treasury'), "La trésorerie du groupe ne s'est pas chargée. Réessayez dans un instant.")
   const data = report.data
   const [selected, setSelected] = React.useState(GROUP)
@@ -28,12 +30,10 @@ export function GroupTreasuryPage() {
   const others = data?.totalsByCurrency.filter((t) => t.currency !== 'EUR') ?? []
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Trésorerie"
+      <SectionIntro
         description="Les soldes bancaires de chaque société et du groupe, la trésorerie comptable mois par mois et les comptes courants entre sociétés."
         actions={<ExportButtons report="treasury" disabled={!data} />}
       />
-      <GroupFiscalYear />
       {report.error ? (
         <LoadError message={report.error} onRetry={report.retry} />
       ) : (
@@ -54,6 +54,7 @@ export function GroupTreasuryPage() {
             </p>
           ) : null}
           {data ? <PerimeterNotes warnings={data.warnings} unreachable={data.unreachable} /> : null}
+          {data ? <TreasuryOutlookCard months={data.months} /> : null}
 
           <Card aria-busy={report.loading || undefined}>
             <CardHeader className="flex flex-wrap items-end justify-between gap-3">
@@ -204,5 +205,40 @@ export function GroupTreasuryPage() {
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * What the cash of the group should do next: the pace of the last months
+ * and the payments the deadlines trackers already know (lib/group/flows.ts,
+ * treasuryOutlook). A projection, never a forecast: the card says so.
+ */
+function TreasuryOutlookCard({ months }: { months: GroupTreasuryReport['months'] }) {
+  const deadlines = useGroupReport<GroupDeadlinesReport>(useReportUrl('deadlines'), 'Les échéances du groupe ne se sont pas chargées.')
+  const outlook = deadlines.data ? treasuryOutlook(months, deadlines.data.deadlines, deadlines.data.today) : null
+  return (
+    <Card aria-busy={deadlines.loading || undefined}>
+      <CardHeader>
+        <CardTitle>
+          <h2>Perspectives</h2>
+        </CardTitle>
+        <CardDescription>Indications à partir du rythme des derniers mois et des échéances enregistrées dans chaque société. Une projection simple, pas une prévision.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {deadlines.error ? (
+          <p className="text-muted-foreground text-sm">{deadlines.error}</p>
+        ) : !outlook ? (
+          <Skeleton className="h-16 w-full" />
+        ) : outlook.hints.length === 0 ? (
+          <p className="text-muted-foreground text-sm">Pas encore assez de mois pour dégager une tendance.</p>
+        ) : (
+          <ul className="list-disc space-y-1 pl-5 text-sm">
+            {outlook.hints.map((h) => (
+              <li key={h}>{h}</li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }

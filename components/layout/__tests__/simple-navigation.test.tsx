@@ -147,6 +147,17 @@ describe('DisplayModeSwitch', () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/alpha'))
   })
 
+  it('opens the group home of the chosen mode from a page of the group space', async () => {
+    fetchMock.mockResolvedValue(Response.json({ mode: 'simple', chosen: true }))
+    const user = userEvent.setup()
+    nav.pathname = '/alpha/group/treasury'
+    inSidebar(<DisplayModeSwitch mode="expert" />)
+    await user.click(screen.getByRole('radio', { name: 'Simple' }))
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/alpha/group/simple'))
+    await user.click(screen.getByRole('radio', { name: 'Expert' }))
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/alpha/group'))
+  })
+
   it('keeps the previous mode and says why when saving fails', async () => {
     fetchMock.mockResolvedValue(Response.json({ error: 'Requête refusée.' }, { status: 403 }))
     const user = userEvent.setup()

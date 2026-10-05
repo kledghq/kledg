@@ -7,13 +7,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { PageHeader, StatCard, formatPercent } from '@/components/shared'
+import { StatCard, formatPercent } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import { INDICATOR_SECTIONS, type IndicatorRow } from '@/lib/reports/financial-indicators/rows'
 import type { FinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 import type { GroupIndicatorsReport } from '@/lib/group/get-group-indicators.service'
 import { CompareBars } from './charts'
-import { Cents, CompanyLink, ExportButtons, GroupFiscalYear, LoadError, Notice, PerimeterNotes, roleLabel, useGroupReport, useReportUrl } from './space'
+import { Cents, CompanyLink, ExportButtons, LoadError, Notice, PerimeterNotes, roleLabel, useGroupReport, useReportUrl, SectionIntro, useGroupSpace } from './space'
 
 /** Chiffre d'affaires is a sum of SIG rows: shown as a row of its own here. */
 const CHIFFRE_AFFAIRES: IndicatorRow = { id: 'chiffreAffaires', label: "Chiffre d'affaires", source: 'Comptes 70 (2052 FL)', kind: 'amount', value: (i) => i.sig.chiffreAffairesCents }
@@ -47,23 +47,25 @@ export function IndicatorValue({ row, indicators }: { row: IndicatorRow; indicat
   return <Cents value={value} signed={row.kind === 'total'} />
 }
 
+/** The indicators, narrowed to the company of the Pilotage filter (the aggregate stays the group's). */
 function useIndicators() {
-  return useGroupReport<GroupIndicatorsReport>(useReportUrl('indicators'), "Les indicateurs du groupe ne se sont pas chargés. Réessayez dans un instant.")
+  const report = useGroupReport<GroupIndicatorsReport>(useReportUrl('indicators'), "Les indicateurs du groupe ne se sont pas chargés. Réessayez dans un instant.")
+  const { companyFilter } = useGroupSpace()
+  const data = report.data && companyFilter ? { ...report.data, members: report.data.members.filter((m) => m.company.id === companyFilter) } : report.data
+  return { ...report, data }
 }
 
 /** Comparaison of the group space: the companies side by side, N and N-1, and the aggregate. */
-export function GroupComparisonPage() {
+export function GroupComparisonSection() {
   const report = useIndicators()
   const data = report.data
   const [charted, setCharted] = React.useState<(typeof CHARTED)[number]>('chiffreAffaires')
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Comparaison"
+      <SectionIntro
         description="Les sociétés du groupe côte à côte sur l'exercice et le précédent, avec les soldes intermédiaires de gestion et la structure du bilan."
         actions={<ExportButtons report="indicators" disabled={!data} />}
       />
-      <GroupFiscalYear hint="Chaque société sur son exercice qui correspond à celui de la holding (N) et sur le précédent (N-1)." />
       {report.error ? (
         <LoadError message={report.error} onRetry={report.retry} />
       ) : (
@@ -173,19 +175,17 @@ export function GroupComparisonPage() {
 }
 
 /** Ratios of the group space: profitability, payment delays and structure, per company and for the aggregate. */
-export function GroupRatiosPage() {
+export function GroupRatiosSection() {
   const report = useIndicators()
   const data = report.data
   const combined = data?.combined.current ?? null
   const kpis = ['margeEbe', 'margeNette', 'endettement', 'dso'].map(rowById)
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Ratios"
+      <SectionIntro
         description="Rentabilité, délais de paiement et endettement de chaque société et de l'agrégat du groupe, calculés comme sur la page SIG et ratios de chaque société."
         actions={<ExportButtons report="indicators" disabled={!data} />}
       />
-      <GroupFiscalYear />
       {report.error ? (
         <LoadError message={report.error} onRetry={report.retry} />
       ) : (

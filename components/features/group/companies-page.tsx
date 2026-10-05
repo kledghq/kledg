@@ -5,24 +5,22 @@ import { ArrowRight, Building2 } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PageHeader, PersonAvatar, formatDisplayDate } from '@/components/shared'
+import { PersonAvatar, formatDisplayDate } from '@/components/shared'
 import { displayCompanyName } from '@/lib/companies/legal-forms'
 import { FIGURE_ROWS } from '@/lib/group/labels'
 import type { GroupCompaniesReport } from '@/lib/group/get-group-companies.service'
-import { Cents, ExportButtons, GroupFiscalYear, LoadError, PerimeterNotes, roleLabel, useGroupReport, useReportUrl } from './space'
+import { Cents, ExportButtons, LoadError, PerimeterNotes, roleLabel, useGroupReport, useReportUrl, SectionIntro } from './space'
 
 /** Sociétés of the group space: each company read, its legal form, the holding's stake, officers and key figures. */
-export function GroupCompaniesPage() {
+export function GroupCompaniesSection() {
   const report = useGroupReport<GroupCompaniesReport>(useReportUrl('companies'), "Les sociétés du groupe ne se sont pas chargées. Réessayez dans un instant.")
   const data = report.data
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Sociétés"
+      <SectionIntro
         description="Chaque société du groupe que vous lisez : forme juridique, détention par la holding, dirigeants et chiffres clés de l'exercice."
         actions={<ExportButtons report="companies" disabled={!data} />}
       />
-      <GroupFiscalYear />
       {report.error ? (
         <LoadError message={report.error} onRetry={report.retry} />
       ) : (

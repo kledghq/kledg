@@ -174,9 +174,9 @@ describe.skipIf(!available)('group space routes (PostgreSQL)', () => {
     return (await response.json()) as T
   }
 
-  it('names the group, counts its companies and shows the main shareholder', async () => {
+  it('names the group, counts its companies and lists the shareholders of the holding', async () => {
     const summary = await json<GroupSummary>('group', 'summary')
-    expect(summary).toMatchObject({ name: 'Groupe grp-holding', readableCount: 3, unreadableCount: 0, mainShareholder: { name: 'Claire Vasseur', photo: PHOTO, percentBp: 6000, kind: 'person' } })
+    expect(summary).toMatchObject({ name: 'Groupe grp-holding', readableCount: 3, unreadableCount: 0, shareholders: [{ name: 'Claire Vasseur', photo: PHOTO, percentBp: 6000, kind: 'person' }, { name: 'Marc Vasseur', photo: null, percentBp: 4000, kind: 'person' }] })
     expect(await json<GroupSummary>('partial', 'summary')).toMatchObject({ readableCount: 2, unreadableCount: 1 })
   })
 

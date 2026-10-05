@@ -75,7 +75,7 @@ export function AppSidebar({
         <TeamSwitcher initialCompanies={companies} holdingRefs={holdingRefs} group={inGroup ? { summary: group } : undefined} />
       </SidebarHeader>
       <SidebarContent>
-        {inGroup ? <GroupNav /> : <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} counts={counts} />}
+        {inGroup ? <GroupNav mode={mode} /> : <NavMain groups={navGroupsFor(mode)} holdingRefs={holdingRefs} counts={counts} />}
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

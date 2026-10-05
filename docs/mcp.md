@@ -137,6 +137,8 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_group_alerts` | Ce qui demande attention dans le groupe : déclarations en retard, transactions à rapprocher et écritures en brouillon de chaque société ; mêmes droits |
 | `list_group_transactions` | Transactions bancaires de toutes les sociétés du groupe en une liste, des plus récentes aux plus anciennes, page par page (`nextCursor`), filtres société, texte, sens, rapprochement et période ; lecture seule ; mêmes droits |
 | `get_group_ledger` | Grand livre combiné : chaque compte des sociétés du groupe avec le solde de chacune et le total (agrégation, pas consolidation), et les lignes d'un compte dans toutes les sociétés ; mêmes droits |
+| `get_group_structure` | Organigramme du groupe : personnes et sociétés, détentions avec leur pourcentage et leur catégorie (filiale, participation), détention directe, indirecte et totale de la holding et de chaque associé dans chaque société, dirigeants ; une filiale hors de l'autorisation est « Société non accessible », sans nom, identifiant ni pourcentage ; mêmes droits |
+| `simulate_tax_integration` | Impôt sur les sociétés de chaque société du groupe (tel que sa page le calcule), régime mère-fille entre elles, et simulation indicative d'intégration fiscale (CGI art. 223 A à 223 U) : conditions de chaque société, résultat d'ensemble et retraitements (quote-part de 1 % sur les dividendes du groupe, frais de gestion neutres, retraitements saisis en euros), déficits antérieurs, impôt du groupe face à la somme des impôts séparés, sources citées ; lecture seule, mêmes droits |
 | `list_budgets` | Budgets de la société, par exercice : nombre de lignes, charges, produits et résultat prévus ; droit `reports:read` |
 | `get_budget` | Budget d'un exercice avec chaque ligne (identifiant pour `update_budget_line`, montants par mois, éléments récurrents, prévu par mois) ; droit `reports:read` |
 | `get_auxiliary_balance` | Balance auxiliaire d'une période : par client et fournisseur, solde d'ouverture, débits, crédits, solde de clôture et part non lettrée ; droit `reports:read` |
@@ -366,8 +368,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
 | Qui modifient des données (POST, PUT, PATCH, DELETE) | 201 | 157 | 44 |
-| Lectures (GET) | 144 | 100 | 44 |
-| Total | 345 | 257 | 88 |
+| Lectures (GET) | 147 | 103 | 44 |
+| Total | 348 | 260 | 88 |
 
 ### Exclusions
 
@@ -617,6 +619,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/group/treasury` | reports:read | `get_group_treasury` (L) |
 | `GET /api/group/participations` | reports:read | `get_participations` (L) |
 | `GET /api/group/view` | reports:read | `get_group_view` (L) |
+| `GET /api/group/structure` | reports:read | `get_group_structure` (L) |
+| `GET /api/group/tax` | reports:read | `simulate_tax_integration` (L) |
+| `GET /api/group/simple-home` | reports:read | `get_group_view`, `get_group_treasury`, `get_group_deadlines`, `get_group_alerts` (L) ; les mêmes chiffres en mots simples |
 | `GET /api/health` | aucun (voir exclusion) | Exclu : disponibilité |
 | `POST /api/import/preview-fiscal-years` | entries:read | `import_accounting_file` (CT) ; Aperçu (dryRun) de l'import. |
 | `POST /api/import` | entries:create, ledger:manage | `import_accounting_file` (CT) |

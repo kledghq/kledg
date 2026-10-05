@@ -1,5 +1,6 @@
 /**
- * MCP tools of the group view: get_group_view and get_participations. The
+ * MCP tools of the group view: get_group_view, get_participations, the
+ * group space tools, get_group_structure and simulate_tax_integration. The
  * holding goes through the company guard with reports:read; every
  * subsidiary is reached through the same guard (the GroupAccess handed to
  * the services delegates to it), so the connection's company grant applies
@@ -32,6 +33,8 @@ vi.mock('@/lib/group/get-group-persons.service', async (importOriginal) => ({ ..
 vi.mock('@/lib/group/get-group-deadlines.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-deadlines.service')>()), getGroupDeadlines: vi.fn() }))
 vi.mock('@/lib/group/get-group-alerts.service', () => ({ getGroupAlerts: vi.fn() }))
 vi.mock('@/lib/group/list-group-transactions.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/list-group-transactions.service')>()), listGroupTransactions: vi.fn() }))
+vi.mock('@/lib/group/get-group-structure.service', () => ({ getGroupStructure: vi.fn() }))
+vi.mock('@/lib/group/get-group-tax.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-tax.service')>()), getGroupTax: vi.fn() }))
 vi.mock('@/lib/group/get-group-ledger.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/group/get-group-ledger.service')>()), getGroupLedger: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
@@ -51,6 +54,10 @@ import { getGroupAlerts } from '@/lib/group/get-group-alerts.service'
 import { listGroupTransactions } from '@/lib/group/list-group-transactions.service'
 import { getGroupLedger } from '@/lib/group/get-group-ledger.service'
 import { summarizeDeadlines } from '@/lib/group/deadline-summary'
+import { getGroupStructure } from '@/lib/group/get-group-structure.service'
+import { getGroupTax } from '@/lib/group/get-group-tax.service'
+import { buildGroupStructure } from '@/lib/group/structure'
+import { simulateTaxIntegration, type IntegrationInput } from '@/lib/group/tax-integration'
 import { computeFinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 
 type Handler = (args: Record<string, unknown>) => Promise<ToolResult>
@@ -166,12 +173,12 @@ describe('group space tools', () => {
 
   it('refuses every group space tool when the holding is outside the grant, without calling its service', async () => {
     const tools = server()
-    for (const name of ['get_group_companies', 'get_group_indicators', 'get_group_evolution', 'get_group_treasury', 'get_group_shareholders', 'get_group_deadlines', 'get_group_alerts', 'list_group_transactions', 'get_group_ledger']) {
+    for (const name of ['get_group_companies', 'get_group_indicators', 'get_group_evolution', 'get_group_treasury', 'get_group_shareholders', 'get_group_deadlines', 'get_group_alerts', 'list_group_transactions', 'get_group_ledger', 'get_group_structure', 'simulate_tax_integration']) {
       guard.require.mockRejectedValueOnce(new NotFoundError('Société introuvable'))
       const result = await tools.get(name)!({ companyId: 'other' })
       expect(result.isError, name).toBe(true)
     }
-    for (const service of [getGroupCompanies, getGroupIndicators, getGroupEvolution, getGroupTreasury, getGroupPersons, getGroupDeadlines, getGroupAlerts, listGroupTransactions, getGroupLedger]) {
+    for (const service of [getGroupCompanies, getGroupIndicators, getGroupEvolution, getGroupTreasury, getGroupPersons, getGroupDeadlines, getGroupAlerts, listGroupTransactions, getGroupLedger, getGroupStructure, getGroupTax]) {
       expect(service).not.toHaveBeenCalled()
     }
   })
@@ -308,5 +315,68 @@ describe('group space tools', () => {
     expect(getGroupLedger).toHaveBeenCalledWith('h1', { fiscalYearId: undefined, prefix: undefined, account: '512000' }, expect.anything())
     expect(data.accounts[0]).toEqual({ account: '512000', label: 'Banque', byCompany: [{ company: 'Filiale Nord', debit: 3000, credit: 1000, balance: 2000 }], total: { debit: 3000, credit: 1000, balance: 2000 } })
     expect(data.lines).toEqual([{ company: 'Filiale Nord', date: '2026-02-01', journal: 'BQ', entry: '1', label: 'Apport', debit: 3000, credit: 0 }])
+  })
+
+  it('get_group_structure answers the organigramme in percent, a subsidiary not read without name nor id', async () => {
+    vi.mocked(getGroupStructure).mockResolvedValue({
+      ...buildGroupStructure({
+        holdingId: 'h1',
+        companies: [
+          { id: 'h1', name: 'Holding', slug: 'holding', role: 'holding', logo: null, legalType: 'SAS', officers: [] },
+          { id: 's1', name: 'Filiale Nord', slug: 'filiale-nord', role: 'subsidiary', logo: null, legalType: 'SAS', officers: [{ name: 'Claire Vasseur', title: 'Présidente' }] },
+        ],
+        hidden: [{ key: 'hidden-1', name: null }],
+        holders: [{ key: 'holder-1', kind: 'person', name: 'Claire Vasseur', photo: 'data:image/png;base64,AAAA' }],
+        holdings: [
+          { holderKey: 'holder-1', companyKey: 'h1', bp: 6000 },
+          { holderKey: 'company:h1', companyKey: 's1', bp: 8000 },
+          { holderKey: 'company:h1', companyKey: 'hidden-1', bp: null },
+        ],
+      }),
+      holding: { id: 'h1', name: 'Holding', slug: 'holding' },
+      ...perimeter,
+    })
+    const result = await server().get('get_group_structure')!({ companyId: 'h1' })
+    const body = parse(result)
+    expect(guard.require).toHaveBeenCalledWith('h1', { reports: ['read'] })
+    expect(body.holdings).toEqual([
+      { holder: 'Claire Vasseur', company: 'Holding', percent: 60, kind: null },
+      { holder: 'Holding', company: 'Filiale Nord', percent: 80, kind: 'Filiale (plus de 50 %)' },
+      { holder: 'Holding', company: 'Société non accessible', percent: null, kind: null },
+    ])
+    expect(body.nodes.find((n: { name: string }) => n.name === 'Filiale Nord')).toMatchObject({ holdingInterest: { directPercent: 80, indirectPercent: 0, totalPercent: 80 }, officers: [{ name: 'Claire Vasseur', title: 'Présidente' }] })
+    expect(JSON.stringify(body)).not.toContain('base64')
+    expect(body.notAccessibleSubsidiaries).toBe(1)
+  })
+
+  it('simulate_tax_integration passes the typed retraitements in cents and answers in euros', async () => {
+    const year = { startDate: '2026-01-01', endDate: '2026-12-31', months: 12 }
+    const company = (id: string, result: number, tax: number) => ({ id, name: id, role: (id === 'h1' ? 'holding' : 'subsidiary') as 'holding' | 'subsidiary', status: 'ready' as const, fiscalYear: year, resultBeforeDeficitsCents: result, deficitsOpeningCents: 0, turnoverCents: 0, separateTaxCents: tax, separateSocialCents: 0, capitalPaidUp: true, naturalPersons75: true })
+    const integrationInput: IntegrationInput = {
+      holdingId: 'h1',
+      companies: [company('h1', -3_000_000, 0), company('s1', 4_000_000, 600_000)],
+      holdings: [{ holderId: 'h1', companyId: 's1', bp: 10000 }],
+      parentHeldByCompany: false,
+      dividends: [],
+      managementFees: [],
+      manual: { provisions: 120_000 },
+      unreachable: 0,
+    }
+    vi.mocked(getGroupTax).mockResolvedValue({
+      holding: { id: 'h1', name: 'Holding' },
+      fiscalYear: fy,
+      companies: [],
+      parentSubsidiary: [{ parent: holding, subsidiary: nord, stakeBp: 10000, eligible: true, dividendsCents: 50_000, applied: true }],
+      integration: simulateTaxIntegration(integrationInput),
+      integrationInput,
+      ...perimeter,
+    })
+    const body = parse(await server().get('simulate_tax_integration')!({ companyId: 'h1', fiscalYearId: 'fy', provisions: 1200 }))
+    expect(vi.mocked(getGroupTax).mock.calls[0][1]).toMatchObject({ fiscalYearId: 'fy', provisions: 120_000 })
+    // 40 000 - 30 000 + 1 200 = 11 200 € at 15 %: 1 680 €; separately 6 000 €.
+    expect(body.integration).toMatchObject({ possible: true, groupResultBeforeDeficits: 11_200, groupTax: { corporateTax: 1_680 }, separateTotal: 6_000, saving: 4_320 })
+    expect(body.parentSubsidiary).toEqual([{ parent: 'Holding', subsidiary: 'Filiale Nord', stakePercent: 100, eligible: true, dividends: 500, appliedInParentTax: true }])
+    expect(body.notice).toContain('Simulation indicative')
+    expect(body.integration.sources.length).toBeGreaterThan(5)
   })
 })

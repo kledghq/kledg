@@ -7,9 +7,7 @@ import { Download, FileSpreadsheet, Info, Lock, RotateCw, TriangleAlert } from '
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
 import { Amount, formatPercent } from '@/components/shared'
-import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { downloadFile } from '@/components/features/reports/download-file'
 import { responseError } from '@/hooks/use-cursor-list'
@@ -29,17 +27,28 @@ interface GroupSpaceValue {
   companyId: string
   fiscalYearId: string
   setFiscalYearId: (id: string) => void
+  /** The company the Pilotage view is filtered on (its id), null for the whole group. */
+  companyFilter: string | null
+  setCompanyFilter: (id: string | null) => void
 }
 
 const GroupSpaceContext = React.createContext<GroupSpaceValue | null>(null)
 
 export function GroupSpaceProvider({ companyId, children }: { companyId: string; children: React.ReactNode }) {
-  const [state, setState] = React.useState<{ companyId: string; fiscalYearId: string }>({ companyId, fiscalYearId: '' })
-  // Another holding: its own fiscal year.
-  const fiscalYearId = state.companyId === companyId ? state.fiscalYearId : ''
+  const [state, setState] = React.useState<{ companyId: string; fiscalYearId: string; companyFilter: string | null }>({ companyId, fiscalYearId: '', companyFilter: null })
+  // Another holding: its own fiscal year, no filter.
+  const same = state.companyId === companyId
+  const fiscalYearId = same ? state.fiscalYearId : ''
+  const companyFilter = same ? state.companyFilter : null
   const value = React.useMemo(
-    () => ({ companyId, fiscalYearId, setFiscalYearId: (id: string) => setState({ companyId, fiscalYearId: id }) }),
-    [companyId, fiscalYearId],
+    () => ({
+      companyId,
+      fiscalYearId,
+      setFiscalYearId: (id: string) => setState((previous) => ({ companyId, fiscalYearId: id, companyFilter: previous.companyId === companyId ? previous.companyFilter : null })),
+      companyFilter,
+      setCompanyFilter: (id: string | null) => setState((previous) => ({ companyId, fiscalYearId: previous.companyId === companyId ? previous.fiscalYearId : '', companyFilter: id })),
+    }),
+    [companyId, fiscalYearId, companyFilter],
   )
   return <GroupSpaceContext.Provider value={value}>{children}</GroupSpaceContext.Provider>
 }
@@ -109,19 +118,13 @@ export function Cents({ value, signed = false }: { value: number | null | undefi
 
 export const ownership = (bp: number | null | undefined) => (bp === null || bp === undefined ? null : formatPercent(bp / 100))
 
-/** The holding's fiscal year, for every page of the group space. */
-export function GroupFiscalYear({ hint }: { hint?: React.ReactNode }) {
-  const { companyId, fiscalYearId, setFiscalYearId } = useGroupSpace()
+/** The sentence and the actions (exports) at the top of a section of a view. */
+export function SectionIntro({ description, actions }: { description?: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <Card>
-      <CardContent className="grid gap-4 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label htmlFor="group-fiscal-year">Exercice de la holding</Label>
-          <FiscalYearSelector companyId={companyId} value={fiscalYearId} onValueChange={setFiscalYearId} showLabel={false} showPeriod={false} id="group-fiscal-year" />
-        </div>
-        {hint ? <p className="text-muted-foreground text-sm sm:col-span-2 sm:self-end">{hint}</p> : null}
-      </CardContent>
-    </Card>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      {description ? <p className="text-muted-foreground max-w-prose flex-1 basis-72 text-sm">{description}</p> : null}
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </div>
   )
 }
 

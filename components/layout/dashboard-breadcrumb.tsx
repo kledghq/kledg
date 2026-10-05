@@ -12,7 +12,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import { findNavEntry, findSubPageTitle, navGroupsFor } from '@/components/layout/nav-config'
-import { findGroupNavEntry, groupRelativePath } from '@/components/layout/group-nav-config'
+import { findGroupNavEntry, groupHomePath, groupRelativePath, isSimpleGroupPath } from '@/components/layout/group-nav-config'
 import { SIMPLE_HOME_PATH, type DisplayMode } from '@/lib/appearance/display-mode'
 import { logger } from '@/lib/logger'
 import { displayCompanyName } from '@/lib/companies/legal-forms'
@@ -59,7 +59,7 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
   const isHome = relativePath === homePath
   // Pages reached from another page (Connecter une banque, Configuration du bilan) have their own title.
   const subPage = isEntryPage || isHome ? null : findSubPageTitle(relativePath)
-  const pageTitle = groupPath ? (groupEntry?.title ?? "Vue d'ensemble") : isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
+  const pageTitle = groupPath ? (groupEntry?.title ?? 'Pilotage') : isHome ? (mode === 'simple' ? 'Accueil' : 'Tableau de bord') : (subPage?.title ?? entry?.title)
 
   // Tab titles name the page and the company: "Journaux · Atelier Lumen · Kledg" ("Trésorerie · Groupe Atelier Lumen · Kledg").
   useEffect(() => {
@@ -86,7 +86,8 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
   }
 
   if (groupPath) {
-    const isOverview = groupPath === '/'
+    const isOverview = groupPath === '/' || groupPath === '/simple'
+    const groupHome = isSimpleGroupPath(groupPath) ? groupHomePath(companyId, 'simple') : groupHomePath(companyId, 'expert')
     return (
       <Breadcrumb className="min-w-0">
         <BreadcrumbList className="flex-nowrap">
@@ -95,7 +96,7 @@ export function DashboardBreadcrumb({ mode = 'expert' }: { mode?: DisplayMode } 
               <BreadcrumbPage className="truncate">{groupName ?? <NamePlaceholder />}</BreadcrumbPage>
             ) : (
               <BreadcrumbLink asChild>
-                <Link href={`/${companyId}/group`} className="max-w-56 truncate">
+                <Link href={groupHome} className="max-w-56 truncate">
                   {groupName ?? <NamePlaceholder />}
                 </Link>
               </BreadcrumbLink>

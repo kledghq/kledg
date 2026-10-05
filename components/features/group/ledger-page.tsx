@@ -8,12 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableEmpty, TableFooter, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { DateDisplay, PageHeader } from '@/components/shared'
+import { DateDisplay } from '@/components/shared'
 import type { GroupLedgerReport } from '@/lib/group/get-group-ledger.service'
-import { Cents, CompanyLink, ExportButtons, GroupFiscalYear, LoadError, Notice, PerimeterNotes, useGroupReport, useReportUrl } from './space'
+import { Cents, CompanyLink, ExportButtons, LoadError, Notice, PerimeterNotes, useGroupReport, useReportUrl, SectionIntro } from './space'
 
 /** Grand livre combiné of the group space: an aggregation of the books, read only. */
-export function GroupLedgerPage() {
+export function GroupLedgerSection() {
   const [prefixInput, setPrefixInput] = React.useState('')
   const [prefix, setPrefix] = React.useState('')
   const [account, setAccount] = React.useState<string | null>(null)
@@ -28,12 +28,10 @@ export function GroupLedgerPage() {
   const names = new Map((data?.companies ?? []).map((c) => [c.id, c]))
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Grand livre combiné"
+      <SectionIntro
         description="Chaque compte utilisé par les sociétés du groupe, avec le solde de chacune et leur total. Choisissez un compte pour voir ses lignes dans toutes les sociétés."
         actions={<ExportButtons report="ledger" extra={extra} disabled={!data} />}
       />
-      <GroupFiscalYear />
       {report.error ? (
         <LoadError message={report.error} onRetry={report.retry} />
       ) : (

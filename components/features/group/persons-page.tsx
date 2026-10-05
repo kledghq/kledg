@@ -5,9 +5,9 @@ import { Building2, Lock } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { EmptyState, HelpTip, PageHeader, PersonAvatar } from '@/components/shared'
+import { EmptyState, HelpTip, PersonAvatar } from '@/components/shared'
 import type { GroupHolder, GroupPersonsReport, HolderKind } from '@/lib/group/get-group-persons.service'
-import { CompanyLink, ExportButtons, LoadError, PerimeterNotes, ownership, useGroupReport, useReportUrl } from './space'
+import { CompanyLink, ExportButtons, LoadError, PerimeterNotes, ownership, useGroupReport, useReportUrl, SectionIntro } from './space'
 
 const KIND_LABELS: Record<HolderKind, string> = {
   person: 'Personne physique',
@@ -17,15 +17,14 @@ const KIND_LABELS: Record<HolderKind, string> = {
 }
 
 /** Associés et dirigeants of the group space: who holds what, directly and through the group, and who runs each company. */
-export function GroupPersonsPage() {
+export function GroupPersonsSection() {
   const report = useGroupReport<GroupPersonsReport>(useReportUrl('persons', {}, false), "Les associés du groupe ne se sont pas chargés. Réessayez dans un instant.")
   const data = report.data
   const people = data?.holders.filter((h) => h.kind === 'person' || h.kind === 'officer') ?? []
   const entities = data?.holders.filter((h) => h.kind === 'company' || h.kind === 'other') ?? []
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Associés et dirigeants"
+      <SectionIntro
         description="Les personnes et les sociétés qui détiennent des parts dans le groupe, directement ou par la holding, et les dirigeants de chaque société."
         actions={<ExportButtons report="persons" disabled={!data} />}
       />
