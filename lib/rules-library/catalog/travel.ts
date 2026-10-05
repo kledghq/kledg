@@ -3,11 +3,12 @@
  * passenger cars, where the right to deduct VAT has its own rules. See
  * docs/bibliotheque-de-regles.md to add one.
  *
- * No hotel template: whether VAT on a hotel night of a director or an
- * employee on a business trip is deductible could not be settled on an
- * official page (CGI ann. II art. 206, IV, 2°, 2° excludes "la fourniture à
- * titre gratuit du logement", BOI-TVA-DED-30-30-10 does not say for trips),
- * and the simple mode treats it as not recoverable (lib/simple/categories.ts).
+ * Hotel nights of directors and staff: VAT not deductible, even on a
+ * business trip (CGI ann. II art. 206, IV, 2°, 2°; answer to the written
+ * question n° 12225 of 12 December 2023), as the simple mode treats them
+ * (lib/simple/categories.ts). Meals billed apart by the hotel follow the
+ * restaurant rule; lodging a client or a supplier is deductible (not this
+ * template).
  */
 
 import { DEBIT, labelMatches, noVatLine, reducedVatLine, standardVatLine, type RuleTemplate, type RuleTemplateLine } from '../template'
@@ -34,6 +35,20 @@ const PASSENGER_TRANSPORT_WHY =
   'Transport de personnes : TVA à 10 % (CGI art. 279, b quater) mais exclue de la déduction (CGI ann. II art. 206, IV, 2°, 5°) : le billet est une charge pour son montant TTC.'
 
 export const TRAVEL_TEMPLATES: RuleTemplate[] = [
+  {
+    id: 'hotel',
+    name: 'Hôtels en déplacement',
+    category: 'transport',
+    description: "Nuits d'hôtel des dirigeants et des salariés en déplacement (Accor, B&B Hotels, Louvre Hotels, Booking.com, Hotels.com), en missions (6256).",
+    conditions: [DEBIT, labelMatches('\\b(ibis|novotel|mercure|accor\\w*|b&b hotels?|campanile|kyriad|premiere classe|booking\\.com|hotels\\.com|hotel|h[oô]tel)\\b', 'IBIS, NOVOTEL, MERCURE, ACCOR, B&B HOTELS, CAMPANILE, KYRIAD, BOOKING.COM, HOTELS.COM, HOTEL')],
+    lines: [noVatLine('6256')],
+    vat: {
+      treatment: 'not-deductible',
+      why: "Hébergement à 10 % (CGI art. 279, a) mais logement des dirigeants et du personnel exclu de la déduction, même en déplacement professionnel (CGI ann. II art. 206, IV, 2°, 2°) : la nuit est une charge pour son montant TTC. Les repas facturés à part suivent la règle des restaurants ; l'hébergement d'un client ou d'un fournisseur ouvre droit à déduction.",
+    },
+    sources: [SOURCES.cgiAnnex2Art206, SOURCES.staffLodging, SOURCES.staffLodgingAnswer],
+    samples: { match: ['CB IBIS PARIS GARE DE LYON', 'BOOKING.COM HOTEL', 'B&B HOTELS NANTES'], noMatch: ['CB SNACK FOOD', 'PRLV SEPA OVH'] },
+  },
   {
     id: 'train',
     name: 'Billets de train',

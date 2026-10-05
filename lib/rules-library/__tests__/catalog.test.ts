@@ -26,7 +26,7 @@ import { templateAsRule } from '../suggestions'
 import { RULE_TEMPLATE_CATEGORIES, RuleTemplateSchema, SPECIAL_VAT_TREATMENTS, type RuleTemplate } from '../template'
 
 const PCG_CODES = new Set(PCG_ACCOUNTS.map((a) => a.code))
-const OFFICIAL_HOSTS = ['bofip.impots.gouv.fr', 'www.legifrance.gouv.fr', 'www.impots.gouv.fr', 'support.stripe.com']
+const OFFICIAL_HOSTS = ['bofip.impots.gouv.fr', 'www.legifrance.gouv.fr', 'www.impots.gouv.fr', 'questions.assemblee-nationale.fr', 'support.stripe.com']
 
 /** Everyday labels no template may recognise, on either side. */
 const UNRELATED_LABELS = [

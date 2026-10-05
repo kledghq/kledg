@@ -50,7 +50,9 @@ Sources (chaque modèle cite les siennes) :
 - locaux nus exonérés sauf option du bailleur : CGI art. 261 D, 2° et 260, 2°, [BOI-TVA-CHAMP-30-10-50](https://bofip.impots.gouv.fr/bofip/2846-PGP.html), [BOI-TVA-CHAMP-50-10](https://bofip.impots.gouv.fr/bofip/730-PGP.html) ;
 - impôts, cotisations et virements hors du champ (pas de contrepartie) : [BOI-TVA-CHAMP-10-10-10](https://bofip.impots.gouv.fr/bofip/162-PGP.html) ; frais Stripe sans TVA pour les comptes de l'UE hors Irlande : [page de Stripe](https://support.stripe.com/questions/global-taxation-of-stripe-fees).
 
-Laissés de côté faute de règle vérifiée sur une page officielle : l'hôtel (la déduction de la TVA d'une nuit d'hôtel d'un salarié ou d'un dirigeant en déplacement n'est pas tranchée par CGI ann. II art. 206, IV, 2°, 2°, qui vise « la fourniture à titre gratuit du logement » ; le mode simple la traite comme non récupérable), les frais Stripe et SumUp (exonération ou autoliquidation non établie), la formation (exonérée seulement si l'organisme a l'attestation de la 3511-SD, et compte de charge à préciser) et les cadeaux clients (seuil de 73 € TTC revalorisé tous les cinq ans).
+Hôtels en déplacement : TVA non déductible pour les nuits des dirigeants et des salariés, même en déplacement professionnel (CGI ann. II art. 206, IV, 2°, 2° ; [BOI-TVA-DED-30-30-10](https://bofip.impots.gouv.fr/bofip/1190-PGP.html) ; [réponse à la question écrite n° 12225 du 12 décembre 2023](https://questions.assemblee-nationale.fr/q16/16-12225QE.htm)), comme le mode simple ; les repas facturés à part suivent la règle des restaurants et l'hébergement d'un client ou d'un fournisseur ouvre droit à déduction.
+
+Laissés de côté faute de règle vérifiée sur une page officielle : les frais Stripe et SumUp (exonération ou autoliquidation non établie), la formation (exonérée seulement si l'organisme a l'attestation de la 3511-SD, et compte de charge à préciser) et les cadeaux clients (seuil de 73 € TTC revalorisé tous les cinq ans).
 
 ## Suggestions
 

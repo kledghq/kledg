@@ -43,6 +43,10 @@ export const SOURCES = {
   /** Rental of bare premises exempt (CGI art. 261 D, 2°) unless the lessor opts (CGI art. 260, 2°). */
   rentExempt: bofip('BOI-TVA-CHAMP-30-10-50 (locations de locaux nus exonérées)', 2846),
   rentOption: bofip('BOI-TVA-CHAMP-50-10 (option du bailleur, CGI art. 260, 2°)', 730),
+  /** Lodging of directors and staff excluded from deduction (CGI ann. II art. 206, IV, 2°, 2°), hotel nights on business trips included. */
+  staffLodging: bofip('BOI-TVA-DED-30-30-10 (logement des dirigeants et du personnel exclu de la déduction)', 1190),
+  /** Government answer of 12 December 2023: every expense providing lodging to directors or staff is excluded, a fraud-prevention rule. */
+  staffLodgingAnswer: { label: 'Question écrite n° 12225, réponse du 12 décembre 2023 (logement du personnel)', url: 'https://questions.assemblee-nationale.fr/q16/16-12225QE.htm' },
   /** Standard rate of 20 % (CGI art. 278). */
   standardRate: bofip('BOI-TVA-LIQ-20 (taux normal de 20 %, CGI art. 278)', 1376),
   /** Electricity and gas subscriptions at 20 % since 1 August 2025 (loi 2025-127, art. 20). */
