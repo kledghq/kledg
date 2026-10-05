@@ -44,6 +44,8 @@ interface ImportResult {
   invoices: { created: number; updated: number; unchanged: number }
   refused: Array<{ reference: string; reason: string }>
   complete: boolean
+  /** Drafts deleted in Qonto, removed from Kledg too. */
+  removedDrafts?: number
 }
 
 export function InvoiceList({ companyId, direction }: { companyId: string; direction: InvoiceDirection }) {
@@ -81,7 +83,8 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
       const imported = result.invoices.created + result.invoices.updated
       toast.success(
         `${plural(imported, 'facture importée', 'factures importées')}, ${plural(result.tiers.created, 'tiers créé', 'tiers créés')}` +
-          (result.refused.length ? ` ; ${plural(result.refused.length, 'facture écartée', 'factures écartées')} (${result.refused[0].reference} : ${result.refused[0].reason})` : ''),
+          (result.refused.length ? ` ; ${plural(result.refused.length, 'facture écartée', 'factures écartées')} (${result.refused[0].reference} : ${result.refused[0].reason})` : '') +
+          (result.removedDrafts ? ` ; ${plural(result.removedDrafts, 'brouillon supprimé dans Qonto retiré', 'brouillons supprimés dans Qonto retirés')}` : ''),
       )
       list.reload()
     } catch (e) {

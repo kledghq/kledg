@@ -83,6 +83,17 @@ async function qontoMock(url: string, init?: RequestInit): Promise<Response> {
     return json({ client_invoice: created }, 201)
   }
   if (path === '/client_invoices' && method === 'GET') return json({ client_invoices: createdAtQonto, meta: { next_page: null } })
+  const one = /^\/client_invoices\/([^/]+)$/.exec(path)
+  if (one) {
+    const found = createdAtQonto.find((i) => i.id === one[1])
+    if (!found) return json({ errors: [{ detail: 'not found' }] }, 404)
+    if (method === 'GET') return json({ client_invoice: found })
+    if (method === 'DELETE') {
+      if (found.status !== 'draft') return json({ errors: [{ code: 'invoice_not_in_draft_status' }] }, 412)
+      createdAtQonto = createdAtQonto.filter((i) => i.id !== found.id)
+      return new Response(null, { status: 204 })
+    }
+  }
   if (path === '/supplier_invoices') return json({ supplier_invoices: [], meta: { next_page: null } })
   return json({ errors: [{ detail: 'not found' }] }, 404)
 }
@@ -175,6 +186,33 @@ describe.skipIf(!available)('sales invoices created in Qonto first (PostgreSQL, 
     expect(completed).toEqual({ number: 'QF-001', qontoDraft: false, externalId: 'qi-1', lines: [{ accountCode: '706000' }] })
     expect((await posting.postInvoice(books.companyId, invoice.id)).number).toBe('QF-001')
     expect(await prisma.invoice.count({ where: { companyId: books.companyId } })).toBe(1)
+  })
+
+  it('keeps a Qonto draft in step: deleted in Kledg it is deleted in Qonto, deleted in Qonto the import removes it from Kledg', async () => {
+    // Deleted in Kledg: Qonto deletes its draft first
+    const first = await sale({ qontoStatus: 'draft' })
+    await invoices.deleteInvoice(books.companyId, first.id)
+    expect(calls.some((c) => c.method === 'DELETE' && c.path === '/client_invoices/qi-1')).toBe(true)
+    expect(createdAtQonto).toHaveLength(0)
+    expect(await prisma.invoice.count({ where: { id: first.id } })).toBe(0)
+
+    // Deleted in Qonto: the next import removes the Kledg copy
+    const second = await sale({ qontoStatus: 'draft' })
+    createdAtQonto = []
+    expect((await importer.importQontoInvoices(books.companyId)).removedDrafts).toBe(1)
+    expect(await prisma.invoice.count({ where: { id: second.id } })).toBe(0)
+
+    // Already gone in Qonto when deleted in Kledg: deleted in Kledg too
+    const third = await sale({ qontoStatus: 'draft' })
+    createdAtQonto = []
+    await invoices.deleteInvoice(books.companyId, third.id)
+    expect(await prisma.invoice.count({ where: { id: third.id } })).toBe(0)
+
+    // Finalized in Qonto meanwhile: Kledg refuses and keeps its copy
+    const fourth = await sale({ qontoStatus: 'draft' })
+    createdAtQonto[createdAtQonto.length - 1].status = 'unpaid'
+    await expect(invoices.deleteInvoice(books.companyId, fourth.id)).rejects.toThrow(/finalisée dans Qonto/)
+    expect(await prisma.invoice.count({ where: { id: fourth.id } })).toBe(1)
   })
 
   it('refuses a Qonto status for an invoice not created in Qonto', async () => {

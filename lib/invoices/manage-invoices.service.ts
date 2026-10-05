@@ -681,6 +681,12 @@ export async function updateInvoiceLineAccounts(companyId: string, id: string, i
 }
 
 export async function deleteInvoice(companyId: string, id: string): Promise<{ id: string }> {
+  // A draft created in Qonto is deleted there first, so Kledg and Qonto stay in step.
+  const qontoDraft = await prisma.invoice.findFirst({ where: { id, companyId, origin: 'QONTO', qontoDraft: true, entryId: null, externalId: { not: null } }, select: { externalId: true } })
+  if (qontoDraft?.externalId) {
+    const { deleteQontoDraft } = await import('./create-in-qonto.service')
+    await deleteQontoDraft(companyId, qontoDraft.externalId)
+  }
   const deleted = await prisma.$transaction(async (tx) => {
     const current = await lockInvoice(tx, companyId, id)
     if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
@@ -689,7 +695,7 @@ export async function deleteInvoice(companyId: string, id: string): Promise<{ id
         `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
       )
     }
-    // A draft in Qonto has no number yet: deleting it in Kledg leaves no gap (finalized later in Qonto, the import brings it back).
+    // A draft in Qonto has no number yet and was deleted in Qonto just above: deleting it in Kledg leaves no gap.
     if (current.origin === 'QONTO' && current.qontoRequestedAt && !(current.qontoDraft && current.externalId)) {
       throw new ConflictError(
         current.externalId
