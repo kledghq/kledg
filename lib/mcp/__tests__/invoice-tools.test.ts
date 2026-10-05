@@ -25,6 +25,8 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
 vi.mock('@/lib/tiers/manage-tiers.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/tiers/manage-tiers.service')>()), listTiers: vi.fn() }))
 vi.mock('@/lib/invoices/manage-invoices.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/invoices/manage-invoices.service')>()), listInvoices: vi.fn(), getInvoice: vi.fn(), createInvoice: vi.fn() }))
 vi.mock('@/lib/invoices/post-invoice.service', () => ({ postInvoice: vi.fn() }))
+vi.mock('@/lib/invoices/create-in-qonto.service', () => ({ issueInvoice: vi.fn(), qontoFirstActive: vi.fn(async () => false), resumeQontoInvoice: vi.fn() }))
+vi.mock('@/lib/invoices/numbering/series', () => ({ loadNumberingSettings: vi.fn(async () => ({ mode: 'AUTO' })), peekNextNumber: vi.fn(async () => 'F2026-0007') }))
 vi.mock('@/lib/mcp/full-control/pending-actions', () => ({
   createPendingAction: vi.fn(async () => ({ id: 'action-1', approvalUrl: 'http://kledg.test/ai-actions/action-1', expiresAt: new Date('2026-10-05T00:00:00Z') })),
   claimApprovedAction: vi.fn(),
@@ -35,6 +37,7 @@ import { registerKledgTools } from '@/lib/mcp/tools'
 import { listTiers } from '@/lib/tiers/manage-tiers.service'
 import { createInvoice, getInvoice, listInvoices } from '@/lib/invoices/manage-invoices.service'
 import { postInvoice } from '@/lib/invoices/post-invoice.service'
+import { issueInvoice } from '@/lib/invoices/create-in-qonto.service'
 import { createPendingAction } from '@/lib/mcp/full-control/pending-actions'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
@@ -167,6 +170,7 @@ describe('create_draft_invoice (full control)', () => {
     direction: 'SALE',
     tiers: 'C00001',
     number: 'V-9',
+    numbering: 'recorded',
     issueDate: '2026-03-02',
     lines: [
       { label: 'Conseil', quantity: 2, unitPrice: 125, vatRate: 20 },
@@ -190,19 +194,22 @@ describe('create_draft_invoice (full control)', () => {
       actionId: 'action-1',
       preview: { totalExclTax: 279.99, totalVat: 51.65, totalInclTax: 331.64, problems: [], vatBreakdown: [{ ratePercent: 20, base: 250, vat: 50 }, { ratePercent: 5.5, base: 29.99, vat: 1.65 }] },
     })
+    expect(data.preview.numbering).toBe('Facture déjà émise, enregistrée sous le n° V-9.')
     expect(createPendingAction).toHaveBeenCalled()
-    expect(createInvoice).not.toHaveBeenCalled()
+    expect(issueInvoice).not.toHaveBeenCalled()
   })
 
   it('in automatic mode, records the invoice in cents and basis points, and posts it when asked', async () => {
-    vi.mocked(createInvoice).mockResolvedValue({ id: 'inv-9', totalInclTaxCents: 33_164 } as never)
-    vi.mocked(postInvoice).mockResolvedValue({ invoiceId: 'inv-9', entryId: 'e9', entryNumber: 'BR-1', fiscalYear: 2026 })
+    vi.mocked(issueInvoice).mockResolvedValue({ id: 'inv-9', number: 'V-9', origin: 'RECORDED', totalInclTaxCents: 33_164 } as never)
+    vi.mocked(postInvoice).mockResolvedValue({ invoiceId: 'inv-9', entryId: 'e9', entryNumber: 'BR-1', fiscalYear: 2026, number: 'F2026-0001' })
     const data = parse(await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_invoice')!({ ...args, post: true }))
-    expect(createInvoice).toHaveBeenCalledWith(
+    expect(issueInvoice).toHaveBeenCalledWith(
       'c1',
       expect.objectContaining({
         direction: 'SALE',
         tiersId: 't1',
+        number: 'V-9',
+        numbering: 'recorded',
         typeCode: '380',
         lines: [
           expect.objectContaining({ quantity: '2', unitPriceCents: 12_500, vatRateBp: 2000 }),
@@ -212,7 +219,20 @@ describe('create_draft_invoice (full control)', () => {
       { source: 'mcp' },
     )
     expect(postInvoice).toHaveBeenCalledWith('c1', 'inv-9', { source: 'mcp' })
-    expect(data).toMatchObject({ executed: true, result: { invoiceId: 'inv-9', status: 'posted', entryId: 'e9', totalInclTax: 331.64 } })
+    expect(data).toMatchObject({ executed: true, result: { invoiceId: 'inv-9', number: 'F2026-0001', origin: 'RECORDED', status: 'posted', entryId: 'e9', totalInclTax: 331.64 } })
+  })
+
+  it('follows the company numbering: without a number, the dry run announces the next number of the series', async () => {
+    const { number: _number, numbering: _numbering, ...auto } = args
+    const data = parse(await server({ canAdmin: true }).get('create_draft_invoice')!(auto))
+    expect(data.preview.numbering).toBe('Numéro attribué à la comptabilisation (prochain : F2026-0007).')
+    expect(data.preview.problems).toEqual([])
+  })
+
+  it('reports a typed sales number under automatic numbering as a problem of the dry run', async () => {
+    const { numbering: _numbering, ...typed } = args
+    const data = parse(await server({ canAdmin: true }).get('create_draft_invoice')!(typed))
+    expect(data.preview.problems).toEqual([expect.stringMatching(/numérotation automatique est active/)])
   })
 
   it('reports a tiers of the wrong kind in the dry run, and an unknown tiers as an error', async () => {
@@ -221,6 +241,6 @@ describe('create_draft_invoice (full control)', () => {
     db.tiers.findFirst.mockResolvedValue(null as never)
     const result = await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_invoice')!(args)
     expect(result.isError).toBe(true)
-    expect(createInvoice).not.toHaveBeenCalled()
+    expect(issueInvoice).not.toHaveBeenCalled()
   })
 })

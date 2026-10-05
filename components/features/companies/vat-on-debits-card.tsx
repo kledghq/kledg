@@ -17,9 +17,11 @@ interface VatSettings {
 /**
  * The option to pay VAT on services on debits (CGI art. 269, 2, c), which
  * decides where the VAT of a sales invoice of services posts: 44571 at once,
- * or 44574 until it is paid.
+ * or 44574 until it is paid. Edited only here, with the VAT regimes of the
+ * company (Informations); the sales invoices page shows a summary
+ * (VatSettingsSummary) linking to it.
  */
-export function VatSettingsCard({ companyId }: { companyId: string }) {
+export function VatOnDebitsCard({ companyId }: { companyId: string }) {
   const { can, denied } = useCompanyAccess()
   const mayUpdate = can({ settings: ['update'] })
   const [settings, setSettings] = React.useState<VatSettings | null>(null)
@@ -55,7 +57,7 @@ export function VatSettingsCard({ companyId }: { companyId: string }) {
 
   if (!settings) return null
   return (
-    <Card>
+    <Card id="tva-debits" className="scroll-mt-20">
       <CardHeader>
         <CardTitle>TVA sur les prestations de services</CardTitle>
         <CardDescription>

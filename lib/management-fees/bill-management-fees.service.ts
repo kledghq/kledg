@@ -5,9 +5,11 @@
  * - in the holding: one draft sales invoice per subsidiary (direction SALE,
  *   the subsidiary as customer tiers, one line on the convention's revenue
  *   account at its VAT rate), numbered in the convention's series
- *   <prefix>-<year>-<sequence> (CGI ann. II art. 242 nonies A, I, 1°: a
+ *   <prefix>-<year>-<sequence> (CGI ann. II art. 242 nonies A, I, 7°: a
  *   unique number in a continuous chronological sequence; a separate series
- *   per prefix is allowed). The user posts it from Factures de vente, like
+ *   per prefix is allowed, and it stays apart from the company's numbering
+ *   of lib/invoices/numbering: it is numbered when generated, the period's
+ *   invoices are created together under the convention's lock). The user posts it from Factures de vente, like
  *   any invoice: the entry goes through post-invoice.service.ts;
  * - in each subsidiary, on request: the same invoice as a draft purchase
  *   invoice (the holding as supplier, the convention's expense account). It
@@ -103,7 +105,8 @@ async function nextInvoiceNumber(db: Db, companyId: string, prefix: string, year
   const stem = `${prefix}-${year}-`
   const rows = await db.invoice.findMany({ where: { companyId, direction: 'SALE', number: { startsWith: stem } }, select: { number: true }, take: 10_000 })
   const last = rows.reduce((max, r) => {
-    const n = /^\d+$/.test(r.number.slice(stem.length)) ? Number(r.number.slice(stem.length)) : 0
+    const rest = (r.number ?? '').slice(stem.length)
+    const n = /^\d+$/.test(rest) ? Number(rest) : 0
     return Math.max(max, n)
   }, 0)
   return `${stem}${String(last + 1).padStart(3, '0')}`
@@ -147,7 +150,8 @@ async function createSalesInvoice(
             },
           ],
         },
-        { source: 'management-fees', db: tx },
+        // The convention's own series (a separate series, BOI-TVA-DECLA-30-20-20-10 § 80 to 90), not the company's numbering.
+        { source: 'management-fees', db: tx, origin: 'MANAGEMENT_FEES' },
       )
     } catch (error) {
       const taken = error instanceof ConflictError && (await tx.invoice.findFirst({ where: { companyId: holdingId, direction: 'SALE', number }, select: { id: true } }))
@@ -444,7 +448,7 @@ export async function listBillings(holdingId: string, conventionId: string, acce
     ).catch(() => null)
     for (const id of ids) {
       const invoice = found?.find((i) => i.id === id)
-      purchases.set(id, found === null ? 'unknown' : invoice ? { id: invoice.id, number: invoice.number, posted: invoice.entryId !== null } : 'unknown')
+      purchases.set(id, found === null ? 'unknown' : invoice ? { id: invoice.id, number: invoice.number ?? '', posted: invoice.entryId !== null } : 'unknown')
     }
   }
   return rows.map((r) => ({
@@ -457,7 +461,7 @@ export async function listBillings(holdingId: string, conventionId: string, acce
     vatRateBp: r.vatRateBp,
     vatCents: parseCents(r.vatAmount) ?? 0,
     amountInclTaxCents: parseCents(r.amountInclTax) ?? 0,
-    salesInvoice: r.salesInvoice ? { id: r.salesInvoice.id, number: r.salesInvoice.number, posted: r.salesInvoice.entryId !== null } : null,
+    salesInvoice: r.salesInvoice ? { id: r.salesInvoice.id, number: r.salesInvoice.number ?? '', posted: r.salesInvoice.entryId !== null } : null,
     purchaseInvoice: r.purchaseInvoiceId ? (purchases.get(r.purchaseInvoiceId) ?? 'unknown') : null,
     createdAt: r.createdAt.toISOString(),
   }))

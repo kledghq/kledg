@@ -8,7 +8,11 @@
  *   organization's data cannot be reached;
  * - idempotent: a tiers is found again by its Qonto id (unique per company
  *   and kind), an invoice by its Qonto id (unique per company and source);
- *   running the import twice creates nothing twice;
+ *   running the import twice creates nothing twice; an invoice Kledg sent to
+ *   Qonto without receiving the answer (same customer, date and total) is
+ *   completed with its Qonto id instead of being imported a second time;
+ * - imported numbers stay as Qonto gives them (origin QONTO): they never
+ *   go through Kledg's numbering series;
  * - an imported invoice already posted keeps its amounts (its entry is the
  *   books); only its Qonto status is refreshed;
  * - an invoice whose amounts do not add up is not imported, and reported;
@@ -128,10 +132,28 @@ async function saveInvoice(
   company: { siren: string; vatNumber: string | null },
   counters: Counters,
 ) {
-  const existing = await prisma.invoice.findFirst({
+  let existing = await prisma.invoice.findFirst({
     where: { companyId, source: 'QONTO', externalId: mapped.externalId },
     select: { id: true, entryId: true, externalStatus: true },
   })
+  // An invoice Kledg created in Qonto whose answer was lost (create-in-qonto.service.ts): the import completes it, never duplicates it.
+  let adopting = false
+  if (!existing && direction === 'SALE') {
+    existing = await prisma.invoice.findFirst({
+      where: {
+        companyId,
+        origin: 'QONTO',
+        externalId: null,
+        entryId: null,
+        tiersId,
+        issueDate: dayToDate(mapped.issueDate),
+        totalInclTax: centsToDecimal(mapped.totals.totalInclTaxCents),
+      },
+      select: { id: true, entryId: true, externalStatus: true },
+      orderBy: { createdAt: 'asc' },
+    })
+    adopting = existing !== null
+  }
   if (existing?.entryId) {
     if (existing.externalStatus !== mapped.status) {
       await prisma.invoice.update({ where: { id: existing.id }, data: { externalStatus: mapped.status } })
@@ -195,9 +217,9 @@ async function saveInvoice(
       if (locked[0]?.entryId) return
       await tx.invoiceLine.deleteMany({ where: { invoiceId: existing.id } })
       await tx.invoiceVatBreakdown.deleteMany({ where: { invoiceId: existing.id } })
-      await tx.invoice.update({ where: { id: existing.id }, data })
+      await tx.invoice.update({ where: { id: existing.id }, data: adopting ? { ...data, externalId: mapped.externalId } : data })
     } else {
-      await tx.invoice.create({ data: { ...data, companyId, direction, source: 'QONTO', externalId: mapped.externalId } })
+      await tx.invoice.create({ data: { ...data, companyId, direction, source: 'QONTO', origin: 'QONTO', externalId: mapped.externalId } })
     }
   })
   if (existing) counters.invoices.updated += 1

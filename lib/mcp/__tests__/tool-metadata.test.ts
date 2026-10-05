@@ -20,7 +20,7 @@ import { AMOUNTS_IN_EUROS, NO_AMOUNTS, describeTool, permissionLabel } from '@/l
 import type { McpAccess } from '@/lib/mcp/company-access'
 
 /** Tools that call a bank provider (Qonto, Revolut, Ponto) or the public company directory: the only open world tools. */
-const OPEN_WORLD = new Set(['sync_bank', 'sync_bank_data', 'upload_receipt', 'import_qonto_invoices', 'get_qonto_statements', 'list_qonto_receipts', 'get_file', 'lookup_siren'])
+const OPEN_WORLD = new Set(['sync_bank', 'sync_bank_data', 'upload_receipt', 'import_qonto_invoices', 'get_qonto_statements', 'list_qonto_receipts', 'get_file', 'lookup_siren', 'create_draft_invoice', 'manage_invoice'])
 
 type Config = {
   title?: string

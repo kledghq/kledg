@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation'
 import { InvoiceList } from '@/components/features/invoices/invoice-list'
-import { VatSettingsCard } from '@/components/features/invoices/vat-settings-card'
+import { VatSettingsSummary } from '@/components/features/invoices/vat-settings-summary'
 
 export default function SalesInvoicesPage() {
   const params = useParams()
@@ -10,7 +10,7 @@ export default function SalesInvoicesPage() {
   return (
     <div className="space-y-6">
       <InvoiceList companyId={companyId} direction="SALE" />
-      <VatSettingsCard companyId={companyId} />
+      <VatSettingsSummary companyId={companyId} />
     </div>
   )
 }

@@ -395,6 +395,7 @@ describe.skipIf(!available)('draft-level MCP tools', () => {
         direction: 'SALE',
         tiersId: customer.id,
         number: 'F-2025-031',
+        numbering: 'recorded',
         issueDate: '2025-03-01',
         typeCode: '380',
         lines: [{ label: 'Lampes', quantity: '1', unitPriceCents: 100_000, vatRateBp: 2000, accountCode: null, nature: 'GOODS', fixedAsset: false }],

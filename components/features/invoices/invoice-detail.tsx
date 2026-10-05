@@ -16,11 +16,16 @@ import { AccessNotice, useCompanyAccess } from '@/components/features/companies/
 import { responseError } from '@/hooks/use-cursor-list'
 import { formatVatRate } from '@/lib/invoices/amounts'
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_TONES, type InvoiceStatus } from '@/lib/invoices/status'
+import { invoiceOriginLabel, type InvoiceOriginCode } from '@/lib/invoices/origin'
 
 interface Detail {
   id: string
   direction: 'SALE' | 'PURCHASE'
-  number: string
+  number: string | null
+  origin: InvoiceOriginCode
+  createdInQonto: boolean
+  qontoPending: boolean
+  provisionalNumber: string | null
   typeCode: string
   issueDate: string
   dueDate: string
@@ -146,20 +151,27 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
   const mayDelete = can({ entries: ['delete'] })
   const listUrl = `/${companyId}/invoices/${sale ? 'sales' : 'purchases'}`
   const kind = invoice.typeCode === '381' ? 'Avoir' : 'Facture'
+  const name = invoice.number ? `${kind.toLowerCase()} ${invoice.number}` : `${kind.toLowerCase()} en brouillon`
+  // A number given by the series, or an invoice created in Qonto, stays: a credit note cancels it.
+  const deletable = !(invoice.origin === 'AUTO' && invoice.number) && !invoice.createdInQonto
+  const resumeQonto = () => run(() => send(`/api/invoices/${invoiceId}/qonto`, 'POST'), 'Facture créée dans Qonto')
   const accountsChanged = invoice.lines.some((l) => (accounts[l.id] ?? '') !== (l.accountCode ?? ''))
 
   const post = () => run(() => send(`/api/invoices/${invoiceId}/post`, 'POST'), 'Écriture créée en brouillon dans le journal ' + (sale ? 'VE' : 'AC'))
   const unpost = async () => {
     const ok = await confirm({
-      title: `Supprimer l’écriture de la facture ${invoice.number} ?`,
-      description: 'L’écriture en brouillon est supprimée et la facture redevient un brouillon modifiable.',
+      title: `Supprimer l’écriture de la ${name} ?`,
+      description:
+        invoice.origin === 'AUTO'
+          ? 'L’écriture en brouillon est supprimée et la facture redevient un brouillon modifiable. Elle garde son numéro.'
+          : 'L’écriture en brouillon est supprimée et la facture redevient un brouillon modifiable.',
       confirmLabel: 'Supprimer l’écriture',
     })
     if (ok) await run(() => send(`/api/invoices/${invoiceId}/post`, 'DELETE'), 'Écriture supprimée')
   }
   const remove = async () => {
     const ok = await confirm({
-      title: `Supprimer la facture ${invoice.number} ?`,
+      title: `Supprimer la ${name} ?`,
       description: 'La facture et ses lignes sont supprimées. Aucune écriture n’existe encore.',
       confirmLabel: 'Supprimer la facture',
     })
@@ -203,7 +215,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${kind} ${invoice.number}`}
+        title={invoice.number ? `${kind} ${invoice.number}` : `${kind} en brouillon`}
         description={
           <>
             {sale ? 'Facture de vente à ' : 'Facture d’achat de '}
@@ -232,7 +244,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
                 </Link>
               </Button>
             ) : null}
-            {!posted && mayDelete ? (
+            {!posted && mayDelete && deletable ? (
               <Button variant="outline" onClick={remove} disabled={busy}>
                 <Trash2 aria-hidden />
                 Supprimer
@@ -244,7 +256,12 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
                 Supprimer l’écriture
               </Button>
             ) : null}
-            {!posted ? (
+            {invoice.qontoPending && mayPost ? (
+              <Button variant="outline" onClick={resumeQonto} disabled={busy}>
+                Reprendre la création dans Qonto
+              </Button>
+            ) : null}
+            {!posted && !invoice.qontoPending ? (
               <Button onClick={post} disabled={busy || !mayPost || accountsChanged} loading={busy}>
                 <BookCheck aria-hidden />
                 Comptabiliser
@@ -255,7 +272,16 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
       >
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge tone={INVOICE_STATUS_TONES[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</StatusBadge>
-          {invoice.source === 'QONTO' ? <StatusBadge tone="info">Importée de Qonto</StatusBadge> : null}
+          {sale && invoiceOriginLabel(invoice.origin, invoice.createdInQonto) ? (
+            <StatusBadge tone="info">{invoiceOriginLabel(invoice.origin, invoice.createdInQonto)}</StatusBadge>
+          ) : invoice.source === 'QONTO' ? (
+            <StatusBadge tone="info">Importée de Qonto</StatusBadge>
+          ) : null}
+          {!invoice.number && invoice.origin === 'AUTO' ? (
+            <span className="text-muted-foreground text-sm" data-testid="draft-number-hint">
+              Numéro attribué à l’émission{invoice.provisionalNumber ? ` (prochain prévu : ${invoice.provisionalNumber})` : ''}
+            </span>
+          ) : null}
           {invoice.letteringCode ? <StatusBadge tone="success">Lettrée {invoice.letteringCode}</StatusBadge> : null}
           {invoice.entry ? (
             <Link href={`/${companyId}/entries/${invoice.entry.id}`} className="text-link text-sm underline-offset-4 hover:underline">
@@ -266,6 +292,11 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
       </PageHeader>
 
       {!mayPost ? <AccessNotice>{denied('comptabiliser les factures')}</AccessNotice> : null}
+      {invoice.qontoPending ? (
+        <p role="status" className="max-w-prose text-sm">
+          Qonto n’a pas confirmé la création de cette facture. Reprenez sa création : Kledg vérifie d’abord si Qonto l’a créée, pour ne jamais la créer deux fois.
+        </p>
+      ) : null}
       {sale && invoice.lines.some((l) => l.nature === 'SERVICES') && invoice.vatBreakdown.some((b) => b.vatCents > 0) ? (
         <p className="text-muted-foreground max-w-prose text-sm" role="note">
           TVA sur les prestations de services&nbsp;: exigible à l’encaissement, sauf option pour les débits (CGI art. 269, 2, c). Sans option, elle attend au compte 44574 et passe

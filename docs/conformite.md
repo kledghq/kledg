@@ -89,7 +89,7 @@ Page États, FEC ; `GET /api/fec` ; outil MCP `export_fec`. Code : `lib/fec`.
 
 ## Factures
 
-Kledg **enregistre** les factures d'achat et de vente ; il ne les **émet** pas et ne les envoie pas ([factures et tiers](factures-et-tiers.md)).
+Kledg **enregistre** les factures d'achat et de vente ; il ne produit pas le document et ne l'envoie pas ([factures et tiers](factures-et-tiers.md)). Il **numérote** les factures de vente (série chronologique et continue, numéro donné à la comptabilisation, [numérotation](factures-et-tiers.md#numérotation-des-factures-de-vente)), ou les crée dans Qonto qui les numérote et produit le PDF.
 
 - Les mentions obligatoires d'une facture (CGI ann. II art. 242 nonies A ; Code de commerce art. L441-9 : échéance, pénalités de retard, indemnité forfaitaire de 40 € pour frais de recouvrement, escompte) sont portées par le document émis par votre outil de facturation ou votre plateforme. Kledg en garde ce dont la comptabilité a besoin : numéro (unique dans la société pour une vente), dates, parties et leurs SIREN et numéros de TVA, lignes, nature bien ou prestation, TVA par taux, type facture ou avoir.
 - Un avoir n'enregistre pas la référence de la facture qu'il rectifie (exigée sur le document, BOI-TVA-DECLA-30-20-20-20) : mettez-la dans son libellé.

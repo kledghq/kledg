@@ -14,6 +14,7 @@ import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
 import { assistantInput, forAssistant, routeBody } from '@/lib/mcp/euros'
 import { getInvoice, deleteInvoice } from '@/lib/invoices/manage-invoices.service'
 import { postInvoice, unpostInvoice } from '@/lib/invoices/post-invoice.service'
+import { resumeQontoInvoice } from '@/lib/invoices/create-in-qonto.service'
 import { listPaymentCandidates, recordInvoicePayment, removeInvoicePayment, settleInvoice } from '@/lib/invoices/invoice-payments.service'
 import { ImportQontoBodySchema, importQontoInvoices } from '@/lib/invoices/import-qonto-invoices.service'
 import { deleteTiers, getTiers } from '@/lib/tiers/manage-tiers.service'
@@ -47,9 +48,9 @@ const need = (value: string | undefined | null, field: string): string => {
 const manageInvoiceTool = fullControlTool({
   name: 'manage_invoice',
   title: 'Comptabiliser, régler ou supprimer une facture',
-  description: `Acts on an invoice, like its page: post creates its entry as a draft (AC or VE journal) in the fiscal year of its date; unpost deletes that draft entry (the invoice is a draft again; refused once validated or paid); delete deletes a draft invoice; record_payment records a bank payment (entryLineId: a line of a validated, reconciled entry, from payment_candidates) and letters the invoice once its payments cover it; remove_payment removes a payment (paymentId, from get_invoice); settle letters an invoice whose recorded payments cover it; payment_candidates lists the bank lines that may pay it (read only). Create one with create_draft_invoice, edit a draft with update_draft_invoice. ${ACTS_AS_USER} Every action but payment_candidates is high impact: ${TWO_STEP}`,
+  description: `Acts on an invoice, like its page: post creates its entry as a draft (AC or VE journal) in the fiscal year of its date; unpost deletes that draft entry (the invoice is a draft again; refused once validated or paid); delete deletes a draft invoice; record_payment records a bank payment (entryLineId: a line of a validated, reconciled entry, from payment_candidates) and letters the invoice once its payments cover it; remove_payment removes a payment (paymentId, from get_invoice); settle letters an invoice whose recorded payments cover it; payment_candidates lists the bank lines that may pay it (read only); resume_qonto resumes the creation in Qonto of an invoice whose answer from Qonto was lost (qontoPending in get_invoice): Kledg looks for it at Qonto first and never creates it twice. A sales invoice numbered by Kledg's series gets its number when posted and keeps it; it cannot be deleted then (a credit note cancels it). Create one with create_draft_invoice, edit a draft with update_draft_invoice. ${ACTS_AS_USER} Every action but payment_candidates is high impact: ${TWO_STEP}`,
   input: {
-    action: z.enum(['post', 'unpost', 'delete', 'record_payment', 'remove_payment', 'settle', 'payment_candidates']),
+    action: z.enum(['post', 'unpost', 'delete', 'record_payment', 'remove_payment', 'settle', 'payment_candidates', 'resume_qonto']),
     invoiceId: z.string().min(1).max(64).describe('Invoice id, from list_invoices.'),
     entryLineId: z.string().max(64).optional().describe('record_payment: the bank line.'),
     paymentId: z.string().max(64).optional().describe('remove_payment: the payment.'),
@@ -62,12 +63,15 @@ const manageInvoiceTool = fullControlTool({
     record_payment: { entries: ['update'] },
     remove_payment: { entries: ['update'] },
     settle: { entries: ['update'] },
+    resume_qonto: { entries: ['create'] },
   },
   amounts: 'euros',
   never: 'validates an entry or changes a validated entry.',
   confirmation: true,
-  highImpactActions: ['post', 'unpost', 'delete', 'record_payment', 'remove_payment', 'settle'],
+  highImpactActions: ['post', 'unpost', 'delete', 'record_payment', 'remove_payment', 'settle', 'resume_qonto'],
   destructive: true,
+  // resume_qonto calls Qonto
+  openWorld: true,
   async preview({ companyId, action, invoiceId, entryLineId, paymentId }) {
     const invoice = forAssistant(await getInvoice(companyId, invoiceId)) as Record<string, unknown>
     return { action, invoice: { id: invoice.id, number: invoice.number, direction: invoice.direction, status: invoice.status, totalInclTax: invoice.totalInclTax, remaining: invoice.remaining }, entryLineId: entryLineId ?? null, paymentId: paymentId ?? null }
@@ -90,6 +94,8 @@ const manageInvoiceTool = fullControlTool({
         return { action, removed: (await removeInvoicePayment(companyId, invoiceId, need(paymentId, 'paymentId'))).id }
       case 'settle':
         return { action, ...(forAssistant(await settleInvoice(companyId, invoiceId)) as object) }
+      case 'resume_qonto':
+        return { action, invoice: forAssistant(await resumeQontoInvoice(companyId, invoiceId)) }
     }
   },
   audit: ({ action, invoiceId, entryLineId, paymentId }) => ({ action, invoiceId, entryLineId: entryLineId ?? null, paymentId: paymentId ?? null }),

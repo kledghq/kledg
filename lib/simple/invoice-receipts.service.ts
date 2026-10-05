@@ -37,7 +37,7 @@ export const INVOICE_MESSAGES = {
   notFound: 'Facture introuvable',
   notASale: 'Seule une facture de vente peut être réglée par une entrée d’argent.',
   creditNote: 'Un avoir se rembourse par une sortie d’argent : choisissez une autre catégorie.',
-  notPosted: (number: string) => `La facture n° ${number} n’est pas encore comptabilisée : demandez à votre comptable de la comptabiliser.`,
+  notPosted: (number: string | null) => `${number ? `La facture n° ${number}` : 'Cette facture'} n’est pas encore comptabilisée : demandez à votre comptable de la comptabiliser.`,
   paid: (number: string) => `La facture n° ${number} est déjà payée.`,
   moneyOut: 'Un paiement de client est une entrée d’argent : choisissez une catégorie de dépense.',
 } as const
@@ -91,7 +91,8 @@ export async function loadOpenSalesInvoices(companyId: string): Promise<OpenInvo
   return rows
     .map((row) => ({
       id: row.id,
-      number: row.number,
+      // Posted invoices only: the series gave their number when they were posted.
+      number: row.number ?? '',
       customerName: row.tiers.name,
       customerSiren: row.tiers.siren ?? row.buyerSiren,
       remainingCents: cents(row.totalInclTax) - row.payments.reduce((sum, p) => sum + cents(p.amount), 0) - (pending.get(row.id) ?? 0),
@@ -136,18 +137,18 @@ export async function invoiceToPay(companyId: string, invoiceId: string, amountC
   if (!invoice.entry) throw new ConflictError(INVOICE_MESSAGES.notPosted(invoice.number))
   const line = invoice.entry.lines.find((l) => l.auxiliaryAccountNumber === invoice.tiers.auxiliaryAccountNumber)
   if (!line) throw new ConflictError('L’écriture de cette facture n’a plus de ligne client : demandez à votre comptable de la vérifier.')
-  if (line.letteringCode) throw new ConflictError(INVOICE_MESSAGES.paid(invoice.number))
+  if (line.letteringCode) throw new ConflictError(INVOICE_MESSAGES.paid(invoice.number ?? ''))
   const pending = (await pendingByInvoice(companyId, [invoice.id])).get(invoice.id) ?? 0
   const remainingCents = cents(invoice.totalInclTax) - invoice.payments.reduce((sum, p) => sum + cents(p.amount), 0) - pending
-  if (remainingCents <= 0) throw new ConflictError(INVOICE_MESSAGES.paid(invoice.number))
+  if (remainingCents <= 0) throw new ConflictError(INVOICE_MESSAGES.paid(invoice.number ?? ''))
   if (amountCents > remainingCents) {
     throw new ValidationError(
-      `Ce paiement de ${formatCentsFr(amountCents)} dépasse ce qui reste à payer sur la facture n° ${invoice.number} (${formatCentsFr(remainingCents)}) : s’il règle plusieurs factures, votre comptable le répartira.`,
+      `Ce paiement de ${formatCentsFr(amountCents)} dépasse ce qui reste à payer sur la facture n° ${invoice.number ?? ''} (${formatCentsFr(remainingCents)}) : s’il règle plusieurs factures, votre comptable le répartira.`,
     )
   }
   return {
     id: invoice.id,
-    number: invoice.number,
+    number: invoice.number ?? '',
     customerName: invoice.tiers.name,
     customerAccountCode: line.account.code,
     auxiliaryAccountNumber: invoice.tiers.auxiliaryAccountNumber,

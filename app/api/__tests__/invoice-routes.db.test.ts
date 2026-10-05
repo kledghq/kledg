@@ -1,5 +1,6 @@
 /**
- * Routes of tiers, invoices, invoice payments and VAT settings against
+ * Routes of tiers, invoices, invoice payments, VAT settings and the
+ * numbering of sales invoices against
  * PostgreSQL, with only the session mocked: status codes (200, 201, 204,
  * 400, 404, 409), French messages, input validation, totals computed on the
  * server whatever the client sends, and the full flow from a recorded
@@ -44,6 +45,8 @@ const saleBody = (companyId: string, tiersId: string, number = 'V-001') => ({
   direction: 'SALE',
   tiersId,
   number,
+  // Numbers chosen by the tests: invoices already issued (Kledg's own series: the numbering tests below)
+  numbering: 'recorded',
   issueDate: '2026-03-02',
   lines: [
     { label: 'Conseil', quantity: '2', unitPriceCents: 12500, vatRateBp: 2000, nature: 'GOODS' },
@@ -75,6 +78,8 @@ describe.skipIf(!available)('invoice routes (PostgreSQL)', () => {
       attachment: await import('@/app/api/invoices/[id]/attachment/route'),
       importQonto: await import('@/app/api/invoices/import-qonto/route'),
       vat: await import('@/app/api/companies/[id]/vat-settings/route'),
+      numbering: await import('@/app/api/companies/[id]/invoice-numbering/route'),
+      qonto: await import('@/app/api/invoices/[id]/qonto/route'),
     })
   })
 
@@ -239,5 +244,38 @@ describe.skipIf(!available)('invoice routes (PostgreSQL)', () => {
     const changed = await call('vat', 'PUT', `/api/companies/${books.companyId}/vat-settings`, { servicesVatOnDebits: true }, { id: books.companyId })
     expect(await changed.json()).toEqual({ servicesVatOnDebits: true, isVatExempt: false })
     expect((await call('vat', 'PUT', `/api/companies/${books.companyId}/vat-settings`, {}, { id: books.companyId })).status).toBe(400)
+  })
+
+  it('numbers a sales invoice when posted, and reads and changes the numbering', async () => {
+    const { number: _number, numbering: _numbering, ...auto } = saleBody(books.companyId, books.customerId)
+    const created = await call('invoices', 'POST', '/api/invoices', auto)
+    expect(created.status).toBe(201)
+    const draft = await created.json()
+    expect(draft).toMatchObject({ number: null, origin: 'AUTO', provisionalNumber: 'F2026-0001' })
+    const typed = await call('invoices', 'POST', '/api/invoices', { ...auto, number: 'F2026-0001' })
+    expect(typed.status).toBe(400)
+    expect((await typed.json()).error).toMatch(/numérotation automatique est active/)
+    const posted = await call('post', 'POST', `/api/invoices/${draft.id}/post`, undefined, { id: draft.id })
+    expect(posted.status).toBe(201)
+    expect((await posted.json()).number).toBe('F2026-0001')
+
+    const read = await call('numbering', 'GET', `/api/companies/${books.companyId}/invoice-numbering`, undefined, { id: books.companyId })
+    expect(read.status).toBe(200)
+    const view = await read.json()
+    expect(view).toMatchObject({ patterns: { invoice: 'F{YYYY}-{SEQ:4}' }, qonto: { connected: false, active: false } })
+    const settings = { ...view.settings, prefix: 'FV' }
+    const saved = await call('numbering', 'PUT', `/api/companies/${books.companyId}/invoice-numbering`, { settings, nextNumbers: { invoice: 10 } }, { id: books.companyId })
+    expect(saved.status).toBe(200)
+    expect((await saved.json()).patterns.invoice).toBe('FV{YYYY}-{SEQ:4}')
+    const bad = await call('numbering', 'PUT', `/api/companies/${books.companyId}/invoice-numbering`, { settings: { ...settings, year: 'NONE' } }, { id: books.companyId })
+    expect(bad.status).toBe(400)
+    expect((await bad.json()).error).toMatch(/ajoutez l’année/)
+    const lower = await call('numbering', 'PUT', `/api/companies/${books.companyId}/invoice-numbering`, { settings, nextNumbers: { invoice: 5 } }, { id: books.companyId })
+    expect(lower.status).toBe(409)
+
+    // Not waiting for Qonto: nothing to resume
+    const resume = await call('qonto', 'POST', `/api/invoices/${draft.id}/qonto`, undefined, { id: draft.id })
+    expect(resume.status).toBe(409)
+    expect((await resume.json()).error).toBe('Cette facture n’attend pas de réponse de Qonto.')
   })
 })

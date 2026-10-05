@@ -162,7 +162,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_ledger_report` | Grand livre (par compte, solde d'ouverture, lignes avec solde progressif, solde de clôture ; filtre par début de compte) ou journal (écritures par journal avec totaux) d'une période, 1 000 lignes au plus ; droit `reports:read` |
 | `list_fixed_assets` | Immobilisations avec comptes, valeurs, plan d'amortissement et totaux ; une immobilisation avec ses amortissements, l'état de ses dotations par exercice, les écritures auxquelles lier un amortissement ; droit `entries:read` |
 | `list_expense_category_rules` | Règles de mots-clés qui donnent la catégorie (et le compte) des lignes de notes de frais ; droit `entries:read` |
-| `get_company_settings` | Une section des paramètres de la société : fiche, établissements, membres, personnes, une personne (toutes ses données et ses liens, RGPD art. 15 et 20), associés, délai de paiement, options de TVA, mode simple, calendrier des échéances, régimes fiscaux, adresses ; logos et photos remplacés par leur présence ; droit `settings:read` |
+| `get_company_settings` | Une section des paramètres de la société : fiche, établissements, membres, personnes, une personne (toutes ses données et ses liens, RGPD art. 15 et 20), associés, délai de paiement, options de TVA, mode simple, calendrier des échéances, numérotation des factures (format, prochains numéros, création dans Qonto), régimes fiscaux, adresses ; logos et photos remplacés par leur présence ; droit `settings:read` |
 | `get_statement_layout` | Mise en page du bilan ou du compte de résultat (lignes, comptes, sens, ordre), une ligne, l'historique d'une ligne du bilan, les modèles du bilan ; droit `settings:read` |
 | `get_transaction_details` | Ce qu'il faut pour traiter une transaction bancaire : ligne de banque, exercices, contreparties proposées, règles qui la reconnaissent, règle qu'elle suggère ; droit `banking:read` |
 | `simulate_rule` | L'écriture qu'une règle d'affectation (enregistrée ou en cours d'écriture) passerait pour une transaction d'exemple, sans rien écrire ; droit `banking:read` |
@@ -246,12 +246,12 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `list_unlettered_lines` | Lignes non lettrées d'un compte de tiers (identifiants, montants, compte auxiliaire, solde progressif) et propositions de lettrage | `entries:read` | Non |
 | `letter_entry_lines` | Lettrer des lignes d'un compte de tiers : code suivant du compte et date du jour, débits égaux aux crédits, écritures validées, exercice ouvert | `entries:update` | Oui |
 | `unletter_entry_lines` | Délettrer un code d'un compte de tiers, dans un exercice ouvert | `entries:update` | Oui |
-| `create_draft_invoice` | Enregistrer une facture d'achat ou de vente en brouillon (lignes, plusieurs taux, totaux calculés par Kledg) et, sur demande, son écriture en brouillon dans l'exercice de sa date | `entries:create` | Oui |
+| `create_draft_invoice` | Enregistrer une facture d'achat ou de vente en brouillon (lignes, plusieurs taux, totaux calculés par Kledg) et, sur demande, son écriture en brouillon dans l'exercice de sa date ; une vente suit la numérotation de la société (`numbering` : créée dans Qonto, numérotée par Kledg à la comptabilisation, ou facture déjà émise avec son numéro) | `entries:create` | Oui |
 | `manage_accounts` | Plan comptable : modifier un compte, supprimer un compte et ses sous-comptes, compléter le plan du PCG, semer le PCG, supprimer les comptes hors PCG | `ledger:manage` | Oui (suppressions) |
 | `manage_journals` | Modifier ou supprimer un journal sans écriture, rétablir les journaux par défaut | `ledger:manage` | Oui (suppression) |
 | `manage_fiscal_years` | Créer un exercice, changer les dates d'un exercice ouvert, supprimer un exercice ouvert sans écriture, clôturer les périodes jusqu'à un jour (PCG art. 1031-4) | `ledger:manage`, plus `closing:execute` pour la clôture des périodes | Oui (suppression, clôture des périodes) |
 | `import_accounting_file` | Importer un FEC, un CSV ou un Excel d'écritures (base64, 5 Mo au plus) ; l'aperçu donne les exercices du FEC | `entries:create` et `ledger:manage` | Oui |
-| `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances | `settings:update` | Oui |
+| `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances, numérotation des factures (et prochain numéro de la période, seulement à la hausse) | `settings:update` | Oui |
 | `manage_company_records` | Établissements, personnes (création, rectification, effacement dans les limites de la conservation légale, RGPD art. 16 et 17), associés, régimes fiscaux, adresses | `settings:update` | Oui |
 | `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles) | `settings:update` | Oui |
 | `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
@@ -261,7 +261,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `duplicate_rule` | Copier une règle d'affectation (désactivée) | `ledger:manage` | Non |
 | `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles), copier les justificatifs de Qonto | `banking:reconcile` | Non |
 | `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) | `banking:reconcile` | Non |
-| `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
+| `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée, reprendre la création dans Qonto d'une facture sans réponse de Qonto ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
 | `import_qonto_invoices` | Importer les clients et les factures de Qonto (idempotent) | `entries:create` et `banking:read` | Oui |
 | `delete_tiers` | Supprimer un client ou un fournisseur sans facture | `entries:delete` | Oui |
 | `delete_budget_items` | Supprimer un budget ou une ligne | `budgets:manage` | Oui |
@@ -389,9 +389,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 215 | 175 | 40 |
-| Lectures (GET) | 167 | 141 | 26 |
-| Total | 382 | 316 | 66 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 217 | 177 | 40 |
+| Lectures (GET) | 168 | 142 | 26 |
+| Total | 385 | 319 | 66 |
 
 ### Exclusions
 
@@ -589,6 +589,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/companies/[id]/vat-returns/filing` | entries:create | `record_tax_filing` (B) |
 | `GET /api/companies/[id]/vat-returns` | reports:read | `get_vat_return` (L) |
 | `POST /api/companies/[id]/vat-returns/settlement` | entries:create | `prepare_vat_settlement` (B) |
+| `GET /api/companies/[id]/invoice-numbering` | settings:read | `get_company_settings` (L) |
+| `PUT /api/companies/[id]/invoice-numbering` | settings:update | `update_company_settings` (CT) |
 | `GET /api/companies/[id]/vat-settings` | settings:read | `get_company_settings` (L) |
 | `PUT /api/companies/[id]/vat-settings` | settings:update | `update_company_settings` (CT) |
 | `GET /api/companies/lookup` | politique de création des sociétés | `lookup_siren` (L) |
@@ -689,6 +691,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `PATCH /api/invoices/[id]` | entries:update | `update_draft_invoice` (B) |
 | `DELETE /api/invoices/[id]` | entries:delete | `manage_invoice` (CT) |
 | `POST /api/invoices/[id]/settle` | entries:update | `manage_invoice` (CT) |
+| `POST /api/invoices/[id]/qonto` | entries:create | `manage_invoice` (CT) |
 | `POST /api/invoices/import-qonto` | entries:create | `import_qonto_invoices` (CT) |
 | `GET /api/invoices` | entries:read | `list_invoices` (L) |
 | `POST /api/invoices` | entries:create | `create_draft_invoice` (CT) |

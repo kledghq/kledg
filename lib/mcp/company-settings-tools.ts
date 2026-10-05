@@ -24,6 +24,7 @@ import { exportCompanyPerson, listCompanyPersons } from '@/lib/companies/manage-
 import { listShareholders } from '@/lib/companies/manage-shareholders.service'
 import { getPaymentTerms } from '@/lib/companies/payment-terms.service'
 import { getVatSettings } from '@/lib/companies/vat-settings.service'
+import { getInvoiceNumbering } from '@/lib/invoices/numbering/manage-numbering-settings.service'
 import { getSimpleModeSettings } from '@/lib/simple/simple-mode-settings.service'
 import { getDeadlineSettings } from '@/lib/deadlines/deadline-settings.service'
 import { getTaxRegimeHistory } from '@/lib/companies/tax-regimes'
@@ -50,7 +51,7 @@ function withoutImages(value: unknown): unknown {
   return out
 }
 
-const SECTIONS = ['company', 'establishments', 'members', 'persons', 'person', 'shareholders', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'tax_regimes', 'addresses'] as const
+const SECTIONS = ['company', 'establishments', 'members', 'persons', 'person', 'shareholders', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'invoice_numbering', 'tax_regimes', 'addresses'] as const
 
 export function registerCompanySettingsTools(server: McpServer, guard: CompanyGuard) {
   server.registerTool(
@@ -59,7 +60,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
       title: 'Paramètres de la société',
       description: describeTool({
         summary:
-          'Returns one section of the company settings: company (identity, SIREN, legal form, closing date, regimes, capital, fiscal years), establishments (SIRET, addresses, the main one first), members (users and roles), persons (who may be a shareholder), person (with personId: every data held on one person and its links, shareholdings and expense claimants, RGPD art. 15 and 20), shareholders (capital table), payment_terms (used by the aged balance), vat_settings (VAT on debits, franchise), simple_mode (whether simple mode entries wait for the accountant), deadline_settings (deadline calendar options), tax_regimes (VAT and corporate tax regime history, regimeType to narrow), addresses (search with at least 2 characters, or one addressId).',
+          'Returns one section of the company settings: company (identity, SIREN, legal form, closing date, regimes, capital, fiscal years), establishments (SIRET, addresses, the main one first), members (users and roles), persons (who may be a shareholder), person (with personId: every data held on one person and its links, shareholdings and expense claimants, RGPD art. 15 and 20), shareholders (capital table), payment_terms (used by the aged balance), vat_settings (VAT on debits, franchise), simple_mode (whether simple mode entries wait for the accountant), deadline_settings (deadline calendar options), invoice_numbering (numbering of sales invoices: format, reset, credit note series, the next numbers, whether invoices are created in Qonto first and why Qonto refused it), tax_regimes (VAT and corporate tax regime history, regimeType to narrow), addresses (search with at least 2 characters, or one addressId).',
         access: 'read',
         permission: { settings: ['read'] },
         amounts: 'euros',
@@ -94,6 +95,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
           vat_settings: () => getVatSettings(id),
           simple_mode: () => getSimpleModeSettings(id),
           deadline_settings: () => getDeadlineSettings(id),
+          invoice_numbering: () => getInvoiceNumbering(id),
           tax_regimes: () => getTaxRegimeHistory(id, args.regimeType),
           addresses: () =>
             args.addressId ? getCompanyAddress(id, args.addressId) : searchCompanyAddresses(id, parseInput(SearchAddressesQuerySchema, { search: args.search })),

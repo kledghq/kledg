@@ -272,7 +272,7 @@ export async function recordInvoicePayment(
         amountCents === remaining
           ? pendingVatCents - movedCents
           : Number((BigInt(pendingVatCents) * BigInt(2 * amountCents) + BigInt(totalCents)) / BigInt(2 * totalCents))
-      if (share !== 0) vatTransferEntryId = await createVatTransfer(tx, companyId, line.accountingEntry, invoice.number, share)
+      if (share !== 0) vatTransferEntryId = await createVatTransfer(tx, companyId, line.accountingEntry, invoice.number ?? '', share)
     }
 
     const payment = await tx.invoicePayment.create({

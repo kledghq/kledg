@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useParams } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/shared'
-import { InvoiceForm, type InvoiceDirection, type InvoiceFormValues } from '@/components/features/invoices/invoice-form'
+import { InvoiceForm, type EditedNumber, type InvoiceDirection, type InvoiceFormValues } from '@/components/features/invoices/invoice-form'
 import { responseError } from '@/hooks/use-cursor-list'
 import { parseQuantity, quantityToString } from '@/lib/invoices/amounts'
 
@@ -20,7 +20,8 @@ interface LoadedLine {
 
 interface Loaded {
   direction: InvoiceDirection
-  number: string
+  number: string | null
+  edited: EditedNumber
   values: InvoiceFormValues
 }
 
@@ -43,9 +44,11 @@ export default function EditInvoicePage() {
         setLoaded({
           direction: invoice.direction,
           number: invoice.number,
+          edited: { origin: invoice.origin, number: invoice.number, provisionalNumber: invoice.provisionalNumber ?? null },
           values: {
             tiersId: invoice.tiers.id,
-            number: invoice.number,
+            number: invoice.number ?? '',
+            numbering: 'kledg',
             issueDate: invoice.issueDate,
             dueDate: invoice.dueDate,
             typeCode: invoice.typeCode,
@@ -80,8 +83,8 @@ export default function EditInvoicePage() {
   if (!loaded) return <Skeleton className="h-96 w-full" />
   return (
     <div className="space-y-6">
-      <PageHeader title={`Modifier la facture ${loaded.number}`} description="Une facture se modifie tant qu’elle n’est pas comptabilisée." />
-      <InvoiceForm companyId={companyId} direction={loaded.direction} invoiceId={invoiceId} initial={loaded.values} />
+      <PageHeader title={loaded.number ? `Modifier la facture ${loaded.number}` : 'Modifier la facture en brouillon'} description="Une facture se modifie tant qu’elle n’est pas comptabilisée." />
+      <InvoiceForm companyId={companyId} direction={loaded.direction} invoiceId={invoiceId} initial={loaded.values} edited={loaded.edited} />
     </div>
   )
 }

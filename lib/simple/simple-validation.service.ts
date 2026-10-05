@@ -200,7 +200,7 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
           ? { id: row.fixedAsset.id, label: row.fixedAsset.label, years: row.fixedAsset.depreciationDuration, mention: fixedAssetMention(row.fixedAsset.label, row.fixedAsset.depreciationDuration) }
           : null,
         invoice: row.invoice
-          ? { id: row.invoice.id, number: row.invoice.number, customerName: row.invoice.tiers.name, recorded: row.entry.lines.some((l) => l._count.invoicePayments > 0) }
+          ? { id: row.invoice.id, number: row.invoice.number ?? '', customerName: row.invoice.tiers.name, recorded: row.entry.lines.some((l) => l._count.invoicePayments > 0) }
           : null,
         createdAt: row.createdAt.toISOString(),
       }

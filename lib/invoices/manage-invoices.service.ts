@@ -15,14 +15,22 @@
  *   company's, and a date typed by hand stays within the caps of Code de
  *   commerce art. L441-10;
  * - a sales invoice number is unique in the company (CGI ann. II art. 242
- *   nonies A, I: a unique number in a chronological, continuous sequence); a
- *   purchase invoice number is unique per supplier;
- * - an invoice is edited or deleted only while it is a draft (no entry);
+ *   nonies A, I, 7°: a unique number in a chronological, continuous
+ *   sequence); a purchase invoice number is unique per supplier;
+ * - where a sales number comes from is the invoice's origin: AUTO (Kledg's
+ *   series, given when posted, numbering/series.ts: a draft has no number),
+ *   MANUAL (typed: the company numbers elsewhere), RECORDED (an invoice
+ *   already issued elsewhere, typed, outside the running series), QONTO
+ *   (Qonto's number, create-in-qonto.service.ts), MANAGEMENT_FEES (the
+ *   convention's series). The origin never changes once recorded;
+ * - an invoice is edited or deleted only while it is a draft (no entry); a
+ *   number given by the series stays with its invoice (no edit of the
+ *   number or the date, no deletion: a credit note cancels it);
  *   an imported invoice keeps the document's amounts: only its accounts
  *   and natures change (updateInvoiceLineAccounts).
  */
 
-import { Prisma, type InvoiceDirection } from '@prisma/client'
+import { Prisma, type InvoiceDirection, type InvoiceOrigin } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
@@ -36,6 +44,7 @@ import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { computeInvoiceTotals, formatVatRate, isFrenchVatRate, parseQuantity, type InvoiceTotals } from './amounts'
 import { assertInvoiceAmountsFit } from './amount-bounds'
+import { assertOutsideRunningSeries, loadNumberingSettings, lockInvoiceNumbers, peekNextNumber } from './numbering/series'
 import { defaultDueDate, invoiceStatus, maxDueDate, remainingCents, type InvoiceStatus } from './status'
 
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
@@ -56,7 +65,8 @@ const lineSchema = z.object({
 
 const invoiceFields = {
   tiersId: z.string({ error: 'Choisissez le tiers' }).min(1, 'Choisissez le tiers').max(64),
-  number: z.string({ error: 'Le numéro est requis' }).trim().min(1, 'Le numéro est requis').max(60),
+  /** Absent for a sales invoice numbered by Kledg's series or by Qonto. */
+  number: z.string({ error: 'Numéro invalide' }).trim().min(1, 'Le numéro est requis').max(60).nullish(),
   issueDate: calendarDay('Date de facture invalide'),
   dueDate: calendarDay('Date d’échéance invalide').nullish(),
   typeCode: z.enum(['380', '381']).default('380'),
@@ -64,8 +74,21 @@ const invoiceFields = {
   lines: z.array(lineSchema, { error: 'Ajoutez au moins une ligne' }).min(1, 'Ajoutez au moins une ligne').max(200, '200 lignes au plus'),
 }
 
+/**
+ * How a sales invoice gets its number: kledg (Kledg's series when the
+ * numbering is automatic, else typed), qonto (created in Qonto, Qonto's
+ * number), recorded (already issued elsewhere: the number is typed and
+ * stays out of the series). Absent: the company's setting.
+ */
+export const INVOICE_NUMBERING_CHOICES = ['kledg', 'qonto', 'recorded'] as const
+export type InvoiceNumberingChoice = (typeof INVOICE_NUMBERING_CHOICES)[number]
+
 /** Body of POST /api/invoices. */
-export const CreateInvoiceBodySchema = z.object({ direction: directionSchema, ...invoiceFields })
+export const CreateInvoiceBodySchema = z.object({
+  direction: directionSchema,
+  ...invoiceFields,
+  numbering: z.enum(INVOICE_NUMBERING_CHOICES, { error: 'Choisissez comment numéroter la facture' }).optional(),
+})
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceBodySchema>
 
 /** Body of PATCH /api/invoices/[id] (a draft entered in Kledg). */
@@ -115,6 +138,9 @@ const SUMMARY_SELECT = {
   totalVat: true,
   totalInclTax: true,
   source: true,
+  origin: true,
+  qontoRequestedAt: true,
+  externalId: true,
   externalStatus: true,
   externalAttachmentId: true,
   entryId: true,
@@ -130,7 +156,8 @@ const cents = (value: { toString(): string }) => parseCents(value) ?? 0
 export interface InvoiceSummary {
   id: string
   direction: InvoiceDirection
-  number: string
+  /** Null: a sales draft numbered when posted (origin AUTO), or waiting for Qonto. */
+  number: string | null
   issueDate: string
   dueDate: string
   typeCode: string
@@ -145,6 +172,11 @@ export interface InvoiceSummary {
   lettered: boolean
   letteringCode: string | null
   source: 'MANUAL' | 'QONTO'
+  origin: InvoiceOrigin
+  /** Kledg created the invoice in Qonto (Qonto-first), rather than importing it. */
+  createdInQonto: boolean
+  /** Qonto was asked to create the invoice and has not answered yet: resume it (POST /api/invoices/[id]/qonto). */
+  qontoPending: boolean
   externalStatus: string | null
   hasAttachment: boolean
   entry: { id: string; entryNumber: string; status: string } | null
@@ -173,6 +205,9 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
     lettered,
     letteringCode,
     source: row.source,
+    origin: row.origin,
+    createdInQonto: row.origin === 'QONTO' && row.qontoRequestedAt !== null,
+    qontoPending: row.origin === 'QONTO' && row.qontoRequestedAt !== null && row.externalId === null,
     externalStatus: row.externalStatus,
     hasAttachment: row.externalAttachmentId !== null,
     entry: row.entry ? { id: row.entry.id, entryNumber: row.entry.entryNumber, status: row.entry.status } : null,
@@ -218,6 +253,7 @@ const DETAIL_SELECT = {
   buyerSiren: true,
   buyerVatNumber: true,
   attachmentFileName: true,
+  numberAssignedAt: true,
   createdAt: true,
   tiers: { select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true, defaultAccountCode: true, defaultVatRateBp: true } },
   lines: {
@@ -240,8 +276,13 @@ const DETAIL_SELECT = {
 export async function getInvoice(companyId: string, id: string, db: Db = prisma) {
   const row = await db.invoice.findFirst({ where: { id, companyId }, select: DETAIL_SELECT })
   if (!row) throw new NotFoundError(INVOICE_NOT_FOUND)
+  // A draft of the series shows the number it would get if posted now (a hint: given only when posted).
+  const provisionalNumber =
+    row.origin === 'AUTO' && row.number === null ? await peekNextNumber(db, companyId, row.typeCode, calendarDayOf(row.issueDate) as string).catch(() => null) : null
   return {
     ...summaryOf(row),
+    provisionalNumber,
+    numberAssignedAt: row.numberAssignedAt?.toISOString() ?? null,
     tiers: row.tiers,
     currency: row.currency,
     parties: { sellerSiren: row.sellerSiren, sellerVatNumber: row.sellerVatNumber, buyerSiren: row.buyerSiren, buyerVatNumber: row.buyerVatNumber },
@@ -414,29 +455,68 @@ async function loadCompany(db: Db, companyId: string) {
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const
 
+export const AUTO_NUMBER_TYPED =
+  'La numérotation automatique est active : Kledg donne le numéro quand la facture est comptabilisée. Pour une facture déjà émise ailleurs, choisissez « Enregistrer une facture déjà émise ».'
+const NUMBER_REQUIRED = 'Le numéro est requis'
+
 /**
- * Records an invoice. With `options.db`, runs in the caller's transaction (the
- * management fee generation, which serializes its invoices under one lock);
- * else in its own.
+ * Origin of a new invoice entered in Kledg (not created in Qonto): a
+ * purchase keeps its supplier's number; a sale follows `choice`, else the
+ * company's numbering (AUTO when automatic, else MANUAL).
+ */
+export async function originOfNewInvoice(db: Db, companyId: string, direction: InvoiceDirection, choice: InvoiceNumberingChoice | undefined): Promise<InvoiceOrigin> {
+  if (direction === 'PURCHASE') {
+    if (choice && choice !== 'kledg') throw new ValidationError('Le numéro d’une facture d’achat est celui du fournisseur : il est saisi tel quel.')
+    return 'MANUAL'
+  }
+  if (choice === 'recorded') return 'RECORDED'
+  if (choice === 'qonto') throw new ValidationError('Une facture créée dans Qonto passe par la création dans Qonto.')
+  const settings = await loadNumberingSettings(db, companyId)
+  return settings.mode === 'AUTO' ? 'AUTO' : 'MANUAL'
+}
+
+/** Checks the number against the origin; returns the number to store (null: given later). */
+function numberForOrigin(origin: InvoiceOrigin, number: string | null | undefined): string | null {
+  if (origin === 'AUTO') {
+    if (number) throw new ValidationError(AUTO_NUMBER_TYPED)
+    return null
+  }
+  if (origin === 'QONTO') return number ?? null
+  if (!number) throw new ValidationError(NUMBER_REQUIRED)
+  return number
+}
+
+/**
+ * Records an invoice as a draft. `options.origin`: where its number comes
+ * from (originOfNewInvoice when absent). With `options.db`, runs in the
+ * caller's transaction (the management fee generation, which serializes its
+ * invoices under one lock); else in its own.
  */
 export async function createInvoice(
   companyId: string,
   input: CreateInvoiceInput,
-  options: { source?: string; db?: Prisma.TransactionClient } = {},
+  options: { source?: string; db?: Prisma.TransactionClient; origin?: InvoiceOrigin; qontoRequestedAt?: Date } = {},
 ): Promise<InvoiceDetail> {
   const run = async (tx: Prisma.TransactionClient) => {
     const company = await loadCompany(tx, companyId)
     const tiers = await loadTiersForInvoice(tx, companyId, input.tiersId, input.direction)
     const { prepared, totals } = prepareLines(input.direction, input.lines, company)
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:invoice-number:${companyId}`}))`
-    await assertNumberFree(tx, companyId, input.direction, tiers.id, input.number)
+    const origin = options.origin ?? (await originOfNewInvoice(tx, companyId, input.direction, input.numbering))
+    const number = numberForOrigin(origin, input.number)
+    await lockInvoiceNumbers(tx, companyId)
+    if (number) {
+      await assertNumberFree(tx, companyId, input.direction, tiers.id, number)
+      if (origin === 'RECORDED') await assertOutsideRunningSeries(tx, companyId, number)
+    }
     const dueDate = await resolveDueDate(companyId, tiers, input.issueDate, input.dueDate)
     const created = await tx.invoice.create({
       data: {
         companyId,
         direction: input.direction,
         tiersId: tiers.id,
-        number: input.number,
+        number,
+        origin,
+        ...(origin === 'QONTO' ? { source: 'QONTO' as const, qontoRequestedAt: options.qontoRequestedAt ?? new Date() } : {}),
         issueDate: dayToDate(input.issueDate),
         dueDate: dayToDate(dueDate),
         typeCode: input.typeCode,
@@ -448,15 +528,15 @@ export async function createInvoice(
       },
       select: { id: true },
     })
-    return created.id
+    return { id: created.id, origin, number }
   }
-  const id = options.db ? await run(options.db) : await prisma.$transaction(run, TX_OPTIONS)
-  await writeAuditLog('info', `Invoice recorded: ${input.number}`, {
+  const created = options.db ? await run(options.db) : await prisma.$transaction(run, TX_OPTIONS)
+  await writeAuditLog('info', `Invoice recorded: ${created.number ?? 'numbered when posted'}`, {
     action: 'CREATE_INVOICE',
     companyId,
-    metadata: { invoiceId: id, direction: input.direction, source: options.source ?? 'web' },
+    metadata: { invoiceId: created.id, direction: input.direction, origin: created.origin, source: options.source ?? 'web' },
   })
-  return getInvoice(companyId, id, options.db)
+  return getInvoice(companyId, created.id, options.db)
 }
 
 /** Locks an invoice row of the company and returns its state (FOR UPDATE: posting and edits never interleave). */
@@ -465,26 +545,62 @@ export async function lockInvoice(tx: Prisma.TransactionClient, companyId: strin
   if (rows.length === 0) throw new NotFoundError(INVOICE_NOT_FOUND)
   const invoice = await tx.invoice.findUniqueOrThrow({
     where: { id },
-    select: { id: true, direction: true, number: true, entryId: true, source: true, tiersId: true },
+    select: {
+      id: true,
+      direction: true,
+      number: true,
+      entryId: true,
+      source: true,
+      tiersId: true,
+      origin: true,
+      typeCode: true,
+      issueDate: true,
+      numberAssignedAt: true,
+      qontoRequestedAt: true,
+      externalId: true,
+    },
   })
   return invoice
 }
 
-const DRAFT_ONLY = (number: string) =>
-  `La facture n° ${number} est comptabilisée : supprimez d’abord son écriture en brouillon (ou contre-passez-la si elle est validée) pour la modifier.`
+/** How an invoice is named in a message: its number, or "en brouillon" before the series gives one. */
+export function invoiceName(invoice: { number: string | null }): string {
+  return invoice.number ? `La facture n° ${invoice.number}` : 'La facture en brouillon'
+}
+
+const DRAFT_ONLY = (invoice: { number: string | null }) =>
+  `${invoiceName(invoice)} est comptabilisée : supprimez d’abord son écriture en brouillon (ou contre-passez-la si elle est validée) pour la modifier.`
 
 export async function updateInvoice(companyId: string, id: string, input: UpdateInvoiceInput): Promise<InvoiceDetail> {
-  await prisma.$transaction(async (tx) => {
+  const number = await prisma.$transaction(async (tx) => {
     const current = await lockInvoice(tx, companyId, id)
-    if (current.entryId) throw new ConflictError(DRAFT_ONLY(current.number))
+    if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
     if (current.source !== 'MANUAL') {
-      throw new ConflictError('Une facture importée garde les montants du document : seuls ses comptes se modifient.')
+      throw new ConflictError('Une facture importée ou créée dans Qonto garde les montants du document : seuls ses comptes se modifient.')
+    }
+    let number: string | null
+    if (current.origin === 'AUTO') {
+      if (current.number) {
+        // Given by the series: the number and the date (its place in the chronological sequence) stay.
+        if (input.number && input.number !== current.number) throw new ValidationError(`Le numéro ${current.number} a été attribué par la série : il ne change plus.`)
+        if (input.issueDate !== calendarDayOf(current.issueDate)) {
+          throw new ConflictError(`La facture n° ${current.number} est numérotée : sa date fixe sa place dans la série et ne change plus. Émettez un avoir pour l’annuler.`)
+        }
+        if (input.typeCode !== current.typeCode) throw new ConflictError(`La facture n° ${current.number} est numérotée : son type ne change plus.`)
+      } else if (input.number) throw new ValidationError(AUTO_NUMBER_TYPED)
+      number = current.number
+    } else {
+      if (!input.number) throw new ValidationError(NUMBER_REQUIRED)
+      number = input.number
     }
     const company = await loadCompany(tx, companyId)
     const tiers = await loadTiersForInvoice(tx, companyId, input.tiersId, current.direction)
     const { prepared, totals } = prepareLines(current.direction, input.lines, company)
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:invoice-number:${companyId}`}))`
-    await assertNumberFree(tx, companyId, current.direction, tiers.id, input.number, id)
+    await lockInvoiceNumbers(tx, companyId)
+    if (number) {
+      await assertNumberFree(tx, companyId, current.direction, tiers.id, number, id)
+      if (current.origin === 'RECORDED' && number !== current.number) await assertOutsideRunningSeries(tx, companyId, number)
+    }
     const dueDate = await resolveDueDate(companyId, tiers, input.issueDate, input.dueDate)
     await tx.invoiceLine.deleteMany({ where: { invoiceId: id } })
     await tx.invoiceVatBreakdown.deleteMany({ where: { invoiceId: id } })
@@ -492,7 +608,7 @@ export async function updateInvoice(companyId: string, id: string, input: Update
       where: { id },
       data: {
         tiersId: tiers.id,
-        number: input.number,
+        number,
         issueDate: dayToDate(input.issueDate),
         dueDate: dayToDate(dueDate),
         typeCode: input.typeCode,
@@ -503,15 +619,16 @@ export async function updateInvoice(companyId: string, id: string, input: Update
         vatBreakdown: { create: breakdownRows(totals) },
       },
     })
+    return number
   }, TX_OPTIONS)
-  await writeAuditLog('info', `Invoice updated: ${input.number}`, { action: 'UPDATE_INVOICE', companyId, metadata: { invoiceId: id } })
+  await writeAuditLog('info', `Invoice updated: ${number ?? 'numbered when posted'}`, { action: 'UPDATE_INVOICE', companyId, metadata: { invoiceId: id } })
   return getInvoice(companyId, id)
 }
 
 export async function updateInvoiceLineAccounts(companyId: string, id: string, input: z.infer<typeof UpdateLineAccountsBodySchema>): Promise<InvoiceDetail> {
   await prisma.$transaction(async (tx) => {
     const current = await lockInvoice(tx, companyId, id)
-    if (current.entryId) throw new ConflictError(DRAFT_ONLY(current.number))
+    if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
     const lines = await tx.invoiceLine.findMany({ where: { invoiceId: id }, select: { id: true, accountCode: true, fixedAsset: true } })
     const byId = new Map(lines.map((l) => [l.id, l]))
     const kind = current.direction === 'SALE' ? 'CUSTOMER' : 'SUPPLIER'
@@ -546,10 +663,22 @@ export async function updateInvoiceLineAccounts(companyId: string, id: string, i
 export async function deleteInvoice(companyId: string, id: string): Promise<{ id: string }> {
   const deleted = await prisma.$transaction(async (tx) => {
     const current = await lockInvoice(tx, companyId, id)
-    if (current.entryId) throw new ConflictError(DRAFT_ONLY(current.number))
+    if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
+    if (current.origin === 'AUTO' && current.number) {
+      throw new ConflictError(
+        `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
+      )
+    }
+    if (current.origin === 'QONTO' && current.qontoRequestedAt) {
+      throw new ConflictError(
+        current.externalId
+          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
+          : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
+      )
+    }
     await tx.invoice.delete({ where: { id } })
     return current
   }, TX_OPTIONS)
-  await writeAuditLog('info', `Invoice deleted: ${deleted.number}`, { action: 'DELETE_INVOICE', companyId, metadata: { invoiceId: id } })
+  await writeAuditLog('info', `Invoice deleted: ${deleted.number ?? 'draft without number'}`, { action: 'DELETE_INVOICE', companyId, metadata: { invoiceId: id } })
   return { id }
 }

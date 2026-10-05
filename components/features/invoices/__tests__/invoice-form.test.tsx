@@ -107,6 +107,7 @@ describe('InvoiceForm', () => {
         initial={{
           tiersId: 't1',
           number: 'V-1',
+          numbering: 'recorded',
           issueDate: '2026-03-02',
           dueDate: '',
           typeCode: '380',

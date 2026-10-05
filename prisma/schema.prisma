@@ -101,6 +101,14 @@ model Company {
   /// services post their VAT to 44574 "TVA collectée en attente d'encaissement"
   /// until paid (lib/invoices/posting-plan.ts).
   servicesVatOnDebits        Boolean           @default(false)
+  /// Numbering of sales invoices and credit notes (CGI ann. II art. 242
+  /// nonies A, I, 7°): JSON validated by InvoiceNumberingSettingsSchema
+  /// (lib/invoices/numbering/settings.ts); null: the defaults (F{YYYY}-{SEQ:4},
+  /// yearly reset, automatic, created in Qonto when Qonto can).
+  invoiceNumbering           Json?
+  /// Why Qonto refused to create a client invoice with the stored connection
+  /// (HTTP 401/403); null: never refused. Cleared when the setting is saved again.
+  qontoInvoicingRefusal      String?
   /// Simple mode (docs/categories-simples.md): whether the entries a user
   /// confirms in simple mode stay drafts until the accountant validates them.
   /// Null: the default, on when the company has a member with the accountant
@@ -145,6 +153,7 @@ model Company {
   dashboardLayouts           DashboardLayout[]
   tiers                      Tiers[]
   invoices                   Invoice[]
+  invoiceNumberCounters      InvoiceNumberCounter[]
   expenseClaimants           ExpenseClaimant[]
   expenseReports             ExpenseReport[]
   expenseCategoryRules       ExpenseCategoryRule[]
@@ -1717,6 +1726,15 @@ enum InvoiceSource {
   QONTO // Importée de Qonto
 }
 
+/// Where the number of an invoice comes from (docs/factures-et-tiers.md, Numérotation).
+enum InvoiceOrigin {
+  AUTO // Sales invoice numbered by Kledg's series of the company, when posted
+  MANUAL // Number typed in Kledg (purchases, or sales of a company that numbers elsewhere)
+  RECORDED // Sales invoice already issued elsewhere, recorded with its own number
+  QONTO // Created in Qonto by Kledg, or imported from Qonto: Qonto's number
+  MANAGEMENT_FEES // Series of a management fee convention (lib/management-fees)
+}
+
 enum InvoiceLineNature {
   GOODS // Livraison de biens : TVA exigible à la livraison (CGI art. 269, 2, a)
   SERVICES // Prestation de services : TVA exigible à l'encaissement sauf option pour les débits (CGI art. 269, 2, c)
@@ -1771,12 +1789,37 @@ model Tiers {
 /// (AC) or sales (VE) journal of the fiscal year containing its date and
 /// links it here (entryId). Its payment status is derived from the lettering
 /// of its tiers line and from the bank payments recorded on it.
+/// Last number given in a series of sales invoices (CGI ann. II art. 242
+/// nonies A, I, 7°), per company, series and period: updated under its row
+/// lock in the transaction that posts the invoice (lib/invoices/numbering).
+model InvoiceNumberCounter {
+  id        String   @id @default(cuid())
+  companyId String
+  /// INVOICE or CREDIT_NOTE (credit notes in their own series when configured).
+  series    String
+  /// Calendar year ("2026"), fiscal year ("FY:<id>") or "ALL" (never reset).
+  periodKey String
+  lastValue Int
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, series, periodKey])
+  @@map("invoice_number_counters")
+}
+
 model Invoice {
   id                   String           @id @default(cuid())
   companyId            String
   direction            InvoiceDirection
   tiersId              String
-  number               String
+  /// Null only for a sales draft numbered by Kledg's series (given when posted) or waiting for Qonto.
+  number               String?
+  /// AUTO: when the series gave the number (the invoice then keeps it and is never deleted).
+  numberAssignedAt     DateTime?
+  origin               InvoiceOrigin    @default(MANUAL)
+  /// When Kledg asked Qonto to create the invoice (origin QONTO); externalId still null: the answer is pending.
+  qontoRequestedAt     DateTime?
   issueDate            DateTime
   dueDate              DateTime
   /// UNTDID 1001 (EN 16931 BT-3): 380 invoice, 381 credit note.

@@ -14,12 +14,16 @@ import { Amount, DateDisplay, EmptyState, LoadMore, PageHeader, StatusBadge } fr
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
 import { responseError, useCursorList } from '@/hooks/use-cursor-list'
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_TONES, type InvoiceStatus } from '@/lib/invoices/status'
+import { invoiceOriginLabel, type InvoiceOriginCode } from '@/lib/invoices/origin'
 import { plural } from '@/lib/utils/plural'
 import type { InvoiceDirection } from './invoice-form'
 
 interface InvoiceRow {
   id: string
-  number: string
+  /** Null: a draft numbered when posted, or waiting for Qonto. */
+  number: string | null
+  origin: InvoiceOriginCode
+  createdInQonto: boolean
   typeCode: string
   issueDate: string
   dueDate: string
@@ -192,7 +196,9 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
                       </span>
                       <span className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
                         <span>
-                          {invoice.typeCode === '381' ? 'Avoir ' : ''}n° {invoice.number}, <DateDisplay value={invoice.issueDate} />
+                          {invoice.typeCode === '381' ? 'Avoir ' : ''}
+                          {invoice.number ? `n°\u00a0${invoice.number}` : 'numéro à l’émission'}, <DateDisplay value={invoice.issueDate} />
+                          {sale && invoiceOriginLabel(invoice.origin, invoice.createdInQonto) ? `, ${invoiceOriginLabel(invoice.origin, invoice.createdInQonto)?.toLowerCase()}` : ''}
                         </span>
                         <StatusBadge tone={INVOICE_STATUS_TONES[invoice.status]}>{INVOICE_STATUS_LABELS[invoice.status]}</StatusBadge>
                       </span>
@@ -230,8 +236,11 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
                           <TableCell>
                             <Link href={`${base}/${invoice.id}`} className="text-link underline-offset-4 hover:underline">
                               {invoice.typeCode === '381' ? 'Avoir ' : ''}
-                              {invoice.number}
+                              {invoice.number ?? <span className="text-muted-foreground">À l’émission</span>}
                             </Link>
+                            {sale && invoiceOriginLabel(invoice.origin, invoice.createdInQonto) ? (
+                              <span className="text-muted-foreground block text-xs">{invoiceOriginLabel(invoice.origin, invoice.createdInQonto)}</span>
+                            ) : null}
                           </TableCell>
                           <TableCell className="max-w-64 truncate">
                             {invoice.tiers.name} <span className="text-muted-foreground font-mono text-xs">{invoice.tiers.auxiliaryAccountNumber}</span>

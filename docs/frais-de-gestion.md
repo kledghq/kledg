@@ -30,7 +30,7 @@ Page **Frais de gestion, Nouvelle convention**, API `GET|POST /api/management-fe
 - **Clé de répartition** : parts égales, chiffre d'affaires de chaque filiale (ses comptes 70 validés sur la période, lus dans ses propres livres), ou pourcentages fixés dont le total fait exactement 100 %.
 - **Entrée et sortie d'une filiale** : une filiale partie à la convention une partie de la période paie au prorata de ses jours (parts égales et pourcentages) ou de son chiffre d'affaires de ces jours ; le montant entier est réparti entre les filiales présentes.
 - **TVA** : un taux français par convention, 0 % obligatoire si la holding est en franchise en base (CGI art. 293 B).
-- **Comptes** : produit de la holding (706 par défaut), charge proposée aux filiales (6226 par défaut) ; **série de factures** `<préfixe>-<année>-<numéro>` (FG-2026-001...).
+- **Comptes** : produit de la holding (706 par défaut), charge proposée aux filiales (6226 par défaut) ; **série de factures** `<préfixe>-<année>-<numéro>` (FG-2026-001...). Cette série reste distincte de la [numérotation des factures de vente](factures-et-tiers.md#numérotation-des-factures-de-vente) de la société (série distincte admise, BOI-TVA-DECLA-30-20-20-10 § 80 et 90) : une facture de frais de gestion ne tire pas de numéro dans la série de la société.
 - Une convention déjà facturée ne se supprime pas : on lui donne une date de fin. La modifier ne change pas les montants déjà facturés.
 
 ## Prix de pleine concurrence

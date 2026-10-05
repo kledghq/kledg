@@ -71,6 +71,8 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
   beforeEach(async () => {
     await prepareTestDatabase('invoices')
     books = await seedBooks(prisma, svc, { siren: '900000101', slug: 'factures-alpha' })
+    // These tests type their sales numbers: the company numbers elsewhere (automatic numbering: numbering.db.test.ts)
+    await prisma.company.update({ where: { id: books.companyId }, data: { invoiceNumbering: { mode: 'MANUAL' } } })
   })
   afterAll(async () => {
     await prisma?.$disconnect()
@@ -241,7 +243,7 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
 
     it('never reaches an invoice, a tiers or a payment line of another company (IDOR)', async () => {
       const other = await seedBooks(prisma, svc, { siren: '900000104', slug: 'factures-delta' })
-      const theirs = await invoices.createInvoice(other.companyId, { direction: 'SALE', tiersId: other.customerId, number: 'B1', issueDate: '2026-03-01', typeCode: '380', lines: [line('A', '1', 1000, 2000)] })
+      const theirs = await invoices.createInvoice(other.companyId, { direction: 'SALE', tiersId: other.customerId, number: 'B1', numbering: 'recorded', issueDate: '2026-03-01', typeCode: '380', lines: [line('A', '1', 1000, 2000)] })
       await expect(invoices.getInvoice(books.companyId, theirs.id)).rejects.toBeInstanceOf(errors.NotFoundError)
       await expect(invoices.deleteInvoice(books.companyId, theirs.id)).rejects.toBeInstanceOf(errors.NotFoundError)
       await expect(posting.postInvoice(books.companyId, theirs.id)).rejects.toBeInstanceOf(errors.NotFoundError)

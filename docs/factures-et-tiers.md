@@ -27,9 +27,69 @@ Pages **Factures, Factures d'achat** (`/invoices/purchases`) et **Factures de ve
 
 - **Une facture** : tiers (un client pour une vente, un fournisseur pour un achat), numéro, date, échéance, type (facture 380 ou avoir 381, codes UNTDID 1001), libellé, lignes.
 - **Lignes** (CGI ann. II art. 242 nonies A, I, 8°) : désignation, quantité (trois décimales), prix unitaire hors taxe, taux de TVA propre à chaque ligne, compte, nature (bien ou prestation), immobilisation pour un achat. Une facture porte autant de taux que nécessaire. Seuls les taux français sont acceptés sur une facture saisie (20, 13, 10, 8,5, 5,5, 2,1, 1,75, 1,05, 0,9 et 0 %, CGI art. 278 à 281 nonies, 296 et 297) ; une société en franchise en base (CGI art. 293 B) ne facture pas de TVA.
-- **Numéro** : unique dans la société pour une facture de vente (numérotation chronologique et continue, CGI ann. II art. 242 nonies A, I) ; unique par fournisseur pour une facture d'achat.
+- **Numéro** : unique dans la société pour une facture de vente (numérotation chronologique et continue, CGI ann. II art. 242 nonies A, I, 7°), donné par Kledg, par Qonto ou saisi selon la [numérotation](#numérotation-des-factures-de-vente) ; unique par fournisseur pour une facture d'achat, saisi tel qu'il figure sur la facture du fournisseur.
 - **Échéance** : celle saisie, ou la date de la facture plus le délai du tiers, sinon celui de la société. Une échéance saisie à la main ne dépasse pas le plafond légal (60 jours après la facture, ou 45 jours fin de mois, le plus tardif des deux, Code de commerce art. L441-10).
 - **Statut**, déduit et jamais enregistré : brouillon (aucune écriture), comptabilisée, payée partiellement, payée (voir Règlements). Une facture se modifie et se supprime tant qu'elle est en brouillon.
+
+### Numérotation des factures de vente
+
+Source : CGI ann. II art. 242 nonies A, I, 7° (« un numéro unique basé sur une séquence chronologique et continue ») et BOFiP BOI-TVA-DECLA-30-20-20-10 (version du 18 octobre 2013), § 70 à 100 : la numérotation peut se faire par séries distinctes quand les conditions d'exercice de l'activité le justifient (§ 80, par exemple plusieurs modalités d'émission des factures, § 100) ; chaque série est chronologique au fur et à mesure de l'émission, continue, et deux factures émises la même année ne portent jamais le même numéro ; un préfixe distinct par série est conseillé (§ 90). Un avoir est une facture : il a son numéro, dans la série des factures ou dans la sienne.
+
+**Réglage** (Informations, carte « Numérotation des factures » ; `GET|PUT /api/companies/[id]/invoice-numbering`, droits `settings:read` et `settings:update` ; MCP `get_company_settings` et `update_company_settings`, section `invoice_numbering`), enregistré dans `companies.invoiceNumbering` (JSON, `lib/invoices/numbering/settings.ts`) avec une entrée du journal d'audit (`UPDATE_INVOICE_NUMBERING`, avant et après) :
+
+| Option | Valeurs | Par défaut |
+| --- | --- | --- |
+| Numérotation | automatique (Kledg) ou saisie (la société numérote ailleurs) | automatique |
+| Format | préfixe (20 caractères au plus : lettres, chiffres, `- / _ .`), année sur 4 ou 2 chiffres ou sans année, mois facultatif, séparateur (`-`, `/`, `_`, `.` ou aucun), chiffres de la séquence (1 à 9, complétés par des zéros ; au-delà le numéro s'allonge, il n'est jamais coupé) | `F{YYYY}-{SEQ:4}`, soit F2026-0001 |
+| Remise à 1 | chaque année civile, à chaque exercice (l'année imprimée est celle de la fin de l'exercice), ou jamais | chaque année civile |
+| Avoirs | dans la série des factures, ou dans leur propre série avec leur préfixe | série des factures, préfixe A |
+| Prochain numéro | reprise de la séquence de la période en cours pour une société venant d'un autre outil : seulement à la hausse, jamais sur un numéro déjà donné ou déjà enregistré | |
+| Créer dans Qonto | voir [création dans Qonto](#création-dans-qonto) | oui quand la connexion Qonto le permet |
+
+Une remise à 1 exige l'année dans le format (sinon deux factures porteraient le même numéro) ; l'aperçu du réglage montre le format et le prochain numéro.
+
+**Attribution** (`lib/invoices/numbering/series.ts`, `post-invoice.service.ts`) :
+
+- Une facture de vente numérotée par Kledg est enregistrée **sans numéro** (« Numéro attribué à l'émission », avec le prochain numéro prévu à titre indicatif). Elle reçoit le numéro suivant de sa série **quand elle est comptabilisée**, dans la transaction qui crée son écriture. Supprimer un brouillon ne laisse donc aucun trou.
+- Le compteur de chaque série et période est une ligne de `invoice_number_counters` (société, série, période ; sécurité au niveau des lignes par société). La comptabilisation prend le verrou consultatif `kledg:invoice-number:<société>` (le même que le contrôle d'unicité d'un numéro saisi), puis verrouille la ligne du compteur (`SELECT ... FOR UPDATE`) et la met à jour : deux comptabilisations simultanées s'attendent et reçoivent deux numéros consécutifs ; une comptabilisation refusée ou annulée annule aussi la mise à jour du compteur et ne consomme aucun numéro.
+- Chronologie : une facture datée d'avant une facture déjà numérotée de la même période est refusée (« Datez-la du ... au plus tôt »), jamais numérotée après elle.
+- Une facture numérotée garde son numéro : supprimer son écriture en brouillon la ramène en brouillon avec son numéro, sa date et son type ne changent plus, et elle ne se supprime pas (un avoir l'annule).
+- Kledg ne produit pas le document de la facture : le numéro donné à la comptabilisation est celui à porter sur la facture envoyée au client (ou utilisez la création dans Qonto, qui produit le PDF).
+
+**Factures existantes** : elles gardent leur numéro (migration `20261115090000_invoice_numbering` : origine `QONTO` pour les factures importées, `MANAGEMENT_FEES` pour les factures de frais de gestion, `MANUAL` pour les autres). Le compteur d'une période est créé à la première comptabilisation, après le plus grand numéro de même format déjà enregistré dans la société pour cette période (lu par une expression régulière construite depuis le format), ou au prochain numéro réglé s'il est plus grand. Un numéro déjà pris n'est jamais redonné.
+
+**Origine du numéro** (`invoices.origin`, affichée dans la liste et sur la facture) :
+
+| Origine | Numéro |
+| --- | --- |
+| `AUTO` | Série de Kledg, donné à la comptabilisation |
+| `MANUAL` | Saisi : factures d'achat, ou ventes d'une société qui numérote ailleurs (unicité vérifiée comme avant) |
+| `RECORDED` | « Enregistrer une facture déjà émise » : facture émise avant Kledg ou ailleurs, numéro saisi, pièce jointe possible, jamais envoyée à Qonto. Elle ne prend ni ne décale la séquence : un numéro du format de la série de Kledg, dans une période où la série a commencé et au-delà de son dernier numéro, est refusé (Kledg le donnerait plus tard) ; dans une période où la série n'a pas commencé, c'est de l'historique, et la série commencera après lui. Date passée possible, avec les règles des exercices et périodes clôturés à la comptabilisation |
+| `QONTO` | Numéro de Qonto (facture créée dans Qonto par Kledg, ou importée) : jamais modifié |
+| `MANAGEMENT_FEES` | Série de la convention de frais de gestion |
+
+Le choix se fait dans le formulaire (« Émission » : Créer la facture dans Qonto, Numéroter dans Kledg, Enregistrer une facture déjà émise), par l'API (`numbering` : `qonto`, `kledg`, `recorded` ; absent : le réglage de la société) et par l'outil MCP `create_draft_invoice` (même champ). En numérotation automatique, un numéro envoyé sans `recorded` est refusé (400).
+
+**Frais de gestion** : leurs factures gardent la série de leur convention, `<préfixe>-<année>-<numéro>` (FG-2026-001, [frais de gestion](frais-de-gestion.md)). C'est une série distincte admise (§ 80 et 90 : préfixe propre, usage justifié par la convention) ; elle est numérotée à la génération, sous le verrou de la convention, et ne tire pas de numéro dans la série de la société. Les unifier aurait demandé de numéroter ces factures à la comptabilisation et de changer la génération et son idempotence : décision de les garder à part.
+
+### Création dans Qonto
+
+Pour une société connectée à Qonto, une nouvelle facture de vente est **créée d'abord dans Qonto** (réglage « Créer les factures de vente dans Qonto », activé par défaut quand la connexion le permet) : Qonto lui donne son numéro et son PDF, Kledg la garde, la montre « Créée dans Qonto » et la comptabilise comme toute facture, avec le numéro de Qonto. La numérotation de Kledg s'applique aux sociétés sans Qonto, ou quand le réglage est désactivé. `lib/invoices/create-in-qonto.service.ts`.
+
+Points d'accès, vérifiés dans la référence publique de l'API Business de Qonto le 5 octobre 2026 ; le tableau [Endpoints access](https://docs.qonto.com/get-started/business-api/authentication/introduction) les ouvre à la clé API que Kledg enregistre déjà :
+
+| Point d'accès | Portée OAuth | Usage |
+| --- | --- | --- |
+| `GET /v2/organization` | `organization.read` | IBAN du compte principal, imprimé sur la facture (`payment_methods.iban`, obligatoire) |
+| `GET /v2/clients?filter[...]` | `client.read` | Retrouver le client d'un tiers (SIRET, SIREN, TVA ou nom exact) |
+| [`POST /v2/clients`](https://docs.qonto.com/api-reference/business-api/clients/create-a-client) | `client.write` | Créer le client (devise EUR, langue fr, adresse de facturation obligatoire) ; son identifiant est gardé sur le tiers |
+| [`POST /v2/client_invoices`](https://docs.qonto.com/api-reference/business-api/expense-management/client-quotes-notes/client-invoices/create-a-client-invoice) | `client_invoice.write` | Créer la facture : client, dates, devise, IBAN, lignes (titre de 40 caractères, quantité, prix unitaire, taux en fraction « 0.2 ») ; statut `unpaid` (finalisée), numéro donné par Qonto quand sa numérotation automatique est active (réglage par défaut de Qonto) |
+| `GET /v2/client_invoices?filter[created_at_from]` | `client_invoices.read` | Retrouver une facture dont la réponse s'est perdue |
+
+- **Jamais deux fois** : l'[en-tête d'idempotence de Qonto](https://docs.qonto.com/get-started/general/idempotent-requests) n'est pas proposé sur ces points d'accès. Kledg enregistre donc la facture (origine `QONTO`, sans numéro, demande en attente) avant de l'envoyer. Qonto refuse (4xx) : rien n'existe chez Qonto, l'enregistrement est supprimé et l'erreur dite en français. Qonto ne répond pas (délai, 5xx) : la facture reste « en attente de Qonto », ne se comptabilise ni ne se supprime ; **Reprendre la création dans Qonto** (`POST /api/invoices/[id]/qonto`, MCP `manage_invoice` action `resume_qonto`) cherche d'abord chez Qonto une facture créée depuis la demande pour le même client, la même date, le même total et le même nombre de lignes, et ne l'envoie à nouveau que si elle n'existe pas ; la reprise est réservée (une seule à la fois). L'import Qonto complète aussi une facture en attente au lieu de l'importer une seconde fois.
+- Après création, Qonto fait foi : montants du document (les comptes choisis dans Kledg restent sur les lignes), pas de modification ni de suppression dans Kledg (un avoir l'annule).
+- **Droits** : si Qonto refuse la connexion (401 ou 403), Kledg enregistre la raison (« Qonto refuse la création de factures avec cette connexion »), numérote les factures lui-même et l'affiche dans le réglage et le formulaire ; enregistrer de nouveau la numérotation efface ce refus. Avec une clé API, la référence ne permet ni de finaliser un brouillon plus tard (« Finalize a client invoice » : OAuth seulement), ni de créer un avoir (« Create a credit note » : OAuth seulement) : Kledg crée les factures finalisées et numérote les avoirs lui-même.
+- Les factures déjà émises (`recorded`) et les avoirs ne sont jamais envoyés à Qonto.
 
 ### Arrondis
 
@@ -65,7 +125,7 @@ La facture crée une **écriture en brouillon** datée du jour de la facture, au
 
 La TVA d'une prestation de services est exigible à l'encaissement du prix ; la société peut opter pour la payer d'après les débits (l'option figure alors sur ses factures, CGI ann. II art. 242 nonies A, I, 11° bis). Les livraisons de biens sont taxées à la livraison (art. 269, 2, a).
 
-- L'option se règle sur la page **Factures de vente** (`GET|PUT /api/companies/[id]/vat-settings`, droit `settings:update`). Par défaut : TVA sur les encaissements.
+- L'option se règle dans **Informations**, avec les régimes de TVA (`GET|PUT /api/companies/[id]/vat-settings`, droit `settings:update`) ; la page **Factures de vente** en montre le résumé avec un lien vers le réglage. Par défaut : TVA sur les encaissements. Les lignes d'écriture des règles d'affectation ont leur propre indicateur de TVA sur les débits, qui devrait reprendre ce réglage par défaut.
 - Sans option, la TVA des lignes « prestation » d'une facture de vente va au compte **44574 « TVA collectée en attente d'encaissement »**, subdivision du 4457 que la société crée dans son plan de comptes (Kledg le demande s'il manque). Le 44587 n'est pas utilisé : le PCG le réserve aux factures à établir.
 - À chaque règlement enregistré sur la facture, Kledg crée une **écriture en brouillon au journal OD**, datée du règlement et dans son exercice : 44574 au débit, 44571 au crédit, pour la TVA du règlement (TVA en attente x règlement / TTC, arrondie au centime ; le règlement qui solde la facture prend le reste, de sorte que les virements font exactement la TVA en attente). Retirer le règlement supprime ce brouillon.
 - Un règlement lettré à la main dans Lettrage, sans passer par la facture, ne déplace pas la TVA : passez l'écriture vous-même.

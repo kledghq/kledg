@@ -104,6 +104,8 @@ async function salesInvoice(company: Company, number: string, unitPriceCents: nu
     direction: 'SALE',
     tiersId: company.customerId,
     number,
+    // Numbers chosen by the test: an invoice already issued, outside Kledg's series
+    numbering: 'recorded',
     issueDate: '2026-09-01',
     typeCode: '380',
     lines: [{ label: 'Prestation', quantity: '1', unitPriceCents, vatRateBp: 2000, accountCode: null, nature: options.nature ?? 'GOODS', fixedAsset: false }],

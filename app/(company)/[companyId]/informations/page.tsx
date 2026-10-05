@@ -49,6 +49,8 @@ import {
 } from '@/components/ui/dialog'
 import { TaxRegimeHistory } from '@/components/features/companies/tax-regime-history'
 import { DeadlineSettingsCard } from '@/components/features/deadlines/deadline-settings-card'
+import { VatOnDebitsCard } from '@/components/features/companies/vat-on-debits-card'
+import { InvoiceNumberingCard } from '@/components/features/invoices/invoice-numbering-card'
 import { NoCompanySelected } from '@/components/features/companies/no-company-selected'
 import { HelpTip, PageHeader, formatAmount } from '@/components/shared'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
@@ -863,14 +865,18 @@ export default function CompanyInformationsPage() {
 
         <PersonsPrivacyCard companyId={companyId} canEdit={canEdit} />
 
-        <div id="regimes-fiscaux" className="scroll-mt-20">
+        <div id="regimes-fiscaux" className="scroll-mt-20 space-y-6">
           <TaxRegimeHistory companyId={companyId} />
+          <VatOnDebitsCard companyId={companyId} />
         </div>
 
         <DeadlineSettingsCard companyId={companyId} legalType={watch('legalType')} canEdit={canEdit} />
         </fieldset>
       </form>
       </FormProvider>
+
+      {/* Outside the company form: its text fields must not submit it, and it saves on its own */}
+      <InvoiceNumberingCard companyId={companyId} />
 
       {isDirty && (
         <div
