@@ -26,6 +26,37 @@ Kledg est un logiciel de comptabilité. Il n'est ni un logiciel de caisse, ni un
 - **Description des procédures comptables** (C. com. art. R123-172) et **documentation du système** (PCG art. 1011-4 ; BOI-BIC-DECLA-30-10-20-40 § 270 à 350) : ce document, la documentation de Kledg et son code source ouvert en sont la base ; la société décrit en plus son organisation (qui saisit, qui valide, à quel rythme les périodes sont clôturées, où sont archivées les pièces).
 - **Clôture des périodes à temps** et clôture de l'exercice.
 
+## Bilan et compte de résultat
+
+États, Bilan et Compte de résultat ; code : `lib/reports/statements`. Deux présentations, chacune calquée sur les formulaires de la liasse fiscale du millésime 2026 (règlement ANC n° 2022-06 appliqué) : le système de base, sur les formulaires 2050-SD à 2053-SD (PCG art. 821-1 et 821-3), et le système simplifié, sur les formulaires 2033-A-SD et 2033-B-SD.
+
+- **Chaque compte du plan de Kledg a sa case** dans chaque présentation, en solde débiteur comme en solde créditeur. La table complète est `lib/reports/statements/__tests__/fixtures/pcg-account-boxes.ts`, revue compte par compte et vérifiée par les tests : aucun compte sans case, aucun compte sur deux lignes, aucune case qui n'existe pas sur le formulaire de 2026.
+- **Soldes selon leur sens** : les soldes débiteurs vont à l'actif et les soldes créditeurs au passif. Une banque créditrice (512) est un concours bancaire, en 2051 DU ou en 2033-A 156. Un fournisseur débiteur (401) est une autre créance (BZ, 072) et un client créditeur une autre dette (EA, 175). Les avances versées (4091) et reçues (4191) ont leurs lignes (BV, DW ; 064, 164).
+- **Colonnes de l'actif** : les amortissements et dépréciations (28, 29, 39, 49, 59) figurent dans la colonne Amortissements de leur actif. Par exemple, la dépréciation des titres de participation (2961) est en CT et celle des prêts (2974) en BG.
+- **Résultat** : la case du résultat (DI, 136) reçoit le résultat du compte de résultat (HN, 310), plus un résultat antérieur pas encore affecté (comptes 12). Le bilan est équilibré dès que les écritures le sont. Les écritures de clôture (journal CL) sont exclues des états.
+- **Exercice précédent** : la comparaison N-1 utilise la même présentation pour les deux exercices.
+
+Choix faits là où les formulaires et leurs notices ne tranchent pas, à faire valider par votre expert-comptable :
+
+| Compte | Système de base | Système simplifié | Pourquoi |
+| --- | --- | --- | --- |
+| Droit au bail (206) | Fonds commercial (AH) | Fonds commercial (010) | La notice 2033 l'écrit pour la ligne 010 ; le formulaire 2050 de 2025 portait « dont droit au bail » sur le fonds commercial, celui de 2026 n'a plus de renvoi. |
+| Comptes d'associés créditeurs (45), dépôts du personnel (426) | Emprunts et dettes financières divers (DV) | 173 pour 455, Autres dettes (175) pour les autres comptes 45 ; Dettes fiscales et sociales (172) pour 426 | Liste des comptes du modèle de bilan du PCG ; la 2033-A a une ligne « Comptes courants d'associés ». |
+| Frais d'établissement (201) | AB | Autres immobilisations incorporelles (014) | La 2033-A n'a pas de ligne pour eux. |
+| Primes d'émission (104) | DB | Capital (120) | La 2033-A n'a pas de ligne pour elles. |
+| Capital souscrit non appelé (109) | AA | Autres créances (072) | La 2033-A n'a pas de ligne pour lui. |
+| Fonds non remboursables et avances conditionnées (167), droits du concédant (229) | DM (titres participatifs, 16711), DN, et le total DO pour 229 | Emprunts et dettes assimilées (156) ; Autres dettes (175) pour 229 | La 2033-A n'a pas d'« autres fonds propres ». |
+| Frais d'émission d'emprunt (481), primes de remboursement (169) | CW, CM | Charges constatées d'avance (092) | La 2033-A n'a pas de ligne pour eux. |
+| Écarts de conversion (474, 476 ; 475, 477) | CN ; ED | Autres créances (072) ; Autres dettes (175) | Même raison. |
+| Réserves indisponibles (1062) | Réserves statutaires (DE) | Autres réserves (132) | Aucune des deux lignes ne les vise expressément. |
+| Acomptes sur dividendes (1209) | En moins du résultat (DI) | En moins du résultat (136) | Présentation à confirmer. |
+| Instruments financiers à terme et jetons (52) | Autres créances (BZ) en solde débiteur ; D1 en solde créditeur | 072 ; 175 | La 2050 n'a pas de case pour eux à l'actif. |
+| Travaux (704) | Production vendue de biens (FD) | 214 | La notice met en biens les travaux qui fournissent main-d'œuvre et matériaux ; les autres sont des services (FG, 218). |
+| Cessions (657, 757) | G1, F1 | Autres charges (262), Autres produits (230) | La 2033-B n'a pas de ligne pour les cessions. |
+| Quote-part des subventions d'investissement (747) | Subventions d'exploitation (FO) | 226 | Le compte 747 est de classe 74. |
+| Dotations aux dépréciations et aux provisions d'exploitation (6815, 6816, 6817) | GB, GC, GD | 256 | La ligne 256 s'appelle « Dotations aux dépréciations » depuis 2026 ; la ligne 254 ne garde que les amortissements. |
+| Opérations faites en commun (655, 755), participation des salariés (691) | GI, GH, HJ | Lignes à part, sans case | La 2033-B n'a pas de case pour elles. Le résultat d'exploitation (270) reste celui du PCG ; reportez-les selon l'avis de votre expert-comptable. |
+
 ## Fichier des écritures comptables (FEC)
 
 Page États, FEC ; `GET /api/fec` ; outil MCP `export_fec`. Code : `lib/fec`.

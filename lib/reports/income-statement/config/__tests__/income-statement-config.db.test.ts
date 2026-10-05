@@ -191,7 +191,7 @@ describe.skipIf(!available)('income statement layout services', () => {
       const rows = await prisma.incomeStatementLineConfig.findMany({ where: { companyId: ids.company, reportVariant: 'complete' } })
       expect(rows).toHaveLength(countEntries(COMPLETE_INCOME_STATEMENT_CONFIG_2026))
       // 2052: FG Production vendue de services (706), FW Autres achats et charges externes.
-      expect(rows.find((r) => r.formCode === 'FG')).toMatchObject({ section: 'produits', balanceType: 'credit', accountCodes: ['706', '708', '7096', '7098', '70'] })
+      expect(rows.find((r) => r.formCode === 'FG')).toMatchObject({ section: 'produits', balanceType: 'credit', accountCodes: ['705', '706', '708', '7095', '7096', '7098', '70'] })
       expect(rows.find((r) => r.formCode === 'FW')).toMatchObject({ section: 'charges', balanceType: 'debit' })
       expect(rows.every((r) => r.version === 1 && r.isActive && r.filterValue === null)).toBe(true)
     })
@@ -200,9 +200,9 @@ describe.skipIf(!available)('income statement layout services', () => {
       const first = await getOrCreateDefaultIncomeStatementConfig(ids.company, 'simplified')
       const count = await prisma.incomeStatementLineConfig.count()
       expect(count).toBe(countEntries(SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026))
-      // 2033-B line 232: Total des produits d'exploitation, with 209 (chiffre d'affaires) under it.
+      // 2033-B line 232: Total des produits d'exploitation, with its lines 210 to 230 under it.
       const products = first.lines.find((l) => l.formCode === '232')
-      expect(products?.children?.map((c) => c.formCode)).toEqual(['209', '230'])
+      expect(products?.children?.map((c) => c.formCode)).toEqual(['210', '214', '218', '222', '224', '226', '230'])
 
       const second = await getOrCreateDefaultIncomeStatementConfig(ids.company, 'simplified')
       expect(await prisma.incomeStatementLineConfig.count()).toBe(count)

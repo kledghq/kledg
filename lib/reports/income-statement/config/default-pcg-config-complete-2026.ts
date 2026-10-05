@@ -150,10 +150,12 @@ export const COMPLETE_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[] =
         order: 2,
         children: [
           // Production vendue - Biens
-          // Comptes: 701, 702, 703, 704, 705, 706, 708 (subdivisions), 7091, 7092, 7094, 7095, 7096, 7098 (subdivisions)
+          // 701 to 704 and their rebates (notice 2032-NOT-SD 2026, FF: biens produits
+          // ou transformés, travaux fournissant main-d'œuvre et matériaux).
+          // Études (705) are services (FI: "travaux, études et prestations").
           createConfig('complete', 'Production vendue - Biens', {
             formCode: 'FD',
-            accountCodes: ['701', '702', '703', '704', '705', '7091', '7092', '7094', '7095'],
+            accountCodes: ['701', '702', '703', '704', '7091', '7092', '7094'],
             balanceType: 'credit',
             order: 1,
             notes: 'Comptes 708 et 7098 subdivisions à rattacher aux postes auxquels elles se rapportent',
@@ -162,7 +164,7 @@ export const COMPLETE_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[] =
           // Production vendue - Services
           createConfig('complete', 'Production vendue - Services', {
             formCode: 'FG',
-            accountCodes: ['706', '708', '7096', '7098', '70'],
+            accountCodes: ['705', '706', '708', '7095', '7096', '7098', '70'],
             balanceType: 'credit',
             order: 2,
             notes: 'Comptes 708 et 7098 subdivisions à rattacher aux postes auxquels elles se rapportent',

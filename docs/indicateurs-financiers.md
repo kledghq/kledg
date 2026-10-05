@@ -105,16 +105,19 @@ découvert.
 | Créances clients | Comptes 41 débiteurs, nets de 491 | 2050 BX |
 | Autres créances d'exploitation | Avances et acomptes versés (4091) et comptes 40, 42, 43, 44 débiteurs (TVA déductible comprise) | 2050 BV et la part d'exploitation de BZ |
 | Dettes fournisseurs | Comptes 401, 403, 4081, 4088 créditeurs | 2051 DX |
-| Dettes fiscales et sociales | Comptes 42, 43, 44 créditeurs | 2051 DY |
+| Dettes fiscales et sociales | Comptes 42, 43, 44 créditeurs | 2051 DY (et 426 en DV) |
 | **BFR** | Stocks + créances clients + autres créances d'exploitation - dettes fournisseurs - dettes fiscales et sociales | |
 | **Trésorerie nette** | Valeurs mobilières de placement (50 net de 59) + disponibilités (51, 53, 54 débiteurs) - concours bancaires courants (51 créditeurs) | 2050 CD + CF - part de 2051 DU |
-| Dettes financières | Emprunts obligataires, emprunts bancaires hors découverts, emprunts et dettes financières divers | 2051 DS, DT, DU, DV |
+| Dettes financières | Emprunts obligataires, emprunts bancaires hors découverts, emprunts et dettes financières divers hors comptes d'associés et dépôts du personnel | 2051 DS, DT, DU, DV |
 | Capitaux propres | Comptes 10 à 14 et résultat de l'exercice | 2051 DL |
 
 Les débiteurs divers (46), comptes d'associés (45) et autres créances hors
-exploitation restent hors du BFR. Les comptes courants d'associés (455)
-figurent en autres dettes sur le bilan de Kledg : ils ne comptent pas dans
-les dettes financières. Les avances reçues des clients (4191) et les comptes
+exploitation restent hors du BFR. Les comptes courants d'associés (45
+créditeurs) figurent sur le bilan en emprunts et dettes financières divers
+(2051 DV, comme la liste des comptes du modèle du PCG) mais ne comptent pas
+dans les dettes financières de l'indicateur : ce sont des quasi-fonds
+propres. Les dépôts du personnel (426), aussi en DV, restent avec les dettes
+fiscales et sociales du BFR. Les avances reçues des clients (4191) et les comptes
 de régularisation (486, 487) ne font pas partie de la définition retenue.
 
 ## Délais de paiement

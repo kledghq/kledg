@@ -75,7 +75,8 @@ describe.each(VARIANTS)('default balance sheet mapping (%s)', (variant) => {
     expect(place('486', 'debit').label).toMatch(/^Charges constatées d'avance/)
     expect(place('487', 'credit').label).toBe("Produits constatés d'avance")
     expect(place('101', 'credit').label).toBe('Capital social ou individuel')
-    expect(place('109', 'debit').label).toBe('Capital souscrit non appelé')
+    // 2050 AA; the 2033-A has no such line: with the other receivables (072)
+    expect(place('109', 'debit').label).toBe(variant === 'complete' ? 'Capital souscrit non appelé' : 'Autres')
   })
 
   it('keeps capitaux propres accounts on their line whatever their sign', () => {
@@ -131,8 +132,8 @@ describe.each(VARIANTS)('default income statement mapping (%s)', (variant) => {
   it("maps the operator's own pay and contributions (644, 646)", () => {
     expect(labelOf('646')).toBe('Cotisations sociales')
     expect(labelOf('645')).toBe('Cotisations sociales')
-    expect(labelOf('644')).toMatch(/^Salaires/)
-    expect(labelOf('641')).toMatch(/^Salaires/)
+    expect(labelOf('644')).toMatch(/^(Salaires|Rémunérations du personnel)/)
+    expect(labelOf('641')).toMatch(/^(Salaires|Rémunérations du personnel)/)
   })
 
   it('maps rebates, taxes and depreciation to their lines', () => {

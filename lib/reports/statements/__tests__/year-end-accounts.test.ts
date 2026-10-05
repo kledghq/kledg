@@ -100,12 +100,14 @@ describe.each(['complete', 'simplified'] as const)('year-end accounts in the sta
       expect(incomeLine(variant, '6866').formCode).toBe('GQ')
       expect(incomeLine(variant, '7866').formCode).toBe('GM')
     } else {
+      // 2033-B 2026: 254 "Dotations aux amortissements", 256 "Dotations aux dépréciations"
       expect(incomeLine(variant, '6815').formCode).toBe('256')
-      expect(incomeLine(variant, '68174').formCode).toBe('254')
+      expect(incomeLine(variant, '68174').formCode).toBe('256')
+      expect(incomeLine(variant, '68112').formCode).toBe('254')
     }
   })
 
   it('brings the transfer of a grant (747) into operating income', () => {
-    expect(incomeLine(variant, GRANT_ACCOUNTS.income.code).formCode).toBe(variant === 'complete' ? 'FO' : '230')
+    expect(incomeLine(variant, GRANT_ACCOUNTS.income.code).formCode).toBe(variant === 'complete' ? 'FO' : '226')
   })
 })

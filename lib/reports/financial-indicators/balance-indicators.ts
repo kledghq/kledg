@@ -23,8 +23,12 @@
  *   credit, inside DU).
  * - Dettes financières = emprunts obligataires (DS, DT) + emprunts auprès
  *   des établissements de crédit (DU) without the bank overdrafts + emprunts
- *   et dettes financières divers (DV). Partners' current accounts (455)
- *   stay in Autres dettes (EA) as on Kledg's balance sheet.
+ *   et dettes financières divers (DV). The balance sheet shows the
+ *   partners' accounts (45 in credit) and the personnel deposits (426) in
+ *   DV, as the PCG list of the model does; the indicators keep them out of
+ *   the financial debts (partners' current accounts are quasi fonds
+ *   propres, deposits of the personnel are operating debts counted with the
+ *   dettes fiscales et sociales).
  * - Capitaux propres = the DL total, result of the year included.
  *
  * The closing entries of the year (journal CL) must be excluded from the
@@ -91,6 +95,8 @@ export function computeBalanceIndicators(accounts: readonly AccountTotals[]): Ba
   let creancesClientsBrutesCents = 0
   let autresCreancesExploitationCents = 0
   let concoursBancairesCents = 0
+  let associesCents = 0
+  let depotsPersonnelCents = 0
   let capitauxPropresCents = resultCents([...accounts])
   for (const a of allocation.allocations) {
     const rule = byId.get(a.lineId)!
@@ -104,6 +110,8 @@ export function computeBalanceIndicators(accounts: readonly AccountTotals[]): Ba
       autresCreancesExploitationCents += value
     }
     if (code === 'DU' && a.account.code.startsWith('51')) concoursBancairesCents += value
+    if (code === 'DV' && a.account.code.startsWith('45')) associesCents += value
+    if (code === 'DV' && a.account.code.startsWith('426')) depotsPersonnelCents += value
   }
   const line = (code: string) => net.get(code) ?? 0
 
@@ -111,7 +119,7 @@ export function computeBalanceIndicators(accounts: readonly AccountTotals[]): Ba
   const creancesClientsCents = line('BX')
   autresCreancesExploitationCents += line('BV')
   const dettesFournisseursCents = line('DX')
-  const dettesFiscalesSocialesCents = line('DY')
+  const dettesFiscalesSocialesCents = line('DY') + depotsPersonnelCents
   const valeursMobilieresCents = line('CD')
   const disponibilitesCents = line('CF')
 
@@ -127,7 +135,7 @@ export function computeBalanceIndicators(accounts: readonly AccountTotals[]): Ba
     disponibilitesCents,
     concoursBancairesCents,
     tresorerieNetteCents: valeursMobilieresCents + disponibilitesCents - concoursBancairesCents,
-    dettesFinancieresCents: line('DS') + line('DT') + line('DU') - concoursBancairesCents + line('DV'),
+    dettesFinancieresCents: line('DS') + line('DT') + line('DU') - concoursBancairesCents + line('DV') - associesCents - depotsPersonnelCents,
     capitauxPropresCents,
   }
 }

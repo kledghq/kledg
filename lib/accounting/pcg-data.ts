@@ -712,7 +712,6 @@ export const PCG_ACCOUNTS: PCGAccount[] = [
   { code: '672', label: 'Compte à la disposition des entités pour enregistrer, en cours d\'exercice, les charges sur exercices antérieurs', parentCode: '67' },
   { code: '678', label: 'Autres charges exceptionnelles', parentCode: '67' },
   { code: '68', label: 'Dotations aux amortissements, aux dépréciations et aux provisions', parentCode: '6' },
-  { code: '69', label: 'Impôts sur les bénéfices', parentCode: '6' },
   { code: '681', label: 'Dotations aux amortissements, aux dépréciations et aux provisions (à inscrire dans les charges d\'exploitation)', parentCode: '68' },
   { code: '6811', label: 'Dotations aux amortissements sur immobilisations incorporelles et corporelles', parentCode: '681' },
   { code: '68111', label: 'Immobilisations incorporelles et frais d\'établissement', parentCode: '6811' },

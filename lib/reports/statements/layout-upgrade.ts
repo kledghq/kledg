@@ -33,15 +33,27 @@ export type LayoutStatus = 'default' | 'upgraded' | 'customized' | 'empty'
  * and with 646 added to "Cotisations sociales" as an earlier seed script did).
  */
 export const PREVIOUS_DEFAULT_FINGERPRINTS: Record<`${LayoutKind}:${Variant}`, string[]> = {
-  'balance-sheet:complete': ['aa58fe882a6784e88c4ee811a3736b444c27defc6600cdbf8c40c2829516913d'],
-  'balance-sheet:simplified': ['ece058d7363fcc40536afc4271a1d276ffcd6825d8c789c74f3062b6446719e6'],
+  'balance-sheet:complete': [
+    'aa58fe882a6784e88c4ee811a3736b444c27defc6600cdbf8c40c2829516913d',
+    // Before the mapping review of October 2026 (droit au bail, comptes 45 and 426, 2974 to 2976, DM, ED, EK)
+    'ac77570680f263e506a77e56d5980d43e43145b4797b642e6754c3d1cf54820c',
+  ],
+  'balance-sheet:simplified': [
+    'ece058d7363fcc40536afc4271a1d276ffcd6825d8c789c74f3062b6446719e6',
+    // Before the October 2026 review: lines without a box on the 2033-A (109, 201, 093, 122, 141, 177)
+    '81fefe5b174e449ffd27f2407507231a74c7aa0dafc2db538d1608618be675e4',
+  ],
   'income-statement:complete': [
     'b6e892a28f50f9a7e91f64381ae481cde5cd13c1fdbdbc2cd45ac476a999baf6',
     '6c15742fca73af316c14398e93f6a7c2bbfce6372baf1656b2810fafd42a457e',
+    // Before the October 2026 review: études (705) with the goods
+    '78dd3de3c627ce391c12afee7ae4b2f4dc958c7497b27cae5b81d52503906afb',
   ],
   'income-statement:simplified': [
     '8f09885cbf64c3b8aee6715f540dc19c7f9d3a6e525087b4b2eb782731852f9b',
     '7da2e7a28e32d5f5f10f49a86f7bb7eae097c1b72dc01a1d2ecf654c7cbb2409',
+    // Before the October 2026 review: two lines (209, 234) instead of the 2033-B lines 210 to 262
+    'fd1b46c0cd571c806d4fb050b18b6dfa44684d70b9557ffa97a627bd3fc01f75',
   ],
 }
 

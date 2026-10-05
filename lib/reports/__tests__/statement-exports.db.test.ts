@@ -129,9 +129,10 @@ describe.skipIf(!available)('statements built from seeded entries', () => {
       const is = await generateIncomeStatement(ids.company, ids.fy2025, 'simplified')
       const lines = flat([...is.produits.lines, ...is.charges.lines])
       const value = (formCode: string) => lines.find((l) => l.formCode === formCode)?.value
-      expect(value('209')).toBe(1200) // chiffre d'affaires: 706, VAT excluded
+      expect(value('218')).toBe(1200) // production vendue de services: 706, VAT excluded (notice 2033-B, 218)
       expect(value('232')).toBe(1200) // Total des produits d'exploitation (I)
-      expect(value('234')).toBe(100) // Achats et autres charges externes: 626
+      expect(value('242')).toBe(100) // Autres charges externes: 626 (frais postaux, notice 2033-B, 242)
+      expect(value('234')).toBe(0) // Achats de marchandises
       expect(value('264')).toBe(100) // Total des charges d'exploitation (II)
       expect(value('310')).toBe(1100) // Bénéfice ou perte
       expect(is.intermediateResults).toEqual({ resultatExploitation: 1100, resultatFinancier: 0, resultatCourant: 1100, resultatExceptionnel: 0 })
@@ -182,12 +183,13 @@ describe.skipIf(!available)('statements built from seeded entries', () => {
       expect(produits.slice(0, 3)).toEqual([
         ['Libellé', 'Montant'],
         ["[232] Total des produits d'exploitation hors TVA (I)", 1200],
-        ["  [209] Montant net du chiffre d'affaires", 1200],
+        ['  [210] Ventes de marchandises', 0],
       ])
       expect(produits.at(-1)).toEqual(['TOTAL PRODUITS', 1200])
 
       const charges = rowsOf(workbook.getWorksheet('CHARGES'))
-      expect(charges).toContainEqual(['  [234] Achats et autres charges externes', 100])
+      expect(charges).toContainEqual(['  [242] Autres charges externes', 100])
+      expect(produits).toContainEqual(['  [218] Production vendue - Services', 1200])
       expect(charges.at(-1)).toEqual(['TOTAL CHARGES', 100])
 
       expect(rowsOf(workbook.getWorksheet('Résultat'))).toEqual([

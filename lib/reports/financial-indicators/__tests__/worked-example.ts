@@ -102,7 +102,7 @@
  *   Dettes fiscales et sociales 4 000 + 6 000 + 3 000 + 5 000 =  18 000 (2051 DY)
  *   BFR  39 000 + 58 000 + 3 400 - 21 600 - 18 000            =  60 800
  *   Trésorerie nette 4 000 + 31 000 - 2 500                   =  32 500
- *   Dettes financières 30 000 + 2 500 - 2 500                 =  30 000 (455 stays in EA)
+ *   Dettes financières 30 000 + 2 500 - 2 500                 =  30 000 (455, in DV on the balance sheet, kept out)
  *   Capitaux propres 50 000 + 20 000 + 44 000                 = 114 000
  *   Ratio d'endettement 30 000 / 114 000 = 0.263157...        ->  0.2632
  *

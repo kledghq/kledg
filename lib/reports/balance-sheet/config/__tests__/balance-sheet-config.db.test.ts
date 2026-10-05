@@ -380,7 +380,7 @@ describe.skipIf(!available)('balance sheet layout services', () => {
       // 2033-A: 084 Disponibilités (actif, net only), 028 Immobilisations corporelles (brut, amortissements, net), 120 Capital (passif).
       expect(byCode('084')).toMatchObject({ section: 'actif', lineType: 'line', displayType: 'net', accountCodes: ['51', '53', '54'] })
       expect(byCode('028')).toMatchObject({ section: 'actif', displayType: 'brut_amort_net', amortissementAccountCodes: ['281', '282', '291', '292', '293', '28', '29'] })
-      expect(byCode('120')).toMatchObject({ section: 'passif', balanceType: 'credit', accountCodes: ['101', '108', '10'] })
+      expect(byCode('120')).toMatchObject({ section: 'passif', balanceType: 'credit', accountCodes: ['101', '104', '108', '10'] })
       expect(byCode('142')).toMatchObject({ section: 'passif', parentId: null })
       expect(rows.every((r) => r.version === 1 && r.isActive && r.templateId === null)).toBe(true)
     })

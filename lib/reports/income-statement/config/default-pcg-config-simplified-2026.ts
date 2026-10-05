@@ -37,20 +37,56 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
     balanceType: 'auto',
     order: 1,
     children: [
-      // Montant net du chiffre d'affaires : 701, 702, 703, 704, 705, 706, 707, 708, (709)
-      createConfig('simplified', 'Montant net du chiffre d\'affaires', {
-        formCode: '209',
-        accountCodes: ['70'],
+      // 2033-B lines 210 to 230 (notice 2033-NOT-SD 2026: 210 reventes en l'état;
+      // 214 biens produits ou transformés; 218 travaux, études, prestations et
+      // produits des activités annexes). 704 (travaux) stays with the goods
+      // like 2052 FD: the notice puts works with materials there.
+      createConfig('simplified', 'Ventes de marchandises', {
+        formCode: '210',
+        accountCodes: ['707', '7097'],
         balanceType: 'credit',
         order: 1,
       }),
-      // Autres produits : 71(c), 72, 74, 75 [sauf 755], 78 [sauf 786, 787], 79
-      createConfig('simplified', 'Autres produits', {
-        formCode: '230',
-        accountCodes: ['71', '72', '74', '75', '781', '78', '79'],
-        excludedAccountCodes: ['755'],
+      createConfig('simplified', 'Production vendue - Biens', {
+        formCode: '214',
+        accountCodes: ['701', '702', '703', '704', '7091', '7092', '7094'],
         balanceType: 'credit',
         order: 2,
+      }),
+      createConfig('simplified', 'Production vendue - Services', {
+        formCode: '218',
+        accountCodes: ['705', '706', '708', '7095', '7096', '7098', '70'],
+        balanceType: 'credit',
+        order: 3,
+      }),
+      createConfig('simplified', 'Production stockée', {
+        formCode: '222',
+        accountCodes: ['71'],
+        balanceType: 'credit',
+        order: 4,
+      }),
+      createConfig('simplified', 'Production immobilisée', {
+        formCode: '224',
+        accountCodes: ['72'],
+        balanceType: 'credit',
+        order: 5,
+      }),
+      // 747 (quote-part des subventions d'investissement virée au résultat,
+      // ANC 2022-06) is a subsidy of class 74
+      createConfig('simplified', "Subventions d'exploitation reçues", {
+        formCode: '226',
+        accountCodes: ['74'],
+        balanceType: 'credit',
+        order: 6,
+      }),
+      // 75 (757 cessions included) except 755, reprises 78 except 786 and
+      // 787, 79 of the years before 2025
+      createConfig('simplified', 'Autres produits', {
+        formCode: '230',
+        accountCodes: ['75', '781', '78', '79'],
+        excludedAccountCodes: ['755'],
+        balanceType: 'credit',
+        order: 7,
       }),
     ],
   }),
@@ -64,13 +100,15 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
     order: 2,
   }),
 
-  // Quote-part résultat opérations en commun (755 produits)
+  // Opérations faites en commun (755): a 2052 line (GH) without a box on the
+  // 2033-B; kept apart so the résultat d'exploitation (270) stays the PCG's
   createConfig('simplified', 'Bénéfice attribué ou perte transférée', {
     section: 'produits',
     formCode: 'GH',
     accountCodes: ['755'],
     balanceType: 'credit',
     order: 3,
+    notes: 'La 2033-B n’a pas de case pour cette ligne de la 2052 : à reporter selon l’avis de votre expert-comptable.',
   }),
 
   // III - Produits financiers (form 280)
@@ -119,8 +157,8 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
     ],
   }),
 
-  // 2 - Résultat financier
-  createConfig('simplified', '2 - RÉSULTAT FINANCIER', {
+  // Subtotals the 2033-B does not print, kept for reading (2052 GV, GW, HI)
+  createConfig('simplified', 'Résultat financier (III - V), hors formulaire', {
     section: 'produits',
     lineType: 'sum',
     formCode: 'GV',
@@ -129,7 +167,7 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
   }),
 
   // 3 - Résultat courant avant impôts
-  createConfig('simplified', '3 - RÉSULTAT COURANT avant impôts', {
+  createConfig('simplified', 'Résultat courant avant impôts, hors formulaire', {
     section: 'produits',
     lineType: 'sum',
     formCode: 'GW',
@@ -147,7 +185,7 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
   }),
 
   // 4 - Résultat exceptionnel
-  createConfig('simplified', '4 - RÉSULTAT EXCEPTIONNEL', {
+  createConfig('simplified', 'Résultat exceptionnel (IV - VI), hors formulaire', {
     section: 'produits',
     lineType: 'sum',
     formCode: 'HI',
@@ -165,62 +203,91 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
     balanceType: 'auto',
     order: 9,
     children: [
-      // Achats et autres charges externes : 601, 602, 603, 604, 605, 606, 607, 608, (609), 61 [sauf 619], (619), 62 [sauf 629], (629)
-      createConfig('simplified', 'Achats et autres charges externes', {
+      // 2033-B lines 234 to 262 (notice 2033-NOT-SD 2026)
+      createConfig('simplified', 'Achats de marchandises (y compris droits de douane)', {
         formCode: '234',
-        accountCodes: ['60', '61', '62'],
+        accountCodes: ['607', '6087', '6097'],
         balanceType: 'debit',
         order: 1,
+      }),
+      createConfig('simplified', 'Variation de stock (marchandises)', {
+        formCode: '236',
+        accountCodes: ['6037'],
+        balanceType: 'debit',
+        order: 2,
+      }),
+      createConfig('simplified', 'Achats de matières premières et autres approvisionnements', {
+        formCode: '238',
+        accountCodes: ['601', '602', '6081', '6082', '6091', '6092'],
+        balanceType: 'debit',
+        order: 3,
+      }),
+      createConfig('simplified', 'Variation de stock (matières premières et approvisionnements)', {
+        formCode: '240',
+        accountCodes: ['6031', '6032', '603'],
+        balanceType: 'debit',
+        order: 4,
+      }),
+      createConfig('simplified', 'Autres charges externes', {
+        formCode: '242',
+        accountCodes: ['604', '605', '606', '608', '609', '60', '61', '62'],
+        balanceType: 'debit',
+        order: 5,
       }),
       createConfig('simplified', 'Impôts, taxes et versements assimilés', {
         formCode: '244',
         accountCodes: ['63'],
         balanceType: 'debit',
-        order: 2,
+        order: 6,
       }),
-      // Salaires : 641, 644, 648, 649 (64 catches the other personnel accounts)
-      createConfig('simplified', 'Salaires', {
+      // Rémunérations du personnel: 641, 644, 648, 649 (64 catches the other personnel accounts)
+      createConfig('simplified', 'Rémunérations du personnel', {
         formCode: '250',
         accountCodes: ['641', '644', '648', '649', '64'],
         balanceType: 'debit',
-        order: 3,
+        order: 7,
       }),
       createConfig('simplified', 'Cotisations sociales', {
         formCode: '252',
         // 645, 646 (cotisations personnelles de l'exploitant), 647
         accountCodes: ['645', '646', '647'],
         balanceType: 'debit',
-        order: 4,
+        order: 8,
       }),
-      createConfig('simplified', 'Dotations aux amortissements et aux dépréciations', {
+      // 254 holds the depreciation only (dérogatoire excluded: line 300);
+      // 256 was renamed "Dotations aux dépréciations" in 2026 and keeps the
+      // operating provisions it held as "Dotations aux provisions".
+      createConfig('simplified', 'Dotations aux amortissements', {
         formCode: '254',
-        accountCodes: ['6811', '6816', '6817', '681', '68'],
+        accountCodes: ['6811', '681', '68'],
         balanceType: 'debit',
-        order: 5,
+        order: 9,
       }),
-      createConfig('simplified', 'Dotations aux provisions', {
+      createConfig('simplified', 'Dotations aux dépréciations et aux provisions', {
         formCode: '256',
-        accountCodes: ['6815'],
+        accountCodes: ['6815', '6816', '6817'],
         balanceType: 'debit',
-        order: 6,
+        order: 10,
       }),
+      // 65 (657 cessions included) except 655
       createConfig('simplified', 'Autres charges', {
         formCode: '262',
         accountCodes: ['65'],
         excludedAccountCodes: ['655'],
         balanceType: 'debit',
-        order: 7,
+        order: 11,
       }),
     ],
   }),
 
-  // Quote-part résultat opérations en commun (655 charges)
+  // Opérations faites en commun (655): 2052 line GI, no box on the 2033-B
   createConfig('simplified', 'Perte supportée ou bénéfice transféré', {
     section: 'charges',
     formCode: 'GI',
     accountCodes: ['655'],
     balanceType: 'debit',
     order: 10,
+    notes: 'La 2033-B n’a pas de case pour cette ligne de la 2052 : à reporter selon l’avis de votre expert-comptable.',
   }),
 
   // V - Charges financières (form 294)
@@ -268,13 +335,14 @@ export const SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026: IncomeStatementRootEntry[]
     order: 12,
   }),
 
-  // Participation des salariés aux résultats
-  createConfig('simplified', 'Participations des salariés aux résultats', {
+  // Participation des salariés (691): 2053 line HJ, no box on the 2033-B
+  createConfig('simplified', 'Participation des salariés aux résultats', {
     section: 'charges',
     formCode: 'HJ',
     accountCodes: ['691'],
     balanceType: 'debit',
     order: 13,
+    notes: 'La 2033-B n’a pas de case pour cette ligne de la 2052 : à reporter selon l’avis de votre expert-comptable.',
   }),
 
   // VII - Impôt sur les bénéfices (form 306)

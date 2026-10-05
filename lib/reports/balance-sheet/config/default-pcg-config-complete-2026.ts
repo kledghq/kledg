@@ -173,11 +173,14 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
           }),
 
           // Fonds commercial
-          createConfig('complete', 'Fonds commercial (1)', {
+          // With the droit au bail (206): the PCG list groups 206 with 207, the 2025
+          // form had "(1) dont droit au bail" on this line and the 2033 notice says
+          // line 010 "comprend notamment le droit au bail" (renvoi dropped in 2026).
+          createConfig('complete', 'Fonds commercial', {
             formCode: 'AH',
             amortissementFormCode: 'AI',
-            accountCodes: ['207'],
-            amortissementAccountCodes: ['2807', '2907'],
+            accountCodes: ['206', '207'],
+            amortissementAccountCodes: ['2806', '2807', '2906', '2907'],
             balanceType: 'debit',
             displayType: 'brut_amort_net',
             order: 8,
@@ -187,8 +190,8 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
           createConfig('complete', 'Autres immobilisations incorporelles', {
             formCode: 'AJ',
             amortissementFormCode: 'AK',
-            accountCodes: ['206', '208', '20'],
-            amortissementAccountCodes: ['2806', '2808', '2906', '2908', '280', '290'],
+            accountCodes: ['208', '20'],
+            amortissementAccountCodes: ['2808', '2908', '280', '290'],
             balanceType: 'debit',
             displayType: 'brut_amort_net',
             order: 9,
@@ -316,7 +319,7 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
             formCode: 'BD',
             amortissementFormCode: 'BE',
             accountCodes: ['271', '272', '27682', '277'],
-            amortissementAccountCodes: ['2971', '2972', '2974'],
+            amortissementAccountCodes: ['2971', '2972'],
             balanceType: 'debit',
             displayType: 'brut_amort_net',
             order: 21,
@@ -327,7 +330,7 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
             formCode: 'BF',
             amortissementFormCode: 'BG',
             accountCodes: ['274', '27684'],
-            amortissementAccountCodes: ['2975', '2976'],
+            amortissementAccountCodes: ['2974'],
             balanceType: 'debit',
             displayType: 'brut_amort_net',
             order: 22,
@@ -587,22 +590,28 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
         order: 49,
       }),
 
-      // Écarts de réévaluation
+      // Écarts de réévaluation (DC), "dont écart d'équivalence" (EK) on the
+      // 2051: the écart d'équivalence (107) is part of DC, EK details it
       createConfig('complete', 'Écarts de réévaluation', {
         formCode: 'DC',
-        accountCodes: ['105'],
-        balanceType: 'credit',
-        displayType: 'net',
+        lineType: 'sum',
+        balanceType: 'auto',
         order: 50,
-      }),
-
-      // Écart d’équivalence
-      createConfig('complete', 'Écart d’équivalence', {
-        formCode: 'EK',
-        accountCodes: ['107'],
-        balanceType: 'credit',
-        displayType: 'net',
-        order: 50,
+        children: [
+          createConfig('complete', 'Écarts de réévaluation (hors écart d’équivalence)', {
+            accountCodes: ['105'],
+            balanceType: 'credit',
+            displayType: 'net',
+            order: 1,
+          }),
+          createConfig('complete', 'dont écart d’équivalence', {
+            formCode: 'EK',
+            accountCodes: ['107'],
+            balanceType: 'credit',
+            displayType: 'net',
+            order: 2,
+          }),
+        ],
       }),
 
       // Réserve légale (3)
@@ -692,7 +701,7 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
       // Produit des émissions de titres participatifs
       createConfig('complete', 'Produit des émissions de titres participatifs', {
         formCode: 'DM',
-        accountCodes: [],
+        accountCodes: ['16711'],
         balanceType: 'credit',
         displayType: 'net',
         order: 61,
@@ -705,6 +714,15 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
         balanceType: 'credit',
         displayType: 'net',
         order: 62,
+      }),
+
+      // Droits du concédant (229): "autres fonds propres" in the PCG model
+      // (art. 821-1); the 2051 has no box of their own, they add up into DO
+      createConfig('complete', 'Droits du concédant', {
+        accountCodes: ['229'],
+        balanceType: 'credit',
+        displayType: 'net',
+        order: 63,
       }),
     ],
   }),
@@ -747,8 +765,8 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
     balanceType: 'auto',
     order: 68,
     children: [
-      // Emprunts obligatoires convertibles
-      createConfig('complete', 'Emprunts obligatoires convertibles', {
+      // Emprunts obligataires convertibles
+      createConfig('complete', 'Emprunts obligataires convertibles', {
         formCode: 'DS',
         accountCodes: ['161'],
         balanceType: 'credit',
@@ -756,8 +774,8 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
         order: 69,
       }),
 
-      // Autres emprunts obligatoires
-      createConfig('complete', 'Autres emprunts obligatoires', {
+      // Autres emprunts obligataires
+      createConfig('complete', 'Autres emprunts obligataires', {
         formCode: 'DT',
         accountCodes: ['163'],
         balanceType: 'credit',
@@ -777,7 +795,9 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
       // Emprunts et dettes financières divers
       createConfig('complete', 'Emprunts et dettes financières divers', {
         formCode: 'DV',
-        accountCodes: ['165', '166', '168', '17', '16'],
+        // 45 (C) and 426: comptes courants d'associés and personnel deposits are
+        // financial debts in the PCG list of the model (2051 practice: DV)
+        accountCodes: ['165', '166', '168', '17', '16', '426', '45'],
         excludedAccountCodes: ['167', '169'],
         balanceType: 'credit',
         displayType: 'net',
@@ -814,7 +834,7 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
       // Dettes fiscales et sociales
       createConfig('complete', 'Dettes fiscales et sociales', {
         formCode: 'DY',
-        accountCodes: ['421', '422', '424', '426', '427', '428', '431', '437', '438', '42', '43', '44'],
+        accountCodes: ['421', '422', '424', '427', '428', '431', '437', '438', '42', '43', '44'],
         balanceType: 'credit',
         displayType: 'net',
         order: 76,
@@ -832,7 +852,7 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
       // Autres dettes
       createConfig('complete', 'Autres dettes', {
         formCode: 'EA',
-        accountCodes: ['4196', '4197', '4198', '41', '45', '46', '47', '48', '18', '58', '509'],
+        accountCodes: ['4196', '4197', '4198', '41', '46', '47', '48', '18', '58', '509'],
         balanceType: 'credit',
         displayType: 'net',
         order: 78,
@@ -854,6 +874,7 @@ export const COMPLETE_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntry[
   createConfig('complete', 'Écart de conversion passif et différences d\'évaluation', {
     section: 'passif',
     lineType: 'line',
+    formCode: 'ED',
     accountCodes: ['475', '477'],
     balanceType: 'credit',
     order: 81,

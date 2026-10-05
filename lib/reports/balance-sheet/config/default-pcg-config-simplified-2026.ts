@@ -36,15 +36,6 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
   // ========== ACTIF ==========
   // Pas de wrapper : racines = Capital souscrit, Actif immobilisé, Actif circulant, Comptes de régularisation
 
-  createConfig('simplified', 'Capital souscrit non appelé', {
-    section: 'actif',
-    formCode: '109',
-    accountCodes: ['109'],
-    balanceType: 'debit',
-    displayType: 'net',
-    order: 1,
-  }),
-
   createConfig('simplified', 'Actif immobilisé', {
     section: 'actif',
     lineType: 'sum',
@@ -56,16 +47,6 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
     order: 2,
     notes: '(5) Coût de revient / Prix de vente hors TVA (renvois 182, 184)',
     children: [
-      // Frais d'établissement: 201 | 2801, 2901
-      createConfig('simplified', 'Frais d\'établissement', {
-        formCode: '201',
-        amortissementFormCode: '201',
-        accountCodes: ['201'],
-        amortissementAccountCodes: ['2801', '2901'],
-        balanceType: 'debit',
-        displayType: 'brut_amort_net',
-        order: 2,
-      }),
       createConfig('simplified', 'Immobilisations incorporelles', {
         lineType: 'sum',
         accountCodes: [],
@@ -73,20 +54,23 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
         displayType: 'brut_amort_net',
         order: 3,
         children: [
-          // Fonds commercial: 207 | 2807, 2907
+          // Fonds commercial: 206, 207 | 2806, 2807, 2906, 2907. Notice 2033-NOT-SD
+          // 2026, line 010: "Il comprend notamment le droit au bail."
           createConfig('simplified', 'Fonds commercial', {
             formCode: '010',
-            amortissementFormCode: '010',
-            accountCodes: ['207'],
-            amortissementAccountCodes: ['2807', '2907'],
+            amortissementFormCode: '012',
+            accountCodes: ['206', '207'],
+            amortissementAccountCodes: ['2806', '2807', '2906', '2907'],
             balanceType: 'debit',
             displayType: 'brut_amort_net',
             order: 4,
           }),
-          // Autres: 20 [sauf 201, 207], 232, 237 | 280, 290 [sauf 2801, 2807, 2901, 2907], 2932
+          // Autres: 20 [sauf 206, 207], 232, 237 | 280, 290, 2932. The 2033-A has no
+          // line for frais d'établissement (201): they are other intangible
+          // assets here (notice, line 014: développement, concessions, avances)
           createConfig('simplified', 'Autres', {
             formCode: '014',
-            amortissementFormCode: '014',
+            amortissementFormCode: '016',
             accountCodes: ['20', '232', '237'],
             amortissementAccountCodes: ['280', '290', '2932'],
             balanceType: 'debit',
@@ -190,7 +174,10 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
           createConfig('simplified', 'Autres', {
             formCode: '072',
             amortissementFormCode: '074',
-            accountCodes: ['18', '40', '42', '43', '44', '45', '46', '47', '48', '52', '58'],
+            // Notice, line 072: "personnel, organismes sociaux, État, associés,
+            // débiteurs divers". The 2033-A has no line for the capital souscrit
+            // non appelé (109) nor for the écarts de conversion actif (474, 476).
+            accountCodes: ['18', '40', '42', '43', '44', '45', '46', '47', '48', '52', '58', '109'],
             amortissementAccountCodes: ['49'],
             balanceType: 'debit',
             displayType: 'brut_amort_net',
@@ -223,21 +210,13 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
       createConfig('simplified', 'Charges constatées d\'avance *', {
         formCode: '092',
         amortissementFormCode: '094',
-        accountCodes: ['486', '4886'],
+        // With the deferred borrowing costs (481, 169): no line of their own on the 2033-A
+        accountCodes: ['486', '4886', '481', '169'],
         balanceType: 'debit',
         displayType: 'net',
         order: 18,
       }),
     ],
-  }),
-
-  createConfig('simplified', 'Comptes de régularisation', {
-    section: 'actif',
-    formCode: '093',
-    accountCodes: ['169', '474', '476', '481'],
-    balanceType: 'debit',
-    displayType: 'net',
-    order: 4,
   }),
 
   // ========== PASSIF ==========
@@ -255,14 +234,8 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
       // Capital: 101, 108 (10 catches 102 and the other 10 accounts)
       createConfig('simplified', 'Capital social ou individuel', {
         formCode: '120',
-        accountCodes: ['101', '108', '10'],
-        balanceType: 'credit',
-        displayType: 'net',
-        order: 21,
-      }),
-      createConfig('simplified', 'Primes d\'émission, de fusion, d\'apport', {
-        formCode: '122',
-        accountCodes: ['104'],
+        // 104 (primes): the 2033-A has no line for them
+        accountCodes: ['101', '104', '108', '10'],
         balanceType: 'credit',
         displayType: 'net',
         order: 21,
@@ -325,13 +298,6 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
         displayType: 'net',
         order: 29,
       }),
-      createConfig('simplified', 'Autres fonds propres', {
-        formCode: '141',
-        accountCodes: ['167', '229'],
-        balanceType: 'credit',
-        displayType: 'net',
-        order: 30,
-      }),
     ],
   }),
 
@@ -372,8 +338,10 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
       // Emprunts et dettes assimilées: 16 [sauf 167 et 169], 17, 51 (C)
       createConfig('simplified', 'Emprunts et dettes assimilées', {
         formCode: '156',
+        // 167 (fonds non remboursables, avances conditionnées): no "autres fonds
+        // propres" on the 2033-A
         accountCodes: ['16', '17', '51'],
-        excludedAccountCodes: ['167', '169'],
+        excludedAccountCodes: ['169'],
         balanceType: 'credit',
         displayType: 'net',
         order: 34,
@@ -413,7 +381,9 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
       // 52 (C), 58 (C)
       createConfig('simplified', 'Autres dettes', {
         formCode: '175',
-        accountCodes: ['269', '279', '404', '405', '4084', '41', '45', '46', '47', '18', '48', '509', '52', '58'],
+        // 229 (droits du concédant) and the écarts de conversion passif (475,
+        // 477): no line of their own on the 2033-A
+        accountCodes: ['269', '279', '404', '405', '4084', '41', '45', '46', '47', '18', '48', '509', '52', '58', '229'],
         balanceType: 'credit',
         displayType: 'net',
         order: 39,
@@ -426,14 +396,5 @@ export const SIMPLIFIED_BALANCE_SHEET_CONFIG_2026: DefaultBalanceSheetConfigEntr
         order: 40,
       }),
     ],
-  }),
-
-  createConfig('simplified', 'Comptes de régularisation', {
-    section: 'passif',
-    formCode: '177',
-    accountCodes: ['475', '477'],
-    balanceType: 'credit',
-    displayType: 'net',
-    order: 8,
   }),
 ]
