@@ -42,6 +42,7 @@ import { registerFinancialIndicatorTools } from '@/lib/mcp/financial-indicator-t
 import { registerYearEndReadTools } from '@/lib/mcp/year-end-tools'
 import { registerApprovalReadTools } from '@/lib/mcp/approval-tools'
 import { registerDeadlineReadTools } from '@/lib/mcp/deadline-tools'
+import { registerCashForecastTools } from '@/lib/mcp/cash-forecast-tools'
 import { registerVatReturnReadTools } from '@/lib/mcp/vat-return-tools'
 import { registerCorporateTaxReadTools } from '@/lib/mcp/corporate-tax-tools'
 import { registerLocalTaxReadTools } from '@/lib/mcp/local-tax-tools'
@@ -723,6 +724,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerYearEndReadTools(server, guard)
   registerApprovalReadTools(server, guard)
   registerDeadlineReadTools(server, guard)
+  registerCashForecastTools(server, guard)
   registerVatReturnReadTools(server, guard)
   registerCorporateTaxReadTools(server, access, guard)
   registerLocalTaxReadTools(server, guard)

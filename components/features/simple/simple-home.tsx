@@ -43,6 +43,10 @@ import {
 } from "@/components/shared";
 import { initials } from "@/components/layout/initials";
 import { cn } from "@/lib/utils";
+import {
+  CashForecastAlertCard,
+  forecastPath,
+} from "@/components/features/cash-forecast/cash-forecast-alert";
 
 const euros = (cents: number) => cents / 100;
 
@@ -125,8 +129,8 @@ function todoItems(home: SimpleHomeData, base: string): TodoItem[] {
 
 /**
  * The simple home (docs/mode-simple.md), as in the approved mockup: a
- * greeting, four figures in plain words, the "À faire" list and the
- * accountant. Renders only the parts the user's roles may read (null data).
+ * greeting, four figures in plain words, the cash alert when the forecast
+ * goes under the company's minimum, the "À faire" list and the accountant. Renders only the parts the user's roles may read (null data).
  * Every sentence comes from lib/simple/vocabulary.ts.
  */
 export function SimpleHome({
@@ -240,6 +244,14 @@ export function SimpleHome({
           />
         ) : null}
       </section>
+
+      {home.cashAlert ? (
+        <CashForecastAlertCard
+          alert={home.cashAlert}
+          mode="simple"
+          href={forecastPath(companySlug)}
+        />
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">

@@ -20,6 +20,9 @@
  * - Impôt sur les sociétés estimé: the IS of the fiscal year from its
  *   entries so far, as the worksheet computes it (lib/corporate-tax), shown
  *   as an estimate; nothing for a company at the impôt sur le revenu.
+ * - Cash alert: the threshold alert of the cash forecast (lib/cash-forecast),
+ *   the same as the dashboard's, when the company saved a threshold and the
+ *   projection goes under it within the horizon.
  *
  * Each part is loaded only when the user's roles may read it (the same
  * permissions as the dashboard sources and their routes); otherwise it is
@@ -59,6 +62,9 @@ import { simpleValidationSummary } from "./simple-validation.service";
 import { addIsoDays, calendarDayOf, todayUtc, utcDate } from "@/lib/utils/date";
 import { cfeSchedule } from "@/lib/local-taxes/cfe";
 import { parseCents } from "@/lib/utils/money";
+import { getCashForecastAlert } from "@/lib/cash-forecast/load-cash-forecast.service";
+import { CASH_FORECAST_PERMISSION } from "@/lib/cash-forecast/permissions";
+import type { CashForecastAlert } from "@/lib/cash-forecast/alert";
 import {
   countExpensesToCheck,
   countIncomeToCheck,
@@ -120,6 +126,12 @@ export interface SimpleHome {
    * to IS (impôt sur le revenu) or its regime is not set.
    */
   corporateTax: { estimateCents: number; reducedRate: boolean } | null;
+  /**
+   * The cash forecast goes under the company's threshold within its horizon
+   * (docs/prevision-tresorerie.md); null without reports:read and
+   * banking:read, without a threshold, or when it stays above.
+   */
+  cashAlert: CashForecastAlert | null;
   todo: {
     /** Null without banking:read. */
     expensesToCheck: number | null;
@@ -393,6 +405,7 @@ export async function loadSimpleHome(
     accountants,
     validation,
     corporateTax,
+    cashAlert,
   ] = await Promise.all([
     canBank ? loadBank(companyId, todayDate, ctx) : skip<SimpleHome["bank"]>(),
     canReports && fy
@@ -424,6 +437,9 @@ export async function loadSimpleHome(
     canReports && fy
       ? estimateCorporateTax(companyId, fy.id, ctx.now)
       : skip<Awaited<ReturnType<typeof estimateCorporateTax>>>(),
+    ctx.can(CASH_FORECAST_PERMISSION)
+      ? getCashForecastAlert(companyId, ctx.now)
+      : skip<CashForecastAlert>(),
   ]);
   const deadline = deadlines?.vat ?? null;
 
@@ -457,6 +473,7 @@ export async function loadSimpleHome(
           reducedRate: corporateTax.reducedRate,
         }
       : null,
+    cashAlert,
     todo: {
       expensesToCheck,
       incomeToCheck,

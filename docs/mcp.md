@@ -145,6 +145,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_tiers_flows` | Flux d'un exercice avec les clients et les fournisseurs (diagramme de la page Tiers) : montant TTC facturé à chaque client et par chaque fournisseur, avoirs déduits, écritures validées seulement, hors règlements et à-nouveaux, total et part de chacun ; droit `reports:read` |
 | `list_doubtful_receivables` | Clients en retard à la clôture au-delà de 30, 60 ou 90 jours, candidats à une dépréciation, avec la dépréciation déjà suivie ; droit `reports:read` |
 | `list_tax_deadlines` | Échéances fiscales et juridiques d'un exercice (TVA, IS, liasse, CFE, CVAE, approbation et dépôt), jours restants, règle et sources officielles ; dates seulement, les statuts sont dans `list_declarations_status` ; droit `reports:read` |
+| `get_cash_forecast` | Prévision de trésorerie sur 3, 6 ou 12 mois, par mois ou par semaine ([prévision de trésorerie](prevision-tresorerie.md)) : solde du jour (banques, sinon comptes 512), factures clients et fournisseurs ouvertes à leur échéance, échéances fiscales au montant connu, paiements récurrents, et en hypothèses le budget et le rythme récent ; chaque période avec le détail par composante, le solde le plus bas, le seuil d'alerte et le premier jour sous le seuil ; une projection, pas une garantie ; droits `reports:read` et `banking:read` |
 | `get_vat_return` | Déclaration de TVA préparée d'une période (CA3 ou CA12, la prochaine due par défaut) : chaque ligne avec son numéro et sa case, montants des comptes et euros à saisir, lignes calculées ou à remplir à la main, montant dû ou crédit, échéance, contrôles et fiabilité des chiffres, écriture de liquidation, dépôt enregistré, sources ([déclarations de TVA](declarations-tva.md)) ; ne dépose rien ; droit `reports:read` |
 | `get_corporate_tax` | Impôt sur les sociétés préparé d'un exercice (celui dont le solde est dû par défaut, ou celui d'une échéance du calendrier) : résultat fiscal ligne par ligne avec la ligne de la 2033-B ou de la 2058-A (réintégrations lues dans les comptes, dividendes de filiales, lignes à la main), déficits et leur historique, taux de 15 % et 25 % avec les conditions du taux réduit, contribution sociale, crédits, solde du relevé 2572 et sa date, acomptes 2571 de l'exercice suivant, contrôles, sources ([impôt sur les sociétés](impot-societes.md)) ; ne dépose rien ; droit `reports:read` |
 | `get_local_taxes` | Impôts locaux d'une année ([impôts locaux](impots-locaux.md)) : CFE d'après l'avis saisi (situation de l'année de création, acompte du 15 juin et solde, charge prévue au 63511 par mois, cotisation minimum), CVAE calculée sur la valeur ajoutée des comptes et les ajustements (statut de l'année, taux maximal, seuils de 152 500 € et 500 000 €, taux effectif, dégrèvement, franchise, contribution complémentaire de 2025, acomptes), estimation du plafonnement, échéances avec leur statut, sources ; droit `reports:read` |
@@ -156,7 +157,7 @@ Le nettoyage est fait par la base de données (déclencheurs sur la table des au
 | `get_ledger_report` | Grand livre (par compte, solde d'ouverture, lignes avec solde progressif, solde de clôture ; filtre par début de compte) ou journal (écritures par journal avec totaux) d'une période, 1 000 lignes au plus ; droit `reports:read` |
 | `list_fixed_assets` | Immobilisations avec comptes, valeurs, plan d'amortissement et totaux ; une immobilisation avec ses amortissements, l'état de ses dotations par exercice, les écritures auxquelles lier un amortissement ; droit `entries:read` |
 | `list_expense_category_rules` | Règles de mots-clés qui donnent la catégorie (et le compte) des lignes de notes de frais ; droit `entries:read` |
-| `get_company_settings` | Une section des paramètres de la société : fiche, établissements, membres, personnes, une personne (toutes ses données et ses liens, RGPD art. 15 et 20), associés, délai de paiement, options de TVA, mode simple, calendrier des échéances, régimes fiscaux, adresses ; logos et photos remplacés par leur présence ; droit `settings:read` |
+| `get_company_settings` | Une section des paramètres de la société : fiche, établissements, membres, personnes, une personne (toutes ses données et ses liens, RGPD art. 15 et 20), associés, délai de paiement, options de TVA, mode simple, calendrier des échéances, prévision de trésorerie (seuil, horizon, composantes), régimes fiscaux, adresses ; logos et photos remplacés par leur présence ; droit `settings:read` |
 | `get_statement_layout` | Mise en page du bilan ou du compte de résultat (lignes, comptes, sens, ordre), une ligne, l'historique d'une ligne du bilan, les modèles du bilan ; droit `settings:read` |
 | `get_transaction_details` | Ce qu'il faut pour traiter une transaction bancaire : ligne de banque, exercices, contreparties proposées, règles qui la reconnaissent, règle qu'elle suggère ; droit `banking:read` |
 | `simulate_rule` | L'écriture qu'une règle d'affectation (enregistrée ou en cours d'écriture) passerait pour une transaction d'exemple, sans rien écrire ; droit `banking:read` |
@@ -236,7 +237,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `manage_journals` | Modifier ou supprimer un journal sans écriture, rétablir les journaux par défaut | `ledger:manage` | Oui (suppression) |
 | `manage_fiscal_years` | Créer un exercice, changer les dates d'un exercice ouvert, supprimer un exercice ouvert sans écriture, clôturer les périodes jusqu'à un jour (PCG art. 1031-4) | `ledger:manage`, plus `closing:execute` pour la clôture des périodes | Oui (suppression, clôture des périodes) |
 | `import_accounting_file` | Importer un FEC, un CSV ou un Excel d'écritures (base64, 5 Mo au plus) ; l'aperçu donne les exercices du FEC | `entries:create` et `ledger:manage` | Oui |
-| `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances | `settings:update` | Oui |
+| `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances, seuil et réglages de la prévision de trésorerie | `settings:update` | Oui |
 | `manage_company_records` | Établissements, personnes (création, rectification, effacement dans les limites de la conservation légale, RGPD art. 16 et 17), associés, régimes fiscaux, adresses | `settings:update` | Oui |
 | `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles) | `settings:update` | Oui |
 | `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
@@ -345,6 +346,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Mode simple, dépenses et recettes à vérifier ([catégories simples](categories-simples.md)) | `list_expenses_to_review` | `accept_expense_suggestion`, `accept_all_expense_suggestions` (brouillons) | `validate_entries`, `upload_receipt`, `update_company_settings` (réglage de validation) | |
 | Justificatifs manquants | `list_missing_receipts` | | `upload_receipt` (Qonto) | |
 | Échéances fiscales et juridiques | `list_tax_deadlines` | | `update_company_settings` (réglages du calendrier) | |
+| Prévision de trésorerie ([prévision de trésorerie](prevision-tresorerie.md)) | `get_cash_forecast`, `get_company_settings` (seuil) | | `update_company_settings` (seuil, horizon, composantes) | Export CSV |
 | Déclarations de TVA ([déclarations de TVA](declarations-tva.md)) | `get_vat_return` | `prepare_vat_settlement` (brouillon), `record_tax_filing` (dépôt enregistré) | `validate_entries` | Déposer et payer (sur impots.gouv.fr), exports PDF et CSV |
 | Impôt sur les sociétés ([impôt sur les sociétés](impot-societes.md)) | `get_corporate_tax` | `prepare_corporate_tax_entry` (brouillon), `save_corporate_tax_inputs` (taux réduit, déficits, lignes à la main, acomptes versés), `record_tax_filing` | `validate_entries` | Déclarer et payer (sur impots.gouv.fr), exports PDF et CSV |
 | Impôts locaux ([impôts locaux](impots-locaux.md)) | `get_local_taxes` | `save_local_taxes`, `prepare_cfe_entry` (brouillon) | | Exports PDF et CSV, payer (sur impots.gouv.fr) |
@@ -368,9 +370,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 201 | 157 | 44 |
-| Lectures (GET) | 147 | 103 | 44 |
-| Total | 348 | 260 | 88 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 205 | 161 | 44 |
+| Lectures (GET) | 164 | 118 | 46 |
+| Total | 369 | 279 | 90 |
 
 ### Exclusions
 
@@ -381,12 +383,12 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Accès des assistants | Accès des assistants (clés API, autorisations, mode d'exécution) ; un assistant ne peut pas modifier ses propres droits. | 4 (3) |
 | Approbation des actions IA | Approbation des actions IA, réservée à la session et au mot de passe de l'utilisateur dans Kledg (mode validation) ; un assistant ne peut pas approuver. | 2 (1) |
 | Serveur MCP | Le serveur MCP lui-même. | 3 (2) |
-| Tâches planifiées | Tâche planifiée appelée par la plateforme avec son secret, jamais par un utilisateur. | 2 (0) |
+| Tâches planifiées | Tâche planifiée appelée par la plateforme avec son secret, jamais par un utilisateur. | 3 (0) |
 | Disponibilité | Sonde de disponibilité de l'instance, sans donnée. | 1 (0) |
 | Administration de l'instance | Administration de l'instance (utilisateurs, mises à jour, messagerie), hors de toute société ; reste dans les pages d'administration. | 13 (9) |
 | Cycle de vie des sociétés | Création, archivage, restauration ou suppression d'une société : hors du périmètre d'une connexion (définie société par société), soumis à la politique de l'instance et à la conservation des livres (10 ans). | 4 (4) |
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
-| Exports de fichiers | Export d'un fichier (PDF, Excel, CSV) ; l'assistant lit les mêmes données avec l'outil de lecture correspondant. | 12 (0) |
+| Exports de fichiers | Export d'un fichier (PDF, Excel, CSV) ; l'assistant lit les mêmes données avec l'outil de lecture correspondant. | 13 (0) |
 | Téléchargements | Téléchargement d'un fichier (pièce jointe, justificatif) du prestataire ou de Kledg. | 3 (0) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
@@ -461,6 +463,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/budgets/[id]` | budgets:manage | `delete_budget_items` (CT) |
 | `GET /api/budgets` | reports:read | `list_budgets` (L) |
 | `POST /api/budgets` | budgets:manage | `create_budget` (B) |
+| `GET /api/cash-forecast` | reports:read, banking:read | `get_cash_forecast` (L) |
+| `GET /api/cash-forecast/alert` | reports:read, banking:read | `get_cash_forecast` (L) ; l'alerte de seuil du tableau de bord est le champ alert de get_cash_forecast. |
+| `GET /api/cash-forecast/export` | reports:export, banking:read | Exclu : exports de fichiers |
 | `POST /api/companies/[id]/archive` | administrateur de l’instance | Exclu : cycle de vie des sociétés |
 | `DELETE /api/companies/[id]/archive` | administrateur de l’instance | Exclu : cycle de vie des sociétés |
 | `GET /api/companies/[id]/balance-sheet/compare` | reports:read | `get_balance_sheet` (L) ; Un appel par exercice. |
@@ -485,6 +490,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/companies/[id]/corporate-tax/filing` | entries:create | `record_tax_filing` (B) |
 | `PUT /api/companies/[id]/corporate-tax/inputs` | entries:create | `save_corporate_tax_inputs` (B) |
 | `GET /api/companies/[id]/corporate-tax` | reports:read | `get_corporate_tax` (L) |
+| `GET /api/companies/[id]/cash-forecast-settings` | settings:read | `get_company_settings` (L) |
+| `PUT /api/companies/[id]/cash-forecast-settings` | settings:update | `update_company_settings` (CT) |
 | `GET /api/companies/[id]/deadline-settings` | settings:read | `get_company_settings` (L) |
 | `PUT /api/companies/[id]/deadline-settings` | settings:update | `update_company_settings` (CT) |
 | `PUT /api/companies/[id]/declarations/status` | entries:create | `mark_declaration` (B) |

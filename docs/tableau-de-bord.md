@@ -47,6 +47,10 @@ complète est `app/(company)/[companyId]/echeances` (`GET /api/deadlines`). Chaq
 échéance porte son statut (déposée, payée, en retard, non due) d'après le
 suivi des déclarations ([échéances](echeances.md)).
 
+## Alerte de trésorerie
+
+Quand la société a enregistré un seuil de trésorerie et que la [prévision de trésorerie](prevision-tresorerie.md) passe dessous dans son horizon, une carte d'alerte s'affiche au-dessus des widgets, quelle que soit la disposition, avec le jour, le solde prévu et un lien vers la prévision (`GET /api/cash-forecast/alert`, droits `reports:read` et `banking:read`). Rien ne s'affiche sans seuil, au-dessus du seuil, ou pour un membre qui ne peut pas lire la banque.
+
 ## Dispositions par défaut
 
 | Profil | Rôles | Contenu |
