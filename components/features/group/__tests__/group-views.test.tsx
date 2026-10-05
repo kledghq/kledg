@@ -252,6 +252,10 @@ describe('Trésorerie', () => {
     expect(plain(row.textContent)).toContain('25 000,00 €')
     const trade = within(owes).getByRole('row', { name: /Factures à régler/ })
     expect(plain(trade.textContent)).toContain('200,00 €')
+    // One colour per kind of flow, named in a legend that lists only the kinds shown.
+    const legends = screen.getAllByRole('list', { name: 'Légende des flux' })
+    expect(legends.some((l) => within(l).queryByText('Avances en compte courant'))).toBe(true)
+    for (const legend of legends) for (const item of within(legend).getAllByRole('listitem')) expect(item.querySelector('span')?.getAttribute('style')).toContain('--chart-flow-')
   })
 })
 

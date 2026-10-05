@@ -16,9 +16,57 @@ import { Cents, ExportButtons, LoadError, Notice, PerimeterNotes, SectionIntro, 
  * money that went from one company of the group to another (management
  * fees, invoices, dividends over the year; loans, advances and unpaid
  * invoices at its end), as a flow diagram and as a table, from the flows
- * the vue combinée found (lib/group/flows.ts). One colour for every link:
- * the kind is written in the tooltip and the table, never told by colour.
+ * the vue combinée found (lib/group/flows.ts). Each kind of flow has its
+ * own colour (--chart-flow-*), named in the legend; the tooltip and the
+ * table also write the kind, so colour is never the only way to read it.
  */
+
+const FLOW_COLORS: Record<MoneyFlow['kind'], string> = {
+  dividend: 'var(--chart-flow-dividend)',
+  management_fee: 'var(--chart-flow-management-fee)',
+  invoice: 'var(--chart-flow-invoice)',
+  loan: 'var(--chart-flow-loan)',
+  current_account: 'var(--chart-flow-current-account)',
+  trade: 'var(--chart-flow-trade)',
+}
+
+interface LinkProps {
+  sourceX: number
+  targetX: number
+  sourceY: number
+  targetY: number
+  sourceControlX: number
+  targetControlX: number
+  linkWidth: number
+  payload: { kind?: MoneyFlow['kind'] }
+}
+
+function FlowLink({ sourceX, targetX, sourceY, targetY, sourceControlX, targetControlX, linkWidth, payload }: LinkProps) {
+  return (
+    <path
+      d={`M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`}
+      fill="none"
+      stroke={payload.kind ? FLOW_COLORS[payload.kind] : 'var(--chart-breakdown)'}
+      strokeWidth={linkWidth}
+      strokeOpacity={0.6}
+      data-kind={payload.kind}
+    />
+  )
+}
+
+function FlowLegend({ flows }: { flows: readonly MoneyFlow[] }) {
+  const kinds = (Object.keys(MONEY_FLOW_LABELS) as MoneyFlow['kind'][]).filter((kind) => flows.some((f) => f.kind === kind))
+  return (
+    <ul className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="Légende des flux">
+      {kinds.map((kind) => (
+        <li key={kind} className="flex items-center gap-1.5">
+          <span aria-hidden className="size-2.5 shrink-0 rounded-sm" style={{ background: FLOW_COLORS[kind] }} />
+          {MONEY_FLOW_LABELS[kind]}
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 interface NodeProps {
   x: number
@@ -65,19 +113,22 @@ export function FlowChart({ flows, names }: { flows: readonly MoneyFlow[]; names
   if (data.links.length === 0) return <p className="text-muted-foreground text-sm">Aucun flux entre les sociétés lues sur cet exercice.</p>
   const height = Math.max(220, Math.max(data.nodes.filter((n) => n.side === 'from').length, data.nodes.filter((n) => n.side === 'to').length) * 64)
   return (
-    <div style={{ height }} className="w-full" role="img" aria-label="Diagramme des flux entre les sociétés du groupe, détaillés dans le tableau ci-dessous">
-      <ResponsiveContainer width="100%" height="100%">
-        <Sankey
-          data={data}
-          nodeWidth={10}
-          nodePadding={28}
-          margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
-          node={(props: NodeProps) => <FlowNode {...props} />}
-          link={{ stroke: 'var(--chart-breakdown)', strokeOpacity: 0.45 }}
-        >
-          <Tooltip content={<FlowTooltip />} />
-        </Sankey>
-      </ResponsiveContainer>
+    <div className="space-y-3">
+      <div style={{ height }} className="w-full" role="img" aria-label="Diagramme des flux entre les sociétés du groupe, détaillés dans le tableau ci-dessous">
+        <ResponsiveContainer width="100%" height="100%">
+          <Sankey
+            data={data}
+            nodeWidth={10}
+            nodePadding={28}
+            margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+            node={(props: NodeProps) => <FlowNode {...props} />}
+            link={(props: LinkProps) => <FlowLink {...props} />}
+          >
+            <Tooltip content={<FlowTooltip />} />
+          </Sankey>
+        </ResponsiveContainer>
+      </div>
+      <FlowLegend flows={flows} />
     </div>
   )
 }

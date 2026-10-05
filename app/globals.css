@@ -161,6 +161,13 @@
   --chart-debit: var(--chart-debit-light, var(--chart-1));
   --chart-credit: var(--chart-credit-light, var(--base-500));
   --chart-balance: var(--chart-balance-light, var(--foreground));
+  /* Flows between the companies of a group, one hue per kind (lib/group/flows.ts). */
+  --chart-flow-dividend: oklch(0.56 0.14 152);
+  --chart-flow-management-fee: oklch(0.55 0.15 255);
+  --chart-flow-invoice: oklch(0.64 0.15 70);
+  --chart-flow-loan: oklch(0.54 0.18 300);
+  --chart-flow-current-account: oklch(0.58 0.11 195);
+  --chart-flow-trade: oklch(0.57 0.18 25);
   --sidebar: var(--base-50);
   --sidebar-foreground: var(--base-950);
   --sidebar-primary: var(--primary);
@@ -209,6 +216,12 @@
   --chart-debit: var(--chart-debit-dark, var(--chart-1));
   --chart-credit: var(--chart-credit-dark, var(--chart-2));
   --chart-balance: var(--chart-balance-dark, var(--foreground));
+  --chart-flow-dividend: oklch(0.72 0.15 152);
+  --chart-flow-management-fee: oklch(0.7 0.14 255);
+  --chart-flow-invoice: oklch(0.78 0.14 75);
+  --chart-flow-loan: oklch(0.7 0.16 300);
+  --chart-flow-current-account: oklch(0.75 0.11 195);
+  --chart-flow-trade: oklch(0.7 0.17 25);
   --sidebar: oklch(0.165 0 0);
   --sidebar-foreground: oklch(0.97 0 0);
   --sidebar-primary: var(--primary);
