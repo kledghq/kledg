@@ -208,7 +208,10 @@ describe.skipIf(!available)('approval of the accounts routes', () => {
     expect(first.status).toBe(200)
     const view = (await first.json()) as ApprovalView
     expect(view.saved).not.toBeNull()
-    expect(view.pack.documents.filter((d) => d.missing.length > 0).map((d) => [d.id, d.missing])).toEqual([])
+    // The annexe (lib/annexe) asks its own answers: a micro-entreprise only mentions commitments and advances (PCG art. 811-7)
+    expect(view.pack.documents.filter((d) => d.missing.length > 0 && d.id !== 'annexe').map((d) => [d.id, d.missing])).toEqual([])
+    expect(view.pack.documents.find((d) => d.id === 'annexe')).toMatchObject({ title: 'Informations à la suite du bilan', required: false })
+    expect(view.pack.documents.map((d) => d.id).slice(-2)).toEqual(['annexe', 'filing-checklist'])
     expect(view.pack.resolutions.every((r) => r.outcome.adopted === true)).toBe(true)
     expect(view.pack.deadlines).toMatchObject({ filing: '2026-07-15', filingBasis: 'approval' })
 

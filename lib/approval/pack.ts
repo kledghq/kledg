@@ -70,7 +70,8 @@ export interface ApprovalContext {
   draftEntries: number
 }
 
-export const DOCUMENT_IDS = ['convocation', 'management-report', 'decision', 'attendance', 'confidentiality', 'filing-checklist'] as const
+/** 'annexe' is added by get-approval.service.ts from lib/annexe (it reads the books, the pack is pure). */
+export const DOCUMENT_IDS = ['convocation', 'management-report', 'decision', 'attendance', 'confidentiality', 'annexe', 'filing-checklist'] as const
 export type DocumentId = (typeof DOCUMENT_IDS)[number]
 
 export interface PackDocument {
