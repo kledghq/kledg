@@ -9,7 +9,8 @@
  *   400 for an unknown horizon or component;
  * - GET and PUT /api/companies/[id]/cash-forecast-settings: read by every
  *   member, written by company administrators only, validated in French;
- * - the alert of the dashboard and of the simple home once a threshold is set.
+ * - the threshold status the dashboard and the simple home ask once displayed
+ *   (nothing computed without a threshold, none in the simple home's load).
  *
  * Skipped when the test database server is unreachable.
  */
@@ -28,9 +29,8 @@ vi.mock('@/lib/session', () => ({
 }))
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
-import type { CashForecastView } from '../load-cash-forecast.service'
+import type { CashForecastStatus, CashForecastView } from '../load-cash-forecast.service'
 import type { CashForecastSettingsView } from '../cash-forecast-settings.service'
-import type { CashForecastAlert } from '../alert'
 
 const available = await testDatabaseAvailable()
 
@@ -130,8 +130,9 @@ async function seed() {
       data: { bankAccountId: bank.id, externalTransactionId: `t${i}`, amount: l.amount, date: day(l.day), side: l.side, label: l.name, counterpartyName: l.name },
     })
   }
-  // The CFE avis of 2026: 1 750 €, paid on 15 December.
+  // The CFE avis of 2026: 1 750 €, paid on 15 December; the CFE of 2025 (1 200 €) is not marked paid: late.
   await prisma.localTaxYear.create({ data: { companyId: company.id, year: 2026, cfeTotal: 1750 } })
+  await prisma.localTaxYear.create({ data: { companyId: company.id, year: 2025, cfeTotal: 1200 } })
   // A budget: 2 000 € of sales and 500 € of fees in November and December, and a dotation that moves no cash.
   const budget = await prisma.budget.create({ data: { companyId: company.id, fiscalYearId: fy.id } })
   for (const [prefix, label, amount] of [['706', 'Prestations', 2000], ['6226', 'Honoraires', 500], ['681', 'Dotations', 900]] as const) {
@@ -165,7 +166,13 @@ describe.skipIf(!available)('cash forecast', () => {
       const of = (component: string) => view.items.filter((i) => i.component === component).map((i) => ({ day: i.day, label: i.label, cents: i.amountCents }))
       expect(of('receivables')).toEqual([{ day: '2026-10-20', label: 'Studio Nord', cents: 120_000 }])
       expect(of('payables')).toEqual([{ day: '2026-10-31', label: 'Imprimerie Morel', cents: -30_000 }])
-      expect(of('taxes')).toEqual([{ day: '2026-12-15', label: 'Paiement de la CFE 2026', cents: -175_000 }])
+      // The late CFE of 2025 counts on the first day, like a late invoice.
+      expect(of('taxes')).toEqual([
+        { day: '2025-12-15', label: 'Paiement de la CFE 2025', cents: -120_000 },
+        { day: '2026-12-15', label: 'Paiement de la CFE 2026', cents: -175_000 },
+      ])
+      expect(view.items.find((i) => i.label === 'Paiement de la CFE 2025')?.overdue).toBe(true)
+      expect(view.projection.periods[0].byComponent.taxes).toBe(-120_000)
       expect(view.unknownTaxes).toEqual([])
       expect(of('recurring').map((i) => [i.day, i.cents])).toEqual(
         ['2026-10-10', '2026-11-10', '2026-12-10', '2027-01-10', '2027-02-10', '2027-03-10'].map((d) => [d, -4_999]),
@@ -177,7 +184,7 @@ describe.skipIf(!available)('cash forecast', () => {
 
       // The saved components by default: the known flows, not the budget nor the trend.
       expect(view.projection.components).toEqual(['receivables', 'payables', 'taxes', 'recurring'])
-      expect(view.projection.closingCents).toBe(1_000_000 + 120_000 - 30_000 - 175_000 - 6 * 4_999)
+      expect(view.projection.closingCents).toBe(1_000_000 + 120_000 - 30_000 - 120_000 - 175_000 - 6 * 4_999)
       expect(view.projection.firstBelow).toBeNull()
     })
 
@@ -251,8 +258,8 @@ describe.skipIf(!available)('cash forecast', () => {
       expect(invalid.status).toBe(400)
 
       expect((await (await call('anonymous', alertRoute.GET, 'GET', `/api/cash-forecast/alert?companyId=${ids.company}`)).status)).toBe(401)
-      const before = (await (await call('viewer', alertRoute.GET, 'GET', `/api/cash-forecast/alert?companyId=${ids.company}`)).json()) as { alert: CashForecastAlert | null }
-      expect(before.alert).toBeNull()
+      const before = (await (await call('viewer', alertRoute.GET, 'GET', `/api/cash-forecast/alert?companyId=${ids.company}`)).json()) as CashForecastStatus
+      expect(before).toEqual({ thresholdCents: null, horizonMonths: 6, alert: null })
 
       const saved = await call('owner', settingsRoute.PUT, 'PUT', settingsPath, { id: ids.company }, body)
       expect(saved.status).toBe(200)
@@ -261,26 +268,22 @@ describe.skipIf(!available)('cash forecast', () => {
       expect(read).toEqual({ settings: { thresholdCents: 2_000_000, horizonMonths: 3, components: ['receivables', 'payables'] }, isDefault: false })
 
       // 10 000 € in the bank under a threshold of 20 000 €: already under, whatever the day.
-      const after = (await (await call('viewer', alertRoute.GET, 'GET', `/api/cash-forecast/alert?companyId=${ids.company}`)).json()) as { alert: CashForecastAlert | null }
+      const after = (await (await call('viewer', alertRoute.GET, 'GET', `/api/cash-forecast/alert?companyId=${ids.company}`)).json()) as CashForecastStatus
+      expect(after).toMatchObject({ thresholdCents: 2_000_000, horizonMonths: 3 })
       expect(after.alert).toMatchObject({ thresholdCents: 2_000_000, horizonMonths: 3, already: true, balanceCents: 1_000_000 })
       expect((await call('outsider', alertRoute.GET, 'GET', `/api/cash-forecast/alert?companyId=${ids.company}`)).status).toBe(404)
 
-      // The simple home shows the same alert.
+      // The simple home never computes the forecast: its card asks this route once displayed (a skeleton until then).
       const { loadSimpleHome } = await import('@/lib/simple/load-simple-home.service')
       const home = await loadSimpleHome(ids.company, { can: () => true, now: NOW })
-      expect(home.cashAlert).toMatchObject({ thresholdCents: 2_000_000, already: true })
-      const restricted = await loadSimpleHome(ids.company, { can: (p) => !('banking' in p), now: NOW })
-      expect(restricted.cashAlert).toBeNull()
+      expect(home).not.toHaveProperty('cashAlert')
       const { renderToStaticMarkup } = await import('react-dom/server')
       const { createElement } = await import('react')
       const { SimpleHome } = await import('@/components/features/simple/simple-home')
       const { jargonIn } = await import('@/lib/simple/vocabulary')
       const html = renderToStaticMarkup(createElement(SimpleHome, { home, companyName: 'Atelier Lumen', companySlug: 'atelier-lumen', userName: 'Claire Martin' }))
-      const text = html.replace(/<[^>]+>/g, ' ').replace(/[\s\u00a0\u202f]+/g, ' ')
-      expect(text).toContain('Attention à votre argent dans les prochains mois')
-      expect(text).toContain('Votre compte est déjà sous 20 000,00 €')
-      expect(html).toContain('href="/atelier-lumen/prevision-tresorerie"')
-      expect(jargonIn(text)).toEqual([])
+      expect(html).toContain('aria-label="Chargement : Votre argent à venir"')
+      expect(jargonIn(html.replace(/<[^>]+>/g, ' '))).toEqual([])
     })
 
     it('exports the forecast as CSV for the roles that export reports', async () => {

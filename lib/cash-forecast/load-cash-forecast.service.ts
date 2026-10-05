@@ -18,7 +18,7 @@ import { z } from 'zod'
 import type { FiscalYear } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { calendarDayOf, todayUtc } from '@/lib/utils/date'
+import { addIsoDays, calendarDayOf, todayUtc } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
 import { ledgerCashByMonth } from '@/lib/dashboard/ledger-cash'
 import { loadThirdPartyLines, loadTiersDirectory } from '@/lib/reports/third-parties/get-third-party-reports.service'
@@ -214,32 +214,51 @@ function cfeAmount(context: CompanyContext, deadline: TrackedDeadline): number |
   return deadline.ruleId === 'cfe' ? schedule.balanceCents : schedule.acompteCents || null
 }
 
+/** How far back late tax deadlines are looked for (a year of the calendar). */
+export const LATE_TAX_LOOKBACK_DAYS = 366
+/** VAT returns computed at most for late deadlines without a recorded amount (each builds a return). */
+const MAX_LATE_VAT_RETURNS = 3
+
 /**
  * The tax payments of the window: the deadlines of the calendar that ask
  * for a payment and are not settled, with their amount when known (the
- * amount recorded or held by another module; else the next VAT return when
- * its checks pass, the IS worksheet, the CFE avis). A credit (VAT, an IS
- * excess) is not a payment and is left out. Deadlines without an amount
- * are listed apart.
+ * amount recorded or held by another module; else the VAT return of the
+ * period when its checks pass, the IS worksheet, the CFE avis). A credit
+ * (VAT, an IS excess) is not a payment and is left out.
+ *
+ * A deadline of the last year already past and not marked paid is late:
+ * with a known amount it is counted on the first day of the forecast, like
+ * a late invoice (overdue); without one it is left out (the Échéances page
+ * shows it as late). An upcoming deadline without an amount is listed apart.
  */
 async function loadTaxes(companyId: string, today: string, start: string, end: string, now?: Date): Promise<{ items: CashFlowItem[]; unknown: UnknownTax[] }> {
   const context = await loadDeadlineContext(companyId)
-  const computed = computeDeadlines({ ...context, from: start, to: end })
+  const computed = computeDeadlines({ ...context, from: addIsoDays(today, -LATE_TAX_LOOKBACK_DAYS), to: end })
   const deadlines = (await trackDeadlines(companyId, context, computed, today)).filter((d) => isPayment(d) && !d.status.settled)
-  const nextVat = deadlines.find((d) => isVat(d.ruleId) && d.status.amountCents === null)
-  const [vat, corporateTax] = await Promise.all([
-    nextVat ? vatReturnForDeadline(companyId, nextVat, now) : Promise.resolve(null),
+  const late = (d: TrackedDeadline) => d.date < start
+  const withoutAmount = (d: TrackedDeadline) => isVat(d.ruleId) && d.status.amountCents === null
+  // The VAT returns to compute: the late ones (most recent first) and the next one due.
+  const vatTargets = [
+    ...deadlines.filter((d) => late(d) && withoutAmount(d)).slice(-MAX_LATE_VAT_RETURNS),
+    ...deadlines.filter((d) => !late(d) && withoutAmount(d)).slice(0, 1),
+  ]
+  const [vatAmounts, corporateTax] = await Promise.all([
+    Promise.all(vatTargets.map(async (d) => [d.id, await vatReturnForDeadline(companyId, d, now)] as const)),
     deadlines.some((d) => isCorporateTax(d.ruleId) && d.status.amountCents === null) ? corporateTaxAmounts(companyId, now) : Promise.resolve(new Map<string, number>()),
   ])
+  const vat = new Map(vatAmounts.flatMap(([id, amount]) => (amount ? [[id, amount.amountCents] as const] : [])))
   const items: CashFlowItem[] = []
   const unknown: UnknownTax[] = []
   for (const d of deadlines) {
     let cents: number | null = d.status.amountCents
-    if (cents === null && nextVat && d.id === nextVat.id && vat) cents = vat.amountCents
+    if (cents === null && isVat(d.ruleId)) cents = vat.get(d.id) ?? null
     if (cents === null && isCorporateTax(d.ruleId)) cents = corporateTax.get(d.id) ?? null
     if (cents === null && isCfe(d.ruleId)) cents = cfeAmount(context, d)
-    if (cents === null) unknown.push({ day: d.date, label: d.label, ruleId: d.ruleId })
-    else if (cents > 0) items.push({ component: 'taxes', label: d.label, day: d.date, amountCents: -cents, ruleId: d.ruleId })
+    if (cents === null) {
+      if (!late(d)) unknown.push({ day: d.date, label: d.label, ruleId: d.ruleId })
+    } else if (cents > 0) {
+      items.push({ component: 'taxes', label: d.label, day: d.date, amountCents: -cents, ruleId: d.ruleId, ...(late(d) ? { overdue: true } : {}) })
+    }
   }
   return { items, unknown }
 }
@@ -368,9 +387,20 @@ export async function getCashForecast(companyId: string, query: CashForecastQuer
   }
 }
 
-/** The alert of a company, computed only when a threshold is saved (no forecast otherwise). */
-export async function getCashForecastAlert(companyId: string, now?: Date): Promise<CashForecastAlert | null> {
+export interface CashForecastStatus {
+  /** The saved threshold, null when none: the alert is off and nothing was computed. */
+  thresholdCents: number | null
+  horizonMonths: number
+  alert: CashForecastAlert | null
+}
+
+/**
+ * The threshold status of the dashboard and of the simple home (GET
+ * /api/cash-forecast/alert): the saved threshold and horizon, and the alert
+ * of the projection. Without a threshold nothing is computed.
+ */
+export async function getCashForecastStatus(companyId: string, now?: Date): Promise<CashForecastStatus> {
   const { settings } = await getCashForecastSettings(companyId)
-  if (settings.thresholdCents === null) return null
-  return alertOf(await getCashForecast(companyId, {}, now))
+  if (settings.thresholdCents === null) return { thresholdCents: null, horizonMonths: settings.horizonMonths, alert: null }
+  return { thresholdCents: settings.thresholdCents, horizonMonths: settings.horizonMonths, alert: alertOf(await getCashForecast(companyId, {}, now)) }
 }

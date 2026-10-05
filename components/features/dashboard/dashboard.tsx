@@ -21,7 +21,7 @@ import { DashboardDataProvider } from './dashboard-data'
 import { DashboardGrid, EditableDashboardGrid } from './dashboard-grid'
 import { WidgetCatalogue } from './widget-catalogue'
 import { guideVisible } from './widgets'
-import { DashboardCashForecastAlert } from '@/components/features/cash-forecast/cash-forecast-alert'
+import { CashForecastStatusCard, forecastPath } from '@/components/features/cash-forecast/cash-forecast-alert'
 
 interface FiscalYearOption {
   id: string
@@ -240,8 +240,8 @@ export function Dashboard({ companyId }: { companyId: string }) {
         {announcement}
       </p>
 
-      {/* The cash threshold alert (docs/prevision-tresorerie.md): above the widgets, whatever the layout. */}
-      {editing ? null : <DashboardCashForecastAlert companyId={companyId} />}
+      {/* The cash forecast status (docs/prevision-tresorerie.md): above the widgets, whatever the layout, loaded after the page. */}
+      {editing ? null : <CashForecastStatusCard companyId={companyId} mode="expert" href={forecastPath(companyId)} />}
 
       {editing ? (
         // Phones: the actions sit in a bar at the bottom of the screen (above

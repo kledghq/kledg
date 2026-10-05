@@ -74,6 +74,30 @@ export function aboveThresholdSentence(thresholdCents: number, horizonMonths: nu
     : `Le solde projeté reste au-dessus du seuil de ${format(thresholdCents)} sur les ${horizonMonths} prochains mois.`
 }
 
+/** Heading of the status card of the dashboard and of the simple home. */
+export const STATUS_TITLES: Record<ForecastMode, string> = {
+  expert: 'Prévision de trésorerie',
+  simple: 'Votre argent à venir',
+}
+
+/** The status card when the company has no threshold. */
+export const NO_THRESHOLD_SENTENCES: Record<ForecastMode, string> = {
+  expert: 'Aucun seuil d’alerte\u00a0: définissez le solde minimum à garder pour être prévenu avant qu’il ne soit franchi.',
+  simple: 'Voyez ce qui devrait rester sur votre compte dans les prochains mois, et choisissez le minimum à garder.',
+}
+
+/** The status card when the forecast could not be loaded. */
+export const STATUS_ERRORS: Record<ForecastMode, string> = {
+  expert: 'La prévision de trésorerie n’a pas pu être calculée pour le moment.',
+  simple: 'Impossible de calculer votre argent à venir pour le moment.',
+}
+
+/** In the list of flows: a late flow counted on the first day of the forecast (tomorrow). */
+export const LATE_FLOW: Record<ForecastMode, string> = {
+  expert: 'En retard, compté demain',
+  simple: 'En retard, compté dès demain',
+}
+
 /** Link text of the alert cards. */
 export const ALERT_ACTIONS: Record<ForecastMode, string> = {
   expert: 'Voir la prévision',

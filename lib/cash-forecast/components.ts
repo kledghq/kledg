@@ -52,8 +52,8 @@ export const COMPONENT_INFO: Record<CashForecastComponent, ComponentInfo> = {
     label: 'Impôts et taxes',
     simpleLabel: 'Impôts et taxes à payer',
     description:
-      'Échéances du calendrier fiscal dont le montant est connu : prochaine déclaration de TVA, acomptes et solde d’impôt sur les sociétés, CFE, montants saisis dans le suivi des échéances. Une échéance sans montant connu est listée sans être comptée.',
-    simpleDescription: 'Les impôts dont Kledg connaît déjà le montant (TVA, impôt sur les sociétés, CFE), à leur date limite.',
+      'Échéances du calendrier fiscal dont le montant est connu : prochaine déclaration de TVA, acomptes et solde d’impôt sur les sociétés, CFE, montants saisis dans le suivi des échéances. Une échéance passée non marquée payée, au montant connu, est comptée le premier jour de la prévision ; une échéance à venir sans montant connu est listée sans être comptée.',
+    simpleDescription: 'Les impôts dont Kledg connaît déjà le montant (TVA, impôt sur les sociétés, CFE), à leur date limite. Ceux qui sont en retard sont comptés dès demain.',
     assumption: false,
     empty: 'Aucune échéance fiscale à payer dont le montant est connu sur la période.',
     simpleEmpty: 'Aucun impôt au montant connu sur la période.',

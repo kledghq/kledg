@@ -22,6 +22,7 @@ import { alertOf } from '@/lib/cash-forecast/alert'
 import {
   FORECAST_DESCRIPTIONS,
   FORECAST_TITLES,
+  LATE_FLOW,
   NOT_A_GUARANTEE,
   aboveThresholdSentence,
   periodLabel,
@@ -54,7 +55,6 @@ const TEXT = {
     unknownTaxesHint: 'Ces paiements ne sont pas dans la courbe : saisissez leur montant dans le suivi des échéances pour les compter.',
     overlap: 'Le rythme récent contient déjà les paiements récurrents et ce que prévoit le budget : les cocher ensemble compte ces montants deux fois.',
     assumption: 'Hypothèse',
-    late: 'En retard',
     empty: 'Aucun flux à venir sur la période',
     emptyHint: 'Le solde reste celui d’aujourd’hui. Rapprochez vos opérations et saisissez vos factures pour enrichir la prévision.',
     noThreshold: 'Aucun seuil d’alerte : renseignez-en un plus bas pour être prévenu.',
@@ -82,7 +82,6 @@ const TEXT = {
     unknownTaxesHint: 'Ils ne sont pas comptés dans la courbe.',
     overlap: '« Si les derniers mois se répètent » contient déjà vos paiements réguliers et votre budget : en cocher plusieurs compte les mêmes montants deux fois.',
     assumption: 'Supposition',
-    late: 'En retard',
     empty: 'Rien de prévu sur la période',
     emptyHint: 'Votre compte resterait au même montant qu’aujourd’hui.',
     noThreshold: 'Indiquez plus bas le minimum à garder sur votre compte pour être prévenu.',
@@ -405,8 +404,9 @@ export function CashForecastPage({ companyId, mode }: { companyId: string; mode:
                   <ul className="divide-y">
                     {(showAll ? counted : counted.slice(0, FLOWS_SHOWN)).map((item, index) => (
                       <li key={`${item.component}-${item.day}-${index}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm">
-                        <span className="text-muted-foreground w-28 shrink-0">
-                          {item.overdue ? text.late : <DateDisplay value={item.day} />}
+                        <span className="text-muted-foreground w-36 shrink-0">
+                          <DateDisplay value={item.day} />
+                          {item.overdue ? <span className="text-warning block text-xs">{LATE_FLOW[mode]}</span> : null}
                         </span>
                         <span className="min-w-0 flex-1">
                           {flowLabel(item, mode)}

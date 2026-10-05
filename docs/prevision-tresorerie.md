@@ -20,7 +20,7 @@ Chaque flux appartient à une composante que la page permet de cocher ou décoch
 | --- | --- | --- |
 | Factures clients à encaisser | Lignes ouvertes (non lettrées) des comptes 411 de l'exercice en cours, comme la balance âgée (`loadThirdPartyLines`). Échéance : délai de paiement du tiers, sinon celui de la société (Code de commerce, art. L441-10, `lib/reports/third-parties/payment-terms.ts`). Par tiers, les règlements, avoirs et acomptes non lettrés s'imputent sur les factures les plus anciennes ; un tiers créditeur ne donne aucun flux. | Oui |
 | Factures fournisseurs à payer | Mêmes règles sur les comptes 401, en sortie. | Oui |
-| Impôts et taxes | Échéances du calendrier (`lib/deadlines`) qui demandent un paiement et ne sont pas réglées (`lib/declarations`), avec leur montant quand il est connu : montant enregistré dans le suivi ou tenu par un autre module, sinon la prochaine déclaration de TVA quand ses contrôles passent (`vatReturnForDeadline`), le solde d'IS et les acomptes de l'exercice suivant de la feuille d'impôt sur les sociétés (`buildCorporateTax`), la CFE d'après l'avis saisi (`cfeSchedule`). Un crédit (TVA, excédent d'IS) n'est pas compté. Une échéance sans montant connu est listée à part, sans être comptée. | Oui |
+| Impôts et taxes | Échéances du calendrier (`lib/deadlines`) qui demandent un paiement et ne sont pas réglées (`lib/declarations`), avec leur montant quand il est connu : montant enregistré dans le suivi ou tenu par un autre module, sinon la prochaine déclaration de TVA quand ses contrôles passent (`vatReturnForDeadline`), le solde d'IS et les acomptes de l'exercice suivant de la feuille d'impôt sur les sociétés (`buildCorporateTax`), la CFE d'après l'avis saisi (`cfeSchedule`). Un crédit (TVA, excédent d'IS) n'est pas compté. Une échéance de l'année écoulée déjà passée et non marquée payée, au montant connu, est comptée le premier jour de la prévision comme une facture en retard (« En retard, compté demain ») ; sans montant, elle reste sur la page Échéances. Une échéance à venir sans montant connu est listée à part, sans être comptée. | Oui |
 | Paiements récurrents | Séries détectées dans les opérations bancaires ([abonnements](abonnements.md)), abonnements et charges récurrentes (salaires, cotisations, emprunts), au montant actuel et à leur rythme à partir de la prochaine date attendue. Exclus : les séries ignorées, peut-être arrêtées, et les impôts (comptés avec les échéances). | Oui |
 | Budget (hypothèse) | Lignes des budgets des exercices couverts ([budget](budget.md)), mois par mois à partir du mois prochain, réparties sur les jours du mois. Les produits entrent, les charges sortent. Exclues : dotations et reprises (68, 78), variations de stocks (603, 713), cessions (675, 775). Montants hors taxes. | Non |
 | Rythme récent (hypothèse) | Variation moyenne du solde bancaire (crédits moins débits des comptes en euros) sur les trois derniers mois complets couverts par des opérations, répétée chaque mois à partir du mois prochain, répartie sur ses jours. | Non |
@@ -49,15 +49,14 @@ Colonne `cashForecastSettings` de `companies` (JSON, migration `20261114090000_c
 
 Le formulaire de la page enregistre le seuil avec l'horizon et les composantes affichés. L'alerte (`alertOf`, `lib/cash-forecast/alert.ts`) apparaît :
 
-- sur le **tableau de bord**, au-dessus des widgets quelle que soit la disposition, avec un lien vers la page (`GET /api/cash-forecast/alert`, qui ne calcule rien sans seuil) ;
-- sur l'**accueil du mode simple**, avec des mots simples (`cashAlert` de `loadSimpleHome`) ;
+- sur le **tableau de bord** et sur l'**accueil du mode simple** (« Votre argent à venir »), dans une carte d'état (`CashForecastStatusCard`) placée au-dessus des widgets et des listes : l'alerte quand la projection passe sous le seuil, sinon une ligne qui dit que le solde reste au-dessus, ou sans seuil une invitation à ouvrir la prévision, toujours avec un lien vers la page ;
 - sur la page elle-même, qui surligne les périodes sous le seuil.
 
-L'alerte est calculée à la lecture : il n'y a ni tâche planifiée ni table d'alertes.
+La carte d'état demande `GET /api/cash-forecast/alert` une fois la page affichée : la prévision ne retarde ni le rendu du tableau de bord ni celui de l'accueil simple (`loadSimpleHome` ne la calcule pas). En attendant, un squelette de la même hauteur que la carte tient sa place, si bien que rien ne bouge quand la réponse arrive. Sans seuil, la route ne calcule rien. L'alerte est calculée à la lecture : il n'y a ni tâche planifiée ni table d'alertes.
 
 ## Mode simple
 
-Même page, avec le vocabulaire de [mode simple](mode-simple.md) : « Votre argent dans les prochains mois », « Ce que vos clients vont vous payer », « Abonnements, salaires et prélèvements », les impôts par leur titre simple (`declarationTitle`), sans numéro de compte ni terme comptable (`SIMPLE_MODE_JARGON`, vérifié par les tests). Les phrases sont dans `lib/cash-forecast/wording.ts` et `components.ts`. La page n'est pas dans la navigation du mode simple (les sept entrées de la maquette) : l'accueil y mène par la carte d'alerte.
+Même page, avec le vocabulaire de [mode simple](mode-simple.md) : « Votre argent dans les prochains mois », « Ce que vos clients vont vous payer », « Abonnements, salaires et prélèvements », les impôts par leur titre simple (`declarationTitle`), sans numéro de compte ni terme comptable (`SIMPLE_MODE_JARGON`, vérifié par les tests). Les phrases sont dans `lib/cash-forecast/wording.ts` et `components.ts`. La page n'est pas dans la navigation du mode simple (les sept entrées de la maquette) : la carte « Votre argent à venir » de l'accueil y mène toujours.
 
 ## API et droits
 
@@ -76,9 +75,10 @@ MCP : `get_cash_forecast` (lecture), l'export par `export_report` (rapport `cash
 - Le budget est hors taxes ; les factures ouvertes et les échéances sont des montants TTC ou de taxe.
 - Une facture payée à la banque mais pas encore lettrée reste ouverte : rapprocher et lettrer garde la prévision juste.
 - Les acomptes d'IS ne sont connus que pour l'exercice qui suit la feuille due ; les autres échéances sans montant sont listées.
-- Une échéance fiscale déjà passée et non marquée comme payée n'est pas comptée : la prévision part des échéances à venir.
+- Une échéance fiscale passée de plus d'un an, ou sans montant connu, n'est pas comptée.
 - Les revenus récurrents des clients ne sont pas détectés : le budget ou le rythme récent les représentent.
-- Pas de vue groupe : la prévision est celle d'une société.
+- Pas de vue groupe : la prévision est celle d'une société, et les alertes de l'espace groupe (`get-group-alerts.service.ts`) ne contiennent pas le seuil de trésorerie.
+- Le fichier CSV garde le vocabulaire expert (comptes 512, encaissements, décaissements) en mode simple.
 
 ## Tests
 
