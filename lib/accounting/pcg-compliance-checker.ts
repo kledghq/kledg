@@ -39,7 +39,8 @@ const REQUIRED_MINIMAL_ACCOUNTS = [
   // Classe 6 - Charges
   '6', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69',
   // Classe 7 - Produits
-  '7', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79',
+  // 79 (transferts de charges) was removed by règlement ANC n° 2022-06
+  '7', '70', '71', '72', '73', '74', '75', '76', '77', '78',
 ]
 
 /**

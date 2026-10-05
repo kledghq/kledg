@@ -752,7 +752,9 @@ export const PCG_ACCOUNTS: PCGAccount[] = [
   { code: '699', label: 'Produits - Reports en arrière des déficits', parentCode: '69' },
 
   // Classe 7 - Produits
-  { code: '79', label: 'Transferts de charges', parentCode: '7' },
+  // No 79: the transferts de charges (791, 796, 797) were removed by règlement
+  // ANC n° 2022-06 (fiscal years opened from 1 January 2025). Charts of
+  // earlier years keep theirs; reports still read 79 for those years.
   { code: '70', label: 'Ventes', parentCode: '7' },
   { code: '701', label: 'Ventes de produits finis', parentCode: '70' },
   { code: '702', label: 'Ventes de produits intermédiaires', parentCode: '70' },
