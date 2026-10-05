@@ -3,6 +3,13 @@
  * per company; a journal that holds entries is never deleted (the entries
  * would lose their journal: every entry is recorded in a journal). Creation
  * is create-journal.service.ts, shared with the MCP tools.
+ *
+ * Entries point to their journal, so its code and label are part of every
+ * entry recorded in it (FEC JournalCode and JournalLib, LPF art. A47 A-1):
+ * the code of a journal holding a validated entry never changes (PCG art.
+ * 1031-3), nor the label of a journal holding an entry of a closed fiscal
+ * year (art. 1031-4). The database refuses it too (migration
+ * 20261107090000_ledger_references_lock).
  */
 
 import { prisma } from '@/lib/prisma'
@@ -55,6 +62,22 @@ export async function updateJournal(companyId: string, id: string, input: Update
   }
 
   const journal = await ownedJournal(companyId, id)
+  if (data.code && data.code !== journal.code) {
+    const validated = await prisma.accountingEntry.count({ where: { companyId, journalId: journal.id, status: 'validated' } })
+    if (validated > 0) {
+      throw new ConflictError(
+        `Le journal ${journal.code} porte des écritures validées : son code ne peut plus changer (PCG art. 1031-3). Créez un nouveau journal pour les écritures à venir.`,
+      )
+    }
+  }
+  if (data.label !== undefined && data.label !== journal.label) {
+    const closed = await prisma.accountingEntry.count({ where: { companyId, journalId: journal.id, fiscalYear: { isClosed: true } } })
+    if (closed > 0) {
+      throw new ConflictError(
+        `Le journal ${journal.code} porte des écritures d'un exercice clôturé : son libellé ne peut plus changer (PCG art. 1031-4).`,
+      )
+    }
+  }
   if (data.code && data.code !== journal.code) {
     const existing = await prisma.journal.findUnique({ where: { companyId_code: { companyId, code: data.code } }, select: { id: true } })
     if (existing) throw new ConflictError(`Un journal avec le code ${data.code} existe déjà pour cette société`)

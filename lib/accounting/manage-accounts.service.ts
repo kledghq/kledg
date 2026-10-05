@@ -7,6 +7,12 @@
  * Every lookup is scoped by company: an id of another company is a 404.
  * A PCG account keeps its number (the number identifies it in the PCG
  * nomenclature); its label and parent can change.
+ *
+ * Entry lines point to their account, so its number and label are part of
+ * every line (FEC CompteNum and CompteLib, LPF art. A47 A-1): an account
+ * carrying a line of a validated entry keeps its number (PCG art. 1031-3),
+ * and an account of a closed fiscal year never changes (art. 1031-4). The
+ * database refuses it too (migration 20261107090000_ledger_references_lock).
  */
 
 import type { Prisma } from '@prisma/client'
@@ -110,6 +116,22 @@ export async function updateAccount(companyId: string, id: string, input: Update
   }
 
   if (label !== undefined && !label.trim()) throw new ValidationError('Le libellé est requis')
+
+  const codeChanges = code !== undefined && code !== account.code
+  if ((codeChanges || (label !== undefined && label !== account.label)) && account.fiscalYearId) {
+    const fiscalYear = await prisma.fiscalYear.findFirst({ where: { id: account.fiscalYearId, companyId }, select: { isClosed: true, year: true } })
+    if (fiscalYear?.isClosed) {
+      throw new ConflictError(`Le compte ${account.code} appartient à l'exercice ${fiscalYear.year}, clôturé : il ne peut plus changer (PCG art. 1031-4).`)
+    }
+  }
+  if (codeChanges) {
+    const validated = await prisma.entryLine.count({ where: { accountId: account.id, accountingEntry: { companyId, status: 'validated' } } })
+    if (validated > 0) {
+      throw new ConflictError(
+        `Le compte ${account.code} porte des écritures validées : son numéro ne peut plus changer (PCG art. 1031-3). Créez un nouveau compte pour les écritures à venir.`,
+      )
+    }
+  }
 
   let finalParentId = account.parentId
   let isPCG = account.isPCG

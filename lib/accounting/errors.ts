@@ -134,6 +134,30 @@ export function isClosedFiscalYearDbError(error: unknown): boolean {
   return visit(error, 0)
 }
 
+/**
+ * Message of the database refusing to rename a journal or an account the
+ * books use (triggers of migration 20261107090000_ledger_references_lock:
+ * "KLEDG_LEDGER_REFERENCE: <French text>"), or null.
+ */
+export function ledgerReferenceMessage(error: unknown): string | null {
+  const sources: string[] = []
+  if (error instanceof Error) sources.push(error.message)
+  if (error && typeof error === 'object') {
+    const meta = (error as { meta?: unknown }).meta
+    if (meta) sources.push(JSON.stringify(meta))
+    const cause = (error as { cause?: unknown }).cause
+    if (cause instanceof Error) sources.push(cause.message)
+  }
+  for (const source of sources) {
+    const match = /KLEDG_LEDGER_REFERENCE: ([^\n"]+)/.exec(source)
+    if (match) {
+      const text = match[1].trim()
+      return `${text.charAt(0).toUpperCase()}${text.slice(1)} (PCG art. 1031-3 et 1031-4).`
+    }
+  }
+  return null
+}
+
 /** Shown for every unexpected (500) error: details go to the server log only. */
 export const INTERNAL_ERROR_MESSAGE = 'Une erreur interne est survenue. Réessayez ou contactez votre administrateur.'
 
@@ -161,6 +185,9 @@ export function handleError(error: unknown): { message: string; statusCode: numb
   if (error instanceof Error && error.message.includes('KLEDG_COMPANY_HAS_BOOKS')) {
     return { message: COMPANY_HAS_BOOKS_MESSAGE, statusCode: 409 }
   }
+
+  const reference = ledgerReferenceMessage(error)
+  if (reference) return { message: reference, statusCode: 409 }
 
   // Database guards on accounting entries (validated entries are definitive)
   const guard = parseDatabaseGuard(error)
