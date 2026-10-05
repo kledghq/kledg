@@ -34,7 +34,7 @@ BEGIN
   END IF;
   SELECT "periodLockedThrough" INTO locked_through FROM "fiscal_years" WHERE "id" = fiscal_year_id;
   IF locked_through IS NOT NULL AND entry_date::date <= locked_through::date THEN
-    RAISE EXCEPTION 'KLEDG_PERIOD_LOCKED: la période est clôturée jusqu''au % : datez l''écriture du % au plus tôt et indiquez sa date réelle en date de pièce',
+    RAISE EXCEPTION 'KLEDG_PERIOD_LOCKED: la période est clôturée jusqu''au % : datez l''écriture du % au plus tôt et indiquez sa date réelle en date de pièce',
       to_char(locked_through, 'DD/MM/YYYY'), to_char(locked_through + interval '1 day', 'DD/MM/YYYY')
       USING ERRCODE = 'P0001';
   END IF;
@@ -76,7 +76,7 @@ BEGIN
       SELECT 1 FROM "accounting_entries"
       WHERE "fiscalYearId" = NEW."id" AND "status" = 'draft' AND "date"::date <= NEW."periodLockedThrough"::date
     ) THEN
-      RAISE EXCEPTION 'KLEDG_PERIOD_LOCKED: des écritures en brouillon sont datées dans la période : validez-les ou supprimez-les d''abord' USING ERRCODE = 'P0001';
+      RAISE EXCEPTION 'KLEDG_PERIOD_LOCKED: des écritures en brouillon sont datées dans la période : validez-les ou supprimez-les d''abord' USING ERRCODE = 'P0001';
     END IF;
   END IF;
   -- Checked on a date change of the year too: the closed day stays inside it.

@@ -4,6 +4,7 @@
 - [Configuration](configuration.md) : toutes les variables d'environnement
 - [Serveur MCP](mcp.md) : connecter Claude ou ChatGPT à votre instance
 - [Architecture](architecture.md) : organisation du code et principes
+- [Conformité](conformite.md) : ce que Kledg garantit et ne garantit pas au regard du Code de commerce, du PCG, du FEC, de la facturation électronique et du RGPD, pour les utilisateurs et les auditeurs
 - [Conventions](conventions.md) : règles d'écriture du code, appliquées par le lint et les tests (en anglais)
 - [Mettre à jour son instance](self-hosting.md#mettre-à-jour)
 - [Connexions bancaires](connexions-bancaires.md) : Qonto et Revolut Business en direct, Ponto pour les autres banques, import de fichiers

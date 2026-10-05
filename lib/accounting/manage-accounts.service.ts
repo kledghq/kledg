@@ -121,14 +121,14 @@ export async function updateAccount(companyId: string, id: string, input: Update
   if ((codeChanges || (label !== undefined && label !== account.label)) && account.fiscalYearId) {
     const fiscalYear = await prisma.fiscalYear.findFirst({ where: { id: account.fiscalYearId, companyId }, select: { isClosed: true, year: true } })
     if (fiscalYear?.isClosed) {
-      throw new ConflictError(`Le compte ${account.code} appartient à l'exercice ${fiscalYear.year}, clôturé : il ne peut plus changer (PCG art. 1031-4).`)
+      throw new ConflictError(`Le compte ${account.code} appartient à l'exercice ${fiscalYear.year}, clôturé : il ne peut plus changer (PCG art. 1031-4).`)
     }
   }
   if (codeChanges) {
     const validated = await prisma.entryLine.count({ where: { accountId: account.id, accountingEntry: { companyId, status: 'validated' } } })
     if (validated > 0) {
       throw new ConflictError(
-        `Le compte ${account.code} porte des écritures validées : son numéro ne peut plus changer (PCG art. 1031-3). Créez un nouveau compte pour les écritures à venir.`,
+        `Le compte ${account.code} porte des écritures validées : son numéro ne peut plus changer (PCG art. 1031-3). Créez un nouveau compte pour les écritures à venir.`,
       )
     }
   }

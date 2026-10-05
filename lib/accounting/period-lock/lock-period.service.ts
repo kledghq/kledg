@@ -57,18 +57,18 @@ export async function lockPeriod(companyId: string, fiscalYearId: string, throug
         })
       : null
     if (!fiscalYear) throw new NotFoundError('Exercice introuvable pour cette société.')
-    if (fiscalYear.isClosed) throw new ConflictError(`L'exercice ${fiscalYear.year} est clôturé : toutes ses périodes le sont.`)
+    if (fiscalYear.isClosed) throw new ConflictError(`L'exercice ${fiscalYear.year} est clôturé : toutes ses périodes le sont.`)
 
     const start = calendarDayOf(fiscalYear.startDate)!
     const end = calendarDayOf(fiscalYear.endDate)!
     if (through < start || through >= end) {
       throw new ValidationError(
-        `La fin de la période doit être comprise entre le ${formatIsoDateFr(start)} et le ${formatIsoDateFr(addIsoDays(end, -1))} : le dernier jour de l'exercice se clôture avec l'exercice.`,
+        `La fin de la période doit être comprise entre le ${formatIsoDateFr(start)} et le ${formatIsoDateFr(addIsoDays(end, -1))} : le dernier jour de l'exercice se clôture avec l'exercice.`,
       )
     }
     const current = calendarDayOf(fiscalYear.periodLockedThrough)
     if (current && through <= current) {
-      throw new ConflictError(`La période est déjà clôturée jusqu'au ${formatIsoDateFr(current)} : une période clôturée ne se rouvre pas (PCG art. 1031-4).`)
+      throw new ConflictError(`La période est déjà clôturée jusqu'au ${formatIsoDateFr(current)} : une période clôturée ne se rouvre pas (PCG art. 1031-4).`)
     }
 
     const drafts = await tx.accountingEntry.count({
@@ -76,7 +76,7 @@ export async function lockPeriod(companyId: string, fiscalYearId: string, throug
     })
     if (drafts > 0) {
       throw new ConflictError(
-        `${drafts === 1 ? 'Une écriture en brouillon est datée' : `${drafts} écritures en brouillon sont datées`} dans la période : validez-les ou supprimez-les avant de la clôturer.`,
+        `${drafts === 1 ? 'Une écriture en brouillon est datée' : `${drafts} écritures en brouillon sont datées`} dans la période : validez-les ou supprimez-les avant de la clôturer.`,
       )
     }
 

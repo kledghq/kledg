@@ -2,8 +2,9 @@
  * Deleting and archiving a company. Instance administrators only (routes
  * app/api/companies/[id] and app/api/companies/[id]/archive).
  *
- * The books are kept 10 years (Code de commerce art. L123-22; PCG art.
- * 911-4 and 911-5 for closed years): a company holding a validated entry or
+ * The books are kept 10 years (Code de commerce art. L123-22; validated
+ * entries and closed years are definitive, PCG art. 1031-3 and 1031-4, as
+ * renumbered by règlement ANC n° 2022-06): a company holding a validated entry or
  * a closed fiscal year is never deleted. The database refuses it too
  * (trigger of migration 20261011100000_company_archiving), for every code
  * path. Such a company is archived instead: read-only (every write of a

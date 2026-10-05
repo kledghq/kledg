@@ -66,7 +66,7 @@ export async function updateJournal(companyId: string, id: string, input: Update
     const validated = await prisma.accountingEntry.count({ where: { companyId, journalId: journal.id, status: 'validated' } })
     if (validated > 0) {
       throw new ConflictError(
-        `Le journal ${journal.code} porte des écritures validées : son code ne peut plus changer (PCG art. 1031-3). Créez un nouveau journal pour les écritures à venir.`,
+        `Le journal ${journal.code} porte des écritures validées : son code ne peut plus changer (PCG art. 1031-3). Créez un nouveau journal pour les écritures à venir.`,
       )
     }
   }
@@ -74,7 +74,7 @@ export async function updateJournal(companyId: string, id: string, input: Update
     const closed = await prisma.accountingEntry.count({ where: { companyId, journalId: journal.id, fiscalYear: { isClosed: true } } })
     if (closed > 0) {
       throw new ConflictError(
-        `Le journal ${journal.code} porte des écritures d'un exercice clôturé : son libellé ne peut plus changer (PCG art. 1031-4).`,
+        `Le journal ${journal.code} porte des écritures d'un exercice clôturé : son libellé ne peut plus changer (PCG art. 1031-4).`,
       )
     }
   }

@@ -23,14 +23,14 @@ BEGIN
   IF NEW."code" IS DISTINCT FROM OLD."code" AND EXISTS (
     SELECT 1 FROM "accounting_entries" WHERE "journalId" = OLD."id" AND "status" = 'validated'
   ) THEN
-    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le journal % porte des écritures validées : son code ne peut plus changer', OLD."code"
+    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le journal % porte des écritures validées : son code ne peut plus changer', OLD."code"
       USING ERRCODE = 'P0001';
   END IF;
   IF NEW."label" IS DISTINCT FROM OLD."label" AND NOT kledg_closed_year_bypass() AND EXISTS (
     SELECT 1 FROM "accounting_entries" e JOIN "fiscal_years" f ON f."id" = e."fiscalYearId"
     WHERE e."journalId" = OLD."id" AND f."isClosed"
   ) THEN
-    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le journal % porte des écritures d''un exercice clôturé : son libellé ne peut plus changer', OLD."code"
+    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le journal % porte des écritures d''un exercice clôturé : son libellé ne peut plus changer', OLD."code"
       USING ERRCODE = 'P0001';
   END IF;
   RETURN NEW;
@@ -48,13 +48,13 @@ BEGIN
     SELECT 1 FROM "entry_lines" l JOIN "accounting_entries" e ON e."id" = l."accountingEntryId"
     WHERE l."accountId" = OLD."id" AND e."status" = 'validated'
   ) THEN
-    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le compte % porte des écritures validées : son numéro ne peut plus changer', OLD."code"
+    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le compte % porte des écritures validées : son numéro ne peut plus changer', OLD."code"
       USING ERRCODE = 'P0001';
   END IF;
   IF (NEW."code" IS DISTINCT FROM OLD."code" OR NEW."label" IS DISTINCT FROM OLD."label")
      AND NOT kledg_closed_year_bypass()
      AND EXISTS (SELECT 1 FROM "fiscal_years" WHERE "id" = OLD."fiscalYearId" AND "isClosed") THEN
-    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le compte % appartient à un exercice clôturé : il ne peut plus changer', OLD."code"
+    RAISE EXCEPTION 'KLEDG_LEDGER_REFERENCE: le compte % appartient à un exercice clôturé : il ne peut plus changer', OLD."code"
       USING ERRCODE = 'P0001';
   END IF;
   RETURN NEW;

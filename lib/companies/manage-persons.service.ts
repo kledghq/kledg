@@ -93,7 +93,7 @@ export const PERSON_NOT_FOUND = 'Personne introuvable'
 
 /** What the books keep after an erasure, told to the user. */
 export const PERSON_RETENTION_NOTICE =
-  "Les écritures comptables et leurs pièces justificatives sont conservées 10 ans (Code de commerce, art. L123-22) : le nom porté par les écritures et les notes de frais n'est pas effacé (RGPD, art. 17, 3, b)."
+  "Les écritures comptables et leurs pièces justificatives sont conservées 10 ans (Code de commerce, art. L123-22) : le nom porté par les écritures et les notes de frais n'est pas effacé (RGPD, art. 17, 3, b)."
 
 async function ownedPerson(companyId: string, personId: string) {
   const person = await prisma.person.findFirst({ where: { id: personId, companyId }, select: { id: true, addressId: true } })
@@ -198,7 +198,7 @@ export async function eraseCompanyPerson(companyId: string, personId: string): P
     const shareholdings = await tx.shareholder.count({ where: { personId: person.id } })
     if (shareholdings > 0) {
       throw new ConflictError(
-        "Cette personne est associée de la société : retirez d'abord sa participation (la composition du capital est déclarée avec la liasse fiscale), puis effacez-la.",
+        "Cette personne est associée de la société : retirez d'abord sa participation (la composition du capital est déclarée avec la liasse fiscale), puis effacez-la.",
       )
     }
     const claimants = await tx.expenseClaimant.count({ where: { personId: person.id } })

@@ -40,7 +40,7 @@ export function fecComplianceReport(fec: FecExport): FecValidationReport & Pick<
     const drafts = fec.drafts === 1 ? '1 écriture en brouillon' : `${fec.drafts} écritures en brouillon`
     report.warnings.unshift({
       line: null,
-      message: `${drafts} de l'exercice ne figure${fec.drafts === 1 ? '' : 'nt'} pas dans le fichier : validez-les ou supprimez-les avant de remettre le FEC.`,
+      message: `${drafts} de l'exercice ne figure${fec.drafts === 1 ? '' : 'nt'} pas dans le fichier : validez-les ou supprimez-les avant de remettre le FEC.`,
     })
   }
   return { fileName: fec.fileName, entries: fec.entries, lines: fec.lines, drafts: fec.drafts, ...report }
