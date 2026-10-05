@@ -206,6 +206,7 @@ describe.skipIf(!available)('training organisation (PostgreSQL)', () => {
         direction: 'SALE',
         tiersId: a.customers.C00002,
         number: 'F-2026-1',
+        numbering: 'recorded',
         issueDate: '2026-09-30',
         typeCode: '380',
         lines: [{ label: 'Formation management', quantity: '1', unitPriceCents: 4_000_000, vatRateBp: 0, vatExemption: 'training', nature: 'SERVICES', fixedAsset: false, accountCode: '706200' }],
@@ -219,6 +220,7 @@ describe.skipIf(!available)('training organisation (PostgreSQL)', () => {
         direction: 'SALE',
         tiersId: a.customers.C00001,
         number: 'F-2026-2',
+        numbering: 'recorded',
         issueDate: '2026-10-31',
         typeCode: '380',
         lines: [{ label: 'Conseil', quantity: '1', unitPriceCents: 6_000_000, vatRateBp: 2000, nature: 'SERVICES', fixedAsset: false, accountCode: '706100' }],
@@ -228,7 +230,7 @@ describe.skipIf(!available)('training organisation (PostgreSQL)', () => {
       await postAndValidate(a.companyId, taxed.id)
 
       const line = { label: 'X', quantity: '1', unitPriceCents: 100, nature: 'SERVICES' as const, fixedAsset: false, vatExemption: 'training' as const }
-      await expect(createInvoice(a.companyId, { direction: 'SALE', tiersId: a.customers.C00001, number: 'F-X', issueDate: '2026-11-01', typeCode: '380', lines: [{ ...line, vatRateBp: 2000 }] })).rejects.toThrow(/exonérée est à 0/)
+      await expect(createInvoice(a.companyId, { direction: 'SALE', tiersId: a.customers.C00001, number: 'F-X', numbering: 'recorded', issueDate: '2026-11-01', typeCode: '380', lines: [{ ...line, vatRateBp: 2000 }] })).rejects.toThrow(/exonérée est à 0/)
       await expect(createInvoice(a.companyId, { direction: 'PURCHASE', tiersId: a.supplierId, number: 'P-X', issueDate: '2026-11-01', typeCode: '380', lines: [{ ...line, vatRateBp: 0 }] })).rejects.toThrow(/seule une vente/)
       // The database refuses an exemption on a taxed line whatever the path
       const someLine = await prisma.invoiceLine.findFirstOrThrow({ where: { invoiceId: taxed.id } })
