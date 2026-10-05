@@ -70,7 +70,7 @@ model Company {
   isVatExempt                Boolean           @default(false) // Indique si l'entreprise est exonérée de TVA
   vatExemptReason            String? // Raison de l'exonération de TVA
   vatNumber                  String? // Numéro de TVA intracommunautaire
-  corporateTaxRegime         String? // Régime d'IS (normal, simplified, micro)
+  corporateTaxRegime         String? // Régime d'IS (normal, simplified, micro, income_tax: impôt sur le revenu, lib/companies/profit-taxation.ts)
   legalType                  CompanyLegalType? // Type juridique de la société (SARL, SAS, SA, etc.)
   legalForm                  String? // Forme juridique détaillée (pour les déclarations fiscales)
   color                      String? // Couleur pour les graphiques (format hex: #RRGGBB)
@@ -925,7 +925,7 @@ model TaxRegimeHistory {
   id              String    @id @default(cuid())
   companyId       String
   regimeType      String // vat, corporateTax
-  regime          String // normal, simplified, franchise, real, micro
+  regime          String // vat: normal, simplified, franchise, real, mini_real; corporateTax: normal, simplified, micro, income_tax (lib/companies/profit-taxation.ts)
   startDate       DateTime // Date de début d'application du régime
   endDate         DateTime? // Date de fin d'application (null si toujours actif)
   notes           String? // Notes optionnelles
@@ -2146,6 +2146,10 @@ model ExpenseLine {
   priorDistanceKm     Int?
   /// Year of the mileage scale applied.
   scaleYear           Int?
+  /// Who took a meal alone (MEALS) when the claimant does not say it, for a
+  /// company at IR: EXPLOITANT or EMPLOYEE (check constraint, migration
+  /// 20261119090000); null: given by the claimant (lib/expense-reports/exploitant-meals.ts).
+  mealTaker           String?
 
   report            ExpenseReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   receiptAttachment Attachment?   @relation(fields: [receiptAttachmentId], references: [id], onDelete: SetNull)

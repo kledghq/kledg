@@ -10,8 +10,9 @@ import { FileInput } from '@/components/ui/file-input'
 import { Textarea } from '@/components/ui/textarea'
 import { Field, formatAmount } from '@/components/shared'
 import { cn } from '@/lib/utils'
-import { categoriesForSide, CATEGORY_GROUPS, findCategory, searchText } from '@/lib/simple/categories'
-import { questionApplies, type Answers } from '@/lib/simple/posting'
+import { answersFor, categoriesForSide, CATEGORY_GROUPS, findCategory, searchText } from '@/lib/simple/categories'
+import { buildPostingLines, isExploitantMeal, questionApplies, resolvePosting, type Answers } from '@/lib/simple/posting'
+import { MealSplitNote } from '@/components/features/expense-reports/meal-split-note'
 import type { ExpenseToReview } from '@/lib/simple/expenses-to-review.service'
 
 export interface CategoryChoice {
@@ -49,8 +50,26 @@ function CategoryDialogBody({ expense, onOpenChange, onConfirm, onReceipt, initi
   const categories = categoriesForSide(expense.side)
   const category = findCategory(categoryId)
   const question = category && questionApplies(category, expense.amountCents) ? category.question! : null
-  const answer = question ? (answers[question.id] ?? question.defaultAnswerId) : undefined
+  const incomeTax = expense.mealRule === 'split'
+  // At IR, who ate changes what is deductible: the meal question has no default
+  const answer = question ? (answers[question.id] ?? (incomeTax && question.id === 'meal-guests' ? undefined : question.defaultAnswerId)) : undefined
   const ready = category !== null && (!question || Boolean(answer))
+  const chosen = question && answer ? { [question.id]: answer } : {}
+  // Meal alone of the exploitant at a company taxed at IR: the split the server books (VAT recovered in full in this preview)
+  const resolution = category ? resolvePosting(category, chosen, expense.amountCents) : null
+  const mealSplit =
+    category && resolution?.status === 'ready' && incomeTax && isExploitantMeal(resolution.answers)
+      ? (buildPostingLines({
+          category,
+          posting: resolution.posting,
+          kind: resolution.kind,
+          side: expense.side,
+          amountCents: expense.amountCents,
+          recoveryRatio: null,
+          exploitantMeal: { year: Number(expense.date.slice(0, 4)) },
+        }).mealSplit ?? null)
+      : null
+  const mealUnknown = expense.mealRule === 'unknown' && resolution?.status === 'ready' && isExploitantMeal(resolution.answers)
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -108,7 +127,7 @@ function CategoryDialogBody({ expense, onOpenChange, onConfirm, onReceipt, initi
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">{question.text}</legend>
             <div className="flex flex-wrap gap-2">
-              {question.answers.map((a) => (
+              {answersFor(question, incomeTax).map((a) => (
                 <Button
                   key={a.id}
                   type="button"
@@ -117,11 +136,17 @@ function CategoryDialogBody({ expense, onOpenChange, onConfirm, onReceipt, initi
                   aria-pressed={answer === a.id}
                   onClick={() => setAnswers({ ...answers, [question.id]: a.id })}
                 >
-                  {a.label}
+                  {a.shownLabel}
                 </Button>
               ))}
             </div>
             <p className="text-muted-foreground text-xs">{question.help}</p>
+            {mealSplit ? <MealSplitNote split={mealSplit} /> : null}
+            {mealUnknown ? (
+              <p className="text-warning text-xs" role="status">
+                {expense.mealRuleExplanation ?? 'Régime d’imposition des bénéfices non renseigné.'} Tant qu’il ne l’est pas, le repas reste entièrement en charge.
+              </p>
+            ) : null}
           </fieldset>
         ) : null}
 
@@ -156,7 +181,7 @@ function CategoryDialogBody({ expense, onOpenChange, onConfirm, onReceipt, initi
           <Button
             loading={busy}
             disabled={!ready || Boolean(expense.blockedReason)}
-            onClick={() => category && onConfirm(expense, { categoryId: category.id, answers: question && answer ? { [question.id]: answer } : {}, note })}
+            onClick={() => category && onConfirm(expense, { categoryId: category.id, answers: chosen, note })}
           >
             {expense.side === 'credit' ? 'Classer la recette' : 'Classer la dépense'}
           </Button>

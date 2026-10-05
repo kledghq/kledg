@@ -76,6 +76,8 @@ const corporateTaxRegimes = [
   { value: 'normal', label: 'Régime normal' },
   { value: 'simplified', label: 'Régime simplifié' },
   { value: 'micro', label: 'Micro-société' },
+  // Bénéfice imposé à l'impôt sur le revenu (EURL d'une personne physique, SNC, SARL de famille...): lib/companies/profit-taxation.ts
+  { value: 'income_tax', label: 'Impôt sur le revenu (pas d’IS)' },
 ]
 
 const vatExemptReasons = [

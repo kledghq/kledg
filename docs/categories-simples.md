@@ -39,13 +39,23 @@ Quelques catégories ne peuvent pas être comptabilisées sans une précision. E
 | Question | Catégories | Réponses |
 | --- | --- | --- |
 | « Allez-vous l'utiliser plus d'un an ? » | Matériel informatique, Mobilier de bureau, Outils et machines | Oui : immobilisation (2183, 2184, 2155) avec la TVA au 44562, créée avec son plan d'amortissement ([Immobilisations](#immobilisations)). Non : charge (6063). Posée seulement au-delà de 500 € HT (tolérance BOI-BIC-CHG-20-30-10 ; PCG art. 212-1 et 213-1). |
-| « Avec qui était ce repas ? » | Repas d'affaires | Avec des clients ou partenaires (6257, par défaut) ou seul en déplacement (6256). La note nomme les invités pour le comptable. |
+| « Avec qui était ce repas ? » | Repas d'affaires | Avec des clients ou partenaires (6257, par défaut) ou seul en déplacement (6256). La note nomme les invités pour le comptable. Pour une société à l'impôt sur le revenu, pas de réponse par défaut et trois réponses : avec des clients ou partenaires (6257), « Vous ou un associé, seul en déplacement » (seuls les frais supplémentaires sur 6256, le reste sur 62568, voir [Repas de l'exploitant](#repas-de-lexploitant)), « Un salarié, seul en déplacement » (6256 en entier). |
 | « C'est pour quel véhicule ? » | Carburant, Location ou leasing de véhicule, Entretien et réparation du véhicule | Voiture de tourisme ou utilitaire. |
 | « Votre bail ou votre quittance mentionne-t-il de la TVA ? » | Loyer des locaux | Avec ou sans TVA (CGI art. 261 D, 2° et 260, 2°). |
 | « Quelle TVA figure sur votre facture ? » | Ventes de prestations, de marchandises, de produits fabriqués | 20 % par défaut (CGI art. 278), 10 % (art. 279), 5,5 % (art. 278-0 bis), 2,1 % (art. 281 quater à 298 septies), sans TVA (exportations et livraisons intracommunautaires, art. 262 ter et 262, I ; services taxés chez le client, art. 259 et 283, 2 ; opérations exonérées, art. 261). La réponse par défaut laisse la vente confirmable d'un clic. |
 | « Est-ce de l'argent que vous avez prêté à votre société ? » | Argent versé par un associé ou le dirigeant | Oui, un prêt : compte courant d'associé (455), rendu plus tard. Non, une augmentation de capital (1013, après la décision des associés, C. com. art. L223-32 et L225-127 à L225-129). Non, le paiement d'une vente : vente de prestations (706) avec sa TVA collectée. Aucune réponse par défaut : rien ne distingue les trois sur la ligne de la banque. |
 
 La réponse sur le véhicule, sur le loyer et sur le taux de TVA d'une vente est reprise pour la même contrepartie la fois suivante ; celle sur un achat durable et sur l'argent d'un associé est redemandée à chaque fois.
+
+### Repas de l'exploitant
+
+Pour une société dont le bénéfice est imposé à l'impôt sur le revenu au jour de la transaction (`lib/companies/profit-taxation.ts`, mêmes règles que les [notes de frais](notes-de-frais.md#repas-de-lexploitant-société-à-limpôt-sur-le-revenu)) :
+
+- la question du repas est **posée** : la suggestion ne prend plus la réponse par défaut, la ligne sort de « Tout confirmer », et une confirmation sans réponse (page ou `accept_expense_suggestion`) est refusée avec la question ;
+- « Vous ou un associé, seul en déplacement » (réponse `alone`) partage la charge : la part déductible (frais supplémentaires, au-delà de la valeur du repas au domicile et jusqu'à la limite de l'année, BOI-BNC-BASE-40-60-60) sur 6256, le reste sur **62568**, à réintégrer (ligne 316 du 2033-B-SD ou WD du 2058-A-SD) ; la TVA ne change pas (`lib/simple/posting.ts`, étape 6). La fenêtre « Modifier » affiche le partage, les seuils de l'année et la source avant de classer ; la réponse `mealNote` de la confirmation l'explique ;
+- « Un salarié, seul en déplacement » (`alone-employee`) garde le repas entier sur 6256.
+
+Le compte 62568 est créé dans le plan de l'exercice s'il manque, jamais remplacé par 6256. Si l'imposition de la société est inconnue (EURL sans associé enregistré, société sans forme ni régime), un repas seul reste entier et la fenêtre dit de renseigner le régime d'imposition des bénéfices. Une règle d'affectation appliquée telle quelle reproduit ses propres lignes : elle ne partage pas le repas. `list_expenses_to_review` donne `mealRule` (`split`, `unknown`, `none`) par ligne et `mealRuleExplanation`.
 
 ### Immobilisations
 

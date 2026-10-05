@@ -305,3 +305,16 @@ describe('questions, one test per branch', () => {
     })
   })
 })
+
+describe('meal question at a company taxed at IR', () => {
+  it('offers the employee answer and the exploitant label only at IR', async () => {
+    const { answersFor, findCategory: find } = await import('../categories')
+    const question = find('repas-affaires')!.question!
+    expect(answersFor(question, false).map((a) => a.shownLabel)).toEqual(['Avec des clients ou partenaires', 'Seul, en déplacement'])
+    expect(answersFor(question, true).map((a) => [a.id, a.shownLabel])).toEqual([
+      ['guests', 'Avec des clients ou partenaires'],
+      ['alone', 'Vous ou un associé, seul en déplacement'],
+      ['alone-employee', 'Un salarié, seul en déplacement'],
+    ])
+  })
+})

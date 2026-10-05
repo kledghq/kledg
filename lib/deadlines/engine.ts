@@ -47,7 +47,7 @@ export interface DeadlineCompany {
   /** Company.vatRegime: normal, real, mini_real, simplified, franchise; null when unknown. */
   vatRegime: string | null
   isVatExempt: boolean
-  /** Company.corporateTaxRegime: normal or simplified; null or micro: not subject to IS. */
+  /** Company.corporateTaxRegime: normal or simplified; null, micro or income_tax (lib/companies/profit-taxation.ts): not subject to IS. */
   corporateTaxRegime: string | null
   foundationDate: string | null
   /** TaxRegimeHistory rows: they win over the company fields for the periods they cover. */
@@ -248,9 +248,14 @@ export function vatFilingAt(company: DeadlineCompany, settings: Pick<DeadlineSet
 
 export type CorporateTaxRegime = 'normal' | 'simplified'
 
+/** The corporate tax regime value on a day (history row covering it, else the company field): normal, simplified, micro, income_tax or null. */
+export function corporateTaxRegimeValueAt(company: DeadlineCompany, day: string): string | null {
+  return historyAt(company, 'corporateTax', day)?.regime ?? company.corporateTaxRegime
+}
+
 /** The IS regime on a day (history row covering it, else the company field); null: not subject to IS, or not set. */
 export function corporateTaxRegimeAt(company: DeadlineCompany, day: string): CorporateTaxRegime | null {
-  const regime = historyAt(company, 'corporateTax', day)?.regime ?? company.corporateTaxRegime
+  const regime = corporateTaxRegimeValueAt(company, day)
   return regime === 'normal' || regime === 'simplified' ? regime : null
 }
 

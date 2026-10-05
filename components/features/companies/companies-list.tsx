@@ -504,6 +504,7 @@ export function CompaniesList({
                       <SelectItem value="normal">Régime normal</SelectItem>
                       <SelectItem value="simplified">Régime simplifié</SelectItem>
                       <SelectItem value="micro">Micro-société</SelectItem>
+                      <SelectItem value="income_tax">Impôt sur le revenu (pas d’IS)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

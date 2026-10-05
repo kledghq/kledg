@@ -24,12 +24,20 @@
  * 5. Movements that are not taxed operations (taxes paid, loans, transfers,
  *    salaries) and categories without VAT: one line for the whole amount.
  *
+ * 6. A meal alone of the exploitant at a company taxed at the impôt sur le
+ *    revenu (answer "alone" of the meal question, exploitantMeal set by the
+ *    caller): the charge is split, the deductible part (the frais
+ *    supplémentaires) on 6256, the rest on 62568 to add back
+ *    (lib/expense-reports/exploitant-meals.ts, BOI-BNC-BASE-40-60-60). The
+ *    VAT is unchanged.
+ *
  * Counterpart lines carry the opposite of the bank line (money out: debits),
  * so they sum exactly to the transaction amount. Amounts are integer cents.
  */
 
 import { recoverableVatByRule, vatIncludedCents, RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
-import type { CategoryKind, Posting, Question, SimpleCategory } from './categories'
+import { NON_DEDUCTIBLE_MEALS_ACCOUNT, splitExploitantMeal, type MealSplit } from '@/lib/expense-reports/exploitant-meals'
+import { EXPLOITANT_MEAL_ANSWER, type CategoryKind, type Posting, type Question, type SimpleCategory } from './categories'
 
 export type Side = 'debit' | 'credit'
 export type Answers = Record<string, string>
@@ -92,8 +100,8 @@ export interface CounterpartLine {
   accountCode: string
   debitCents: number
   creditCents: number
-  /** The charge, product or movement, or the VAT. */
-  role: 'base' | 'vat'
+  /** The charge, product or movement, the VAT, or the non-deductible part of a meal of the exploitant. */
+  role: 'base' | 'vat' | 'non-deductible'
 }
 
 export interface PostingPlan {
@@ -104,6 +112,8 @@ export interface PostingPlan {
   vatBookedCents: number
   /** Plain French explanation of the VAT, for the accountant. */
   vatNote: string
+  /** Split of a meal of the exploitant (exploitantMeal), null otherwise. */
+  mealSplit?: MealSplit | null
 }
 
 export interface PostingInput {
@@ -123,6 +133,37 @@ export interface PostingInput {
    * Null: subject to VAT, full recovery.
    */
   recoveryRatio: number | null
+  /**
+   * The operation is a meal alone of the exploitant of a company taxed at
+   * the impôt sur le revenu, in this calendar year: the charge is split
+   * (isExploitantMeal tells when). Null or absent: no split.
+   */
+  exploitantMeal?: { year: number } | null
+}
+
+/** Whether a resolved meal answer is the meal alone of the exploitant (the caller checks the company is at IR). */
+export function isExploitantMeal(answers: Answers): boolean {
+  return answers[EXPLOITANT_MEAL_ANSWER.questionId] === EXPLOITANT_MEAL_ANSWER.answerId
+}
+
+/** Replaces the charge line of an expense by its deductible and non-deductible parts. */
+function withMealSplit(plan: PostingPlan, amountCents: number, year: number): PostingPlan {
+  const base = plan.lines.find((l) => l.role === 'base')
+  if (!base || base.debitCents <= 0) return plan
+  const split = splitExploitantMeal({ amountInclTaxCents: amountCents, chargeCents: base.debitCents, year })
+  if (split.nonDeductibleCents <= 0) return { ...plan, mealSplit: split }
+  const parts: CounterpartLine[] = [
+    ...(split.deductibleCents > 0 ? [{ ...base, debitCents: split.deductibleCents }] : []),
+    { accountCode: NON_DEDUCTIBLE_MEALS_ACCOUNT.root, debitCents: split.nonDeductibleCents, creditCents: 0, role: 'non-deductible' },
+  ]
+  return { ...plan, lines: plan.lines.flatMap((l) => (l === base ? parts : [l])), mealSplit: split }
+}
+
+/** The counterpart lines of the entry, with the split of a meal of the exploitant when asked. */
+export function buildPostingLines(input: PostingInput): PostingPlan {
+  const plan = buildPlainPostingLines(input)
+  const kind = input.kind ?? input.category.kind
+  return input.exploitantMeal && kind === 'expense' && input.side === 'debit' ? withMealSplit(plan, input.amountCents, input.exploitantMeal.year) : plan
 }
 
 /** n x ratio rounded half away from zero, n >= 0. Ratios come from cent sums, rounded to 1e-6 here. */
@@ -134,7 +175,7 @@ function share(n: number, ratio: number): number {
 const PASSENGER_VEHICLE_NOTE = 'Véhicule de tourisme : TVA non récupérable (CGI ann. II art. 206, IV, 2, 6°)'
 
 /** The counterpart lines of the entry, summing to the amount on the side opposite to the bank line. */
-export function buildPostingLines(input: PostingInput): PostingPlan {
+function buildPlainPostingLines(input: PostingInput): PostingPlan {
   const { category, posting, side, amountCents } = input
   const kind = input.kind ?? category.kind
   const line = (accountCode: string, cents: number, role: CounterpartLine['role']): CounterpartLine =>

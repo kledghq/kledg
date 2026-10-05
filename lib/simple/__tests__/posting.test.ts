@@ -240,3 +240,49 @@ describe('every category', () => {
     }
   })
 })
+
+describe('meal alone of the exploitant at a company taxed at IR (BOI-BNC-BASE-40-60-60)', () => {
+  const meal = (amountCents: number, answers: Record<string, string>, exploitantMeal: { year: number } | null) => {
+    const category = findCategory('repas-affaires')!
+    const resolution = resolvePosting(category, answers, amountCents)
+    if (resolution.status !== 'ready') throw new Error(resolution.status)
+    return buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side: 'debit', amountCents, recoveryRatio: null, exploitantMeal })
+  }
+
+  it('splits the charge: frais supplémentaires on 6256, the rest on 62568, VAT unchanged', () => {
+    // 25 € TTC at 10 %: VAT 2,27 €, charge 22,73 €, non-deductible 9,10 / 25 of it
+    const p = meal(2_500, { 'meal-guests': 'alone' }, { year: 2026 })
+    expect(lines(p)).toEqual([
+      ['6256', 1_446, 0],
+      ['62568', 827, 0],
+      ['44566', 227, 0],
+    ])
+    expect(p.mealSplit).toMatchObject({ deductibleInclTaxCents: 1_590 })
+    expect(p.lines.reduce((s, l) => s + l.debitCents, 0)).toBe(2_500)
+  })
+
+  it('puts a meal below the home meal value entirely on 62568', () => {
+    expect(lines(meal(500, { 'meal-guests': 'alone' }, { year: 2026 }))).toEqual([
+      ['62568', 455, 0],
+      ['44566', 45, 0],
+    ])
+  })
+
+  it('isExploitantMeal reads only the answer alone', async () => {
+    const { isExploitantMeal } = await import('../posting')
+    expect(isExploitantMeal({ 'meal-guests': 'alone' })).toBe(true)
+    expect(isExploitantMeal({ 'meal-guests': 'alone-employee' })).toBe(false)
+    expect(isExploitantMeal({ 'meal-guests': 'guests' })).toBe(false)
+  })
+
+  it('leaves the meal whole without exploitantMeal (company at IS, employee, business meal)', () => {
+    expect(lines(meal(2_500, { 'meal-guests': 'alone' }, null))).toEqual([
+      ['6256', 2_273, 0],
+      ['44566', 227, 0],
+    ])
+    expect(lines(meal(2_500, { 'meal-guests': 'alone-employee' }, null))).toEqual([
+      ['6256', 2_273, 0],
+      ['44566', 227, 0],
+    ])
+  })
+})

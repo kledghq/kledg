@@ -29,6 +29,11 @@ vi.mock('@/lib/expense-reports/manage-category-rules.service', async (importOrig
   ...(await importOriginal<typeof import('@/lib/expense-reports/manage-category-rules.service')>()),
   listCategoryRules: vi.fn(async () => ({ rules: [{ id: 'r1', keyword: 'sncf', category: 'TRANSPORT', accountCode: null, priority: 0 }] })),
 }))
+vi.mock('@/lib/expense-reports/meal-rule.service', () => ({
+  // A company taxed at the impôt sur le revenu, the connected user an associé
+  mealRulesOn: vi.fn(async (_companyId: string, days: string[]) => new Map(days.map((d) => [d, { applies: true, unknown: false, explanation: 'EURL' }]))),
+  loadMealRule: vi.fn(async () => ({ day: '2026-03-31', company: { applies: true, unknown: false, explanation: 'EURL' }, claimant: { role: 'exploitant', explanation: 'associé' } })),
+}))
 vi.mock('@/lib/expense-reports/manage-expense-claimants.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/expense-reports/manage-expense-claimants.service')>()), listClaimants: vi.fn() }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
@@ -173,6 +178,18 @@ describe('create_draft_expense_report (kledg:write)', () => {
     })
     expect(createExpenseReport).not.toHaveBeenCalled()
     expect(writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('with dryRun, shows the split of a meal alone of the exploitant at a company taxed at IR (BOI-BNC-BASE-40-60-60)', async () => {
+    const meal = { date: '2026-03-10', label: 'Déjeuner seul', category: 'MEALS', amountPaid: 25, vatRate: 10, receipt: 'INVOICE' }
+    const data = parse(await server().get('create_draft_expense_report')!({ ...args, expenses: [meal], trips: [], dryRun: true }))
+    expect(data.preview.lines[0].meal).toMatchObject({
+      status: 'split',
+      deductible: 14.46,
+      nonDeductible: 8.27,
+      nonDeductibleAccount: '62568',
+      thresholds: { year: 2026, homeMeal: 5.5, limit: 21.4, estimated: false },
+    })
   })
 
   it('records the draft in cents for the user’s own claimant, audited, with the link to review it', async () => {

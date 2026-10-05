@@ -31,6 +31,9 @@ import { pickRule } from '@/lib/transactions/rule-matcher'
 import { counterpartyKey } from '@/lib/subscriptions/detect'
 import { toCents } from '@/lib/utils/money'
 import { addUtcDays, todayUtc, toIsoDateUtc } from '@/lib/utils/date'
+import { mealRulesOn } from '@/lib/expense-reports/meal-rule.service'
+import { mealRuleOfTaxation } from '@/lib/expense-reports/exploitant-meals'
+import { loadProfitTaxationResolver } from '@/lib/companies/profit-taxation.service'
 import { categoryOfAccount, findCategory } from './categories'
 import { displayNameOf } from './payees'
 import { getSimpleModeSettings, type SimpleModeSettings } from './simple-mode-settings.service'
@@ -70,6 +73,15 @@ export interface ExpenseToReview {
   canUploadReceipt: boolean
   /** Why it cannot be confirmed yet (no open fiscal year covers its date), null otherwise. */
   blockedReason: string | null
+  /**
+   * Meals alone on this day (lib/expense-reports/exploitant-meals.ts): split
+   * when the company is taxed at the impôt sur le revenu (the meal question
+   * then asks whether the exploitant or an employee ate), unknown when its
+   * taxation is not set (nothing is split), none otherwise.
+   */
+  mealRule: 'split' | 'unknown' | 'none'
+  /** How the profits are taxed on that day, when it decides the meals (split or unknown); null otherwise. */
+  mealRuleExplanation: string | null
 }
 
 export interface ExpensesToReview {
@@ -80,6 +92,8 @@ export interface ExpensesToReview {
   bulkConfirmableIds: string[]
   /** Whether confirmed entries wait for the accountant, and who they are (the page's footer). */
   review: SimpleModeSettings
+  /** How the company's profits are taxed today, when it decides the meals of the exploitant (IR or unknown); null at IS. */
+  mealRuleExplanation: string | null
 }
 
 /** Providers write the side "debit"/"credit" (older imports "Débit"/"Crédit"), as normalizeSide reads it. */
@@ -108,6 +122,8 @@ export interface SuggestionSignals {
   invoices: OpenInvoice[]
   owners: string[]
   customers: CustomerSignal[]
+  /** The company is taxed at the impôt sur le revenu (régime réel) on a day: meals ask who ate. */
+  incomeTaxOn: (day: string) => boolean
 }
 
 /** Signals of money in: open sales invoices, partners, customers (four queries). */
@@ -150,7 +166,7 @@ function ruleCategory(name: string, lines: Array<{ accountCode: string }>): stri
  */
 export async function loadSuggestionSignals(companyId: string, options: { now?: Date; income?: boolean } = {}): Promise<SuggestionSignals> {
   const now = options.now ?? new Date()
-  const [matcher, ruleRows, simpleRows, income] = await Promise.all([
+  const [matcher, ruleRows, simpleRows, income, taxation] = await Promise.all([
     loadRuleMatcher(companyId),
     prisma.transactionRule.findMany({
       where: { companyId, enabled: true },
@@ -163,6 +179,7 @@ export async function loadSuggestionSignals(companyId: string, options: { now?: 
       take: HISTORY_ROWS,
     }),
     options.income === false ? { invoices: [], owners: [], customers: [] } : loadIncomeSignals(companyId),
+    loadProfitTaxationResolver(companyId),
   ])
   const ruleById = new Map(ruleRows.map((r) => [r.id, { name: r.name, categoryId: ruleCategory(r.name, r.entryLines) }]))
 
@@ -219,6 +236,7 @@ export async function loadSuggestionSignals(companyId: string, options: { now?: 
   return {
     ...income,
     history,
+    incomeTaxOn: (day) => mealRuleOfTaxation(taxation(day)).applies,
     rules: (transaction) => {
       const best = pickRule(matcher(enrichTransaction(transaction)).filter((m) => m.matched))
       const rule = best ? ruleById.get(best.ruleId) : undefined
@@ -261,6 +279,7 @@ export function suggestionFor(transaction: LoadedTransaction, signals: Suggestio
       invoices: signals.invoices,
       owners: signals.owners,
       customers: signals.customers,
+      askMealGuests: signals.incomeTaxOn(toIsoDateUtc(transaction.date)),
     },
   )
 }
@@ -291,8 +310,11 @@ export async function listExpensesToReview(companyId: string, query: z.output<ty
     loadSuggestionSignals(companyId, { income: query.side !== 'debit' }),
     getSimpleModeSettings(companyId),
   ])
+  const today = toIsoDateUtc(todayUtc())
+  const mealRules = await mealRulesOn(companyId, [today, ...rows.map((row) => toIsoDateUtc(row.date))])
   const items = rows.map((row): ExpenseToReview => {
     const date = toIsoDateUtc(row.date)
+    const mealRule = mealRules.get(date)!
     const blocked = blockedReason(fiscalYears, date)
     const suggestion = suggestionFor(row, signals)
     return {
@@ -306,9 +328,18 @@ export async function listExpensesToReview(companyId: string, query: z.output<ty
       hasReceipt: row._count.attachments > 0,
       canUploadReceipt: row.bankAccount.bankConnection.provider === 'QONTO',
       blockedReason: blocked,
+      mealRule: mealRule.applies ? 'split' : mealRule.unknown ? 'unknown' : 'none',
+      mealRuleExplanation: mealRule.applies || mealRule.unknown ? mealRule.explanation : null,
     }
   })
-  return { items, count, bulkConfirmableIds: items.filter((i) => i.suggestion.bulkConfirmable).map((i) => i.id), review }
+  const todayRule = mealRules.get(today)!
+  return {
+    items,
+    count,
+    bulkConfirmableIds: items.filter((i) => i.suggestion.bulkConfirmable).map((i) => i.id),
+    review,
+    mealRuleExplanation: todayRule.applies || todayRule.unknown ? todayRule.explanation : null,
+  }
 }
 
 /** Label of a suggestion for messages: the category, or the rule. */

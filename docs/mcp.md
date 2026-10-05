@@ -668,6 +668,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/expense-reports/[id]` | expenses:submit | `manage_expense_report` (CT) |
 | `POST /api/expense-reports/[id]/workflow` | expenses:submit | `manage_expense_report` (CT) |
 | `GET /api/expense-reports/receipts` | expenses:submit, banking:read | Exclu : aides de l'interface |
+| `GET /api/expense-reports/meal-rule` | expenses:submit | `get_expense_report` (L), `create_draft_expense_report` (B) ; le partage des repas de l'exploitant est dans `meal` et `mealRule`. |
 | `GET /api/expense-reports` | entries:read | `list_expense_reports` (L) |
 | `POST /api/expense-reports` | expenses:submit | `create_draft_expense_report` (B) |
 | `GET /api/fec` | reports:export | `export_fec` (CT) |

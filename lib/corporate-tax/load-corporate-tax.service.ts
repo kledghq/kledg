@@ -26,7 +26,8 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
-import { addMonthsEom, computeDeadlines, corporateTaxRegimeAt, secondBusinessDayAfterMayFirst } from '@/lib/deadlines/engine'
+import { addMonthsEom, computeDeadlines, corporateTaxRegimeAt, corporateTaxRegimeValueAt, secondBusinessDayAfterMayFirst } from '@/lib/deadlines/engine'
+import { INCOME_TAX_REGIME } from '@/lib/companies/profit-taxation'
 import { loadDeadlineContext, type CompanyContext } from '@/lib/deadlines/load-deadlines.service'
 import type { GroupAccess } from '@/lib/management-fees/access'
 import { resolveGroup } from '@/lib/group/perimeter'
@@ -204,7 +205,9 @@ type Fy = CompanyContext['fiscalYears'][number]
 export function corporateTaxStatusOf(company: CompanyContext['company'], fy: Pick<Fy, 'endDate'>): { status: 'ready'; regime: CorporateTaxRegime } | { status: 'not-subject' | 'missing-regime' } {
   const regime = corporateTaxRegimeAt(company, fy.endDate)
   if (regime) return { status: 'ready', regime }
-  if (company.corporateTaxRegime === 'micro' || (company.legalType && INCOME_TAX_FORMS.has(company.legalType))) return { status: 'not-subject' }
+  // Micro regime, or the impôt sur le revenu recorded (lib/companies/profit-taxation.ts), or a form at IR by default
+  const value = corporateTaxRegimeValueAt(company, fy.endDate)
+  if (value === 'micro' || value === INCOME_TAX_REGIME || (company.legalType && INCOME_TAX_FORMS.has(company.legalType))) return { status: 'not-subject' }
   return { status: 'missing-regime' }
 }
 

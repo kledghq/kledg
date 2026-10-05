@@ -41,6 +41,8 @@ import { listCategoryRules } from './manage-category-rules.service'
 import { ensureOwnClaimant } from './manage-expense-claimants.service'
 import { expenseReportStatus, type ExpenseReportStatus, type ExpenseStatusFilter, EXPENSE_STATUS_FILTERS } from './status'
 import { RECOVERY_LABELS } from './vat-recovery'
+import { mealLineTreatment, type MealTaker } from './exploitant-meals'
+import { claimantMealRole, mealRulesOn } from './meal-rule.service'
 
 export const REPORT_NOT_FOUND = 'Note de frais introuvable'
 
@@ -71,6 +73,12 @@ const lineSchema = z.object({
   fiscalPower: z.number().int().min(1).max(99).nullish(),
   electric: z.boolean().default(false),
   distanceKm: z.number({ error: 'Distance invalide' }).int('Distance en kilomètres entiers').min(1).max(100_000).nullish(),
+  /**
+   * Who took a meal alone (MEALS) when the claimant does not say it, for a
+   * company at IR (exploitant-meals.ts): EXPLOITANT or EMPLOYEE. Kept on
+   * MEALS lines only.
+   */
+  mealTaker: z.enum(['EXPLOITANT', 'EMPLOYEE'], { error: 'Réponse inconnue : EXPLOITANT ou EMPLOYEE' }).nullish(),
 })
 export type ExpenseLineBody = z.infer<typeof lineSchema>
 
@@ -232,7 +240,7 @@ export async function listExpenseReports(companyId: string, actor: ExpenseActor,
 const DETAIL_SELECT = {
   ...SUMMARY_SELECT,
   returnNote: true,
-  claimant: { select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true, userId: true, accountCode: true } },
+  claimant: { select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true, userId: true, accountCode: true, personId: true } },
   lines: {
     orderBy: { position: 'asc' },
     select: {
@@ -258,6 +266,7 @@ const DETAIL_SELECT = {
       distanceKm: true,
       priorDistanceKm: true,
       scaleYear: true,
+      mealTaker: true,
     },
   },
 } satisfies Prisma.ExpenseReportSelect
@@ -287,6 +296,7 @@ export async function getExpenseReport(companyId: string, id: string, actor: Exp
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { isVatExempt: true } })
   const computed = computeReport(row.lines.map(lineInputOf), { vatExempt: company.isVatExempt })
   const baselines = await mileageBaselines(prisma, companyId, row.claimant.id, id, row.lines.map((l) => calendarDayOf(l.date) as string))
+  const meals = await reportMealRule(prisma, companyId, row)
   return {
     ...summaryOf(row, actor),
     returnNote: row.returnNote,
@@ -321,8 +331,48 @@ export async function getExpenseReport(companyId: string, id: string, actor: Exp
       priorDistanceKm: l.priorDistanceKm,
       scaleYear: l.scaleYear,
       powerClass: computed.lines[i].powerClass,
+      mealTaker: (l.mealTaker as MealTaker | null) ?? null,
+      /** Meal alone of the exploitant of a company at IR: the split, or what to ask (exploitant-meals.ts); null: not concerned. */
+      meal: meals.lines[i],
     })),
     vatByRate: computed.vatByRate,
+    /** Rule on the meals of the exploitant: the company side on the report's last day and the claimant's role. */
+    mealRule: meals.rule,
+  }
+}
+
+/**
+ * The rule on the meals of the exploitant for a report: the company side on
+ * each meal's day, the claimant's role, and each line's treatment.
+ */
+export async function reportMealRule(
+  db: Db,
+  companyId: string,
+  report: {
+    periodEnd: Date
+    claimant: { kind: 'EMPLOYEE' | 'DIRIGEANT' | 'ASSOCIE'; personId: string | null }
+    lines: Array<{ kind: string; category: string; date: Date; amountInclTax: { toString(): string }; recoverableVat: { toString(): string }; mealTaker: string | null }>
+  },
+) {
+  const end = calendarDayOf(report.periodEnd) as string
+  const days = report.lines.map((l) => calendarDayOf(l.date) as string)
+  const [rules, claimant] = await Promise.all([mealRulesOn(companyId, [end, ...days], db), claimantMealRole(companyId, report.claimant, db)])
+  return {
+    rule: { company: rules.get(end)!, claimant },
+    lines: report.lines.map((l, i) =>
+      mealLineTreatment(
+        {
+          kind: l.kind,
+          category: l.category,
+          amountInclTaxCents: cents(l.amountInclTax),
+          recoverableVatCents: cents(l.recoverableVat),
+          date: days[i],
+          mealTaker: (l.mealTaker as MealTaker | null) ?? null,
+        },
+        rules.get(days[i])!,
+        claimant,
+      ),
+    ),
   }
 }
 
@@ -445,6 +495,7 @@ async function prepareLines(
         distanceKm: input.distanceKm ?? null,
         priorDistanceKm: mileage ? (input.priorDistanceKm ?? 0) : null,
         scaleYear: computed.scaleYear,
+        mealTaker: !mileage && category === 'MEALS' ? (body.mealTaker ?? null) : null,
       }
     }),
     totals: { totalInclTaxCents: totals.totalInclTaxCents, recoverableVatCents: totals.recoverableVatCents, totalExpenseCents: totals.totalExpenseCents },

@@ -273,6 +273,7 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'DELETE /api/expense-reports/[id]': { tools: ['manage_expense_report'] },
   'POST /api/expense-reports/[id]/workflow': { tools: ['manage_expense_report'] },
   'GET /api/expense-reports/receipts': { excluded: 'ui' },
+  'GET /api/expense-reports/meal-rule': { tools: ['get_expense_report', 'create_draft_expense_report'] },
   'GET /api/expense-reports': { tools: ['list_expense_reports'] },
   'POST /api/expense-reports': { tools: ['create_draft_expense_report'] },
   'GET /api/fec': { tools: ['export_fec'] },

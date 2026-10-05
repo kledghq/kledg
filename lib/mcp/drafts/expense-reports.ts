@@ -23,6 +23,10 @@ import { matchCategoryRule } from '@/lib/expense-reports/category-rules'
 import { listCategoryRules } from '@/lib/expense-reports/manage-category-rules.service'
 import { createExpenseReport, type ExpenseLineBody } from '@/lib/expense-reports/manage-expense-reports.service'
 import { RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
+import type { ExpenseActor } from '@/lib/expense-reports/actor'
+import { mealLineTreatment } from '@/lib/expense-reports/exploitant-meals'
+import { loadMealRule, mealRulesOn } from '@/lib/expense-reports/meal-rule.service'
+import { mealOut } from '@/lib/mcp/expense-report-tools'
 import { rateToBasisPoints } from '@/lib/invoices/amounts'
 import { fromCents, toCents } from '@/lib/utils/money'
 import { kledgPageUrl } from '@/lib/mcp/tool-meta'
@@ -57,6 +61,10 @@ const input = {
         receipt: z.enum(['NONE', 'RECEIPT', 'INVOICE']).default('RECEIPT').describe('INVOICE: invoice made out to the company; RECEIPT: ticket or simplified invoice (150 € HT at most for the VAT); NONE.'),
         receiptAttachmentId: z.string().max(64).optional().describe('Id of a receipt already in Kledg (a Qonto attachment of the company).'),
         receiptReference: z.string().max(200).optional(),
+        mealTaker: z
+          .enum(['EXPLOITANT', 'EMPLOYEE'])
+          .optional()
+          .describe('MEALS only, for a company at the impôt sur le revenu when the claimant is not known as associé or employee: who took the meal (EXPLOITANT: the exploitant or an associé, only the frais supplémentaires are deductible; EMPLOYEE).'),
       }),
     )
     .max(200)
@@ -110,6 +118,7 @@ function linesOf(args: Args): ExpenseLineBody[] {
       receiptAttachmentId: e.receiptAttachmentId ?? null,
       receiptReference: e.receiptReference ?? null,
       electric: false,
+      mealTaker: e.mealTaker ?? null,
     }
   })
   const trips = args.trips.map<ExpenseLineBody>((t) => ({
@@ -130,8 +139,13 @@ function linesOf(args: Args): ExpenseLineBody[] {
   return lines
 }
 
-async function previewOf(args: Args) {
+async function previewOf(args: Args, actor: ExpenseActor) {
   const lines = linesOf(args)
+  const claimantId = await resolveClaimant(args.companyId, args.claimant)
+  const [mealRules, mealView] = await Promise.all([
+    mealRulesOn(args.companyId, lines.map((l) => l.date)),
+    loadMealRule(args.companyId, actor, { claimantId, day: args.periodEnd }),
+  ])
   const company = await prisma.company.findUniqueOrThrow({ where: { id: args.companyId }, select: { isVatExempt: true } })
   const { rules } = await listCategoryRules(args.companyId)
   const inputs = assignPriorDistances(
@@ -164,6 +178,20 @@ async function previewOf(args: Args) {
       recoverableVat: fromCents(l.recoverableVatCents),
       recovery: RECOVERY_LABELS[l.reason],
       problem: l.error,
+      meal: mealOut(
+        mealLineTreatment(
+          {
+            kind: lines[i].kind,
+            category: inputs[i].category,
+            amountInclTaxCents: l.amountInclTaxCents,
+            recoverableVatCents: l.recoverableVatCents,
+            date: lines[i].date,
+            mealTaker: lines[i].mealTaker ?? null,
+          },
+          mealRules.get(lines[i].date)!,
+          mealView.claimant,
+        ),
+      ),
     })),
   }
 }
@@ -172,7 +200,7 @@ const createDraftExpenseReportTool = draftTool({
   name: 'create_draft_expense_report',
   title: 'Préparer une note de frais',
   summary:
-    "Records an expense report (note de frais) in Kledg as a draft (brouillon) from receipts: expenses with the amount paid and the VAT shown, and mileage trips paid by the official scale of their year (no VAT). For the connected user, or for another claimant (id or auxiliary number from list_expense_claimants) when the user validates reports. Kledg computes the recoverable VAT of each line (none on passenger transport or staff lodging, CGI ann. II art. 206, IV, 2; 80 % on fuel; only with an invoice in the company name, or a ticket of 150 € HT at most). dryRun: true shows the totals and the VAT recovered per line without recording (its mileage amounts do not count the claimant's earlier trips of the year; the recorded report does).",
+    "Records an expense report (note de frais) in Kledg as a draft (brouillon) from receipts: expenses with the amount paid and the VAT shown, and mileage trips paid by the official scale of their year (no VAT). For the connected user, or for another claimant (id or auxiliary number from list_expense_claimants) when the user validates reports. Kledg computes the recoverable VAT of each line (none on passenger transport or staff lodging, CGI ann. II art. 206, IV, 2; 80 % on fuel; only with an invoice in the company name, or a ticket of 150 € HT at most). For a company taxed at the impôt sur le revenu, a meal alone (MEALS) of the exploitant or an associé is split when posted: only the frais supplémentaires are deductible (above the home meal value, up to the yearly limit: 5,50 € and 21,40 € TTC in 2026, BOI-BNC-BASE-40-60-60), the rest goes to 62568 and is added back on the return; the dryRun preview shows it per line (meal), and status ask means mealTaker is needed. dryRun: true shows the totals and the VAT recovered per line without recording (its mileage amounts do not count the claimant's earlier trips of the year; the recorded report does).",
   never: 'submits, validates, posts or reimburses the report: the person submits it and a validator validates and posts it in Kledg.',
   amounts: 'euros',
   units: 'VAT rates in percent, distances in km.',
@@ -184,7 +212,7 @@ const createDraftExpenseReportTool = draftTool({
     if (dryRun) {
       return {
         dryRun: true,
-        preview: await previewOf(args),
+        preview: await previewOf(args, await expenseActorOf(ctx.access.user, args.companyId)),
         changes: 'Aucune\u00a0: aperçu seulement.',
         reviewUrl: kledgPageUrl(args.companyId, 'expense-reports'),
         message: "Aperçu seulement\u00a0: rien n'a été enregistré. Rappelez l'outil sans dryRun pour enregistrer la note en brouillon.",

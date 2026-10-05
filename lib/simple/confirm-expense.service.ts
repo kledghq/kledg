@@ -68,8 +68,10 @@ import { counterpartyKey } from '@/lib/subscriptions/detect'
 import { createFixedAssetInTx } from '@/lib/fixed-assets/create-fixed-asset.service'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { formatIsoDateFr, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
-import { findCategory, type Posting, type SimpleCategory } from './categories'
-import { buildPostingLines, resolvePosting, VAT_COLLECTED, VAT_DEDUCTIBLE, VAT_ON_ASSETS, type Answers, type CounterpartLine } from './posting'
+import { EXPLOITANT_MEAL_ANSWER, findCategory, type Posting, type SimpleCategory } from './categories'
+import { mealRulesOn, nonDeductibleMealsAccount } from '@/lib/expense-reports/meal-rule.service'
+import { mealSplitReason, NON_DEDUCTIBLE_MEALS_ACCOUNT } from '@/lib/expense-reports/exploitant-meals'
+import { buildPostingLines, isExploitantMeal, resolvePosting, VAT_COLLECTED, VAT_DEDUCTIBLE, VAT_ON_ASSETS, type Answers, type CounterpartLine } from './posting'
 import { resolveLedgerAccounts } from './ledger-accounts'
 import { assetLifetimeFor, DEPRECIATION_EXPENSE_ACCOUNT } from './asset-lifetimes'
 import { accountantReviewRequired } from './simple-mode-settings.service'
@@ -121,6 +123,8 @@ export interface ConfirmResult {
   lines: Array<{ accountCode: string; debitCents: number; creditCents: number }>
   /** VAT explanation for the accountant. */
   vatNote: string | null
+  /** Meal alone of the exploitant at a company taxed at IR: the split and its reason (or why it could not be decided). */
+  mealNote: string | null
   learnedRule: { id: string; name: string; created: boolean } | null
   /** Fixed asset created with the entry (durable equipment). */
   fixedAsset: { id: string; label: string; years: number; amountCents: number } | null
@@ -152,6 +156,8 @@ interface Prepared {
   ruleId: string | null
   answers: Answers | null
   vatNote: string | null
+  /** Split of a meal of the exploitant, or why it could not be decided. */
+  mealNote: string | null
   /** Category posting with its resolved account codes, for learning a rule. */
   learnable: { category: SimpleCategory; posting: Posting; codes: Map<string, string> } | null
   /** The fixed asset to create with the entry (durable equipment). */
@@ -205,15 +211,32 @@ async function prepareCategory(
   if (resolution.status === 'invalid') throw new ValidationError(resolution.message)
 
   const side = normalizeSide(transaction.side)
-  const recoveryRatio = await recoveryRatioFor(companyId, day)
-  const plan = buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side, amountCents, bankVatCents, recoveryRatio })
+  const mealQuestion = resolution.question?.id === EXPLOITANT_MEAL_ANSWER.questionId
+  const [recoveryRatio, mealRule] = await Promise.all([
+    recoveryRatioFor(companyId, day),
+    mealQuestion ? mealRulesOn(companyId, [day]).then((rules) => rules.get(day)!) : null,
+  ])
+  // At IR, who ate changes what is deductible: the meal question has no default
+  if (mealRule?.applies && !answers[EXPLOITANT_MEAL_ANSWER.questionId]) {
+    throw new ValidationError(`Répondez d'abord à la question\u00a0: ${resolution.question!.text}`).withDetails({ question: resolution.question })
+  }
+  // A meal alone of the exploitant, at a company taxed at the impôt sur le revenu: only the frais supplémentaires are deductible
+  const exploitantMeal = mealRule?.applies && isExploitantMeal(resolution.answers) ? { year: Number(day.slice(0, 4)) } : null
+  const plan = buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side, amountCents, bankVatCents, recoveryRatio, exploitantMeal })
+  const nonDeductibleLine = plan.lines.find((l) => l.role === 'non-deductible')
 
   // Durable equipment: the asset line of the posting, with the category's depreciation accounts
   const lifetime = resolution.posting.account.startsWith('2') ? assetLifetimeFor(category.id) : null
   const assetLine = lifetime ? plan.lines.find((l) => l.role === 'base' && l.accountCode === resolution.posting.account && l.debitCents > 0) : undefined
   const depreciationCodes = lifetime && assetLine ? [lifetime.depreciationAccount, DEPRECIATION_EXPENSE_ACCOUNT] : []
 
-  const accounts = await resolveLedgerAccounts(companyId, fiscalYear.id, [...plan.lines.map((l) => l.accountCode), ...depreciationCodes])
+  const accounts = await resolveLedgerAccounts(companyId, fiscalYear.id, [...plan.lines.filter((l) => l !== nonDeductibleLine).map((l) => l.accountCode), ...depreciationCodes])
+  if (nonDeductibleLine) {
+    // Never the parent 6256: the account of the add-back is created when the chart lacks it
+    const deductible = accounts.get(resolution.posting.account)
+    const account = await nonDeductibleMealsAccount(prisma, companyId, fiscalYear.id, deductible?.code ?? resolution.posting.account)
+    accounts.set(nonDeductibleLine.accountCode, { ...account, label: NON_DEDUCTIBLE_MEALS_ACCOUNT.label })
+  }
   // An exact account (the VAT credit 44567) is never replaced by its parent
   const missing = [...plan.lines.map((l) => l.accountCode), ...depreciationCodes].find(
     (code) => !accounts.get(code) || (category.exactAccount && code === category.posting.account && !accounts.get(code)!.code.startsWith(code)),
@@ -238,7 +261,8 @@ async function prepareCategory(
       accountId: accounts.get(line.accountCode)!.id,
       debitCents: line.debitCents,
       creditCents: line.creditCents,
-      description: line.role === 'vat' ? `${vatLabel(line)}, ${name}` : `${category.label}, ${name}`,
+      description:
+        line.role === 'vat' ? `${vatLabel(line)}, ${name}` : line.role === 'non-deductible' ? `${category.label}, ${name}, part non déductible (repas de l’exploitant)` : `${category.label}, ${name}`,
     })),
   ]
   const codes = new Map(plan.lines.map((l) => [l.accountCode, accounts.get(l.accountCode)!.code]))
@@ -264,6 +288,7 @@ async function prepareCategory(
     ruleId: null,
     answers: Object.keys(resolution.answers).length ? resolution.answers : null,
     vatNote: plan.vatNote,
+    mealNote: plan.mealSplit ? mealSplitReason(plan.mealSplit) : mealRule?.unknown && isExploitantMeal(resolution.answers) ? mealRule.explanation : null,
     learnable: canLearn(category, resolution.posting, recoveryRatio) ? { category, posting: resolution.posting, codes } : null,
     asset,
     invoice: null,
@@ -320,6 +345,7 @@ async function prepareInvoice(companyId: string, transaction: Awaited<ReturnType
     ruleId: null,
     answers: null,
     vatNote: null,
+    mealNote: null,
     learnable: null,
     asset: null,
     invoice: { id: invoice.id, number: invoice.number, customerName: invoice.customerName },
@@ -342,6 +368,7 @@ async function prepareRule(companyId: string, transactionId: string, ruleId: str
     ruleId,
     answers: null,
     vatNote: null,
+    mealNote: null,
     learnable: null,
     asset: null,
     invoice: null,
@@ -594,6 +621,7 @@ export async function confirmExpense(companyId: string, transactionId: string, i
     ruleId: prepared.ruleId,
     lines: prepared.lines.map((l) => ({ accountCode: codeOf.get(l.accountId) ?? '', debitCents: l.debitCents, creditCents: l.creditCents })),
     vatNote: prepared.vatNote,
+    mealNote: prepared.mealNote,
     learnedRule,
     fixedAsset,
     invoice,

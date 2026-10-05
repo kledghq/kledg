@@ -169,7 +169,7 @@ const manageCompanyRecordsTool = fullControlTool({
     shareholderId: z.string().max(64).optional(),
     shareholder: assistantInput(CreateShareholderSchema.partial().extend(UpdateShareholderSchema.shape)).optional().describe('create_shareholder (type and sharePercentage required) and update_shareholder: the fields.'),
     taxRegimeId: z.string().max(64).optional(),
-    taxRegime: assistantInput(AddTaxRegimeSchema.partial().extend(UpdateTaxRegimeSchema.omit({ id: true }).shape)).optional().describe('add_tax_regime (regimeType, regime and startDate required) and update_tax_regime: the fields.'),
+    taxRegime: assistantInput(AddTaxRegimeSchema.partial().extend(UpdateTaxRegimeSchema.omit({ id: true }).shape)).optional().describe('add_tax_regime (regimeType, regime and startDate required) and update_tax_regime: the fields. corporateTax regimes: normal or simplified (IS), micro, income_tax (profits taxed at the impôt sur le revenu: EURL of a natural person, SNC, SARL de famille; meals alone of the exploitant then deduct only the frais supplémentaires).'),
     address: assistantInput(CreateAddressSchema).optional(),
   },
   permission: { settings: ['update'] },
