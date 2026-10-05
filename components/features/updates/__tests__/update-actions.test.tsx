@@ -222,6 +222,17 @@ describe('UpdateActions', () => {
     expect(screen.getByRole('link', { name: /Journal sur GitHub/ })).toHaveAttribute('href', 'https://github.com/acme/kledg/actions/runs/1')
   })
 
+  it('says there is nothing to install when the preparation found the instance up to date', async () => {
+    github.run = { id: 2, status: 'completed', conclusion: 'success', url: 'https://github.com/acme/kledg/actions/runs/2', createdAt: '2026-10-05T14:55:00.000Z' }
+    const { unmount } = render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} upToDate />)
+    expect(await screen.findByText(/Rien à installer/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Installer la mise à jour' })).toBeDisabled()
+    unmount()
+
+    render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
+    expect(await screen.findByText(/terminée sans pull request/)).toBeInTheDocument()
+  })
+
   it('shows the load error', async () => {
     routes({ 'GET /api/updates/github': () => Response.json({ error: 'GitHub ne répond pas' }, { status: 502 }) })
     render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)

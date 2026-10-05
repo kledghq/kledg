@@ -109,6 +109,7 @@ describe('UpdatesPanel', () => {
       isFork: true,
       previousCommit: 'abcdef1234567890',
       overviewMigrations: ['20261001000000_add_x'],
+      upToDate: false,
     })
   })
 

@@ -71,11 +71,14 @@ export function UpdateActions({
   isFork,
   previousCommit,
   overviewMigrations,
+  upToDate = false,
 }: {
   platform: Platform
   isFork: boolean
   previousCommit: string | null
   overviewMigrations: string[]
+  /** The instance already runs the latest version of its channel (the overview's state). */
+  upToDate?: boolean
 }) {
   const [state, setState] = useState<GitHubState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -320,6 +323,14 @@ export function UpdateActions({
               <ExternalLink className="size-3" />
             </a>
           </div>
+        )}
+
+        {state?.run && state.run.status === 'completed' && state.run.conclusion === 'success' && !pull && !mergeUpstreamMode && (
+          <p className="text-muted-foreground text-sm" data-slot="prepare-no-pull">
+            {upToDate
+              ? 'Rien à installer\u00a0: votre instance contient déjà la dernière version, la préparation n’a ouvert aucune pull request.'
+              : 'La préparation s’est terminée sans pull request\u00a0: le journal sur GitHub dit pourquoi (souvent, votre dépôt contient déjà cette version).'}
+          </p>
         )}
 
         {pull && (

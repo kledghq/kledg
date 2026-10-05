@@ -201,6 +201,7 @@ function Overview({ overview, onChange }: { overview: UpdateOverview; onChange: 
               isFork={overview.connection.kind === 'fork'}
               previousCommit={current.commit}
               overviewMigrations={migrations}
+              upToDate={state === 'up-to-date' || state === 'ahead'}
             />
           )}
         </>
