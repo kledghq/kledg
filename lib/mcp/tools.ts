@@ -44,6 +44,7 @@ import { registerApprovalReadTools } from '@/lib/mcp/approval-tools'
 import { registerDeadlineReadTools } from '@/lib/mcp/deadline-tools'
 import { registerVatReturnReadTools } from '@/lib/mcp/vat-return-tools'
 import { registerCorporateTaxReadTools } from '@/lib/mcp/corporate-tax-tools'
+import { registerLocalTaxReadTools } from '@/lib/mcp/local-tax-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
@@ -721,6 +722,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerDeadlineReadTools(server, guard)
   registerVatReturnReadTools(server, guard)
   registerCorporateTaxReadTools(server, access, guard)
+  registerLocalTaxReadTools(server, guard)
   registerBankingReadTools(server, guard)
   registerThirdPartyReadTools(server, guard)
 

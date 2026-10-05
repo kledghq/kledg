@@ -56,12 +56,17 @@ import {
 } from "@/lib/banking/missing-receipts.service";
 import { listMembers } from "@/lib/rbac/manage-members.service";
 import { simpleValidationSummary } from "./simple-validation.service";
-import { calendarDayOf, todayUtc, utcDate } from "@/lib/utils/date";
+import { addIsoDays, calendarDayOf, todayUtc, utcDate } from "@/lib/utils/date";
+import { cfeSchedule } from "@/lib/local-taxes/cfe";
 import { parseCents } from "@/lib/utils/money";
 import { countExpensesToCheck } from "./count-expenses-to-check.service";
 
 /** Customers to chase listed at most on the home. */
 export const MAX_CUSTOMERS_TO_CHASE = 3;
+
+/** Deadlines listed at most in "À faire", and how far ahead. */
+export const MAX_DECLARATIONS_TO_DO = 4;
+export const DECLARATIONS_AHEAD_DAYS = 30;
 
 export interface SimpleHomeFiscalYear {
   id: string;
@@ -117,6 +122,19 @@ export interface SimpleHome {
     expensesToCheck: number | null;
     /** Bank lines of the fiscal year without a supporting document; null without banking:read or fiscal year. */
     missingReceipts: number | null;
+    /**
+     * Deadlines of the calendar with something left to do, late or due in
+     * the next 30 days (docs/echeances.md), at most MAX_DECLARATIONS_TO_DO;
+     * the amount when known (recorded, or the CFE avis). Null without
+     * reports:read.
+     */
+    declarations: Array<{
+      id: string;
+      ruleId: string;
+      date: string;
+      status: "todo" | "filed" | "overdue";
+      amountCents: number | null;
+    }> | null;
     /** The customers most overdue; null without reports:read or fiscal year. */
     customersToChase: Array<{
       label: string;
@@ -266,19 +284,63 @@ interface NextVatDeadline {
   amount: Awaited<ReturnType<typeof vatReturnForDeadline>>;
 }
 
-async function nextVatDeadline(
+interface DeadlinesOfHome {
+  vat: NextVatDeadline | null;
+  declarations: NonNullable<SimpleHome["todo"]["declarations"]>;
+}
+
+/**
+ * The deadlines of the widget window (lib/deadlines), with their status:
+ * the next VAT deadline and its amount, and what is left to do (late, or
+ * due within DECLARATIONS_AHEAD_DAYS). The amount of a CFE deadline comes
+ * from the avis when it was entered (lib/local-taxes).
+ */
+async function homeDeadlines(
   companyId: string,
   today: string,
   now?: Date,
-): Promise<NextVatDeadline | null> {
+): Promise<DeadlinesOfHome> {
   const { deadlines } = await loadDeadlinesWidget(companyId, now);
   const next = deadlines.find((d) => d.category === "tva" && d.date >= today);
-  if (!next) return null;
+  const ahead = addIsoDays(today, DECLARATIONS_AHEAD_DAYS);
+  const open = deadlines.filter(
+    (d) => !d.status.settled && (d.status.status === "overdue" || d.date <= ahead),
+  ).slice(0, MAX_DECLARATIONS_TO_DO);
+  const cfeYears = [...new Set(open.filter((d) => d.ruleId === "cfe" || d.ruleId === "cfe-acompte").map((d) => Number(d.id.slice(d.id.indexOf(":") + 1))))];
+  const avis = cfeYears.length
+    ? await prisma.localTaxYear.findMany({
+        where: { companyId, year: { in: cfeYears.flatMap((y) => [y, y - 1]) } },
+        select: { year: true, cfeTotal: true, cfeAcompte: true },
+        take: 2 * cfeYears.length,
+      })
+    : [];
+  const avisOf = (year: number) => {
+    const row = avis.find((a) => a.year === year && a.cfeTotal !== null);
+    return row ? { totalCents: parseCents(row.cfeTotal) ?? 0, acompteCents: row.cfeAcompte === null ? null : parseCents(row.cfeAcompte) } : null;
+  };
+  const amountOf = (d: (typeof open)[number]): number | null => {
+    if (d.status.amountCents !== null) return d.status.amountCents;
+    if (d.ruleId !== "cfe" && d.ruleId !== "cfe-acompte") return null;
+    const year = Number(d.id.slice(d.id.indexOf(":") + 1));
+    const schedule = cfeSchedule(avisOf(year), avisOf(year - 1), "normal");
+    return d.ruleId === "cfe" ? schedule.balanceCents : schedule.acompteCents || null;
+  };
   return {
-    date: next.date,
-    label: next.label,
-    estimated: next.estimated,
-    amount: await vatReturnForDeadline(companyId, next, now),
+    vat: next
+      ? {
+          date: next.date,
+          label: next.label,
+          estimated: next.estimated,
+          amount: await vatReturnForDeadline(companyId, next, now),
+        }
+      : null,
+    declarations: open.map((d) => ({
+      id: d.id,
+      ruleId: d.ruleId,
+      date: d.status.status === "overdue" ? d.status.lateAfter : d.date,
+      status: d.status.status === "overdue" ? "overdue" : d.status.status === "filed" ? "filed" : "todo",
+      amountCents: amountOf(d),
+    })),
   };
 }
 
@@ -319,7 +381,7 @@ export async function loadSimpleHome(
     bank,
     aged,
     result,
-    deadline,
+    deadlines,
     expensesToCheck,
     missingReceipts,
     accountants,
@@ -334,8 +396,8 @@ export async function loadSimpleHome(
       ? loadResult(companyId, fy)
       : skip<Awaited<ReturnType<typeof loadResult>>>(),
     ctx.can(DEADLINES_PERMISSION)
-      ? nextVatDeadline(companyId, today, ctx.now)
-      : skip<NextVatDeadline>(),
+      ? homeDeadlines(companyId, today, ctx.now)
+      : skip<DeadlinesOfHome>(),
     canBank ? countExpensesToCheck(companyId) : skip<number>(),
     canBank && fy ? countMissingReceipts(companyId, fy) : skip<number>(),
     ctx.can({ settings: ["read"] })
@@ -356,6 +418,7 @@ export async function loadSimpleHome(
       ? estimateCorporateTax(companyId, fy.id, ctx.now)
       : skip<Awaited<ReturnType<typeof estimateCorporateTax>>>(),
   ]);
+  const deadline = deadlines?.vat ?? null;
 
   return {
     today,
@@ -390,6 +453,7 @@ export async function loadSimpleHome(
     todo: {
       expensesToCheck,
       missingReceipts,
+      declarations: deadlines?.declarations ?? null,
       customersToChase: aged?.toChase ?? null,
     },
     accountants,

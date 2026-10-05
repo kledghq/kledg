@@ -4,24 +4,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getWidget, type WidgetDefinition } from '@/lib/dashboard/widgets'
 import type { DeadlinesWidgetData } from '@/lib/deadlines/load-deadlines.service'
 import type { Deadline } from '@/lib/deadlines/types'
+import { deriveStatus, type TrackedDeadline } from '@/lib/declarations/status'
 import { DashboardDataProvider } from '../dashboard-data'
 import { EcheancesList } from '../widgets/deadline-widget'
 
 const onboarding = { data: null, loading: false, reload: vi.fn(), setDismissed: vi.fn(), nextStep: null }
 const widget = getWidget('list-echeances') as WidgetDefinition
 
-const deadline = (over: Partial<Deadline>): Deadline => ({
-  id: 'x',
-  date: '2026-10-20',
-  legalDate: '2026-10-20',
-  label: 'Déclaration et paiement de la TVA de septembre 2026',
-  form: 'CA3',
-  category: 'tva',
-  ruleId: 'tva-ca3',
-  estimated: false,
-  projected: false,
-  ...over,
-})
+const deadline = (over: Partial<Deadline>, record: Parameters<typeof deriveStatus>[2] = null): TrackedDeadline => {
+  const d: Deadline = {
+    id: 'x',
+    date: '2026-10-20',
+    legalDate: '2026-10-20',
+    label: 'Déclaration et paiement de la TVA de septembre 2026',
+    form: 'CA3',
+    category: 'tva',
+    ruleId: 'tva-ca3',
+    estimated: false,
+    projected: false,
+    ...over,
+  }
+  return { ...d, status: deriveStatus(d, null, record, '2026-10-04') }
+}
 
 const DATA: DeadlinesWidgetData = {
   today: '2026-10-04',
@@ -80,6 +84,21 @@ describe('Échéances widget', () => {
     expect(within(rows[3]).getByText('dans 57 jours').closest('[data-tone]')).toHaveAttribute('data-tone', 'neutral')
     expect(screen.getByRole('link', { name: /Toutes les échéances/ })).toHaveAttribute('href', '/atelier/echeances')
     expect(screen.getByText(/espace professionnel sur impots\.gouv\.fr fait foi/)).toBeInTheDocument()
+  })
+
+  it('shows the status of a deadline the user marked paid or not due (tracker)', async () => {
+    const record = { filedOn: null, paidOn: '2026-09-30', amountCents: 120_000, notDue: false, attachmentId: null, attachmentName: null, attachmentReference: null, note: null, updatedAt: null }
+    respond({
+      ...DATA,
+      deadlines: [
+        deadline({ id: 'is-solde:2026-06-30', date: '2026-10-01', legalDate: '2026-10-01', label: 'Solde', form: '2572', category: 'is', ruleId: 'is-solde' }, record),
+        deadline({ id: 'cfe-acompte:2026', date: '2026-10-04', legalDate: '2026-10-04', label: 'Acompte de CFE', form: 'CFE', category: 'cfe', ruleId: 'cfe-acompte' }, { ...record, paidOn: null, amountCents: null, notDue: true }),
+      ],
+    })
+    renderWidget()
+    const rows = within(await screen.findByRole('list', { name: 'Prochaines échéances' })).getAllByRole('listitem')
+    expect(within(rows[0]).getByText('Payée').closest('[data-tone]')).toHaveAttribute('data-tone', 'success')
+    expect(within(rows[1]).getByText('Non due').closest('[data-tone]')).toHaveAttribute('data-tone', 'neutral')
   })
 
   it('keeps the next three in a small widget', async () => {

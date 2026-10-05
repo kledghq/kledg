@@ -19,6 +19,8 @@ vi.mock('@/hooks/ui/use-media-query', () => ({ useMediaQuery: () => false }))
 vi.mock('@/components/features/accounting/fiscal-year-selector', () => ({ FiscalYearSelector: () => null }))
 
 import { DeadlinesPage } from '../deadlines-view'
+import { deriveStatus } from '@/lib/declarations/status'
+import type { Deadline } from '@/lib/deadlines/types'
 
 const deadline = (overrides: Record<string, unknown>) => ({
   estimated: false,
@@ -30,7 +32,7 @@ const VIEW = {
   today: '2026-05-10',
   fiscalYear: { id: 'fy-2026', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31', isClosed: false },
   deadlines: [
-    deadline({ id: 'cfe-2025', date: '2026-04-15', legalDate: '2026-04-15', label: 'Solde de CFE 2025', form: 'CFE', category: 'cfe', ruleId: 'cfe' }),
+    deadline({ id: 'cfe:2025', date: '2026-04-15', legalDate: '2026-04-15', label: 'Solde de CFE 2025', form: 'CFE', category: 'cfe', ruleId: 'cfe' }),
     deadline({ id: 'tva-ca3:2026-04', date: '2026-05-07', legalDate: '2026-05-07', label: "Déclaration de TVA d'avril 2026", form: 'CA3', category: 'tva', ruleId: 'tva-ca3', estimated: true }),
     deadline({
       id: 'is-acompte:2026-12-31:2',
@@ -149,6 +151,52 @@ describe('deadlines page', () => {
     const liasse = screen.getByText('Liasse fiscale 2025').closest('li') as HTMLElement
     expect(within(liasse).getByRole('link', { name: /Préparer le résultat fiscal/ })).toHaveAttribute('href', '/c1/impot-societes?echeance=liasse%3A2025-12-31')
     const cfe = screen.getByText('Solde de CFE 2025').closest('li') as HTMLElement
-    expect(within(cfe).queryByRole('link', { name: /impôt|résultat fiscal|acompte/ })).not.toBeInTheDocument()
+    expect(within(cfe).queryByRole('link', { name: /impôt sur|résultat fiscal|acompte/ })).not.toBeInTheDocument()
+    // A CFE deadline opens the local taxes of its year instead
+    expect(within(cfe).getByRole('link', { name: /Voir les impôts locaux/ })).toHaveAttribute('href', '/c1/impots-locaux?annee=2025')
+  })
+
+  it('shows the status of each deadline and records a payment from the calendar (tracker)', async () => {
+    const withStatus = (d: Deadline, record: Parameters<typeof deriveStatus>[2] = null) => ({ ...d, status: deriveStatus(d, null, record, '2026-05-10') })
+    const cfe = VIEW.deadlines[0] as unknown as Deadline
+    const acompte = VIEW.deadlines[2] as unknown as Deadline
+    const paid = { filedOn: null, paidOn: '2026-05-09', amountCents: 150_000, notDue: false, attachmentId: null, attachmentName: null, attachmentReference: 'Télépaiement 4321', note: null, updatedAt: null }
+    view = { ...VIEW, deadlines: [withStatus(cfe), VIEW.deadlines[1], withStatus(acompte, paid), VIEW.deadlines[3]] }
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body)) as { deadlineId: string; paidOn: string }
+        expect(body).toMatchObject({ deadlineId: 'cfe:2025', paidOn: '2026-04-14', amountCents: 98_000, attachmentReference: 'Avis 2025' })
+        return respond(200, withStatus(cfe, { ...paid, paidOn: body.paidOn, amountCents: 98_000, attachmentReference: 'Avis 2025' }))
+      }
+      return respond(200, String(url).startsWith('/api/expense-reports/receipts') ? { receipts: [] } : view)
+    })
+    const user = userEvent.setup()
+    render(<DeadlinesPage companyId="c1" />)
+    const acompteItem = (await screen.findByText("Deuxième acompte d'IS")).closest('li') as HTMLElement
+    expect(within(acompteItem).getAllByText('Payée')[0].closest('[data-tone]')).toHaveAttribute('data-tone', 'success')
+    expect(within(acompteItem).getByText(/Payée le 09\/05\/2026, 1.500,00.€, réf\. Télépaiement 4321/)).toBeInTheDocument()
+    const cfeItem = screen.getByText('Solde de CFE 2025').closest('li') as HTMLElement
+    expect(within(cfeItem).getAllByText('En retard')[0].closest('[data-tone]')).toHaveAttribute('data-tone', 'danger')
+
+    // Only the overdue ones
+    await user.click(screen.getByRole('combobox', { name: 'Statut' }))
+    await user.click(await screen.findByRole('option', { name: 'En retard' }))
+    expect(screen.queryByText("Deuxième acompte d'IS")).not.toBeInTheDocument()
+    expect(screen.getByText('Solde de CFE 2025')).toBeInTheDocument()
+
+    await user.click(within(screen.getByText('Solde de CFE 2025').closest('li') as HTMLElement).getByRole('button', { name: /Enregistrer le dépôt ou le paiement/ }))
+    const dialog = await screen.findByRole('dialog')
+    // A payment: no filing date to enter
+    expect(within(dialog).queryByLabelText('Déposée le')).not.toBeInTheDocument()
+    await user.type(within(dialog).getByLabelText('Payée le'), '14/04/2026')
+    await user.type(within(dialog).getByLabelText(/Montant/), '980')
+    await user.type(within(dialog).getByLabelText(/Référence de la pièce/), 'Avis 2025')
+    await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // Paid now: no longer in the overdue filter, shown again with every status
+    expect(screen.queryByText('Solde de CFE 2025')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: 'Statut' }))
+    await user.click(await screen.findByRole('option', { name: 'Tous les statuts' }))
+    expect(within(screen.getByText('Solde de CFE 2025').closest('li') as HTMLElement).getByText(/Payée le 14\/04\/2026/)).toBeInTheDocument()
   })
 })

@@ -43,7 +43,9 @@ de leur historique, de ses exercices et des paramètres de la carte
 Échéances de la page Informations (`Company.deadlineSettings`). Les dates
 sont indicatives : un jour que Kledg ne connaît pas (celui de la CA3) prend
 la valeur la plus tôt possible pour la forme juridique et le dit. La page
-complète est `app/(company)/[companyId]/echeances` (`GET /api/deadlines`).
+complète est `app/(company)/[companyId]/echeances` (`GET /api/deadlines`). Chaque
+échéance porte son statut (déposée, payée, en retard, non due) d'après le
+suivi des déclarations ([échéances](echeances.md)).
 
 ## Dispositions par défaut
 

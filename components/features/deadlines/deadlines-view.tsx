@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, CalendarCheck, Info, ListFilter, Settings2 } from 'lucide-react'
+import { ArrowUpRight, CalendarCheck, CircleCheck, Info, ListFilter, Settings2 } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -13,20 +13,24 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DateDisplay, EmptyState, PageHeader, StatusBadge, formatDisplayDate } from '@/components/shared'
-import type { StatusTone } from '@/components/shared'
+import { DateDisplay, EmptyState, PageHeader, formatDisplayDate } from '@/components/shared'
+import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { useMediaQuery } from '@/hooks/ui/use-media-query'
 import { docsUrl } from '@/lib/docs-links'
-import { relativeDeadlineLabel, urgencyOf, type DeadlineUrgency } from '@/lib/deadlines/relative'
 import { DEADLINE_CATEGORIES, DEADLINE_CATEGORY_LABELS, type Deadline, type DeadlineCategory, type DeadlineRule } from '@/lib/deadlines/types'
 import type { DeadlinesView } from '@/lib/deadlines/load-deadlines.service'
 import { periodKeyOfDeadline } from '@/lib/vat-returns/period-keys'
 import { corporateTaxPageOf } from '@/lib/corporate-tax/deadline-links'
-
-const TONES: Record<DeadlineUrgency, StatusTone> = { past: 'neutral', overdue: 'danger', today: 'warning', soon: 'warning', later: 'neutral' }
+import { DECLARATION_STATUS_CODES, type DeclarationStatusCode, type TrackedDeadline } from '@/lib/declarations/status'
+import { DeadlineStatusBadge } from './deadline-status-badge'
+import { MarkDeclarationDialog } from './mark-declaration-dialog'
 
 type Category = DeadlineCategory | 'all'
+type StatusFilter = DeclarationStatusCode | 'all'
+
+/** Plural labels of the status filter. */
+const STATUS_FILTER_LABELS: Record<DeclarationStatusCode, string> = { todo: 'À faire', filed: 'Déposées', paid: 'Payées', overdue: 'En retard', 'not-due': 'Non dues' }
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: DeadlinesView }
 
@@ -38,8 +42,8 @@ const monthTitle = (month: string) => `${MONTH_NAMES[Number(month.slice(5, 7)) -
 const FALLBACK_ERROR = 'Les échéances ne se sont pas chargées. Réessayez dans un instant.'
 
 /** Months of the list, in date order: "2026-05" -> its deadlines. */
-function byMonth(deadlines: Deadline[]): Array<[string, Deadline[]]> {
-  const groups = new Map<string, Deadline[]>()
+function byMonth(deadlines: TrackedDeadline[]): Array<[string, TrackedDeadline[]]> {
+  const groups = new Map<string, TrackedDeadline[]>()
   for (const d of deadlines) {
     const key = d.date.slice(0, 7)
     groups.set(key, [...(groups.get(key) ?? []), d])
@@ -81,15 +85,42 @@ function RuleSource({ rule, deadline }: { rule: DeadlineRule | undefined; deadli
   )
 }
 
-function DeadlineItem({ deadline, rule, today, companyId }: { deadline: Deadline; rule: DeadlineRule | undefined; today: string; companyId: string }) {
+/** What the tracker recorded, in a line: "Déposée le 04/05/2026, payée le 05/05/2026, 1 234,00 €". */
+function recordedLine(deadline: TrackedDeadline): string | null {
+  const s = deadline.status
+  const parts = [
+    s.filedOn ? `${deadline.ruleId === 'approbation' ? 'approuvés' : 'déposée'} le ${formatDisplayDate(s.filedOn)}` : null,
+    s.paidOn ? `payée le ${formatDisplayDate(s.paidOn)}` : null,
+    s.amountCents !== null && s.amountCents > 0 ? formatAmountFr(s.amountCents) : null,
+    s.record?.attachmentName ? `pièce ${s.record.attachmentName}` : null,
+    s.record?.attachmentReference ? `réf. ${s.record.attachmentReference}` : null,
+  ].filter(Boolean)
+  if (parts.length === 0) return null
+  const text = parts.join(', ')
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+const formatAmountFr = (cents: number) => `${(cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0€`
+
+function DeadlineItem({
+  deadline,
+  rule,
+  today,
+  companyId,
+  onMark,
+}: {
+  deadline: TrackedDeadline
+  rule: DeadlineRule | undefined
+  today: string
+  companyId: string
+  onMark: ((deadline: TrackedDeadline) => void) | null
+}) {
   const vatPeriod = periodKeyOfDeadline(deadline)
   const corporateTaxPage = corporateTaxPageOf(deadline)
-  const urgency = urgencyOf(deadline.date, today)
-  const status = (
-    <StatusBadge tone={TONES[urgency]} className="shrink-0">
-      {relativeDeadlineLabel(deadline.date, today)}
-    </StatusBadge>
-  )
+  const status = <DeadlineStatusBadge deadline={deadline} today={today} className="shrink-0" />
+  const recorded = deadline.status ? recordedLine(deadline) : null
+  // CFE and CVAE deadlines open the local taxes of their year ("cfe:2026", "cvae-acompte:2026:1").
+  const localTaxYear = deadline.category === 'cfe' || deadline.category === 'cvae' ? (/:(\d{4})(?::|$)/.exec(deadline.id)?.[1] ?? null) : null
   return (
     <li className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-start sm:gap-4">
       {/* Phones: the date and the status on one line, above the label. */}
@@ -112,6 +143,17 @@ function DeadlineItem({ deadline, rule, today, companyId }: { deadline: Deadline
         {deadline.extendedDate ? (
           <p className="text-muted-foreground text-xs">Télédéclaration possible jusqu&apos;au {formatDisplayDate(deadline.extendedDate)}.</p>
         ) : null}
+        {recorded ? <p className="text-xs">{recorded}</p> : null}
+        {deadline.status?.record?.note ? <p className="text-muted-foreground text-xs">{deadline.status.record.note}</p> : null}
+        {localTaxYear ? (
+          <Link
+            href={`/${companyId}/impots-locaux?annee=${localTaxYear}`}
+            className="text-link inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline pointer-coarse:-my-3 pointer-coarse:py-3"
+          >
+            Voir les impôts locaux
+            <ArrowUpRight aria-hidden className="size-3.5" />
+          </Link>
+        ) : null}
         {vatPeriod ? (
           <Link
             href={`/${companyId}/declarations-tva?periode=${vatPeriod}`}
@@ -133,7 +175,15 @@ function DeadlineItem({ deadline, rule, today, companyId }: { deadline: Deadline
       </div>
       <div className="flex items-center gap-2 sm:shrink-0 sm:flex-col sm:items-end">
         <span className="hidden sm:inline-flex">{status}</span>
-        <RuleSource rule={rule} deadline={deadline} />
+        <div className="flex items-center gap-1">
+          {onMark && deadline.status ? (
+            <Button variant="outline" size="xs" onClick={() => onMark(deadline)} aria-label={`Enregistrer le dépôt ou le paiement\u00a0: ${deadline.label}`}>
+              <CircleCheck aria-hidden />
+              {deadline.status.record ? 'Modifier' : 'Enregistrer'}
+            </Button>
+          ) : null}
+          <RuleSource rule={rule} deadline={deadline} />
+        </div>
       </div>
     </li>
   )
@@ -162,6 +212,12 @@ function ListSkeleton() {
 export function DeadlinesPage({ companyId }: { companyId: string }) {
   const [fiscalYearId, setFiscalYearId] = React.useState('')
   const [category, setCategory] = React.useState<Category>('all')
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all')
+  const [marking, setMarking] = React.useState<TrackedDeadline | null>(null)
+  const [saved, setSaved] = React.useState<{ key: string; byId: Record<string, TrackedDeadline> }>({ key: '', byId: {} })
+  const { can } = useCompanyAccess()
+  const canMark = can({ entries: ['create'] })
+  const canListReceipts = can({ expenses: ['submit'], banking: ['read'] })
   const [result, setResult] = React.useState<{ key: string; state: LoadState } | null>(null)
   const [attempt, setAttempt] = React.useState(0)
   const [sheetOpen, setSheetOpen] = React.useState(false)
@@ -205,11 +261,35 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
   const state: LoadState = result?.key === requestKey ? result.state : { status: 'loading' }
   const data = state.status === 'ready' ? state.data : null
   const rules = React.useMemo(() => new Map((data?.rules ?? []).map((r) => [r.id, r])), [data])
+  // Statuses saved from the dialog replace the loaded ones until the next load.
+  const updates = saved.key === requestKey ? saved.byId : null
+  const deadlines = React.useMemo(() => (data ? data.deadlines.map((d) => updates?.[d.id] ?? d) : []), [data, updates])
   const shown = React.useMemo(
-    () => (data ? data.deadlines.filter((d) => category === 'all' || d.category === category) : []),
-    [data, category],
+    () => deadlines.filter((d) => (category === 'all' || d.category === category) && (statusFilter === 'all' || d.status?.status === statusFilter)),
+    [deadlines, category, statusFilter],
   )
   const months = byMonth(shown)
+
+  const activeFilters = (category !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+
+  const statusField = (
+    <div className="space-y-2">
+      <Label htmlFor="deadline-status">Statut</Label>
+      <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+        <SelectTrigger id="deadline-status" className="w-full sm:w-44">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tous les statuts</SelectItem>
+          {DECLARATION_STATUS_CODES.map((code) => (
+            <SelectItem key={code} value={code}>
+              {STATUS_FILTER_LABELS[code]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
 
   const categoryField = (
     <div className="space-y-2">
@@ -270,12 +350,12 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
               </div>
               <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" aria-label={category === 'all' ? 'Filtres' : 'Filtres, 1 actif'}>
+                  <Button variant="outline" aria-label={activeFilters === 0 ? 'Filtres' : `Filtres, ${activeFilters} actif${activeFilters > 1 ? 's' : ''}`}>
                     <ListFilter aria-hidden />
                     Filtres
-                    {category !== 'all' ? (
+                    {activeFilters > 0 ? (
                       <Badge variant="secondary" className="num">
-                        1
+                        {activeFilters}
                       </Badge>
                     ) : null}
                   </Button>
@@ -285,9 +365,18 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
                     <SheetTitle>Filtres</SheetTitle>
                     <SheetDescription>La liste se met à jour à chaque choix.</SheetDescription>
                   </SheetHeader>
-                  <div className="grid gap-3 overflow-y-auto p-4">{categoryField}</div>
+                  <div className="grid gap-3 overflow-y-auto p-4">
+                    {categoryField}
+                    {statusField}
+                  </div>
                   <SheetFooter className="flex-row justify-end border-t">
-                    <Button variant="outline" onClick={() => setCategory('all')}>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCategory('all')
+                        setStatusFilter('all')
+                      }}
+                    >
                       Réinitialiser
                     </Button>
                     <Button onClick={() => setSheetOpen(false)}>Voir les échéances</Button>
@@ -302,6 +391,7 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
                 <FiscalYearSelector id="deadline-fiscal-year" companyId={companyId} value={fiscalYearId} onValueChange={setFiscalYearId} showLabel={false} showPeriod={false} />
               </div>
               {categoryField}
+              {statusField}
             </div>
           )}
         </CardContent>
@@ -353,7 +443,13 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
           <EmptyState
             bordered
             icon={CalendarCheck}
-            title={category === 'all' ? 'Aucune échéance sur cet exercice' : `Aucune échéance ${DEADLINE_CATEGORY_LABELS[category]} sur cet exercice`}
+            title={
+              statusFilter !== 'all'
+                ? `Aucune échéance « ${STATUS_FILTER_LABELS[statusFilter].toLowerCase()} » sur cet exercice`
+                : category === 'all'
+                  ? 'Aucune échéance sur cet exercice'
+                  : `Aucune échéance ${DEADLINE_CATEGORY_LABELS[category]} sur cet exercice`
+            }
             description="Vérifiez les régimes fiscaux et les paramètres des échéances de la société."
           />
         ) : (
@@ -364,7 +460,7 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
                   <h2 className="text-base font-semibold">{monthTitle(month)}</h2>
                   <ul className="divide-y" aria-label={`Échéances de ${monthTitle(month).toLowerCase()}`}>
                     {items.map((d) => (
-                      <DeadlineItem key={d.id} deadline={d} rule={rules.get(d.ruleId)} today={data.today} companyId={companyId} />
+                      <DeadlineItem key={d.id} deadline={d} rule={rules.get(d.ruleId)} today={data.today} companyId={companyId} onMark={canMark ? setMarking : null} />
                     ))}
                   </ul>
                 </CardContent>
@@ -373,6 +469,18 @@ export function DeadlinesPage({ companyId }: { companyId: string }) {
           </div>
         )}
       </div>
+
+      {marking ? (
+        <MarkDeclarationDialog
+          key={marking.id}
+          companyId={companyId}
+          deadline={marking}
+          open
+          onOpenChange={(open) => !open && setMarking(null)}
+          onSaved={(updated) => setSaved((current) => ({ key: requestKey, byId: { ...(current.key === requestKey ? current.byId : {}), [updated.id]: updated } }))}
+          canListReceipts={canListReceipts}
+        />
+      ) : null}
     </div>
   )
 }

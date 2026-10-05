@@ -3,7 +3,7 @@
  * engine, the API, the dashboard widget and the Échéances page. Types only.
  */
 
-export const DEADLINE_CATEGORIES = ['tva', 'is', 'liasse', 'cfe', 'juridique'] as const
+export const DEADLINE_CATEGORIES = ['tva', 'is', 'liasse', 'cfe', 'cvae', 'juridique'] as const
 export type DeadlineCategory = (typeof DEADLINE_CATEGORIES)[number]
 
 export const DEADLINE_CATEGORY_LABELS: Record<DeadlineCategory, string> = {
@@ -11,6 +11,7 @@ export const DEADLINE_CATEGORY_LABELS: Record<DeadlineCategory, string> = {
   is: 'IS',
   liasse: 'Liasse',
   cfe: 'CFE',
+  cvae: 'CVAE',
   juridique: 'Juridique',
 }
 

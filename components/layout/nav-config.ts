@@ -8,6 +8,7 @@ import {
   BookText,
   BookUser,
   Building2,
+  MapPinned,
   FileInput,
   FileOutput,
   Calendar,
@@ -135,6 +136,7 @@ export const navGroups: NavGroup[] = [
       { title: "Échéances", url: "/echeances", icon: CalendarClock },
       { title: "Déclarations de TVA", url: "/declarations-tva", icon: Percent },
       { title: "Impôt sur les sociétés", url: "/impot-societes", icon: Calculator },
+      { title: "Impôts locaux (CFE, CVAE)", url: "/impots-locaux", icon: MapPinned },
     ],
   },
   {

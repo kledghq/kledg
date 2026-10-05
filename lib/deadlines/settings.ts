@@ -64,6 +64,16 @@ export const DeadlineSettingsSchema = z.object({
   das2: z.boolean(),
   /** Turnover above 152 500 € excluding tax: the 1330-CVAE is due. */
   cvae: z.boolean(),
+  /**
+   * Turnover above 500 000 €: the CVAE itself is paid with the 1329-DEF
+   * (CGI art. 1586 quater, 1679 septies). Optional in the body (default
+   * false) so clients written before it keep working.
+   */
+  cvaeDue: z.boolean().default(false),
+  /** CVAE of the previous year above 1 500 €: acomptes of 15 June and 15 September (1329-AC, CGI art. 1679 septies). */
+  cvaeAcomptes: z.boolean().default(false),
+  /** An element of the CFE changed last year: the 1447-M-SD is due in May (CGI art. 1477, I). */
+  cfeChanges: z.boolean().default(false),
   /** Annual accounts filed online with the greffe: two months instead of one after approval. */
   accountsFiledOnline: z.boolean(),
 })
@@ -78,6 +88,9 @@ export const DEFAULT_DEADLINE_SETTINGS: DeadlineSettings = {
   cfeAcompte: false,
   das2: false,
   cvae: false,
+  cvaeDue: false,
+  cvaeAcomptes: false,
+  cfeChanges: false,
   accountsFiledOnline: false,
 }
 

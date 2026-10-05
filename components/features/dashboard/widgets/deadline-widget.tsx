@@ -5,21 +5,13 @@ import { ArrowRight, CalendarCheck, Settings2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { DateDisplay, EmptyState, StatusBadge } from '@/components/shared'
-import { relativeDeadlineLabel, urgencyOf, type DeadlineUrgency } from '@/lib/deadlines/relative'
-import { DEADLINE_CATEGORY_LABELS, type Deadline } from '@/lib/deadlines/types'
-import type { StatusTone } from '@/components/shared'
+import { DateDisplay, EmptyState } from '@/components/shared'
+import { DEADLINE_CATEGORY_LABELS } from '@/lib/deadlines/types'
+import type { TrackedDeadline } from '@/lib/declarations/status'
+import { DeadlineStatusBadge } from '@/components/features/deadlines/deadline-status-badge'
 import { useWidgetSource } from '../dashboard-data'
 import { ListSkeleton, WidgetError, WidgetFrame } from '../widget-frame'
 import type { WidgetProps } from './types'
-
-const TONES: Record<DeadlineUrgency, StatusTone> = {
-  past: 'neutral',
-  overdue: 'danger',
-  today: 'warning',
-  soon: 'warning',
-  later: 'neutral',
-}
 
 /** Deadlines shown by size: a small widget keeps the next three. */
 const ROWS_BY_SIZE = { S: 3, M: 6, L: 8 } as const
@@ -28,8 +20,7 @@ const ROWS_BY_SIZE = { S: 3, M: 6, L: 8 } as const
  * One deadline. The widget may be narrow (size S, phones): the list is a
  * container, and below 24rem the label moves under the date and the status.
  */
-function DeadlineRow({ deadline, today }: { deadline: Deadline; today: string }) {
-  const urgency = urgencyOf(deadline.date, today)
+function DeadlineRow({ deadline, today }: { deadline: TrackedDeadline; today: string }) {
   return (
     <li className="grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 py-2 @sm/deadlines:grid-cols-[5rem_1fr_auto]">
       <span className="col-start-1 row-start-1 text-sm">
@@ -37,7 +28,7 @@ function DeadlineRow({ deadline, today }: { deadline: Deadline; today: string })
         {deadline.estimated ? <span className="text-muted-foreground block text-xs">indicative</span> : null}
       </span>
       <span className="col-start-2 row-start-1 justify-self-end @sm/deadlines:col-start-3">
-        <StatusBadge tone={TONES[urgency]}>{relativeDeadlineLabel(deadline.date, today)}</StatusBadge>
+        <DeadlineStatusBadge deadline={deadline} today={today} />
       </span>
       <span className="col-span-2 row-start-2 min-w-0 @sm/deadlines:col-span-1 @sm/deadlines:col-start-2 @sm/deadlines:row-start-1">
         <span className="block text-sm">{deadline.label}</span>

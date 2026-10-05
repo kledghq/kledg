@@ -20,6 +20,7 @@
 import type { DeadlineRule } from './types'
 
 const LEGIFRANCE = 'https://www.legifrance.gouv.fr/codes/article_lc/'
+const LEGIFRANCE_SECTION = 'https://www.legifrance.gouv.fr/codes/section_lc/'
 const BOFIP = 'https://bofip.impots.gouv.fr/bofip/'
 
 const CGI_287 = { label: 'CGI, art. 287', url: `${LEGIFRANCE}LEGIARTI000048826856` }
@@ -49,6 +50,25 @@ const CVAE_PAGE = { label: 'impots.gouv.fr : CET, CFE et CVAE', url: 'https://ww
 const CVAE_2026 = {
   label: 'impots.gouv.fr : échéance de la 1330-CVAE en 2026',
   url: 'https://www.impots.gouv.fr/pro-05052026-cvae-echeance-teledeclaration-de-la-valeur-ajoutee-et-des-effectifs-salaries',
+}
+const CVAE_SECTION = {
+  label: 'CGI, art. 1586 ter à 1586 nonies (CVAE)',
+  url: `${LEGIFRANCE_SECTION}LEGITEXT000006069577/LEGISCTA000021576521/`,
+}
+const CGI_1679_SEPTIES = {
+  label: 'CGI, art. 1679 septies (acomptes et solde de la CVAE)',
+  url: `${LEGIFRANCE_SECTION}LEGITEXT000006069577/LEGISCTA000022892181/`,
+}
+const BOI_CVAE_DECLA = { label: 'BOI-CVAE-DECLA-10 (déclaration 1330-CVAE)', url: `${BOFIP}1091-PGP.html/identifiant=BOI-CVAE-DECLA-10-20240424` }
+const LF_2025_ART_62 = {
+  label: 'Loi n° 2025-127 du 14 février 2025, art. 62 (CVAE jusqu’en 2029, supprimée en 2030)',
+  url: 'https://www.legifrance.gouv.fr/jorf/article_jo/JORFARTI000051168728',
+}
+const CGI_1477 = { label: 'CGI, art. 1477 (déclarations de CFE)', url: `${LEGIFRANCE}LEGIARTI000030752139` }
+const BOI_CFE_DECLA = { label: 'BOI-IF-CFE-30 (obligations déclaratives)', url: `${BOFIP}3957-PGP.html/identifiant=BOI-IF-CFE-30-20211201` }
+const FORM_1447_C = {
+  label: 'impots.gouv.fr : formulaire 1447-C-SD',
+  url: 'https://www.impots.gouv.fr/formulaire/1447-c-sd/declaration-initiale-de-cotisation-fonciere-des-entreprises',
 }
 const CGI_1679_QUINQUIES = { label: 'CGI, art. 1679 quinquies', url: `${LEGIFRANCE}LEGIARTI000033812199` }
 const CGI_1478 = { label: 'CGI, art. 1478', url: `${LEGIFRANCE}LEGIARTI000051202382` }
@@ -118,11 +138,27 @@ export const RULES = {
   },
   cvae: {
     id: 'cvae',
-    category: 'liasse',
+    category: 'cvae',
     form: '1330-CVAE',
     summary:
-      "La déclaration de valeur ajoutée et des effectifs 1330-CVAE est obligatoire au-delà de 152 500 € de chiffre d'affaires hors taxes, même si la CVAE n'est due qu'au-delà de 500 000 €. Elle est déposée le deuxième jour ouvré qui suit le 1er mai, avec 15 jours de plus en cas de télédéclaration.",
-    sources: [CVAE_PAGE, CVAE_2026],
+      "La déclaration de valeur ajoutée et des effectifs 1330-CVAE est obligatoire au-delà de 152 500 € de chiffre d'affaires hors taxes, même si la CVAE n'est due qu'au-delà de 500 000 €. Elle est déposée le deuxième jour ouvré qui suit le 1er mai, avec 15 jours de plus en cas de télédéclaration. La CVAE est supprimée à partir de 2030 (loi de finances pour 2025)\u00a0: la dernière 1330-CVAE est celle de 2029, déposée en 2030.",
+    sources: [CVAE_PAGE, CVAE_2026, BOI_CVAE_DECLA, LF_2025_ART_62],
+  },
+  'cvae-acompte': {
+    id: 'cvae-acompte',
+    category: 'cvae',
+    form: '1329-AC',
+    summary:
+      "Quand la CVAE de l'année précédente dépasse 1 500 €, deux acomptes de 50 % de la CVAE de l'année, calculée sur la dernière valeur ajoutée déclarée, sont versés au plus tard les 15 juin et 15 septembre avec le relevé 1329-AC. Plus d'acompte à partir de 2030, année de la suppression de la CVAE.",
+    sources: [CGI_1679_SEPTIES, LF_2025_ART_62],
+  },
+  'cvae-solde': {
+    id: 'cvae-solde',
+    category: 'cvae',
+    form: '1329-DEF',
+    summary:
+      "Le solde de la CVAE d'une année, ou toute la CVAE en l'absence d'acompte, est payé avec la déclaration de liquidation 1329-DEF au plus tard le deuxième jour ouvré qui suit le 1er mai de l'année suivante. Pas de CVAE sous 500 000 € de chiffre d'affaires, ni quand son montant ne dépasse pas 63 €. La dernière 1329-DEF est celle de 2029.",
+    sources: [CGI_1679_SEPTIES, CVAE_SECTION, LF_2025_ART_62],
   },
   'cfe-acompte': {
     id: 'cfe-acompte',
@@ -139,6 +175,22 @@ export const RULES = {
     summary:
       "La cotisation foncière des entreprises (ou son solde après acompte) est payée au plus tard le 15 décembre, d'après l'avis disponible dans l'espace professionnel. Elle n'est pas due l'année de la création.",
     sources: [CGI_1679_QUINQUIES, CGI_1478],
+  },
+  'cfe-1447c': {
+    id: 'cfe-1447c',
+    category: 'cfe',
+    form: '1447-C-SD',
+    summary:
+      "L'année de la création d'un établissement, la déclaration initiale de CFE 1447-C-SD est déposée avant le 1er janvier de l'année suivante, soit au plus tard le 31 décembre\u00a0: elle donne les éléments de la CFE de l'année suivante, qui ne porte pas sur l'année de création.",
+    sources: [CGI_1477, FORM_1447_C, BOI_CFE_DECLA],
+  },
+  'cfe-1447m': {
+    id: 'cfe-1447m',
+    category: 'cfe',
+    form: '1447-M-SD',
+    summary:
+      "Quand un élément de la CFE change (surface des locaux, activité, exonération demandée), la déclaration modificative 1447-M-SD est déposée au plus tard le deuxième jour ouvré qui suit le 1er mai. Sans changement, rien à déposer.",
+    sources: [CGI_1477, BOI_CFE_DECLA],
   },
   approbation: {
     id: 'approbation',

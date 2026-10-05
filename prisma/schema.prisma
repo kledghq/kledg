@@ -162,6 +162,8 @@ model Company {
   simpleModeEntries          SimpleModeEntry[]
   vatReturnFilings           VatReturnFiling[]
   corporateTaxReturns        CorporateTaxReturn[]
+  localTaxYears              LocalTaxYear[]
+  declarationStatuses        DeclarationStatus[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -995,6 +997,7 @@ model Attachment {
   integration     Integration?     @relation(fields: [integrationId], references: [id], onDelete: SetNull)
   bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
   expenseLines    ExpenseLine[]
+  declarationStatuses DeclarationStatus[]
 
   @@unique([integrationId, externalAttachmentId])
   @@index([companyId])
@@ -2563,4 +2566,72 @@ model CorporateTaxReturn {
   @@unique([fiscalYearId, companyId])
   @@index([companyId])
   @@map("corporate_tax_returns")
+}
+
+/// Local taxes of a calendar year (docs/impots-locaux.md, lib/local-taxes):
+/// the CFE avis d'imposition as the user reads it in the professional space
+/// of impots.gouv.fr (Kledg cannot compute the rental value of CGI art. 1467
+/// nor the commune rate), and the manual adjustments of the value added of
+/// the CVAE (CGI art. 1586 sexies). Kledg never files nor pays: payments are
+/// recorded in the declarations tracker (declaration_statuses).
+model LocalTaxYear {
+  id              String    @id @default(cuid())
+  companyId       String
+  /// Calendar year of imposition.
+  year            Int
+  /// Total CFE of the avis (taxes additionnelles and frais included); null: not entered.
+  cfeTotal        Decimal?  @db.Decimal(15, 2)
+  /// Acompte of 15 June asked by the avis d'acompte (CGI art. 1679 quinquies); null: none or not entered.
+  cfeAcompte      Decimal?  @db.Decimal(15, 2)
+  /// Date of the avis d'imposition.
+  cfeNoticeOn     DateTime?
+  cfeNote         String?
+  /// Adjustments of the CVAE value added, JSON array of { id, label, amountCents } (signed).
+  cvaeAdjustments Json      @default("[]")
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year])
+  @@index([companyId])
+  @@map("local_taxes")
+}
+
+/// What the user says about a deadline of the calendar (lib/deadlines,
+/// tracker in docs/echeances.md): filed and/or paid on
+/// impots.gouv.fr (or with the greffe), with the date, the amount, a
+/// supporting document and a note, or not due. Facts other modules already
+/// hold (VAT filing records, corporate tax filings and acomptes, the
+/// approval of the accounts) are never stored here: they feed the same
+/// status (lib/declarations).
+model DeclarationStatus {
+  id                  String      @id @default(cuid())
+  companyId           String
+  /// The deadline id of the engine: "<rule>:<key>" (cfe:2026, is-solde:2026-12-31).
+  deadlineId          String
+  filedOn             DateTime?
+  paidOn              DateTime?
+  /// Amount filed or paid, in euros with cents.
+  amount              Decimal?    @db.Decimal(15, 2)
+  /// The conditional deadline does not apply this time (acompte under its threshold...).
+  notDue              Boolean     @default(false)
+  /// A receipt already in Kledg (a Qonto attachment): Kledg stores no file.
+  attachmentId        String?
+  /// Reference of a receipt kept elsewhere (accusé de réception, avis).
+  attachmentReference String?
+  note                String?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  attachment Attachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, deadlineId])
+  @@index([companyId])
+  @@index([attachmentId])
+  @@map("declaration_statuses")
 }
