@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/prisma'
 import { findOwned, transactionOfCompany } from '@/lib/api/resources'
 import { bankVatOf } from '@/lib/banking/bank-vat'
+import { vatDeductionOn } from '@/lib/vat-deduction/coefficient'
 import { toCents } from '@/lib/utils/money'
 import { toIsoDateUtc } from '@/lib/utils/date'
 import { counterpartyOf, suggestEntry } from './prefill'
@@ -36,6 +37,7 @@ export async function getReconciliationContext(companyId: string, transactionId:
 
   // The VAT the bank read, when it can be trusted (lib/banking/bank-vat.ts)
   const bankVat = bankVatOf(transaction, amountCents)
+  const deduction = await vatDeductionOn(companyId, date)
 
   return {
     transaction: {
@@ -50,6 +52,7 @@ export async function getReconciliationContext(companyId: string, transactionId:
       reconciledWith: transaction.reconciledWith,
       vatRatePercent: bankVat?.ratePercent ?? null,
       vatAmountCents: bankVat?.amountCents ?? null,
+      vatDeductionShare: deduction.share,
     },
     bankLine: bankLineOf({ amountCents, side }),
     bankAccount: bank ? { code: bank.code, label: bank.label } : null,

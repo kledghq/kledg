@@ -93,7 +93,7 @@ déductible des factures d'achat comptabilisées
 (`lib/invoices/posting-plan.ts`, la part non déductible s'ajoute aux lignes
 de charge au prorata des bases), du mode simple, des règles d'affectation
 (`vatDeductionShareOn`, `lib/vat-deduction/coefficient.ts`) et des notes de
-frais (coefficient du jour de chaque ligne, `lib/expense-reports/deduction.ts`). Les écritures
+frais (coefficient du jour de chaque ligne, `lib/expense-reports/deduction.ts`). La TVA autoliquidée (services d'un prestataire non établi en France, acquisitions intracommunautaires, achats de l'article 283-1, importations) est due en entier au 4452 et déduite au coefficient, le reste dans la charge, dans les règles d'affectation, leur aperçu, le mode simple et les modèles du rapprochement (`lib/vat-deduction/share.ts`) : 1 000 € de services à 20 % et un coefficient de 60 % donnent 200 € dus, 120 € déduits et 80 € de charge en plus. Les écritures
 déjà passées ne changent pas. Le coefficient ne réduit jamais la TVA
 collectée : une vente taxée d'une société partiellement exonérée porte sa TVA
 au 44571 comme toute autre (CGI, art. 256) ; en mode simple, une vente

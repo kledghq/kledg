@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- TVA autoliquidée (intracommunautaire, import, services d'un prestataire non établi en France) : une société partiellement exonérée n'en déduit plus que la part de son coefficient de déduction dans les règles d'affectation, leur aperçu et les modèles du rapprochement ; la TVA due reste entière et le reste s'ajoute à la charge. Le mode simple apprend de nouveau des règles pour ces fournisseurs.
 - Taxe sur les salaires : la part des recettes sans droit à déduction saisie garde deux décimales ; 10,4 % rend la société redevable (plus de 10 %, CGI art. 231, 1), au lieu d'être lue comme 10 %.
 - Échéances 2027 : le seuil de la CA3 trimestrielle (1 000 000 € et 1 100 000 €) compte le chiffre d'affaires majoré des services autoliquidés (CGI art. 283, 2), comme le prévoit le nouvel article 287, 3 du CGI.
 - Déclarations de TVA : les achats auprès d'un assujetti non établi en France dont la société est redevable au titre de l'article 283-1 du CGI, comptabilisés au sous-compte 44528, vont en ligne B4 de la CA3 et AB de la CA12, et non plus en acquisitions intracommunautaires (B2, ligne 17) ; vérifié sur les notices 2026, les services d'un prestataire établi hors de l'Union européenne restent en A3 (AC sur la CA12).

@@ -183,15 +183,13 @@ async function deductionFor(companyId: string, day: string): Promise<VatDeductio
 }
 
 /** A category books the same way every time, so a rule can repeat it. */
-function canLearn(category: SimpleCategory, posting: Posting, franchise: boolean, partialDeduction: boolean): boolean {
+function canLearn(category: SimpleCategory, posting: Posting, franchise: boolean): boolean {
   // A refund reverses a charge and its VAT: rules book the charge side only
   if (category.kind === 'refund') return false
   if (category.question && !category.question.reusable) return false
   if (posting.vatRule === 'fuel' || posting.vatRule === 'gift') return false
   // A rule books the collected VAT of its rate: a company under the franchise collects none (CGI art. 293 B)
   if (franchise && category.kind === 'income' && posting.vatRateBp > 0) return false
-  // The rules engine deducts self-assessed VAT in full: not for a company with a coefficient de déduction
-  if (partialDeduction && posting.vatRule === 'self-assessed') return false
   return true
 }
 
@@ -295,7 +293,7 @@ async function prepareCategory(
     answers: Object.keys(resolution.answers).length ? resolution.answers : null,
     vatNote: plan.vatNote,
     mealNote: plan.mealSplit ? mealSplitReason(plan.mealSplit) : mealRule?.unknown && isExploitantMeal(resolution.answers) ? mealRule.explanation : null,
-    learnable: canLearn(category, resolution.posting, deduction.franchise, deduction.share !== null) ? { category, posting: resolution.posting, codes } : null,
+    learnable: canLearn(category, resolution.posting, deduction.franchise) ? { category, posting: resolution.posting, codes } : null,
     asset,
     invoice: null,
   }

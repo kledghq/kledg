@@ -48,6 +48,7 @@
 
 import { trustedBankVatCents } from '@/lib/banking/bank-vat'
 import { vatOnBaseCents } from '@/lib/invoices/amounts'
+import { deductibleVatCents, selfAssessedSplit } from '@/lib/vat-deduction/share'
 import { recoverableVatByRule, vatIncludedCents, RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
 import { NON_DEDUCTIBLE_MEALS_ACCOUNT, splitExploitantMeal, type MealSplit } from '@/lib/expense-reports/exploitant-meals'
 import { EXPLOITANT_MEAL_ANSWER, type CategoryKind, type Posting, type Question, type SimpleCategory } from './categories'
@@ -185,11 +186,6 @@ export function buildPostingLines(input: PostingInput): PostingPlan {
   return input.exploitantMeal && kind === 'expense' && input.side === 'debit' ? withMealSplit(plan, input.amountCents, input.exploitantMeal.year) : plan
 }
 
-/** n x ratio rounded half away from zero, n >= 0. Ratios come from cent sums, rounded to 1e-6 here. */
-function share(n: number, ratio: number): number {
-  const millionths = Math.round(Math.min(Math.max(ratio, 0), 1) * 1_000_000)
-  return Math.floor((n * millionths * 2 + 1_000_000) / 2_000_000)
-}
 
 /** Self-assessed VAT due (PCG art. 944-44, compte 4452 TVA due intracommunautaire): a service of a supplier established outside France. */
 export const VAT_SELF_ASSESSED = '4452'
@@ -209,14 +205,14 @@ const coefficientNote = (ratio: number) => `Coefficient de déduction provisoire
 function selfAssessedPlan(input: PostingInput, line: (accountCode: string, cents: number, role: CounterpartLine['role']) => CounterpartLine): PostingPlan {
   const { posting, side, amountCents } = input
   const vatCents = vatOnBaseCents(amountCents, posting.vatRateBp > 0 ? posting.vatRateBp : SELF_ASSESSED_RATE_BP)
-  let recoverable = vatCents
-  let vatNote = SELF_ASSESSED_NOTE
-  if (input.recoveryRatio !== null) {
-    recoverable = share(vatCents, input.recoveryRatio)
-    vatNote = `${SELF_ASSESSED_NOTE}. ${coefficientNote(input.recoveryRatio)}`
-  }
+  // Due in full, deducted at the coefficient, the rest in the charge (lib/vat-deduction/share.ts)
+  const split = selfAssessedSplit(vatCents, input.recoveryRatio)
+  const recoverable = split.deductibleCents
+  const vatNote = input.recoveryRatio !== null ? `${SELF_ASSESSED_NOTE}. ${coefficientNote(input.recoveryRatio)}` : SELF_ASSESSED_NOTE
   const due: CounterpartLine =
-    side === 'debit' ? { accountCode: VAT_SELF_ASSESSED, debitCents: 0, creditCents: vatCents, role: 'vat' } : { accountCode: VAT_SELF_ASSESSED, debitCents: vatCents, creditCents: 0, role: 'vat' }
+    side === 'debit'
+      ? { accountCode: VAT_SELF_ASSESSED, debitCents: 0, creditCents: split.dueCents, role: 'vat' }
+      : { accountCode: VAT_SELF_ASSESSED, debitCents: split.dueCents, creditCents: 0, role: 'vat' }
   const vatAccount = posting.account.startsWith('2') ? VAT_ON_ASSETS : VAT_DEDUCTIBLE
   return {
     lines: [line(posting.account, amountCents + vatCents - recoverable, 'base'), ...(recoverable > 0 ? [line(vatAccount, recoverable, 'vat')] : []), due],
@@ -274,7 +270,7 @@ function buildPlainPostingLines(input: PostingInput): PostingPlan {
     vatNote = RECOVERY_LABELS[recovery.reason]
   }
   if (input.recoveryRatio !== null && recoverable > 0) {
-    recoverable = share(recoverable, input.recoveryRatio)
+    recoverable = deductibleVatCents(recoverable, input.recoveryRatio)
     vatNote = coefficientNote(input.recoveryRatio)
   }
   if (recoverable <= 0) return { ...single(vatNote), vatCents }

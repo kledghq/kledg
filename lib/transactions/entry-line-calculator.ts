@@ -8,6 +8,7 @@
 import type { EntryLine } from './types';
 import { toCents } from '@/lib/utils/money';
 import { trustedBankVatCents, trustedBankVatRate } from '@/lib/banking/bank-vat';
+import { deductibleVatCents } from '@/lib/vat-deduction/share';
 
 /**
  * Generic rule entry line interface for calculations
@@ -248,9 +249,8 @@ export function calculateVATLineAmounts(
 
   // If company is VAT exempt, apply recovery ratio to deductible VAT
   if (vatRecoveryRatio !== null && vatRecoveryRatio !== undefined && vatType === 'deductible') {
-    // Apply ratio: only recover a portion of deductible VAT
-    const recoverableVat = vatAmount * vatRecoveryRatio;
-    vatDebit = recoverableVat;
+    // Only the coefficient's share is recovered, half up to the cent (lib/vat-deduction/share.ts)
+    vatDebit = deductibleVatCents(toCents(vatAmount) ?? 0, vatRecoveryRatio) / 100;
     return { vatDebit, vatCredit };
   }
 
