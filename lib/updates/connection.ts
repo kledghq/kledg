@@ -39,6 +39,8 @@ export interface TokenValidation {
   defaultBranch: string
   expiresAt: Date | null
   checks: PermissionCheck[]
+  /** The token lists another private repository (null: GitHub did not tell). */
+  reachesOtherRepos: boolean | null
 }
 
 interface GitHubRepo {
@@ -137,10 +139,31 @@ export async function validateToken(token: string, target: RepoRef): Promise<Tok
 
   return {
     repository: { owner: target.owner, repo: target.repo },
+    reachesOtherRepos: await reachesOtherRepos(token, target),
     kind,
     defaultBranch: repo.default_branch,
     expiresAt: tokenExpiryFromHeaders(repoResponse.headers),
     checks,
+  }
+}
+
+/**
+ * Whether the token reaches another repository than the instance's: GET
+ * /user/repos (available to fine-grained tokens) lists only the repositories
+ * the token was granted. Only private ones count: a fine-grained token reads
+ * every public repository anyway, and the user's own public repositories may
+ * be listed whatever the token's selection. A warning, not a refusal
+ * (KLEDG-R3-INPUT-05).
+ */
+async function reachesOtherRepos(token: string, target: RepoRef): Promise<boolean | null> {
+  try {
+    const { data } = await githubRequest<Array<{ full_name?: string; private?: boolean }>>('/user/repos?visibility=private&per_page=2', { token })
+    if (!Array.isArray(data)) return null
+    const own = `${target.owner}/${target.repo}`.toLowerCase()
+    return data.some((r) => r.private !== false && typeof r.full_name === 'string' && r.full_name.toLowerCase() !== own)
+  } catch (error) {
+    if (error instanceof GitHubError) return null
+    throw error
   }
 }
 
@@ -159,6 +182,7 @@ export async function saveConnection(token: string, validation: TokenValidation,
     tokenExpiresAt: validation.expiresAt,
     isFork: validation.kind === 'fork',
     defaultBranch: validation.defaultBranch,
+    tokenReachesOtherRepos: validation.reachesOtherRepos,
     connectedById: userId,
   }
   await prisma.updateConnection.upsert({ where: { id: 'default' }, create: { id: 'default', ...data }, update: data })
@@ -179,11 +203,23 @@ export interface ConnectionSummary {
   tokenExpiresAt: string | null
   expired: boolean
   expiresSoon: boolean
+  /** The token reaches other private repositories than this one (warning on the page). */
+  tokenReachesOtherRepos: boolean
   connectedAt: string
 }
 
 export function summarize(
-  row: { owner: string; repo: string; isFork: boolean; defaultBranch: string; tokenLast4: string; tokenExpiresAt: Date | null; createdAt: Date; updatedAt: Date },
+  row: {
+    owner: string
+    repo: string
+    isFork: boolean
+    defaultBranch: string
+    tokenLast4: string
+    tokenExpiresAt: Date | null
+    tokenReachesOtherRepos?: boolean | null
+    createdAt: Date
+    updatedAt: Date
+  },
   now = new Date(),
 ): ConnectionSummary {
   const expiresAt = row.tokenExpiresAt
@@ -197,6 +233,7 @@ export function summarize(
     tokenExpiresAt: expiresAt ? expiresAt.toISOString() : null,
     expired: msLeft <= 0,
     expiresSoon: msLeft > 0 && msLeft <= EXPIRY_WARNING_DAYS * 24 * 3600 * 1000,
+    tokenReachesOtherRepos: row.tokenReachesOtherRepos === true,
     connectedAt: row.updatedAt.toISOString(),
   }
 }
