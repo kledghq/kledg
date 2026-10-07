@@ -15,6 +15,7 @@ import type { EnrichedTransaction } from '@/lib/transactions/types'
 import { toCents } from '@/lib/utils/money'
 import { formatIsoDateFr, toIsoDateUtc } from '@/lib/utils/date'
 import { transactionOfCompany } from '@/lib/api/resources'
+import { normalizeBankSide } from '@/lib/banking/side'
 import {
   bankLineOf,
   checkVat,
@@ -170,7 +171,7 @@ async function fromHistory(companyId: string, transaction: Transaction): Promise
     select: { id: true, date: true, reconciledWith: true },
   })
 
-  const side: BankSide = transaction.side.toLowerCase().startsWith('d') ? 'debit' : 'credit'
+  const side: BankSide = normalizeBankSide(transaction.side)
   const bank = bankLineOf({ amountCents: toCents(transaction.amount) ?? 0, side })
   // Counterparts carry the opposite of the bank line
   const target = bank.creditCents - bank.debitCents

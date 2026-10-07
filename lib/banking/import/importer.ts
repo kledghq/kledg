@@ -29,7 +29,8 @@ import { prisma } from '@/lib/prisma'
 import { centsToDecimal } from '@/lib/utils/money'
 import { parseAmountCents } from './amount'
 import { importKeys, IMPORT_ID_PREFIX } from './dedupe'
-import { matchProbableDuplicates, signedCents, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { matchProbableDuplicates, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { signedBankCents } from '@/lib/banking/side'
 import type { ParsedTransaction, ParseResult, RowError, StatementFormat } from './types'
 import { pluralWord } from '@/lib/utils/plural'
 
@@ -195,7 +196,7 @@ function toMatch(row: ExistingRow): ProbableMatch & ExistingLine {
   const data = (row.providerData && typeof row.providerData === 'object' ? row.providerData : {}) as Record<string, unknown>
   const fromFile =
     row.externalTransactionId.startsWith(IMPORT_ID_PREFIX) || row.externalTransactionId.startsWith('import-') || data.source === 'file-import'
-  const cents = signedCents(parseAmountCents(row.amount.toFixed(2), '.') ?? 0, row.side)
+  const cents = signedBankCents(parseAmountCents(row.amount.toFixed(2), '.') ?? 0, row.side)
   const date = dayOf(row.date)
   const valueDate = typeof data.valueDate === 'string' ? data.valueDate : null
   return {

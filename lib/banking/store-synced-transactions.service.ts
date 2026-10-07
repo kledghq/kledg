@@ -26,8 +26,9 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { ProviderTransaction } from '@/lib/banking/providers/types'
 import { IMPORT_ID_PREFIX } from '@/lib/banking/import/dedupe'
-import { dayWindow, matchProbableDuplicates, signedCents, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { dayWindow, matchProbableDuplicates, type ExistingLine } from '@/lib/banking/probable-duplicates'
 import { newTransactions, normalizeIban } from '@/lib/banking/sync-rules'
+import { normalizeBankSide, signedBankCents } from '@/lib/banking/side'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { addIsoDays, calendarDayOf, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
 
@@ -75,7 +76,7 @@ function transactionRow(bankAccountId: string, tx: ProviderTransaction): Prisma.
     date: tx.date,
     label: tx.label || null,
     reference: tx.reference || null,
-    side: tx.side,
+    side: normalizeBankSide(tx.side),
     note: tx.note || null,
     logoUrl: tx.logoUrl || null,
     counterpartyName: tx.counterpartyName || null,
@@ -126,7 +127,7 @@ async function otherSourceLines(db: Tx, account: SyncTarget, window: { first: st
     .filter((row) => row.bankAccountId !== account.id || isFileImport(row.externalTransactionId, row.providerData))
     .map((row) => ({
       id: row.id,
-      amountCents: signedCents(Math.abs(toCents(row.amount) ?? 0), row.side),
+      amountCents: signedBankCents(Math.abs(toCents(row.amount) ?? 0), row.side),
       day: toIsoDateUtc(row.date),
       valueDay: valueDayOf(row.providerData),
     }))
@@ -152,7 +153,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       // Probable duplicates of another source: declined lines never are one
       const candidates = fresh.filter((t) => t.state !== 'rejected')
       const lines = candidates.map((t) => ({
-        amountCents: signedCents(centsOf(t.amount), t.side),
+        amountCents: signedBankCents(centsOf(t.amount), t.side),
         day: toIsoDateUtc(t.date),
         valueDay: t.valueDate ?? null,
       }))

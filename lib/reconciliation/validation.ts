@@ -13,8 +13,9 @@
 
 import { formatCentsFr } from '@/lib/utils/money'
 import { formatIsoDateFr, isIsoDate } from '@/lib/utils/date'
+import type { BankSide } from '@/lib/banking/side'
 
-export type BankSide = 'debit' | 'credit'
+export type { BankSide }
 
 export interface ReconciliationLine {
   accountId: string

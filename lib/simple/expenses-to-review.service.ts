@@ -96,8 +96,8 @@ export interface ExpensesToReview {
   mealRuleExplanation: string | null
 }
 
-/** Providers write the side "debit"/"credit" (older imports "Débit"/"Crédit"), as normalizeSide reads it. */
-const DEBIT_SIDE = { side: { startsWith: 'd', mode: 'insensitive' as const } }
+/** The database only holds "debit" and "credit" (check constraint, lib/banking/side.ts). */
+const DEBIT_SIDE = { side: 'debit' }
 const sideFilter = (side: 'debit' | 'credit' | 'all') => (side === 'all' ? {} : side === 'debit' ? DEBIT_SIDE : { NOT: DEBIT_SIDE })
 
 function toReviewWhere(companyId: string, side: 'debit' | 'credit' | 'all') {

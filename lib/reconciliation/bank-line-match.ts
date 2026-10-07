@@ -8,6 +8,7 @@
  * for an entry of 28 February whatever the server timezone.
  */
 
+import { isDebitSide } from '@/lib/banking/side'
 import { addUtcDays } from '@/lib/utils/date'
 import { toCents, type AmountInput } from '@/lib/utils/money'
 
@@ -16,11 +17,6 @@ const centsOf = (value: AmountInput): number | null => toCents(value ?? 0)
 /** Signed cents a bank line moves: debit minus credit (positive = money in). */
 export function bankLineCents(line: { debit: AmountInput; credit: AmountInput }): number {
   return (centsOf(line.debit) ?? 0) - (centsOf(line.credit) ?? 0)
-}
-
-/** Whether a bank transaction side means money out. */
-function isDebitSide(side: string | null | undefined): boolean {
-  return side === 'debit' || side === 'Débit'
 }
 
 /**

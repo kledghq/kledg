@@ -18,6 +18,7 @@ import { assertAllOwned, findOwned, transactionOfCompany } from '@/lib/api/resou
 import { createEntryInTx, validateEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
 import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { writeAuditLog } from '@/lib/audit'
+import { normalizeBankSide } from '@/lib/banking/side'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { bankLineOf, validateReconciliation, type BankSide, type FiscalYearPeriod } from './validation'
@@ -33,10 +34,8 @@ export const MESSAGES = {
 
 type Client = Prisma.TransactionClient | typeof prisma
 
-/** Bank providers store the direction as "debit"/"credit" (some older imports as "Débit"/"Crédit"). */
-export function normalizeSide(side: string): BankSide {
-  return /^d/i.test(side) ? 'debit' : 'credit'
-}
+/** The side of a stored transaction (lib/banking/side.ts, the one normalisation). */
+export const normalizeSide: (side: string) => BankSide = normalizeBankSide
 
 export async function loadTransaction(companyId: string, transactionId: string) {
   return findOwned(
