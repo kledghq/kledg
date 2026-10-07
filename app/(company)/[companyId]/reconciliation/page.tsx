@@ -211,11 +211,18 @@ export default function ReconciliationPage() {
         return
       }
       const data = (await response.json()) as {
+        success?: boolean
+        message?: string
         reconciledCount: number
         unreconciledOrphanedCount: number
         total?: number
       }
       await loadData()
+      // Some entries could not be processed: say so instead of a plain count
+      if (data.success === false) {
+        toast.error(data.message || 'Le rapprochement automatique a échoué. Réessayez.')
+        return
+      }
       if (data.unreconciledOrphanedCount > 0) {
         toast.warning(
           `${plural(data.unreconciledOrphanedCount, 'transaction')} à traiter de nouveau\u00a0: ${pluralWord(data.unreconciledOrphanedCount, 'son écriture a été supprimée ou n\'est plus liée', 'leur écriture a été supprimée ou n\'est plus liée')}.`,

@@ -5,7 +5,8 @@
  * matches a transaction of the same amount to the cent, on the opposite side,
  * within one calendar day; one entry reconciles one transaction, a
  * transaction whose entry was deleted is released, and a second run links
- * nothing twice.
+ * nothing twice. The FEC import uses the same matcher (KLEDG-R3-QUAL-04) and
+ * a failure is reported, not read as "nothing matched" (KLEDG-R3-QUAL-18).
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -188,22 +189,71 @@ describe.skipIf(!available)('automatic bank reconciliation (PostgreSQL)', () => 
     })
   })
 
-  describe('attemptBankReconciliation', () => {
-    it('ignores lines on accounts of another company or outside class 51', async () => {
-      const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
-      const otherFy = await prisma.fiscalYear.create({ data: { companyId: other.id, year: 2025, startDate: day('2025-01-01'), endDate: day('2025-12-31') } })
-      const foreignBank = await prisma.account.create({ data: { companyId: other.id, fiscalYearId: otherFy.id, code: '512000', label: 'Banque' } })
+  describe('reconcileBankEntries', () => {
+    it('never overwrites a transaction reconciled meanwhile (conditional claim)', async () => {
       const txId = await transaction('60.00', 'credit', '2025-08-01')
-
-      const foreign = await svc.attemptBankReconciliation(ids.company, 'entry-x', [{ accountId: foreignBank.id, debit: 60, credit: 0, description: '' }], day('2025-08-01'))
-      const notBank = await svc.attemptBankReconciliation(ids.company, 'entry-x', [{ accountId: ids.client, debit: 60, credit: 0, description: '' }], day('2025-08-01'))
-      expect([foreign, notBank]).toEqual([{ matched: false }, { matched: false }])
-      expect(await reconciledWith(txId)).toBeNull()
-
-      const own = await svc.attemptBankReconciliation(ids.company, 'entry-y', [{ accountId: ids.bank, debit: 60, credit: 0, description: '' }], day('2025-07-31'))
-      expect(own).toEqual({ matched: true, transactionId: txId })
-      expect(await reconciledWith(txId)).toBe('entry-y')
+      const entries = [{ id: 'entry-y', date: day('2025-07-31'), lines: [{ accountCode: '512000', debit: '60.00', credit: '0' }] }]
+      // Reconciled by someone else after the candidates were read
+      const findMany = prisma.bankTransaction.findMany.bind(prisma.bankTransaction)
+      const spy = vi.spyOn(prisma.bankTransaction, 'findMany').mockImplementationOnce((async (args: Parameters<typeof findMany>[0]) => {
+        const rows = await findMany(args)
+        await prisma.bankTransaction.update({ where: { id: txId }, data: { reconciled: true, reconciledWith: 'other-entry' } })
+        return rows
+      }) as never)
+      try {
+        expect(await svc.reconcileBankEntries(ids.company, entries)).toEqual({ matched: 0, failed: 0 })
+      } finally {
+        spy.mockRestore()
+      }
+      expect(await reconciledWith(txId)).toBe('other-entry')
     })
+
+    it('only reads transactions of the company', async () => {
+      const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
+      const connection = await prisma.bankConnection.create({ data: { companyId: other.id, provider: 'MANUAL' } })
+      const foreignAccount = await prisma.bankAccount.create({ data: { bankConnectionId: connection.id, externalAccountId: 'foreign', name: 'Autre' } })
+      const foreign = await transaction('60.00', 'credit', '2025-08-01', { bankAccountId: foreignAccount.id })
+      const entries = [{ id: 'entry-z', date: day('2025-08-01'), lines: [{ accountCode: '512000', debit: '60.00', credit: '0' }] }]
+
+      expect(await svc.reconcileBankEntries(ids.company, entries)).toEqual({ matched: 0, failed: 0 })
+      expect(await reconciledWith(foreign)).toBeNull()
+    })
+  })
+
+  it('reports a failure instead of "0 transaction rapprochée" (KLEDG-R3-QUAL-18)', async () => {
+    await entry('in', '25.00', '2025-09-01')
+    await transaction('25.00', 'credit', '2025-09-01')
+    const findMany = prisma.bankTransaction.findMany.bind(prisma.bankTransaction)
+    let calls = 0
+    // The second read is the candidate transactions of the chunk
+    const spy = vi.spyOn(prisma.bankTransaction, 'findMany').mockImplementation((async (args: Parameters<typeof findMany>[0]) => {
+      calls += 1
+      if (calls === 2) throw new Error('connection reset')
+      return findMany(args)
+    }) as never)
+    try {
+      const result = await svc.autoReconcile({ companyId: ids.company })
+      expect(result).toMatchObject({ success: false, matched: 0, total: 1 })
+      expect(result.message).toBe('0 transaction rapprochée sur 1 écriture analysée (1 écriture non traitée après une erreur, réessayez)')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('FEC import: two identical transactions and one bank line reconcile exactly one (KLEDG-R3-QUAL-04)', async () => {
+    const first = await transaction('50.00', 'debit', '2025-03-01')
+    const second = await transaction('50.00', 'debit', '2025-03-02')
+    const fec = [
+      'JournalCode|JournalLib|EcritureNum|EcritureDate|CompteNum|CompteLib|CompAuxNum|CompAuxLib|PieceRef|PieceDate|EcritureLib|Debit|Credit|EcritureLet|DateLet|ValidDate|Montantdevise|Idevise',
+      'BQ|Banque|1|20250301|606100|Fournitures|||CB1|20250301|Carte fournitures|50,00|0,00|||20250302||',
+      'BQ|Banque|1|20250301|512000|Banque|||CB1|20250301|Carte fournitures|0,00|50,00|||20250302||',
+    ].join('\n')
+    const { importFEC } = await import('@/lib/import/fec')
+    const result = await importFEC({ companyId: ids.company, content: fec })
+    expect(result.errors).toEqual([])
+    const imported = await prisma.accountingEntry.findFirstOrThrow({ where: { companyId: ids.company, description: 'Carte fournitures' }, select: { id: true } })
+    const links = [await reconciledWith(first), await reconciledWith(second)]
+    expect(links).toEqual([imported.id, null])
   })
 
   describe('AutoReconcileBodySchema', () => {
