@@ -41,6 +41,7 @@ const tx = (id: string, attachmentIds: string[] = [], over: Record<string, unkno
   id: `uuid-${id}`,
   transaction_id: id,
   amount: 12.5,
+  side: 'debit',
   label: `Achat ${id}`,
   settled_at: '2026-09-02T10:00:00.000Z',
   attachment_ids: attachmentIds,

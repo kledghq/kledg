@@ -9,6 +9,7 @@ import { buildBalanceSheet, type BalanceSheetRule } from '../statements/balance-
 import { findUnbalancedEntries, loadFiscalYearOf, loadStatementAccounts } from '../statements/load'
 import type { BalanceSheetData } from './types'
 import { upgradeLayoutIfUntouched } from '../statements/layout-upgrade'
+import { parseStatementRules } from '../config/shared/config-schema'
 
 /**
  * Generates the balance sheet of a fiscal year.
@@ -40,7 +41,7 @@ export async function generateBalanceSheet(
     companyId,
     fiscalYearId,
     reportVariant,
-    rules: config.lines as unknown as BalanceSheetRule[],
+    rules: parseStatementRules<BalanceSheetRule>(config.lines, 'du bilan', { companyId, reportVariant }),
     accounts,
   })
 

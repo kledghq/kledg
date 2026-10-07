@@ -308,7 +308,9 @@ describe.skipIf(!available)('balance sheet layout services', () => {
 
       const shared = await createBalanceSheetTemplate(ids.company, 'Modèle public', null, 'simplified', true)
       expect(shared).toMatchObject({ isPublic: true, companyId: null, createdBy: null, description: null })
-      await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Privé autre', reportVariant: 'simplified', companyId: ids.other, configData: {} } })
+      await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Privé autre', reportVariant: 'simplified', companyId: ids.other, configData: { reportVariant: 'simplified', lines: [] } } })
+      // KLEDG-R3-QUAL-28: a damaged template (no lines) is left out of the list, the others stay
+      await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Abîmé', reportVariant: 'simplified', companyId: ids.other, configData: {} } })
       await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Complet', reportVariant: 'complete', companyId: ids.company, configData: {} } })
 
       // Public templates first, then the company's own.

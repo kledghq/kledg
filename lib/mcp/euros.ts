@@ -27,7 +27,8 @@ import { ValidationError } from '@/lib/accounting/errors'
 type AnySchema = z.ZodType
 type Def = { type: string; shape?: Record<string, AnySchema>; innerType?: AnySchema; element?: AnySchema; options?: AnySchema[]; in?: AnySchema; defaultValue?: unknown }
 
-const defOf = (schema: AnySchema): Def => (schema as unknown as { _zod: { def: Def } })._zod.def
+/** The definition of a schema through zod's public `def` (zod 4), read as the fields this module uses. */
+const defOf = (schema: AnySchema): Def => schema.def as unknown as Def
 
 const CENTS_KEY = /^(.+)Cents$/
 /** Rates in basis points (`vatRateBp`): the assistant gives and reads percents (20 for 20 %). */

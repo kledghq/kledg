@@ -31,6 +31,9 @@ import { displayNameOf } from './payees'
 import { fixedAssetMention } from './asset-lifetimes'
 import { getSimpleModeSettings, type Accountant } from './simple-mode-settings.service'
 
+/** Answers stored with a simple mode entry (question id to answer). */
+const StoredAnswersSchema = z.record(z.string(), z.string()).nullable()
+
 export interface ValidationPeriod {
   /** yyyy-mm-dd, both included. */
   from: string
@@ -177,7 +180,8 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
         creditCents: toCents(l.credit) ?? 0,
         description: l.description,
       }))
-      const answers = (row.answers as Record<string, string> | null) ?? null
+      // JSON column: read through a schema, an unreadable value shows no answers
+      const answers = StoredAnswersSchema.safeParse(row.answers).data ?? null
       const transaction = row.bankTransaction
       return {
         entryId: row.entry.id,

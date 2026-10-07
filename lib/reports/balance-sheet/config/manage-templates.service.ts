@@ -7,6 +7,7 @@ import { NotFoundError } from '@/lib/accounting/errors'
 import { buildConfigTree } from '../../config/shared/config-tree'
 import { getBalanceSheetConfig } from './get-balance-sheet-config.service'
 import type { BalanceSheetConfigTemplate, BalanceSheetConfig, BalanceSheetLineConfig } from '../types'
+import { parseTemplateConfig } from '../../config/shared/config-schema'
 
 /**
  * Creates a template from current configuration
@@ -52,7 +53,7 @@ export async function createBalanceSheetTemplate(
     isPublic: template.isPublic,
     createdBy: template.createdBy,
     companyId: template.companyId,
-    configData: template.configData as unknown as BalanceSheetConfig,
+    configData: parseTemplateConfig<BalanceSheetConfig>(template.configData, { templateId: template.id }),
     usageCount: template.usageCount,
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
@@ -85,19 +86,30 @@ export async function listBalanceSheetTemplates(
     ],
   })
 
-  return templates.map((t) => ({
-    id: t.id,
-    name: t.name,
-    description: t.description,
-    reportVariant: t.reportVariant as 'complete' | 'simplified',
-    isPublic: t.isPublic,
-    createdBy: t.createdBy,
-    companyId: t.companyId,
-    configData: t.configData as unknown as BalanceSheetConfig,
-    usageCount: t.usageCount,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-  }))
+  // A damaged template is left out of the list (logged), never a reason to hide the others
+  return templates.flatMap((t) => {
+    let configData: BalanceSheetConfig
+    try {
+      configData = parseTemplateConfig<BalanceSheetConfig>(t.configData, { templateId: t.id })
+    } catch {
+      return []
+    }
+    return [
+      {
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        reportVariant: t.reportVariant as 'complete' | 'simplified',
+        isPublic: t.isPublic,
+        createdBy: t.createdBy,
+        companyId: t.companyId,
+        configData,
+        usageCount: t.usageCount,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      },
+    ]
+  })
 }
 
 /**
@@ -121,7 +133,7 @@ export async function applyBalanceSheetTemplate(
     throw new NotFoundError('Modèle introuvable')
   }
 
-  const configData = template.configData as unknown as BalanceSheetConfig
+  const configData = parseTemplateConfig<BalanceSheetConfig>(template.configData, { templateId: template.id })
 
   // Delete existing configurations for this variant
   await prisma.balanceSheetLineConfig.deleteMany({
