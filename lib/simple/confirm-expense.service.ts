@@ -46,6 +46,7 @@
 
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { ConflictError, ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
@@ -143,7 +144,6 @@ export const MESSAGES = {
     side === 'debit'
       ? `« ${label} » est une entrée d’argent, et cette opération une sortie : choisissez une catégorie de dépense.`
       : `« ${label} » est une dépense, et cette opération une entrée d’argent : choisissez une recette, ou le remboursement de cette dépense.`,
-  journalMissing: "Le journal de banque (BQ) n'existe pas : demandez à votre comptable de le créer dans Journaux.",
 } as const
 
 interface Prepared {
@@ -248,8 +248,7 @@ async function prepareCategory(
   }
   const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
   if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
-  const journal = await prisma.journal.findFirst({ where: { companyId, code: 'BQ' }, select: { id: true } })
-  if (!journal) throw new ValidationError(MESSAGES.journalMissing)
+  const journal = await journalByCode(prisma, companyId, 'BQ', { create: { label: 'Banque' } })
 
   const name = displayNameOf(counterpartyOf(transaction), transaction.label)
   const description = transaction.label?.trim() || name
@@ -320,8 +319,7 @@ async function prepareInvoice(companyId: string, transaction: Awaited<ReturnType
   }
   const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
   if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
-  const journal = await prisma.journal.findFirst({ where: { companyId, code: 'BQ' }, select: { id: true } })
-  if (!journal) throw new ValidationError(MESSAGES.journalMissing)
+  const journal = await journalByCode(prisma, companyId, 'BQ', { create: { label: 'Banque' } })
 
   const description = transaction.label?.trim() || displayNameOf(counterpartyOf(transaction), transaction.label)
   const lineDescription = `Facture n° ${invoice.number}, ${invoice.customerName}`

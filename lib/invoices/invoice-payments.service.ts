@@ -30,6 +30,7 @@
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
 import { AccountingError, ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { assertEntryWritableInFiscalYear, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
 import { createEntryInTx, deleteDraftEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
@@ -301,8 +302,7 @@ async function createVatTransfer(
 ): Promise<string> {
   const fiscalYear = await tx.fiscalYear.findFirst({ where: { id: paymentEntry.fiscalYearId, companyId }, select: GUARDED_FISCAL_YEAR_SELECT })
   assertEntryWritableInFiscalYear(fiscalYear, paymentEntry.date, 'create')
-  const journal = await tx.journal.findFirst({ where: { companyId, code: 'OD' }, select: { id: true } })
-  if (!journal) throw new ValidationError('Le journal OD n’existe pas : créez-le pour constater la TVA exigible à l’encaissement.')
+  const journal = await ensureJournal(tx, companyId, { code: 'OD', label: 'Opérations diverses' })
   const pending = await accountByRoot(tx, companyId, fiscalYear!, VAT_ACCOUNT_ROOTS.collectedPending.root, VAT_ACCOUNT_ROOTS.collectedPending.label)
   const collected = await accountByRoot(tx, companyId, fiscalYear!, VAT_ACCOUNT_ROOTS.collected.root, VAT_ACCOUNT_ROOTS.collected.label)
   const amount = centsToDecimal(Math.abs(shareCents))

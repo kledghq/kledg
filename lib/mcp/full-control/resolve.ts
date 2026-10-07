@@ -7,6 +7,7 @@
 
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { ValidationError } from '@/lib/accounting/errors'
 import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
 import { isoDateToUtc } from '@/lib/utils/date'
@@ -43,7 +44,7 @@ export async function accountIdsByCode(companyId: string, fiscalYearId: string, 
 
 /** Journal id by code (BQ, AC, OD...). */
 export async function journalIdByCode(companyId: string, code: string): Promise<string> {
-  const journal = await prisma.journal.findFirst({ where: { companyId, code: code.trim().toUpperCase() }, select: { id: true } })
+  const journal = await journalByCode(prisma, companyId, code)
   if (!journal) throw new ValidationError(`Journal ${code} introuvable. Utilisez list_journals ou create_journal.`)
   return journal.id
 }

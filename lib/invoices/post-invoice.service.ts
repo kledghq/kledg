@@ -22,6 +22,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { assertEntryWritableInFiscalYear, fiscalYearContaining, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
 import { createEntryInTx, deleteDraftEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
@@ -47,7 +48,7 @@ export const VAT_ACCOUNT_ROOTS: Record<VatAccountKey, { root: string; label: str
 /** Revenue account of a sale line without one: 706 for services, 707 for goods (PCG art. 932-1). */
 const DEFAULT_SALE_ACCOUNT = { SERVICES: '706', GOODS: '707' } as const
 
-const JOURNALS = { PURCHASE: 'AC', SALE: 'VE' } as const
+const JOURNALS = { PURCHASE: { code: 'AC', label: 'Achats' }, SALE: { code: 'VE', label: 'Ventes' } } as const
 
 const cents = (value: { toString(): string }) => parseCents(value) ?? 0
 
@@ -117,10 +118,8 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
       )
     }
 
-    const journal = await tx.journal.findFirst({ where: { companyId, code: JOURNALS[invoice.direction] }, select: { id: true } })
-    if (!journal) {
-      throw new ValidationError(`Le journal ${JOURNALS[invoice.direction]} n’existe pas : créez-le dans Journaux pour comptabiliser cette facture.`)
-    }
+    // A standard journal Kledg posts to: created when missing (lib/accounting/journal-by-code.ts)
+    const journal = await ensureJournal(tx, companyId, JOURNALS[invoice.direction])
 
     const kind = invoice.direction === 'SALE' ? 'CUSTOMER' : 'SUPPLIER'
     const tiersAccount = invoice.tiers.collectiveAccountCode

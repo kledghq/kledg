@@ -17,6 +17,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { logger } from '@/lib/logger'
 import { addUtcDays, startOfDay } from '@/lib/utils/date'
 import { matchBankEntries, type BankEntryToMatch } from '@/lib/reconciliation/bank-line-match'
@@ -135,10 +136,7 @@ export async function autoReconcile(options: AutoReconciliationOptions): Promise
 
   const unreconciledOrphanedCount = await unreconcileOrphanedTransactions(companyId)
 
-  const journalBQ = await prisma.journal.findFirst({
-    where: { companyId, code: 'BQ' },
-    select: { id: true },
-  })
+  const journalBQ = await journalByCode(prisma, companyId, 'BQ')
 
   if (!journalBQ) {
     return {

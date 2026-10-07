@@ -13,6 +13,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { companyGuard, type CompanyGuard, type McpAccess } from '@/lib/mcp/company-access'
 import { getTrialBalance } from '@/lib/reports/trial-balance/get-trial-balance.service'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
@@ -860,9 +861,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         // becomes the generic message, the detail only in the log.
         assertEntryWritableInFiscalYear(fiscalYear, date, 'create')
 
-        const journal = await prisma.journal.findFirst({
-          where: { companyId: args.companyId, code: args.journalCode },
-        })
+        const journal = await journalByCode(prisma, args.companyId, args.journalCode)
         if (!journal) return fail(`Journal ${args.journalCode} introuvable. Utilisez list_journals.`)
 
         const codes = [...new Set(args.lines.map((l) => l.accountCode))]
