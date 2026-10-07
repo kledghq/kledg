@@ -1,21 +1,31 @@
 /**
- * Manages balance sheet configuration templates
+ * Manages balance sheet configuration templates.
+ *
+ * A template a company saves stays its own (KLEDG-R3-AUTHZ-01). Templates
+ * shared across the instance are Kledg's own: rows without company, written
+ * by an unrestricted context only (migration 20261121090000, docs/rls.md).
+ * A template of another company is never listed, applied nor read.
  */
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { buildConfigTree } from '../../config/shared/config-tree'
 import { getBalanceSheetConfig } from './get-balance-sheet-config.service'
 import type { BalanceSheetConfigTemplate, BalanceSheetConfig, BalanceSheetLineConfig } from '../types'
 
+/** The templates a company may list, apply or read: its own, and Kledg's shared ones. */
+export function usableTemplateWhere(companyId: string): Prisma.BalanceSheetConfigTemplateWhereInput {
+  return { OR: [{ companyId }, { companyId: null, isPublic: true }] }
+}
+
 /**
- * Creates a template from current configuration
- * 
+ * Saves the company's current layout as a template of the company.
+ *
  * @param companyId - Company ID
  * @param name - Template name
  * @param description - Template description
  * @param reportVariant - 'complete' | 'simplified'
- * @param isPublic - Whether template is public
  * @param createdBy - User ID who created the template
  * @returns Created template
  */
@@ -24,7 +34,6 @@ export async function createBalanceSheetTemplate(
   name: string,
   description: string | null,
   reportVariant: 'complete' | 'simplified',
-  isPublic: boolean = false,
   createdBy?: string
 ): Promise<BalanceSheetConfigTemplate> {
   // Get current configuration
@@ -36,9 +45,9 @@ export async function createBalanceSheetTemplate(
       name,
       description: description || null,
       reportVariant,
-      isPublic,
+      isPublic: false,
       createdBy: createdBy || null,
-      companyId: isPublic ? null : companyId,
+      companyId,
       configData: JSON.parse(JSON.stringify(config)),
       usageCount: 0,
     },
@@ -71,13 +80,7 @@ export async function listBalanceSheetTemplates(
   reportVariant: 'complete' | 'simplified'
 ): Promise<BalanceSheetConfigTemplate[]> {
   const templates = await prisma.balanceSheetConfigTemplate.findMany({
-    where: {
-      reportVariant,
-      OR: [
-        { isPublic: true },
-        { companyId },
-      ],
-    },
+    where: { reportVariant, ...usableTemplateWhere(companyId) },
     orderBy: [
       { isPublic: 'desc' },
       { usageCount: 'desc' },
@@ -91,7 +94,8 @@ export async function listBalanceSheetTemplates(
     description: t.description,
     reportVariant: t.reportVariant as 'complete' | 'simplified',
     isPublic: t.isPublic,
-    createdBy: t.createdBy,
+    // Who saved a shared template is not the company's business.
+    createdBy: t.companyId === companyId ? t.createdBy : null,
     companyId: t.companyId,
     configData: t.configData as unknown as BalanceSheetConfig,
     usageCount: t.usageCount,
@@ -111,15 +115,11 @@ export async function applyBalanceSheetTemplate(
   templateId: string,
   companyId: string
 ): Promise<BalanceSheetConfig> {
-  // Get template
-  const template = await prisma.balanceSheetConfigTemplate.findUnique({
-    where: { id: templateId },
+  // A template of another company is not confirmed: 404 like a missing one.
+  const template = await prisma.balanceSheetConfigTemplate.findFirst({
+    where: { id: templateId, ...usableTemplateWhere(companyId) },
   })
-
-  // A private template of another company is not confirmed: 404 like a missing one.
-  if (!template || (!template.isPublic && template.companyId !== companyId)) {
-    throw new NotFoundError('Modèle introuvable')
-  }
+  if (!template) throw new NotFoundError('Modèle introuvable')
 
   const configData = template.configData as unknown as BalanceSheetConfig
 
@@ -204,15 +204,14 @@ export async function applyBalanceSheetTemplate(
     createdConfigs.push(created)
   }
 
-  // Update template usage count
-  await prisma.balanceSheetConfigTemplate.update({
-    where: { id: templateId },
-    data: {
-      usageCount: {
-        increment: 1,
-      },
-    },
-  })
+  // Usage count of the company's own templates; Kledg's shared ones are
+  // written by an unrestricted context only (row level security).
+  if (template.companyId === companyId) {
+    await prisma.balanceSheetConfigTemplate.update({
+      where: { id: templateId },
+      data: { usageCount: { increment: 1 } },
+    })
+  }
 
   return {
     companyId,

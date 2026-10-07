@@ -297,41 +297,47 @@ describe.skipIf(!available)('balance sheet layout services', () => {
   })
 
   describe('templates', () => {
-    it('saves the layout as a private or public template and lists those the company may use', async () => {
+    it('saves the layout as a template of the company and lists its own and Kledg\'s shared ones (KLEDG-R3-AUTHZ-01)', async () => {
       const root = await line({ lineLabel: 'Actif circulant', section: 'actif' })
       await line({ lineLabel: 'Disponibilités', parentId: root.id, accountCodes: ['51'], filterType: 'starts_with' })
 
-      const own = await createBalanceSheetTemplate(ids.company, 'Mon modèle', 'Bilan maison', 'simplified', false, 'user-1')
+      const own = await createBalanceSheetTemplate(ids.company, 'Mon modèle', 'Bilan maison', 'simplified', 'user-1')
       expect(own).toMatchObject({ name: 'Mon modèle', description: 'Bilan maison', reportVariant: 'simplified', isPublic: false, companyId: ids.company, createdBy: 'user-1', usageCount: 0 })
       expect(own.configData.lines.map((l) => l.lineLabel)).toEqual(['Actif circulant'])
       expect(own.configData.lines[0].children?.map((l) => l.lineLabel)).toEqual(['Disponibilités'])
 
-      const shared = await createBalanceSheetTemplate(ids.company, 'Modèle public', null, 'simplified', true)
-      expect(shared).toMatchObject({ isPublic: true, companyId: null, createdBy: null, description: null })
-      await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Privé autre', reportVariant: 'simplified', companyId: ids.other, configData: {} } })
+      // A template provided by Kledg (no company, written by a migration or an operator).
+      await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Modèle public', reportVariant: 'simplified', isPublic: true, configData: {} } })
+      // A row without company that is not public (a company's template hidden by migration 20261121090000).
+      await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Masqué', reportVariant: 'simplified', createdBy: 'user-2', configData: {} } })
+      await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Privé autre', reportVariant: 'simplified', companyId: ids.other, createdBy: 'user-2', configData: {} } })
       await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Complet', reportVariant: 'complete', companyId: ids.company, configData: {} } })
 
       // Public templates first, then the company's own.
       expect((await listBalanceSheetTemplates(ids.company, 'simplified')).map((t) => t.name)).toEqual(['Modèle public', 'Mon modèle'])
-      expect((await listBalanceSheetTemplates(ids.other, 'simplified')).map((t) => t.name)).toEqual(['Modèle public', 'Privé autre'])
+      const otherList = await listBalanceSheetTemplates(ids.other, 'simplified')
+      expect(otherList.map((t) => t.name)).toEqual(['Modèle public', 'Privé autre'])
+      expect(otherList.map((t) => t.createdBy)).toEqual([null, 'user-2'])
     })
 
     it('applies a template: replaces the layout of the variant and counts the use', async () => {
       await line({ lineLabel: 'Disponibilités', section: 'actif', formCode: '084', accountCodes: ['51'], filterType: 'starts_with', order: 2 })
       await line({ lineLabel: 'Capital', section: 'passif', formCode: '120', accountCodes: ['101'], filterType: 'starts_with', balanceType: 'credit', order: 1 })
-      const template = await createBalanceSheetTemplate(ids.company, 'Modèle', null, 'simplified', true)
+      const template = await createBalanceSheetTemplate(ids.company, 'Modèle', null, 'simplified')
       await prisma.balanceSheetLineConfig.deleteMany({})
       await prisma.balanceSheetLineConfig.create({
-        data: { companyId: ids.other, reportVariant: 'simplified', lineLabel: 'Ligne à remplacer', accountCodes: [], balanceType: 'debit', order: 1 },
+        data: { companyId: ids.company, reportVariant: 'simplified', lineLabel: 'Ligne à remplacer', accountCodes: [], balanceType: 'debit', order: 1 },
       })
 
-      const applied = await applyBalanceSheetTemplate(template.id, ids.other)
+      // Another company never applies it (KLEDG-R3-AUTHZ-01).
+      await expect(applyBalanceSheetTemplate(template.id, ids.other)).rejects.toThrow('Modèle introuvable')
+      const applied = await applyBalanceSheetTemplate(template.id, ids.company)
       expect(applied.reportVariant).toBe('simplified')
       expect(applied.lines.map((l) => [l.lineLabel, l.templateId, l.version])).toEqual([
         ['Capital', template.id, 1],
         ['Disponibilités', template.id, 1],
       ])
-      const config = await getBalanceSheetConfig(ids.other, 'simplified')
+      const config = await getBalanceSheetConfig(ids.company, 'simplified')
       expect(config.lines.map((l) => [l.lineLabel, l.formCode, l.accountCodes, l.balanceType])).toEqual([
         ['Capital', '120', ['101'], 'credit'],
         ['Disponibilités', '084', ['51'], 'debit'],
@@ -345,9 +351,13 @@ describe.skipIf(!available)('balance sheet layout services', () => {
       await line({ lineLabel: 'Disponibilités', parentId: assets.id, formCode: '084', accountCodes: ['51'], filterType: 'starts_with' })
       const equity = await line({ lineLabel: 'Capitaux propres', section: 'passif', formCode: '142', lineType: 'sum', balanceType: 'auto', order: 2, hideLabel: true })
       await line({ lineLabel: 'Capital', parentId: equity.id, formCode: '120', accountCodes: ['101'], filterType: 'starts_with', balanceType: 'credit' })
-      const template = await createBalanceSheetTemplate(ids.company, 'Modèle imbriqué', null, 'simplified', true)
+      const saved = await createBalanceSheetTemplate(ids.company, 'Modèle imbriqué', null, 'simplified')
+      // Shared the way Kledg provides one (no company, public), so another company applies it.
+      const template = await prisma.balanceSheetConfigTemplate.update({ where: { id: saved.id }, data: { companyId: null, isPublic: true } })
 
       const applied = await applyBalanceSheetTemplate(template.id, ids.other)
+      // Kledg's shared templates are not written by a company (row level security): no use counted.
+      expect((await prisma.balanceSheetConfigTemplate.findUniqueOrThrow({ where: { id: template.id } })).usageCount).toBe(0)
       expect(applied.lines.map((l) => [l.lineLabel, l.children?.map((c) => c.lineLabel)])).toEqual([
         ['Actif circulant', ['Disponibilités']],
         ['Capitaux propres', ['Capital']],

@@ -101,9 +101,10 @@ export const TemplateActionSchema = z.discriminatedUnion(
   [
     z.object({
       action: z.literal('create'),
-      name: z.string({ error: 'Le nom du modèle est requis' }).min(1, 'Le nom du modèle est requis'),
-      description: text('Description'),
+      name: z.string({ error: 'Le nom du modèle est requis' }).min(1, 'Le nom du modèle est requis').max(200, 'Nom du modèle trop long (200 caractères au plus)'),
+      description: z.string(invalid('Description')).max(1000, 'Description trop longue (1000 caractères au plus)').nullish(),
       variant: ReportVariantSchema,
+      // Refused when true (lib/reports/config/manage-layouts.service.ts): a company's template stays its own.
       isPublic: z.boolean(invalid('Visibilité')).optional(),
     }),
     z.object({ action: z.literal('apply'), templateId: z.string({ error: 'templateId est requis' }).min(1, 'templateId est requis') }),

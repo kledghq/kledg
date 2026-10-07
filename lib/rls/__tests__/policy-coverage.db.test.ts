@@ -24,6 +24,33 @@ const available = await testDatabaseAvailable()
 
 const POLICIES = ['kledg_rls_delete', 'kledg_rls_insert', 'kledg_rls_select', 'kledg_rls_update']
 
+/**
+ * Tables with a companyId column that are not company scoped, with their
+ * class in docs/rls.md: their policies differ on purpose (a row may have no
+ * company, or also belongs to a user).
+ */
+const OPTIONAL_COMPANY_TABLES: Readonly<Record<string, string>> = {
+  audit_logs: 'optional company (instance events)',
+  persons: 'optional company (shareholders of a reachable company)',
+  balance_sheet_config_templates: 'optional company (Kledg templates)',
+  income_statement_config_templates: 'optional company (Kledg templates)',
+  dashboard_layouts: 'company and user',
+  sidebar_preferences: 'company and user',
+  mcp_confirmations: 'company and user',
+  mcp_pending_actions: 'company and user',
+  ai_access_grant_companies: 'grant companies',
+  organization: 'membership',
+}
+
+/** The rule of a company scoped table, as PostgreSQL prints it (whitespace normalized). */
+const COMPANY_RULE = normalize(
+  '(( SELECT kledg_rls_unrestricted() AS kledg_rls_unrestricted) OR ("companyId" = ANY (( SELECT kledg_rls_company_ids() AS kledg_rls_company_ids)::text[])))',
+)
+
+function normalize(expression: string | null): string | null {
+  return expression === null ? null : expression.replace(/\s+/g, ' ').trim()
+}
+
 describe.skipIf(!available)('row level security: policy coverage', () => {
   let db: Client
   let tables: { name: string; rls: boolean; forced: boolean; policies: string[] }[]
@@ -69,6 +96,56 @@ describe.skipIf(!available)('row level security: policy coverage', () => {
   it('lists every company and child table of lib/rls/tables.ts as covered', () => {
     for (const table of [...COMPANY_TABLES, ...Object.keys(CHILD_TABLES)]) {
       expect(tables.find((t) => t.name === table)?.policies, table).toEqual(POLICIES)
+    }
+  })
+
+  // KLEDG-R3-AUTHZ-05: the registry cannot miss a table, and a policy is checked for what it says.
+  it('classes every table with a companyId column in lib/rls/tables.ts', async () => {
+    const { rows } = await db.query<{ name: string }>(
+      `SELECT DISTINCT c.table_name::text AS name FROM information_schema.columns c
+       WHERE c.table_schema = 'public' AND c.column_name = 'companyId' ORDER BY 1`,
+    )
+    const classed = new Set([...COMPANY_TABLES, ...Object.keys(CHILD_TABLES), ...Object.keys(OPTIONAL_COMPANY_TABLES)])
+    expect(rows.map((r) => r.name).filter((name) => !classed.has(name))).toEqual([])
+    // The other classes say why the table is not company scoped; each still exists with a companyId.
+    for (const table of Object.keys(OPTIONAL_COMPANY_TABLES)) expect(rows.map((r) => r.name), table).toContain(table)
+  })
+
+  it('gives every company scoped table the canonical companyId policies', async () => {
+    const { rows } = await db.query<{ table: string; policy: string; qual: string | null; check: string | null }>(
+      `SELECT c.relname::text AS table, p.polname::text AS policy,
+              pg_get_expr(p.polqual, p.polrelid) AS qual, pg_get_expr(p.polwithcheck, p.polrelid) AS check
+       FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relname = ANY($1)`,
+      [COMPANY_TABLES.filter((t) => t !== 'companies')],
+    )
+    const expected: Record<string, { qual: string | null; check: string | null }> = {
+      kledg_rls_select: { qual: COMPANY_RULE, check: null },
+      kledg_rls_insert: { qual: null, check: COMPANY_RULE },
+      kledg_rls_update: { qual: COMPANY_RULE, check: COMPANY_RULE },
+      kledg_rls_delete: { qual: COMPANY_RULE, check: null },
+    }
+    const deviations = rows
+      .filter((row) => normalize(row.qual) !== expected[row.policy]?.qual || normalize(row.check) !== expected[row.policy]?.check)
+      .map((row) => `${row.table}.${row.policy}: USING ${row.qual} WITH CHECK ${row.check}`)
+    expect(deviations).toEqual([])
+    expect(rows.length).toBe(4 * (COMPANY_TABLES.length - 1))
+  })
+
+  it('[KLEDG-R3-AUTHZ-01] lets only an unrestricted context write a template without company', async () => {
+    for (const table of ['balance_sheet_config_templates', 'income_statement_config_templates']) {
+      const { rows } = await db.query<{ policy: string; qual: string | null; check: string | null }>(
+        `SELECT polname::text AS policy, pg_get_expr(polqual, polrelid) AS qual, pg_get_expr(polwithcheck, polrelid) AS check
+         FROM pg_policy WHERE polrelid = $1::regclass ORDER BY polname`,
+        [`public.${table}`],
+      )
+      for (const row of rows) {
+        const writes = row.policy === 'kledg_rls_select' ? [] : [row.check, row.policy === 'kledg_rls_insert' ? null : row.qual]
+        for (const expression of writes.filter((e): e is string => e !== null)) {
+          expect(normalize(expression), `${table}.${row.policy}`).toBe(COMPANY_RULE)
+        }
+      }
     }
   })
 

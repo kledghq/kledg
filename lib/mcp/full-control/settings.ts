@@ -236,7 +236,7 @@ const lineFields = CreateBalanceSheetLineSchema.partial().extend(UpdateBalanceSh
 const manageStatementLayoutTool = fullControlTool({
   name: 'manage_statement_layout',
   title: 'Modifier la mise en page des états',
-  description: `Changes the layout of the balance sheet or of the income statement (variant complete or simplified), like the layout pages: reset_default (back to the PCG default), create_default (balance sheet: create the default layout), create_line, update_line (the fields given), delete_line, and for the balance sheet snapshot_line and restore_line (history of a line), save_template (save the layout as a template) and apply_template. Lines have a label, a type, a parent, form codes, account codes (included, excluded, depreciation), a sense (debit, credit, auto), a display and an order. Read it with get_statement_layout. ${ACTS_AS_USER} ${TWO_STEP}`,
+  description: `Changes the layout of the balance sheet or of the income statement (variant complete or simplified), like the layout pages: reset_default (back to the PCG default), create_default (balance sheet: create the default layout), create_line, update_line (the fields given), delete_line, and for the balance sheet snapshot_line and restore_line (history of a line), save_template (save the layout as a template of the company) and apply_template (a template of the company or one provided by Kledg). Lines have a label, a type, a parent, form codes, account codes (included, excluded, depreciation), a sense (debit, credit, auto), a display and an order. Read it with get_statement_layout. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: {
     statement: z.enum(['balance_sheet', 'income_statement']),
     action: z.enum(LAYOUT_ACTIONS),
@@ -248,7 +248,6 @@ const manageStatementLayoutTool = fullControlTool({
     templateId: z.string().max(64).optional().describe('apply_template: from get_statement_layout view templates.'),
     templateName: z.string().max(200).optional().describe('save_template: its name.'),
     templateDescription: z.string().max(1000).optional(),
-    templatePublic: z.boolean().optional().describe('save_template: visible to the other companies of the instance.'),
   },
   permission: { settings: ['update'] },
   amounts: 'none',
@@ -259,7 +258,7 @@ const manageStatementLayoutTool = fullControlTool({
     const current = lineId ? forAssistant(statement === 'balance_sheet' ? await getBalanceSheetLine(companyId, lineId) : await getIncomeStatementLine(companyId, lineId)) : null
     return { statement, action, variant, line: current, requested: line ?? null }
   },
-  async execute({ companyId, statement, action, variant, lineId, line, version, changeReason, templateId, templateName, templateDescription, templatePublic }, ctx) {
+  async execute({ companyId, statement, action, variant, lineId, line, version, changeReason, templateId, templateName, templateDescription }, ctx) {
     const balanceSheet = statement === 'balance_sheet'
     if (!balanceSheet && BALANCE_SHEET_ONLY.has(action)) throw new ValidationError('Cette action existe pour le bilan seulement.')
     const needLine = () => {
@@ -297,7 +296,7 @@ const manageStatementLayoutTool = fullControlTool({
       case 'apply_template': {
         const body = routeBody(
           TemplateActionSchema,
-          action === 'save_template' ? { action: 'create', name: templateName, description: templateDescription, variant, isPublic: templatePublic } : { action: 'apply', templateId },
+          action === 'save_template' ? { action: 'create', name: templateName, description: templateDescription, variant } : { action: 'apply', templateId },
         )
         return forAssistant((await runBalanceSheetTemplateAction(companyId, userId, body)).result)
       }

@@ -14,6 +14,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Le lien de confirmation d'une nouvelle adresse email ne connecte plus le navigateur qui l'ouvre : il faut d'abord se connecter au compte concerné, puis la confirmation se termine.
 - Le changement d'adresse email répond dans le même délai que la nouvelle adresse soit libre ou déjà utilisée par un autre compte.
 - La page de connexion n'affiche plus le texte passé dans son adresse : seuls les codes d'erreur connus ont un message, les autres un message générique.
+- Modèles de bilan : un modèle enregistré par une société reste propre à cette société ; seuls les modèles fournis par Kledg sont partagés entre les sociétés de l'instance. Les modèles qu'une société avait rendus publics redeviennent privés à cette société (migration `20261121090000_statement_templates_private`).
 
 ## [0.3.1] - 2026-10-05
 

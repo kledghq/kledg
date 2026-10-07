@@ -297,6 +297,17 @@ describe.skipIf(!available)('report routes', () => {
       expect(await errorOf(foreign)).toBe('Modèle introuvable')
     })
 
+    it('[KLEDG-R3-AUTHZ-01] refuses to publish a template to the other companies of the instance', async () => {
+      const published = await call(routes.bsTemplates.POST, 'POST', '/x', { action: 'create', name: 'Officiel', variant: 'simplified', isPublic: true })
+      expect(published.status).toBe(400)
+      expect(await errorOf(published)).toBe(
+        'Un modèle enregistré reste propre à la société\u00a0: seuls les modèles fournis par Kledg sont partagés entre les sociétés.',
+      )
+      expect(await prisma.balanceSheetConfigTemplate.count({ where: { name: 'Officiel' } })).toBe(0)
+      const tooLong = await call(routes.bsTemplates.POST, 'POST', '/x', { action: 'create', name: 'x'.repeat(201), variant: 'simplified' })
+      expect(tooLong.status).toBe(400)
+    })
+
     it('answers 404 on a line of another company and deletes its own line', async () => {
       const foreignLine = await prisma.balanceSheetLineConfig.create({
         data: { companyId: ids.other, reportVariant: 'complete', lineLabel: 'Autre', accountCodes: [], balanceType: 'debit', order: 1 },
