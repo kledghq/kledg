@@ -50,7 +50,7 @@ const prepareRegularisationTool = draftTool({
   name: 'prepare_vat_coefficient_regularisation',
   title: 'Préparer la régularisation du coefficient de déduction',
   summary:
-    'Prepares, as a DRAFT entry in the OD journal dated 31 March of the following year, the regularisation of the coefficient de déduction of a finished calendar year: complement of deduction (44566 / 758, CA3 line 21) or VAT to pay back (658 / 44566, CA3 line 15), VAT borne x (definitive - provisional). Reference COEF-TVA-<year>. Idempotent: unchanged, replaced, validated (nothing changed) or nothing.',
+    'Prepares, as a DRAFT entry in the OD journal dated 31 March of the following year, the regularisation of the coefficient de déduction of a finished calendar year: complement of deduction (44566 / 758, CA3 line 21) or VAT to pay back (658 / 44566, CA3 line 15), definitive coefficient x VAT borne - VAT actually deducted in the year (CGI ann. II art. 207, I). Reference COEF-TVA-<year>. Idempotent: unchanged, replaced, validated (nothing changed) or nothing.',
   never: 'validates the entry, files the return or pays.',
   amounts: 'euros',
   input: VatRegularisationBodySchema.shape,
