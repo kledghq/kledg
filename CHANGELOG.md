@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Simulation de l'intégration fiscale : le seuil de 95 % (CGI art. 223 A) est comparé exactement, sans arrondi ; une sous-filiale détenue à 99,86 % x 95,13 % = 94,9968 % n'est plus admise et s'affiche à 94,99 %.
 - Notes de frais : nouvelle catégorie « Péages et parking » (6251), dont la TVA est récupérable avec le reçu au nom de la société (BOI-TVA-DED-40-40), comme en mode simple ; jusqu'ici un péage saisi en Transport perdait sa TVA.
 - Notes de frais : une société partiellement exonérée (déduction par coefficient) ne récupère plus que la part de son coefficient de déduction du jour de chaque dépense, comme pour les factures d'achat ; une société exonérée en coefficient n'est plus traitée comme une franchise en base (aucune TVA récupérée).
 - Régularisation du coefficient de déduction de TVA : elle compare désormais la TVA que permet le coefficient définitif à la TVA réellement déduite dans l'année (CGI ann. II art. 207, I ; exemple 3 du BOI-TVA-DED-20-10-40), et non au coefficient provisoire recalculé en fin d'année, qui la ramenait à zéro pour une première année. Quand le coefficient appliqué a varié dans l'année (première année sans estimation, estimation, coefficient d'assujettissement ou déduction par coefficient modifiés après des déductions), la TVA supportée est à saisir et la page le signale. Migration `20261124090000_vat_deduction_coefficient_changed` (colonne ajoutée, additive).
