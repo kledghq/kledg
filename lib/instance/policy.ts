@@ -91,6 +91,17 @@ export function randomCompanySlugSuffix(): boolean {
 }
 
 /**
+ * Whether this instance must run with row level security (KLEDG_RLS=enforce,
+ * docs/rls.md). When true and the policies are off, the server refuses to
+ * start (instrumentation.ts) and the database client refuses to open
+ * (lib/prisma.ts), so no request is served without them. Kledg: false.
+ */
+export function requiresRowLevelSecurity(env: Record<string, string | undefined> = process.env): boolean {
+  void env
+  return false
+}
+
+/**
  * API paths served by routes that authenticate requests themselves, with
  * the reason. A path covers itself and the paths under it, on segment
  * boundaries (lib/instance/api-paths.ts). The proxy lets them

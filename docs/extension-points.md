@@ -25,6 +25,7 @@ afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
 companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
 companyIdentifierScope(companyId: string | null, actor: { id, role } | null): Promise<string[] | null>
 randomCompanySlugSuffix(): boolean
+requiresRowLevelSecurity(env): boolean
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
 PUBLIC_PAGES: readonly string[]
 SETUP_PENDING_REDIRECT: string | null
@@ -156,6 +157,13 @@ maximum, French message without dashes). Kledg declares none.
 `PUBLIC_PAGES` lists pages that open without a session (a sign-up page,
 legal notices): the proxy lets each path and the paths under it through,
 like `/login`. Kledg declares none.
+
+`requiresRowLevelSecurity` (Kledg: false) makes row level security
+mandatory: without `KLEDG_RLS=enforce` the server refuses to start
+(`instrumentation.ts`) and the database client to open (`lib/prisma.ts`),
+with an error naming the variable. A service whose customers share one
+database answers true, so a missing variable can never turn their isolation
+off.
 
 `SETUP_PENDING_REDIRECT` is where `/setup` sends a visitor without the
 installation link while the instance has no administrator yet (a hosted

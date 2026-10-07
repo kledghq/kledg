@@ -16,7 +16,9 @@ RLS is rolled out behind `KLEDG_RLS`, while the policies always exist:
 | `enforce` | The application connects as a role that is not the owner and has no `BYPASSRLS` (`kledg_app`). Every statement runs in a transaction that first sets the request's context; the policies filter every row. A role that would bypass the policies, or policies not switched on, are refused at the first query. |
 
 Any other value stops the server at the first query: a typo must not
-silently turn the protection off.
+silently turn the protection off. An instance whose policy requires row level
+security (`requiresRowLevelSecurity`, [extension-points.md](extension-points.md))
+refuses to start, and to open the database, unless it is `enforce`.
 
 ## Threat model
 

@@ -17,6 +17,7 @@ export {
   companyWriteRefusal,
   isActionAllowed,
   randomCompanySlugSuffix,
+  requiresRowLevelSecurity,
   SETUP_PENDING_REDIRECT,
 } from './policy'
 export { INSTANCE_ACTIONS, type ActionRefusal, type InstanceAction, type InstanceActor } from './types'

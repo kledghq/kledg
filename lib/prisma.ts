@@ -5,7 +5,8 @@ import { attachDatabasePool } from '@vercel/functions/db-connections'
 import { logger } from './logger'
 import { isTransientConnectError } from './transient-db-error'
 import { currentRlsContext } from './rls/context'
-import { rlsMode } from './rls/mode'
+import { assertRequiredRlsMode, rlsMode } from './rls/mode'
+import { requiresRowLevelSecurity } from './instance/policy'
 import { enforceRlsOnPool } from './rls/pool'
 import { createRequestContextResolver } from './rls/request-context'
 import { verifyAppRole } from './rls/app-role'
@@ -187,6 +188,7 @@ function createPrismaClient(): PrismaClient {
   attachPoolToPlatform(pool)
   // Row level security (docs/rls.md): every statement carries the context of
   // its request. Off by default; KLEDG_RLS=enforce needs the application role.
+  assertRequiredRlsMode(requiresRowLevelSecurity())
   const enforce = rlsMode() === 'enforce'
   if (enforce) {
     // A statement without a context in a Next request (server components,
