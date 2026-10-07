@@ -77,7 +77,7 @@ export function isFrenchPublicHoliday(day: string): boolean {
 }
 
 /** 0 Sunday to 6 Saturday, of a calendar day. */
-export function weekdayOf(day: string): number {
+function weekdayOf(day: string): number {
   return new Date(`${day}T00:00:00Z`).getUTCDay()
 }
 

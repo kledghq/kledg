@@ -25,6 +25,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { calendarDayOf, isoDateToUtc } from '@/lib/utils/date'
 import { GRANT_SPREADINGS } from './schedule'
+import { accountCodeOfClass } from '@/lib/api/zod-fields'
 
 export const GRANT_NOT_FOUND = "Subvention d'investissement introuvable"
 
@@ -41,7 +42,7 @@ export const GrantBodySchema = z.object({
   durationYears: z.number().int('Durée en années entières').min(1, 'Durée invalide').max(100, 'Durée invalide').nullable().optional(),
   accountCode: z.string().trim().regex(/^13\d{0,8}$/, 'Compte de subvention invalide (13)').optional(),
   transferAccountCode: z.string().trim().regex(/^139\d{0,7}$/, 'Compte de reprise invalide (139)').optional(),
-  incomeAccountCode: z.string().trim().regex(/^7\d{2,9}$/, 'Compte de produit invalide (classe 7)').optional(),
+  incomeAccountCode: accountCodeOfClass('7', 'Compte de produit invalide (classe 7)').optional(),
   carriedCents: cents('Montant déjà repris invalide').optional(),
   notes: optionalText(2000),
 })

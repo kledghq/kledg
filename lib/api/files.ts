@@ -14,7 +14,7 @@ import { ValidationError } from '@/lib/accounting/errors'
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 /** Largest total uncompressed size accepted for an .xlsx (a zip archive). */
-export const MAX_XLSX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
+const MAX_XLSX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 
 /** Highest accepted compression ratio inside an .xlsx, once it inflates beyond RATIO_FLOOR_BYTES (zip bomb guard). */
 const MAX_XLSX_RATIO = 100
@@ -23,7 +23,7 @@ const MAX_XLSX_RATIO = 100
 const RATIO_FLOOR_BYTES = 10 * 1024 * 1024
 
 /** Most entries an .xlsx may hold (a real workbook has a few dozen to a few thousand). */
-export const MAX_XLSX_ENTRIES = 10_000
+const MAX_XLSX_ENTRIES = 10_000
 
 const TOO_LARGE = `Fichier trop volumineux (maximum ${MAX_UPLOAD_BYTES / 1024 / 1024} Mo).`
 

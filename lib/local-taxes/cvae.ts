@@ -36,12 +36,12 @@ import { CVAE_LAST_YEAR } from '@/lib/deadlines/engine'
 export { CVAE_LAST_YEAR }
 
 /** First year computed; earlier ones are historical and not covered. */
-export const CVAE_FIRST_YEAR = 2024
+const CVAE_FIRST_YEAR = 2024
 
 export const CVAE_DECLARATION_THRESHOLD_CENTS = 15_250_000
 export const CVAE_PAYMENT_THRESHOLD_CENTS = 50_000_000
-export const CVAE_ACOMPTE_THRESHOLD_CENTS = 150_000
-export const CVAE_FRANCHISE_CENTS = 6_300
+const CVAE_ACOMPTE_THRESHOLD_CENTS = 150_000
+const CVAE_FRANCHISE_CENTS = 6_300
 const DEGREVEMENT_TURNOVER_CENTS = 200_000_000
 const VA_CAP_TURNOVER_CENTS = 760_000_000
 
@@ -67,7 +67,7 @@ const REDUCED: Scale = { band1: 63, band2: 113, band3Base: 175, band3: 13, max: 
 const LAST: Scale = { band1: 31, band2: 56, band3Base: 87, band3: 6, max: 90, degrevementCents: 6_300, complementaryPerMille: 0 }
 
 /** Scales by year (BOI-CVAE-LIQ-10 §60 and §170; loi n° 2025-127, art. 62). */
-export const CVAE_SCALES: Readonly<Record<number, Scale>> = {
+const CVAE_SCALES: Readonly<Record<number, Scale>> = {
   2024: FULL,
   // 2025: 0,19 % plus a contribution complémentaire of 47,4 % of the CVAE (loi n° 2025-127, art. 62, I, B).
   2025: { ...REDUCED, complementaryPerMille: 474 },

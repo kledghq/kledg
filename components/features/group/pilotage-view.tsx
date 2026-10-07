@@ -42,7 +42,7 @@ const shareOf = (part: number, total: number) => (total > 0 ? formatPercent(Math
  * Synthèse of Pilotage: how the group is doing (KPIs after eliminations, or
  * one company's), what each company contributes, and what needs attention.
  */
-export function GroupSynthesisSection() {
+function GroupSynthesisSection() {
   const { companyId, companyFilter } = useGroupSpace()
   const view = useView()
   const alerts = useGroupReport<GroupAlerts>(useReportUrl('alerts', {}, false), 'Les alertes du groupe ne se sont pas chargées. Réessayez dans un instant.')

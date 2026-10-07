@@ -13,7 +13,7 @@ import { parseOfx } from './ofx'
 import { parseTabular, splitCsv, type Cell } from './tabular'
 import type { ParseResult, StatementFormat, TabularOptions } from './types'
 
-export function detectFormat(bytes: Uint8Array, text?: string): StatementFormat {
+function detectFormat(bytes: Uint8Array, text?: string): StatementFormat {
   if (isZip(bytes)) return 'xlsx'
   const head = (text ?? '').slice(0, 4096).replace(/^﻿/, '').trimStart()
   if (/^OFXHEADER/i.test(head) || /<OFX>/i.test(head)) return 'ofx'

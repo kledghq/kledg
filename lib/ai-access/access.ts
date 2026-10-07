@@ -7,7 +7,7 @@
 import { z } from 'zod'
 
 /** Upper bound of an explicit list (a user rarely has more than a few companies). */
-export const MAX_GRANTED_COMPANIES = 500
+const MAX_GRANTED_COMPANIES = 500
 
 export const CompanyAccessSchema = z
   .object({
@@ -61,7 +61,7 @@ export const WRITE_SCOPE = 'kledg:write'
 export const ADMIN_SCOPE = 'kledg:admin'
 
 /** Every Kledg scope of the MCP resource, from the narrowest. */
-export const KLEDG_SCOPES = [READ_SCOPE, WRITE_SCOPE, ADMIN_SCOPE] as const
+const KLEDG_SCOPES = [READ_SCOPE, WRITE_SCOPE, ADMIN_SCOPE] as const
 
 /**
  * What an assistant or an API key may do: read only, read and propose draft
@@ -144,7 +144,7 @@ export function defaultLevel(requested: readonly string[]): AccessLevel {
  * created before levels existed their effective level (read and draft
  * entries) explicitly.
  */
-export const API_KEY_PERMISSION_RESOURCE = 'kledg'
+const API_KEY_PERMISSION_RESOURCE = 'kledg'
 
 export function apiKeyPermissionsFor(level: AccessLevel): Record<string, string[]> {
   return { [API_KEY_PERMISSION_RESOURCE]: LEVEL_SCOPES[level].map((scope) => scope.slice('kledg:'.length)) }

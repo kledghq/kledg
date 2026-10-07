@@ -75,13 +75,13 @@ export interface EntryRef {
 }
 
 /** Credit minus debit of the entry on an allowance account (and its sub-accounts): positive for a dotation. */
-export function allowanceMovementCents(entry: LinkedEntry, accountCode: string): number {
+function allowanceMovementCents(entry: LinkedEntry, accountCode: string): number {
   if (entry.reversed) return 0
   return entry.lines.filter((l) => l.accountCode.startsWith(accountCode)).reduce((s, l) => s + l.creditCents - l.debitCents, 0)
 }
 
 /** Debit minus credit of the entry on the grant's 139 account: the share transferred. */
-export function grantTransferMovementCents(entry: LinkedEntry, transferAccountCode: string): number {
+function grantTransferMovementCents(entry: LinkedEntry, transferAccountCode: string): number {
   if (entry.reversed) return 0
   return entry.lines.filter((l) => l.accountCode.startsWith(transferAccountCode)).reduce((s, l) => s + l.debitCents - l.creditCents, 0)
 }

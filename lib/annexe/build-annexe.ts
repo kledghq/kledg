@@ -125,7 +125,7 @@ export function annexeListOf(category: SizeCategory, corporateTaxRegime: string 
   return 'full'
 }
 
-export const LIST_LABELS: Record<AnnexeList, { label: string; source: string }> = {
+const LIST_LABELS: Record<AnnexeList, { label: string; source: string }> = {
   micro: { label: 'Micro-entreprise : informations à la suite du bilan, annexe facultative', source: 'C. com. art. L123-16-1, PCG art. 811-7' },
   simplified: { label: 'Petite entreprise au régime réel simplifié : annexe simplifiée', source: 'C. com. art. L123-25, PCG art. 811-8' },
   small: { label: 'Petite entreprise : annexe simplifiée', source: 'C. com. art. L123-16, PCG art. 811-9' },

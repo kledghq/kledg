@@ -9,7 +9,7 @@ import { plural } from '@/lib/utils/plural'
 import type { RefusedFecEntry } from './types'
 
 /** Line numbers shown per reason before "et N autres". */
-export const REFUSAL_SAMPLE_LINES = 5
+const REFUSAL_SAMPLE_LINES = 5
 
 /**
  * "Écriture VT n° 12 (ligne 40) : <reason>" for a reason met once,

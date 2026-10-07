@@ -35,7 +35,7 @@ export function cvaeStatusText(view: LocalTaxesView): string {
   return c.franchise ? 'CVAE de 63 € ou moins : non due' : `CVAE due au taux de ${c.rateLabel}`
 }
 
-export function localTaxesCsv(view: LocalTaxesView, companyName: string): string {
+function localTaxesCsv(view: LocalTaxesView, companyName: string): string {
   const { cfe, cvae } = view
   const c = cvae.computation
   const rows: Array<Array<string | number | null>> = [

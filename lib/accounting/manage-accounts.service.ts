@@ -22,6 +22,7 @@ import { validateAccountCode } from '@/lib/accounting/validator'
 import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
 import { ensureActiveFiscalYear } from '@/lib/accounting/active-fiscal-year.service'
 import { fromCents, parseCents, sumCents } from '@/lib/utils/money'
+import { ACCOUNT_CODE_MESSAGE } from '@/lib/accounting/account-code'
 
 export const ACCOUNT_NOT_FOUND = 'Compte introuvable'
 
@@ -114,7 +115,7 @@ export async function updateAccount(companyId: string, id: string, input: Update
   }
 
   if (code !== undefined) {
-    if (!validateAccountCode(code)) throw new ValidationError('Le code doit contenir entre 2 et 8 chiffres')
+    if (!validateAccountCode(code)) throw new ValidationError(ACCOUNT_CODE_MESSAGE)
     if (code !== account.code) {
       const existing = await prisma.account.findFirst({
         where: { companyId, code, fiscalYearId: account.fiscalYearId },

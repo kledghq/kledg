@@ -36,7 +36,7 @@ import {
 import { plural, pluralWord } from '@/lib/utils/plural'
 
 /** Form codes of the "Résultat de l'exercice" line (2050-2051: DI, 2033-A: 136). */
-export const RESULT_FORM_CODES = ['DI', '136']
+const RESULT_FORM_CODES = ['DI', '136']
 
 export type BalanceSheetRule = StatementLineRule &
   Partial<Pick<BalanceSheetLineConfig, 'hideLabel' | 'notes' | 'amortissementFormCode'>> & {
@@ -93,7 +93,7 @@ function toAccountBalance(a: AccountTotals): AccountBalance {
 }
 
 /** The leaf that receives the year's result. */
-export function findResultRule<T extends StatementLineRule>(leaves: T[]): T | undefined {
+function findResultRule<T extends StatementLineRule>(leaves: T[]): T | undefined {
   return (
     leaves.find((r) => r.formCode && RESULT_FORM_CODES.includes(r.formCode)) ??
     leaves.find((r) => r.accountCodes.includes('12'))

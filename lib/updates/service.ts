@@ -32,7 +32,7 @@ import { UPDATE_WORKFLOW } from './workflow-template'
 export const CHANNELS = ['releases', 'main', 'off'] as const
 export type Channel = (typeof CHANNELS)[number]
 
-export function isChannel(value: unknown): value is Channel {
+function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value)
 }
 
@@ -112,7 +112,7 @@ export async function getWorkflow(conn: ActiveConnection): Promise<WorkflowInfo>
 }
 
 /** Adds (or upgrades) the update workflow on the default branch. Needs the Workflows permission. */
-export async function installWorkflow(conn: ActiveConnection, existingSha: string | null): Promise<void> {
+async function installWorkflow(conn: ActiveConnection, existingSha: string | null): Promise<void> {
   try {
     await githubRequest(contentsPath(conn.repository, WORKFLOW_PATH), {
       token: conn.token,
@@ -271,7 +271,7 @@ export async function findUpdatePull(conn: ActiveConnection): Promise<UpdatePull
 }
 
 /** The preview of a commit, from the GitHub deployments the host creates (Vercel, Railway, Render). */
-export async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePull['preview']> {
+async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePull['preview']> {
   if (!/^[0-9a-f]{40}$/i.test(sha)) return null
   try {
     const { data: deployments } = await githubRequest<Array<{ id: number }>>(

@@ -71,7 +71,7 @@ function id(value: string): string {
 const period = (key: string) => (/^\d{4}(-(0[1-9]|1[0-2]|T[1-4]))?$/.test(key) ? key : 'inconnue')
 const day = (iso: string) => formatIsoDateFr(String(iso).slice(0, 10)) || 'date inconnue'
 /** The days an invoice is looked for around a payment: 10 days before to 5 days after. */
-export const INVOICE_WINDOW_DAYS = { before: 10, after: 5 } as const
+const INVOICE_WINDOW_DAYS = { before: 10, after: 5 } as const
 const invoiceWindow = (iso: string) =>
   isIsoDate(iso) ? `du ${day(addIsoDays(iso, -INVOICE_WINDOW_DAYS.before))} au ${day(addIsoDays(iso, INVOICE_WINDOW_DAYS.after))}` : 'autour de cette date'
 /**

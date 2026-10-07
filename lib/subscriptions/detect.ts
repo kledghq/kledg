@@ -44,7 +44,7 @@
 
 import { lastDayOfMonth, toIsoDateUtc } from '@/lib/utils/date'
 
-export const SUBSCRIPTION_CADENCES = ['weekly', 'monthly', 'quarterly', 'yearly'] as const
+const SUBSCRIPTION_CADENCES = ['weekly', 'monthly', 'quarterly', 'yearly'] as const
 export type SubscriptionCadence = (typeof SUBSCRIPTION_CADENCES)[number]
 
 export const CADENCE_LABELS: Record<SubscriptionCadence, string> = {

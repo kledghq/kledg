@@ -46,9 +46,9 @@ export interface MappedInvoice {
 export type MapResult = { kind: 'ok'; invoice: MappedInvoice } | { kind: 'ignored' } | { kind: 'refused'; reason: string }
 
 /** Client invoices not imported: drafts (not issued) and canceled ones. */
-export const IGNORED_CLIENT_STATUSES = new Set(['draft', 'canceled'])
+const IGNORED_CLIENT_STATUSES = new Set(['draft', 'canceled'])
 /** Supplier invoices not imported: rejected or discarded documents. */
-export const IGNORED_SUPPLIER_STATUSES = new Set(['rejected', 'discarded'])
+const IGNORED_SUPPLIER_STATUSES = new Set(['rejected', 'discarded'])
 
 const day = (value: string | null | undefined): string | null => {
   const match = value ? /^(\d{4}-\d{2}-\d{2})/.exec(value) : null

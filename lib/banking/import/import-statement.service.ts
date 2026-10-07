@@ -42,7 +42,7 @@ export const keptProbablesSchema = z
 const PREVIEW_ROWS = 50
 const MAX_ERRORS = 100
 
-export const BANK_ACCOUNT_NOT_FOUND_MESSAGE = 'Compte bancaire non trouvé'
+const BANK_ACCOUNT_NOT_FOUND_MESSAGE = 'Compte bancaire non trouvé'
 
 export interface StatementFile {
   companyId: string

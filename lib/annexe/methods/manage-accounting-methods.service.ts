@@ -39,8 +39,8 @@ import {
   type ChangeTreatment,
 } from './rules'
 
-export const METHOD_NOT_FOUND = 'Méthode comptable introuvable'
-export const CHANGE_NOT_FOUND = 'Changement ou correction introuvable'
+const METHOD_NOT_FOUND = 'Méthode comptable introuvable'
+const CHANGE_NOT_FOUND = 'Changement ou correction introuvable'
 const FISCAL_YEAR_NOT_FOUND = 'Exercice introuvable pour cette société.'
 const OD_JOURNAL = { code: 'OD', label: 'Opérations diverses' }
 

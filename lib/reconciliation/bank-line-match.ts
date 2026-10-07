@@ -55,7 +55,7 @@ export interface CandidateTransaction {
 }
 
 /** Whether a line books on a bank account (class 51, PCG art. 932-1). */
-export const isBankLineCode = (code: string): boolean => code.startsWith('51')
+const isBankLineCode = (code: string): boolean => code.startsWith('51')
 
 const DAY_MS = 86_400_000
 /** Calendar days between two dates, each read as its calendar day (calendarDayOf). */

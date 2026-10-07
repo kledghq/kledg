@@ -11,7 +11,7 @@ export interface RemunerationSource {
   url: string
 }
 
-export const REMUNERATION_SOURCES = {
+const REMUNERATION_SOURCES = {
   lfi2026: { label: 'Loi n° 2026-103 du 19 février 2026 de finances pour 2026 (art. 4 : barème de l’impôt sur le revenu)', url: 'https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000053508155' },
   lfss2026: { label: 'Loi n° 2025-1403 du 30 décembre 2025 de financement de la sécurité sociale pour 2026 (art. 12 : CSG de 10,6 % sur les revenus de capitaux)', url: 'https://www.legifrance.gouv.fr/jorf/article_jo/JORFARTI000053226452' },
   cgi197: { label: 'CGI, art. 197 (barème, quotient familial et son plafonnement, décote)', url: 'https://www.service-public.gouv.fr/particuliers/vosdroits/F1419' },

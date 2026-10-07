@@ -373,7 +373,7 @@ const syncBank = fullControlTool({
 })
 
 /** Statement files sent through MCP: base64 in the JSON call, so kept smaller than browser uploads. */
-export const MAX_MCP_STATEMENT_BYTES = 5 * 1024 * 1024
+const MAX_MCP_STATEMENT_BYTES = 5 * 1024 * 1024
 
 const importInput = {
   bankAccountId: z.string().min(1).describe('Bank account id, from list_bank_accounts (create_bank_account for a new one).'),

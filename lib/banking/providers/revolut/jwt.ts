@@ -13,7 +13,7 @@
 
 import { sign } from 'crypto'
 
-export const REVOLUT_JWT_AUDIENCE = 'https://revolut.com'
+const REVOLUT_JWT_AUDIENCE = 'https://revolut.com'
 export const CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 
 const base64url = (data: Buffer | string) => Buffer.from(data).toString('base64url')

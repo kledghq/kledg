@@ -17,10 +17,10 @@ import { ExternalServiceError } from '@/lib/accounting/errors'
 import { providerError } from '@/lib/banking/errors'
 import { bankFetch } from '@/lib/banking/http'
 
-export const PONTO_API_URL = 'https://api.myponto.com'
+const PONTO_API_URL = 'https://api.myponto.com'
 export const PONTO_DASHBOARD_URL = 'https://dashboard.myponto.com/'
 
-export function getPontoApiUrl(): string {
+function getPontoApiUrl(): string {
   return (process.env.PONTO_API_URL || PONTO_API_URL).replace(/\/$/, '')
 }
 
@@ -139,7 +139,7 @@ export interface PontoClientOptions {
 }
 
 /** Largest page Ponto accepts. */
-export const PONTO_PAGE_LIMIT = 100
+const PONTO_PAGE_LIMIT = 100
 
 export class PontoClient {
   private readonly apiUrl: string

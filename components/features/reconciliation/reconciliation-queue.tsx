@@ -49,7 +49,7 @@ const NEXT_KEYS = new Set(['ArrowDown', 'j'])
 const PREVIOUS_KEYS = new Set(['ArrowUp', 'k'])
 
 /** Attachments of a transaction: the list, or the single legacy attachment. */
-export function attachmentsOf(transaction: QueueTransaction): QueueAttachment[] {
+function attachmentsOf(transaction: QueueTransaction): QueueAttachment[] {
   if (transaction.attachments?.length) return transaction.attachments
   return transaction.attachment ? [transaction.attachment] : []
 }

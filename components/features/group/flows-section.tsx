@@ -70,7 +70,7 @@ function FlowTooltip({ active, payload }: { active?: boolean; payload?: Array<{ 
   )
 }
 
-export function FlowChart({ flows, names }: { flows: readonly MoneyFlow[]; names: ReadonlyMap<string, string> }) {
+function FlowChart({ flows, names }: { flows: readonly MoneyFlow[]; names: ReadonlyMap<string, string> }) {
   const data = React.useMemo(() => flowDiagram(flows, names), [flows, names])
   if (data.links.length === 0) return <p className="text-muted-foreground text-sm">Aucun flux entre les sociétés lues sur cet exercice.</p>
   const height = Math.max(220, Math.max(data.nodes.filter((n) => n.side === 'from').length, data.nodes.filter((n) => n.side === 'to').length) * 64)

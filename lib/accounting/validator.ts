@@ -18,6 +18,7 @@ import { validatePrudence } from '@/lib/pcg/principles/prudence'
 import { checkEntryCompliance } from '@/lib/pcg/entry-compliance'
 import { formatCentsFr, fromCents, parseCents, sumCents, toCents, type AmountInput } from '@/lib/utils/money'
 import { addUtcDays, endOfDay, todayUtc } from '@/lib/utils/date'
+import { isAccountCode } from '@/lib/accounting/account-code'
 
 /**
  * Validates that an entry is balanced (debit = credit), exactly.
@@ -114,22 +115,21 @@ export function validateAmount(amount: unknown): boolean {
 }
 
 /**
- * Validates that an account code follows PCG format
- * Format: 2 to 8 digits
+ * Validates that an account code has the one account number format
+ * (lib/accounting/account-code.ts)
  * 
  * @param code - Account code to validate
  * @returns true if valid, false otherwise
  * 
  * @example
  * validateAccountCode('411') // true
- * validateAccountCode('12345678') // true
+ * validateAccountCode('40100000') // true
+ * validateAccountCode('401CLIENT') // true (FEC charts are alphanumeric)
  * validateAccountCode('1') // false (too short)
- * validateAccountCode('123456789') // false (too long)
- * validateAccountCode('abc') // false (not numeric)
+ * validateAccountCode('abc') // false (no class digit)
  */
 export function validateAccountCode(code: string): boolean {
-  if (!code || typeof code !== 'string') return false
-  return /^\d{2,8}$/.test(code)
+  return isAccountCode(code)
 }
 
 /**
@@ -219,7 +219,7 @@ export function getAccountNature(code: string): 'actif' | 'passif' | 'charge' | 
  * validateAccountUsage('account-123', '411') // true
  * validateAccountUsage('account-123', 'invalid') // false (invalid code format)
  */
-export function validateAccountUsage(accountId: string, accountCode?: string): boolean {
+function validateAccountUsage(accountId: string, accountCode?: string): boolean {
   if (!accountId) return false
 
   // If a code is provided, validate the format

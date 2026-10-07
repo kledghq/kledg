@@ -8,12 +8,12 @@
 import { ValidationError } from '@/lib/accounting/errors'
 
 /** Largest accepted data: URL (about 1.5 MB of image). */
-export const MAX_LOGO_DATA_URL_LENGTH = 2 * 1024 * 1024
+const MAX_LOGO_DATA_URL_LENGTH = 2 * 1024 * 1024
 
 const DATA_URL = /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
 /** Hosts allowed for https logo URLs: LOGO_ALLOWED_HOSTS, comma separated (empty by default). */
-export function allowedLogoHosts(): string[] {
+function allowedLogoHosts(): string[] {
   return (process.env.LOGO_ALLOWED_HOSTS ?? '')
     .split(',')
     .map((h) => h.trim().toLowerCase())

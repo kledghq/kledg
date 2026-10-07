@@ -65,8 +65,8 @@ export interface GroupTransactionsPage {
   warnings: string[]
 }
 
-export const INVALID_CURSOR = 'Curseur de pagination invalide\u00a0: rechargez la liste.'
-export const COMPANY_NOT_IN_GROUP = 'Société introuvable dans ce groupe.'
+const INVALID_CURSOR = 'Curseur de pagination invalide\u00a0: rechargez la liste.'
+const COMPANY_NOT_IN_GROUP = 'Société introuvable dans ce groupe.'
 
 function whereOf(companyId: string, query: GroupTransactionsQuery, after: PageKey | null): Prisma.BankTransactionWhereInput {
   const and: Prisma.BankTransactionWhereInput[] = [{ bankAccount: { bankConnection: { companyId } } }]

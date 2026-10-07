@@ -12,8 +12,6 @@
 
 export type BankSide = 'debit' | 'credit'
 
-export const BANK_SIDES: readonly BankSide[] = ['debit', 'credit']
-
 /**
  * The one reading of a side from any source: a value starting with "d" (any
  * case, "debit", "DEBIT", "Débit", "D") is money out, anything else money in.

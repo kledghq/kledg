@@ -106,7 +106,7 @@ async function syncHeadquartersAddress(tx: Prisma.TransactionClient, companyId: 
 }
 
 /** Active establishments of the company, the main one first. */
-export async function getCompanyEstablishments(companyId: string) {
+async function getCompanyEstablishments(companyId: string) {
   const establishments = await prisma.establishment.findMany({
     where: { companyId, isActive: true },
     include: ESTABLISHMENT_INCLUDE,

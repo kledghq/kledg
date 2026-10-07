@@ -19,10 +19,10 @@ import {
 } from './github'
 
 /** Fine-grained tokens only: classic tokens cannot be limited to one repository. */
-export const TOKEN_PATTERN = /^github_pat_[A-Za-z0-9_]{20,250}$/
+const TOKEN_PATTERN = /^github_pat_[A-Za-z0-9_]{20,250}$/
 
 /** Days before expiry from which the page warns. */
-export const EXPIRY_WARNING_DAYS = 14
+const EXPIRY_WARNING_DAYS = 14
 
 export type RepoKind = 'fork' | 'copy'
 

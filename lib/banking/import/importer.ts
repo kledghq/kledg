@@ -144,7 +144,7 @@ export function selectAccountTransactions(parsed: ParseResult, account: TargetAc
 }
 
 /** Indexes of the probable duplicates to import: only those whose index and key still match. */
-export function keptIndexes(rows: PlannedTransaction[], keep: KeptProbable[] = []): Set<number> {
+function keptIndexes(rows: PlannedTransaction[], keep: KeptProbable[] = []): Set<number> {
   const kept = new Set<number>()
   for (const { index, key } of keep) {
     const row = rows[index]

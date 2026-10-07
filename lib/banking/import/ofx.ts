@@ -67,7 +67,7 @@ const OFX_TEXT_TOO_LONG = 'Fichier OFX invalide : une valeur dépasse la taille 
  * /<([^>]*)>([^<]*)/g rescanned to the end of the input from every "<" of a
  * run without ">" (quadratic).
  */
-export function parseOfxTree(text: string): OfxNode {
+function parseOfxTree(text: string): OfxNode {
   const start = text.search(/<OFX>/i)
   if (start < 0) throw new ValidationError('Fichier OFX invalide : balise <OFX> introuvable.')
   const body = text.slice(start)

@@ -9,7 +9,7 @@
 
 import { BASE_CSS, RUNTIME_JS } from './runtime'
 
-export const VIEW_CSP = [
+const VIEW_CSP = [
   "default-src 'none'",
   "script-src 'unsafe-inline'",
   "style-src 'unsafe-inline'",

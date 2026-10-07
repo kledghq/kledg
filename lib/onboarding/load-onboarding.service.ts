@@ -82,7 +82,7 @@ async function countAiConnections(companyId: string, userIds: string[], now: Dat
   return assistants.size + keys.filter((k) => reaches(byKey.get(k.id))).length
 }
 
-export async function loadOnboardingFacts(companyId: string, now: Date = new Date()): Promise<OnboardingFacts & { entries: number }> {
+async function loadOnboardingFacts(companyId: string, now: Date = new Date()): Promise<OnboardingFacts & { entries: number }> {
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { foundationDate: true } })
   const fiscalYears = await prisma.fiscalYear.findMany({
     where: { companyId },

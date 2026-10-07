@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { validateAccountCode } from '@/lib/accounting/validator'
 import { ensureActiveFiscalYear } from '@/lib/accounting/active-fiscal-year.service'
+import { ACCOUNT_CODE_MESSAGE } from '@/lib/accounting/account-code'
 
 export interface CreateAccountInput {
   code: string
@@ -23,7 +24,7 @@ export async function createAccount(companyId: string, input: CreateAccountInput
   const { code, parentId } = input
   const label = input.label?.trim()
   if (!code || !label || !parentId) throw new ValidationError('Le code, le libellé et le compte parent sont obligatoires')
-  if (!validateAccountCode(code)) throw new ValidationError('Le code doit contenir entre 2 et 8 chiffres')
+  if (!validateAccountCode(code)) throw new ValidationError(ACCOUNT_CODE_MESSAGE)
 
   let fiscalYearId: string
   if (input.fiscalYearId) {

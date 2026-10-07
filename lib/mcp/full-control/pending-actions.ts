@@ -43,12 +43,12 @@ import { getAppUrl } from '@/lib/config'
 import type { McpCaller } from '@/lib/mcp/company-access'
 
 /** Time the user has to approve, and the assistant to execute once approved. */
-export const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
+const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
 
 /** Decided, executed or expired actions are kept 30 days (shown as history), then purged. */
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
-export const PENDING_ACTION_MESSAGES = {
+const PENDING_ACTION_MESSAGES = {
   unknown: "Action introuvable : appelez de nouveau l'outil sans actionId pour préparer une nouvelle action.",
   pending:
     "Cette action attend encore l'accord de l'utilisateur : demandez-lui d'ouvrir le lien d'approbation dans Kledg, puis rappelez l'outil avec le même actionId.",
@@ -69,12 +69,12 @@ export interface ActionBinding {
   args: unknown
 }
 
-export function callerKey(caller: McpCaller): string {
+function callerKey(caller: McpCaller): string {
   return caller.kind === 'oauth' ? `oauth:${caller.clientId}` : `apiKey:${caller.apiKeyId}`
 }
 
 /** JSON with object keys sorted at every level, so equal arguments always hash the same. */
-export function canonicalJson(value: unknown): string {
+function canonicalJson(value: unknown): string {
   if (value === undefined) return 'null'
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (value instanceof Date) return JSON.stringify(value.toISOString())
@@ -85,7 +85,7 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
 }
 
-export function argsHash(args: unknown): string {
+function argsHash(args: unknown): string {
   return createHash('sha256').update(canonicalJson(args)).digest('hex')
 }
 
@@ -158,7 +158,7 @@ export async function finishAction(actionId: string, ok: boolean): Promise<void>
 }
 
 /** Shown instead of a company name for an action outside any company (create_company). */
-export const NO_COMPANY_LABEL = 'Nouvelle société'
+const NO_COMPANY_LABEL = 'Nouvelle société'
 
 export interface PendingActionView {
   id: string

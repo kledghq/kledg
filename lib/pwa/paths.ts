@@ -11,8 +11,8 @@
  */
 
 export const SERVICE_WORKER_PATH = '/sw.js'
-export const OFFLINE_PAGE_PATH = '/offline.html'
-export const MANIFEST_PATH = '/manifest.webmanifest'
+const OFFLINE_PAGE_PATH = '/offline.html'
+const MANIFEST_PATH = '/manifest.webmanifest'
 
 const PWA_PUBLIC_PATHS = new Set([SERVICE_WORKER_PATH, OFFLINE_PAGE_PATH, MANIFEST_PATH])
 

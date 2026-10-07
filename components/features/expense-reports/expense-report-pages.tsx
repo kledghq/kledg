@@ -11,7 +11,7 @@ import { ExpenseReportEditor, type ExpenseFormValues } from './expense-report-ed
 import type { ExpenseReportDetailData } from './expense-report-detail'
 
 /** The form values of a stored report (amounts in cents, numbers as typed text). */
-export function formValuesOf(report: ExpenseReportDetailData): ExpenseFormValues {
+function formValuesOf(report: ExpenseReportDetailData): ExpenseFormValues {
   return {
     claimantId: report.own ? '' : report.claimant.id,
     label: report.label ?? '',

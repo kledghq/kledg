@@ -42,7 +42,7 @@ export const EMAIL_CHANGE_UNAVAILABLE_MESSAGE =
   "L'envoi d'emails n'est pas configuré sur cette instance : la nouvelle adresse ne peut pas être vérifiée. Demandez à l'administrateur de l'instance de configurer l'envoi d'emails."
 
 /** Where the confirmation link brings the user back. */
-export const EMAIL_CHANGE_CALLBACK = '/settings/profile?email=confirmed'
+const EMAIL_CHANGE_CALLBACK = '/settings/profile?email=confirmed'
 
 function actorOf(user: CurrentUser) {
   return { id: user.id, email: user.email, role: user.role }

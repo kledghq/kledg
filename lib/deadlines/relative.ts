@@ -6,14 +6,14 @@
 const DAY_MS = 86_400_000
 
 /** Whole calendar days from `today` to `day` (negative when past). */
-export function daysUntil(day: string, today: string): number {
+function daysUntil(day: string, today: string): number {
   return Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MS)
 }
 
 export type DeadlineUrgency = 'past' | 'overdue' | 'today' | 'soon' | 'later'
 
 /** Within this many days a deadline is "soon" (shown with the warning tone). */
-export const SOON_DAYS = 7
+const SOON_DAYS = 7
 /**
  * Without a status, a deadline missed this recently is "en retard" and an
  * older one only "passée", so the days alone never alarm about last year's

@@ -81,7 +81,7 @@ export type RateLimitName = keyof typeof RATE_LIMITS | keyof typeof INSTANCE_RAT
 /** Every rule: Kledg's, and the instance's own (a name Kledg uses keeps Kledg's rule). */
 export const RATE_LIMIT_RULES: Readonly<Record<RateLimitName, RateLimitRule>> = { ...INSTANCE_RATE_LIMITS, ...RATE_LIMITS }
 
-export function rateLimitsDisabled(env: Record<string, string | undefined> = process.env): boolean {
+function rateLimitsDisabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.RATE_LIMIT_DISABLED === 'true'
 }
 

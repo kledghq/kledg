@@ -96,7 +96,7 @@ const BALANCE_CATEGORIES: Array<[string, FlowCategory]> = [
   ['168', 'loan'],
 ]
 
-export function balanceCategoryOf(code: string): FlowCategory | null {
+function balanceCategoryOf(code: string): FlowCategory | null {
   return BALANCE_CATEGORIES.find(([prefix]) => code.startsWith(prefix))?.[1] ?? null
 }
 

@@ -63,7 +63,7 @@ interface GitHubRelease {
   prerelease: boolean
 }
 
-export function toRelease(r: GitHubRelease): Release | null {
+function toRelease(r: GitHubRelease): Release | null {
   if (r.draft || !parseVersion(r.tag_name)) return null
   return {
     tag: r.tag_name,

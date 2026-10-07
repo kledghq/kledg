@@ -33,7 +33,7 @@ const STATUS_TEXT: Record<GroupTaxReport['companies'][number]['status'], string>
   'no-fiscal-year': 'Aucun exercice',
 }
 
-export function GroupCorporateTaxSection() {
+function GroupCorporateTaxSection() {
   const report = useTax()
   const data = report.data
   if (report.error) return <LoadError message={report.error} onRetry={report.retry} />
@@ -189,7 +189,7 @@ function CheckLine({ check, sources }: { check: IntegrationCheck; sources: Integ
   )
 }
 
-export function GroupTaxIntegrationSection() {
+function GroupTaxIntegrationSection() {
   const report = useTax()
   const data = report.data
   const [manual, setManual] = React.useState<Partial<Record<ManualNeutralisationId, number>>>({})

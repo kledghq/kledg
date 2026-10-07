@@ -14,7 +14,7 @@ import { resolveCompanyRef } from '@/lib/companies/slug'
 import { COMPANY_ROLES, type CompanyRoleName } from './add-member-to-company.service'
 import { ensureCompanyOrganization } from './ensure-company-organization.service'
 
-export const MEMBER_NOT_FOUND_MESSAGE = 'Membre introuvable'
+const MEMBER_NOT_FOUND_MESSAGE = 'Membre introuvable'
 
 function rolesOf(role: string): string[] {
   return role

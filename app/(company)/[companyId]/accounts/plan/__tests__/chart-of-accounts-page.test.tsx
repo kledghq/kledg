@@ -6,6 +6,7 @@
  * details. fetch is mocked; the requests the page sends are asserted.
  */
 
+import { ACCOUNT_CODE_MESSAGE } from '@/lib/accounting/account-code'
 import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
@@ -173,14 +174,14 @@ describe('chart of accounts page: creating a sub-account', () => {
     expect(posts()).toHaveLength(0)
   })
 
-  it('checks the number format before anything else (2 to 8 digits)', async () => {
+  it('checks the number format before anything else (lib/accounting/account-code.ts)', async () => {
     const { user, dialog } = await openDialog()
     await user.selectOptions(within(dialog).getByLabelText(/Compte parent/), 'a41')
     const code = within(dialog).getByLabelText(/Code/)
-    await user.type(code, '1A')
+    await user.type(code, '1a')
     await user.type(within(dialog).getByLabelText(/Libellé/), 'Clients')
     await user.click(within(dialog).getByRole('button', { name: 'Créer le compte' }))
-    expect(await within(dialog).findByText('Le code doit contenir entre 2 et 8 chiffres')).toBeInTheDocument()
+    expect((await within(dialog).findAllByText((text) => text.replace(/\s+/g, ' ') === ACCOUNT_CODE_MESSAGE.replace(/\s+/g, ' '))).length).toBeGreaterThan(0)
     expect(posts()).toHaveLength(0)
   })
 })

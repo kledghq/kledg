@@ -61,7 +61,7 @@ async function yearFigures(companyId: string, fy: YearRow) {
 }
 
 /** What the books and the company record say about the approval of `fiscalYearId`. */
-export async function loadApprovalContext(companyId: string, fiscalYearId: string, now?: Date): Promise<ApprovalContext & { unallocatedPreviousCents: number }> {
+async function loadApprovalContext(companyId: string, fiscalYearId: string, now?: Date): Promise<ApprovalContext & { unallocatedPreviousCents: number }> {
   const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
   const [company, previous, drafts, capital] = await Promise.all([
     prisma.company.findUniqueOrThrow({

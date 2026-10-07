@@ -8,7 +8,7 @@
  */
 
 /** Campaign extensions announced by the administration, by filing year. */
-export const BPF_EXTENSIONS: Record<number, string> = { 2026: '2026-05-31' }
+const BPF_EXTENSIONS: Record<number, string> = { 2026: '2026-05-31' }
 
 /** The BPF of the fiscal year ending on `endDate` is filed the following year. */
 export function bpfDeadlineOf(endDate: string): { date: string; extendedDate: string | null } {

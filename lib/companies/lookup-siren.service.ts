@@ -14,7 +14,7 @@ import { logger } from '@/lib/logger'
 import { mapSearchResponse, normalizeSiren, type ApiSearchResponse, type SirenLookupResult } from './siren-lookup'
 
 export const RECHERCHE_ENTREPRISES_API = 'https://recherche-entreprises.api.gouv.fr'
-export const SIREN_LOOKUP_TIMEOUT_MS = 4_000
+const SIREN_LOOKUP_TIMEOUT_MS = 4_000
 
 export type SirenLookupOutcome =
   | { status: 'found'; company: SirenLookupResult }

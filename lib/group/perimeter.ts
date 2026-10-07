@@ -26,7 +26,7 @@ import { listSubsidiaryIds, MAX_GROUP_SUBSIDIARIES } from '@/lib/management-fees
 import type { GroupCompanyRef } from './match'
 import { readStake, type Stake } from './read-member'
 
-export const GROUP_READ = { reports: ['read'] } as const
+const GROUP_READ = { reports: ['read'] } as const
 
 export interface GroupMemberRef extends GroupCompanyRef {
   /** The company's slug, for links into its own pages. */

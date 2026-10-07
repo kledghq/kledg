@@ -50,7 +50,7 @@ export function companiesDoc(report: GroupCompaniesReport): ExportDoc {
 }
 
 /** An indicator value as a cell: amounts in cents, ratios in percent, delays in days. */
-export function indicatorCell(kind: 'amount' | 'total' | 'percent' | 'days', value: number | null): Row[number] {
+function indicatorCell(kind: 'amount' | 'total' | 'percent' | 'days', value: number | null): Row[number] {
   if (value === null) return null
   if (kind === 'percent') return `${(Math.round(value * 1000) / 10).toFixed(1).replace('.', ',')} %`
   if (kind === 'days') return `${value} j`

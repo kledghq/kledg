@@ -38,7 +38,7 @@ export interface UpdateOverview {
 }
 
 /** Migrations recorded as applied in this database (Prisma's own table). */
-export async function appliedMigrations(): Promise<string[] | null> {
+async function appliedMigrations(): Promise<string[] | null> {
   try {
     const rows = await prisma.$queryRaw<Array<{ migration_name: string }>>`
       SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL

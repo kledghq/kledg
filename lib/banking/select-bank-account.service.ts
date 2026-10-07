@@ -16,8 +16,8 @@ export const SelectBankAccountSchema = z.object({
   accountId: z.string().max(200, 'Compte bancaire invalide.').nullish(),
 })
 
-export const NO_BANK_CONNECTION_MESSAGE = "Aucune banque n'est connectée à cette société : connectez-en une depuis la page Banque."
-export const SELECTED_ACCOUNT_NOT_FOUND_MESSAGE = "Ce compte bancaire n'appartient à aucune connexion de la société."
+const NO_BANK_CONNECTION_MESSAGE = "Aucune banque n'est connectée à cette société : connectez-en une depuis la page Banque."
+const SELECTED_ACCOUNT_NOT_FOUND_MESSAGE = "Ce compte bancaire n'appartient à aucune connexion de la société."
 
 export interface SelectedBankAccount {
   success: true

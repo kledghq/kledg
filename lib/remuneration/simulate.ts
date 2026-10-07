@@ -38,7 +38,7 @@ import type { DividendTaxation, RemunerationInputs } from './schemas'
 
 export type ScenarioId = 'allPay' | 'allDividends' | 'mix' | 'optimum'
 
-export const SCENARIO_LABELS: Record<ScenarioId, string> = {
+const SCENARIO_LABELS: Record<ScenarioId, string> = {
   allPay: 'Tout en rémunération',
   allDividends: 'Tout en dividendes',
   mix: 'Mixte',

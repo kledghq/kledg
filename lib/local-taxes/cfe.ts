@@ -22,7 +22,7 @@ import { CFE_ACOMPTE_THRESHOLD_CENTS } from '@/lib/deadlines/engine'
 export { CFE_ACOMPTE_THRESHOLD_CENTS }
 
 /** No cotisation minimum up to this turnover of the reference year (CGI art. 1647 D, I). */
-export const CFE_MINIMUM_EXEMPT_TURNOVER_CENTS = 500_000
+const CFE_MINIMUM_EXEMPT_TURNOVER_CENTS = 500_000
 
 /** The PCG account of the CET (CFE and CVAE): 63511 "Contribution économique territoriale". */
 export const CFE_CHARGE_ACCOUNT = { code: '63511', label: 'Contribution économique territoriale' } as const

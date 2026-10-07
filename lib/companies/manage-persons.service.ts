@@ -93,10 +93,10 @@ export async function createCompanyPerson(companyId: string, input: CreatePerson
   })
 }
 
-export const PERSON_NOT_FOUND = 'Personne introuvable'
+const PERSON_NOT_FOUND = 'Personne introuvable'
 
 /** What the books keep after an erasure, told to the user. */
-export const PERSON_RETENTION_NOTICE =
+const PERSON_RETENTION_NOTICE =
   "Les écritures comptables et leurs pièces justificatives sont conservées 10 ans (Code de commerce, art. L123-22) : le nom porté par les écritures et les notes de frais n'est pas effacé (RGPD, art. 17, 3, b)."
 
 async function ownedPerson(companyId: string, personId: string) {

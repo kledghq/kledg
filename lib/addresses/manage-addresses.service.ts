@@ -27,7 +27,7 @@ import { NotFoundError } from '@/lib/accounting/errors'
 import { optionalText } from '@/lib/api/zod-fields'
 import type { Address as AddressType } from '@/lib/utils/address'
 
-export const ADDRESS_NOT_FOUND_MESSAGE = 'Adresse introuvable'
+const ADDRESS_NOT_FOUND_MESSAGE = 'Adresse introuvable'
 
 /** Shortest search term: shorter terms return nothing rather than every address. */
 const MIN_SEARCH_LENGTH = 2

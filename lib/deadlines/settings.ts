@@ -41,7 +41,7 @@ export function defaultVatFilingDay(legalType: string | null | undefined): numbe
 }
 
 /** CA3 frequency: "auto" is monthly at the réel normal, quarterly for a former réel simplifié from 2027. */
-export const VAT_CA3_FREQUENCIES = ['auto', 'monthly', 'quarterly'] as const
+const VAT_CA3_FREQUENCIES = ['auto', 'monthly', 'quarterly'] as const
 export type VatCa3Frequency = (typeof VAT_CA3_FREQUENCIES)[number]
 
 /**
@@ -54,11 +54,11 @@ export type VatCa3Frequency = (typeof VAT_CA3_FREQUENCIES)[number]
  *   end (1 to 27, so always before the end of the following month).
  * A period still holding drafts is not closed; the reason is reported.
  */
-export const PERIOD_AUTO_LOCK_MODES = ['off', 'after_vat_filing', 'monthly'] as const
+const PERIOD_AUTO_LOCK_MODES = ['off', 'after_vat_filing', 'monthly'] as const
 export type PeriodAutoLockMode = (typeof PERIOD_AUTO_LOCK_MODES)[number]
 export const PERIOD_AUTO_LOCK_MAX_DELAY = 27
 
-export const DeadlineSettingsSchema = z.object({
+const DeadlineSettingsSchema = z.object({
   /** Day of the month of the CA3 and of the CA12 acomptes; null: not known, the earliest day of the legal form is shown. */
   vatFilingDay: z
     .number({ error: 'Le jour de déclaration est un nombre entre 15 et 24' })

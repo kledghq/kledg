@@ -213,7 +213,7 @@ type Handler = (request: Request, context?: RouteContext) => Promise<Response>
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /** Marks handlers built here, for the architecture test. */
-export const ROUTE_WRAPPER = Symbol.for('kledg.routeWrapper')
+const ROUTE_WRAPPER = Symbol.for('kledg.routeWrapper')
 
 function wrap(
   kind: string,

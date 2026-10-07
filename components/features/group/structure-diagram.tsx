@@ -107,7 +107,7 @@ function NodeCard({ node, simple, selected, onSelect }: { node: StructureNode; s
 }
 
 /** One sentence per holding, for screen readers and for reading the structure as text. */
-export function structureSentences(structure: GroupStructure): string[] {
+function structureSentences(structure: GroupStructure): string[] {
   const label = new Map(structure.nodes.map((n) => [n.id, n.label]))
   return structure.edges.map((e) =>
     e.bp === null ? `${label.get(e.from)} détient ${label.get(e.to)} (pourcentage non connu)` : `${label.get(e.from)} détient ${edgeLabel(e)} de ${label.get(e.to)}${e.kind ? ` (${KIND_SHORT[e.kind]})` : ''}`,

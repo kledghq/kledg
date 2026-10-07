@@ -10,7 +10,7 @@
 
 import { AccountingError } from '@/lib/accounting/errors'
 
-export const GITHUB_API = 'https://api.github.com'
+const GITHUB_API = 'https://api.github.com'
 export const UPSTREAM = { owner: 'kledghq', repo: 'kledg' } as const
 export const WORKFLOW_FILE = 'update-from-kledg.yml'
 export const WORKFLOW_PATH = `.github/workflows/${WORKFLOW_FILE}`
@@ -32,7 +32,7 @@ export function isValidRepo(repo: string): boolean {
   return REPO_PATTERN.test(repo) && repo !== '.' && repo !== '..' && !repo.endsWith('.git')
 }
 
-export function isValidRef(ref: string): boolean {
+function isValidRef(ref: string): boolean {
   return REF_PATTERN.test(ref) && !ref.includes('..') && !ref.endsWith('/') && !ref.endsWith('.lock')
 }
 
@@ -41,7 +41,7 @@ export interface RepoRef {
   repo: string
 }
 
-export function assertRepo({ owner, repo }: RepoRef): void {
+function assertRepo({ owner, repo }: RepoRef): void {
   if (!isValidOwner(owner) || !isValidRepo(repo)) {
     throw new GitHubError('invalid_repo', 'Nom de dépôt GitHub invalide (attendu : propriétaire/dépôt).', 400)
   }

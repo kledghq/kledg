@@ -34,8 +34,8 @@ import {
 /** What a grant applies to: an assistant authorized through OAuth, or an API key. */
 export type GrantTarget = { kind: 'oauth'; clientId: string } | { kind: 'apiKey'; apiKeyId: string }
 
-export const ASSISTANT_NOT_FOUND_MESSAGE = 'Assistant introuvable'
-export const API_KEY_NOT_FOUND_MESSAGE = 'Clé API introuvable'
+const ASSISTANT_NOT_FOUND_MESSAGE = 'Assistant introuvable'
+const API_KEY_NOT_FOUND_MESSAGE = 'Clé API introuvable'
 
 const GRANT_SELECT = {
   clientId: true,
@@ -46,7 +46,7 @@ const GRANT_SELECT = {
 } as const
 
 /** No company at all: the access of a connection without a grant. */
-export const NO_COMPANIES: CompanyAccess = { allCompanies: false, companyIds: [] }
+const NO_COMPANIES: CompanyAccess = { allCompanies: false, companyIds: [] }
 
 function toAccess(grant: { allCompanies: boolean; companies: { companyId: string }[] } | null): CompanyAccess {
   if (!grant) return NO_COMPANIES

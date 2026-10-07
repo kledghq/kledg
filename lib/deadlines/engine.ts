@@ -70,11 +70,11 @@ export interface DeadlineCompany {
  * year; above, the company files monthly ("relèveront d'office du régime
  * réel normal mensuel"), and may opt for monthly returns.
  */
-export const QUARTERLY_CA3_PREVIOUS_YEAR_CENTS = 100_000_000
-export const QUARTERLY_CA3_CURRENT_YEAR_CENTS = 110_000_000
+const QUARTERLY_CA3_PREVIOUS_YEAR_CENTS = 100_000_000
+const QUARTERLY_CA3_CURRENT_YEAR_CENTS = 110_000_000
 
 /** Whether the turnover of `year` or of the year before exceeds the quarterly CA3 thresholds. */
-export function exceedsQuarterlyCa3Threshold(company: DeadlineCompany, year: number): { previous: boolean; current: boolean } {
+function exceedsQuarterlyCa3Threshold(company: DeadlineCompany, year: number): { previous: boolean; current: boolean } {
   const turnover = company.turnoverCentsByYear ?? {}
   return {
     previous: (turnover[year - 1] ?? 0) > QUARTERLY_CA3_PREVIOUS_YEAR_CENTS,
@@ -136,7 +136,7 @@ export const CVAE_LAST_YEAR = 2029
 export const CFE_ACOMPTE_THRESHOLD_CENTS = 300_000
 
 /** The VAT regime from 1 January 2027 is réel normal or franchise only (loi n° 2025-127, art. 38). */
-export const SIMPLIFIED_VAT_LAST_YEAR = 2026
+const SIMPLIFIED_VAT_LAST_YEAR = 2026
 
 /** Legal forms that approve their accounts within six months and file them with the greffe (unknown included). */
 const ACCOUNTS_FILING_FORMS = new Set(['SARL', 'EURL', 'SELARL', 'SA', 'SAS', 'SASU', 'SELAS', 'SCA'])
@@ -203,7 +203,7 @@ function historyAt(company: DeadlineCompany, regimeType: 'vat' | 'corporateTax',
 }
 
 /** The VAT regime on a day: the history row covering it, else the company fields; null when unknown. */
-export function vatRegimeAt(company: DeadlineCompany, day: string): VatRegime | null {
+function vatRegimeAt(company: DeadlineCompany, day: string): VatRegime | null {
   const period = historyAt(company, 'vat', day)
   if (period) return normalizeVat(period.regime, Boolean(period.isVatExempt))
   return normalizeVat(company.vatRegime, company.isVatExempt)

@@ -93,7 +93,7 @@ async function registerSummary(companyId: string, endDate: Date): Promise<Regist
 }
 
 /** The saved answers, read leniently: a stored value that no longer validates starts again from empty. */
-export function parseStoredAnnexeDetails(json: unknown): AnnexeDetails {
+function parseStoredAnnexeDetails(json: unknown): AnnexeDetails {
   const parsed = AnnexeDetailsSchema.safeParse(json ?? {})
   return parsed.success ? parsed.data : emptyAnnexeDetails()
 }

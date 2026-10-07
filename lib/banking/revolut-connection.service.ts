@@ -61,7 +61,7 @@ function sameHash(a: string, b: string): boolean {
 }
 
 /** Integration id carried by a state value (`<integrationId>.<random>`). */
-export function integrationIdFromState(state: string | null | undefined): string | null {
+function integrationIdFromState(state: string | null | undefined): string | null {
   if (!state) return null
   const [id, nonce] = state.split('.')
   return id && nonce && /^[a-z0-9]{10,40}$/i.test(id) ? id : null
@@ -203,7 +203,7 @@ const INVALID_STATE = "Lien d'autorisation Revolut invalide ou expiré. Recommen
  * state. Throws 403 when the state does not match this user's pending
  * consent. Returns the integration id once the refresh token is stored.
  */
-export async function completeRevolutAuthorization(input: {
+async function completeRevolutAuthorization(input: {
   companyId: string
   userId: string
   code: string

@@ -31,7 +31,7 @@ export type VatRegime = (typeof VAT_REGIMES)[number]
 export const CORPORATE_TAX_REGIMES = ['simplified', 'normal'] as const
 export type CorporateTaxRegime = (typeof CORPORATE_TAX_REGIMES)[number]
 
-export const FIRST_FISCAL_YEAR_MAX_MONTHS = 24
+const FIRST_FISCAL_YEAR_MAX_MONTHS = 24
 export const MAX_SHAREHOLDERS = 20
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -135,7 +135,7 @@ export function checkFirstFiscalYear(input: {
   return { errors, warnings, months }
 }
 
-export const ShareholderInputSchema = z
+const ShareholderInputSchema = z
   .object({
     type: z.enum(['PHYSICAL', 'LEGAL']),
     /** Physical person only. */

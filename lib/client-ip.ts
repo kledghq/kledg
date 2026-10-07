@@ -29,7 +29,7 @@ type Env = Record<string, string | undefined>
 export const CLIENT_IP_HEADER = 'x-kledg-client-ip'
 
 /** Rate limit subject when no trusted address is known. */
-export const CLIENT_IP_UNKNOWN = 'no-trusted-ip'
+const CLIENT_IP_UNKNOWN = 'no-trusted-ip'
 
 const MAX_HOPS = 10
 
@@ -39,7 +39,7 @@ function single(value: string | null): string | null {
 }
 
 /** Number of trusted reverse proxies (TRUST_PROXY_HOPS), or null when unset or invalid. */
-export function trustProxyHops(env: Env = process.env): number | null {
+function trustProxyHops(env: Env = process.env): number | null {
   const raw = env.TRUST_PROXY_HOPS?.trim()
   if (!raw || !/^\d+$/.test(raw)) return null
   const hops = Number(raw)
@@ -47,7 +47,7 @@ export function trustProxyHops(env: Env = process.env): number | null {
 }
 
 /** Whether the deployment tells Kledg how to read the client IP. */
-export function clientIpConfigured(env: Env = process.env): boolean {
+function clientIpConfigured(env: Env = process.env): boolean {
   return Boolean(env.RATE_LIMIT_IP_HEADER?.trim() || env.VERCEL || trustProxyHops(env))
 }
 

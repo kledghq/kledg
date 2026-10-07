@@ -80,7 +80,7 @@ export interface RevolutClientOptions {
 }
 
 /** Largest page the transactions endpoint accepts. */
-export const REVOLUT_PAGE_SIZE = 1000
+const REVOLUT_PAGE_SIZE = 1000
 
 async function errorDetail(response: Response): Promise<string> {
   const text = await response.text().catch(() => '')

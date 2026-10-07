@@ -57,7 +57,7 @@ const minus = (code: string): Operand => ({ code, sign: -1 })
  * 2033-B style simplified model: 270 = 232 - 264, GV = 280 - 294,
  * GW = 270 + GH - GI + GV, HI = 290 - 300, 310 = produits - charges.
  */
-export const RESULT_FORMULAS: Record<string, Operand[]> = {
+const RESULT_FORMULAS: Record<string, Operand[]> = {
   GG: [plus('FR'), minus('GF')],
   GV: [plus('GP'), minus('GU'), plus('280'), minus('294')],
   GW: [plus('GG'), plus('270'), plus('GH'), minus('GI'), plus('GV')],

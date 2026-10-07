@@ -77,7 +77,7 @@ function headers(report: FinancialIndicatorsReport): string[] {
   ]
 }
 
-export function financialIndicatorsCsv(report: FinancialIndicatorsReport, company: string): string {
+function financialIndicatorsCsv(report: FinancialIndicatorsReport, company: string): string {
   const rows: Array<Array<string | null>> = [[title(report, company)], [], headers(report)]
   for (const section of INDICATOR_SECTIONS) {
     for (const row of section.rows) {
@@ -97,7 +97,7 @@ export function financialIndicatorsCsv(report: FinancialIndicatorsReport, compan
   return `﻿${buildCsv(rows)}`
 }
 
-export async function financialIndicatorsWorkbook(report: FinancialIndicatorsReport, company: string): Promise<Uint8Array> {
+async function financialIndicatorsWorkbook(report: FinancialIndicatorsReport, company: string): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet('SIG et ratios')
   sheet.addRow([title(report, company)]).font = { bold: true }

@@ -58,7 +58,7 @@ export interface ProfitTaxationInput {
 export const INCOME_TAX_REGIME = 'income_tax'
 
 /** Label of the regime values of type corporateTax, for the settings and messages. */
-export const PROFIT_REGIME_LABELS: Record<string, string> = {
+const PROFIT_REGIME_LABELS: Record<string, string> = {
   normal: 'IS, régime normal',
   simplified: 'IS, régime simplifié',
   micro: 'Micro-entreprise (impôt sur le revenu)',
@@ -69,7 +69,7 @@ const PARTNERSHIP_FORMS = new Set(['EI', 'SNC', 'SCS', 'SCI'])
 const SINGLE_MEMBER_SARL_FORMS = new Set(['EURL', 'SELARL'])
 const CAPITAL_FORMS = new Set(['SARL', 'SAS', 'SASU', 'SA', 'SELAS', 'SCA'])
 
-export const SET_REGIME_HINT = 'Renseignez le régime d’imposition des bénéfices dans Informations de la société, Régimes fiscaux.'
+const SET_REGIME_HINT = 'Renseignez le régime d’imposition des bénéfices dans Informations de la société, Régimes fiscaux.'
 
 export function profitTaxationOf(input: ProfitTaxationInput): ProfitTaxation {
   const regime = input.regime

@@ -23,7 +23,7 @@ export type TrainingReportExportQuery = z.infer<typeof TrainingReportExportQuery
 type Row = Array<string | number | null>
 const pair = (label: string, value: CountHours, code = ''): Row => [code, label, value.count, value.hours]
 
-export function trainingReportCsv(view: TrainingReportView, companyName: string): string {
+function trainingReportCsv(view: TrainingReportView, companyName: string): string {
   const { data, frameC: c, frameD: d, fiscalYear } = view
   const rows: Row[] = [
     ['Bilan pédagogique et financier (cerfa 10443*17)', companyName],

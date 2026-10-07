@@ -35,7 +35,7 @@ import {
 
 const date = (value: string | null | undefined): Date | null => (value ? new Date(value) : null)
 
-export function mapPontoAccount(resource: JsonApiResource<PontoAccountAttributes>): ProviderAccount {
+function mapPontoAccount(resource: JsonApiResource<PontoAccountAttributes>): ProviderAccount {
   const a = resource.attributes
   const institutionId = resource.relationships?.financialInstitution?.data?.id ?? null
   return {
@@ -51,7 +51,7 @@ export function mapPontoAccount(resource: JsonApiResource<PontoAccountAttributes
   }
 }
 
-export function mapPontoTransaction(
+function mapPontoTransaction(
   resource: JsonApiResource<PontoTransactionAttributes>,
   accountExternalId: string,
 ): ProviderTransaction {
