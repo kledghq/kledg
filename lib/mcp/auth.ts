@@ -7,6 +7,7 @@ import { ADMIN_SCOPE, READ_SCOPE, WRITE_SCOPE, apiKeyLevelOf, capabilitiesOf, le
 import { clientIdOf, findConsentScopes, loadCompanyScope, type McpAccess, type McpCaller } from '@/lib/mcp/company-access'
 import { withUserContext } from '@/lib/rls/context'
 import { RateLimitError } from '@/lib/accounting/errors'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { getExecutionMode } from '@/lib/ai-access/manage-grants.service'
 import { verifyMcpApiKey } from './api-key'
 
@@ -55,6 +56,11 @@ async function asConnection<T>(user: CurrentUser, caller: McpCaller, fn: () => P
   })
 }
 
+/** 429 of a connection past its calls per minute (API key or OAuth assistant). */
+function tooManyCalls(error: RateLimitError): Response {
+  return Response.json({ error: error.message }, { status: 429, headers: { 'Retry-After': '60' } })
+}
+
 function bearer(request: Request): string | null {
   const header = request.headers.get('authorization')
   return header?.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null
@@ -74,6 +80,13 @@ export function withMcpUser(handler: (request: Request, access: McpAccess) => Pr
       const user = claims.sub ? await loadUser(claims.sub) : null
       const clientId = clientIdOf(claims as Record<string, unknown>)
       if (!user || !clientId) return Response.json({ error: 'Unknown user' }, { status: 401 })
+      // Same ceiling as an API key (lib/mcp/api-key.ts), per user and assistant: a looping client stops at 300 calls a minute.
+      try {
+        await enforceRateLimit('mcp-oauth', `${user.id}:${clientId}`)
+      } catch (error) {
+        if (error instanceof RateLimitError) return tooManyCalls(error)
+        throw error
+      }
       return withUserContext(user.id, async () => {
         // JWT access tokens are stateless: the consent is checked on every call,
         // so a revoked assistant is refused at once and a lowered access level
@@ -108,7 +121,7 @@ export function withMcpUser(handler: (request: Request, access: McpAccess) => Pr
       try {
         key = await verifyMcpApiKey(apiKey)
       } catch (error) {
-        if (error instanceof RateLimitError) return Response.json({ error: error.message }, { status: 429, headers: { 'Retry-After': '60' } })
+        if (error instanceof RateLimitError) return tooManyCalls(error)
         throw error
       }
       const user = key ? await loadUser(key.referenceId) : null

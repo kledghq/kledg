@@ -3,6 +3,7 @@ import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
+vi.mock('@/lib/rate-limit', () => ({ enforceRateLimit: vi.fn() }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/accounting/entry-guards', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/accounting/entry-guards')>()),

@@ -23,7 +23,7 @@ Dans Kledg, les **Paramètres** du compte ont deux pages :
 - Les jetons d'accès sont des JWT de courte durée, renouvelés par un jeton de rafraîchissement (portée `offline_access`). À chaque requête, `/api/mcp` vérifie aussi que l'autorisation de l'utilisateur pour cet assistant existe toujours et quelles portées elle accorde : un jeton ne donne jamais plus que l'autorisation en cours.
 - L'assistant agit avec les droits de l'utilisateur qui l'a autorisé, société par société (mêmes rôles que l'interface), et seulement sur les sociétés choisies pour lui.
 - Une clé API agit avec les droits de son propriétaire, au niveau d'accès et sur les sociétés choisis pour elle.
-- Une clé API est limitée à 300 appels par minute. Une clé supprimée ou désactivée est refusée dès l'appel suivant ; sa date de dernière utilisation est mise à jour au plus une fois par minute.
+- Une clé API est limitée à 300 appels par minute, un assistant connecté par OAuth aussi (par utilisateur et par assistant ; au-delà, réponse 429 avec `Retry-After`). Les enregistrements de brouillons (`create_draft_entry` et les outils de brouillon) sont limités à 60 par minute et par utilisateur, et l'import d'un relevé (`import_statement`, aperçu compris) compte dans la limite des imports de l'interface (30 par 10 minutes). Une clé supprimée ou désactivée est refusée dès l'appel suivant ; sa date de dernière utilisation est mise à jour au plus une fois par minute.
 - Aucun niveau ne donne plus que vos rôles : le contrôle total permet seulement à l'assistant de faire ce que vous pouvez faire vous-même dans chaque société choisie.
 
 ## Choisir l'accès d'un assistant

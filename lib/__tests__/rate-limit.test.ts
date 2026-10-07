@@ -125,6 +125,11 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/navigation/sidebar-preferences.service.ts': /enforceRateLimit\('sidebar-preferences'/,
   'app/api/users/route.ts': /createInstanceUser\(/,
   'lib/mcp/api-key.ts': /enforceRateLimit\('mcp-api-key'/,
+  'lib/mcp/auth.ts': /enforceRateLimit\('mcp-oauth'/,
+  'lib/mcp/drafts/define.ts': /enforceRateLimit\('mcp-write'/,
+  'lib/mcp/tools.ts': /enforceRateLimit\('mcp-write'/,
+  'lib/mcp/full-control/banking.ts': /enforceRateLimit\('import'/,
+  'lib/mcp/full-control/year-end.ts': /enforceRateLimit\('export'/,
   'app/(auth)/setup/actions.ts': /withinRateLimit\('setup'/,
 }
 

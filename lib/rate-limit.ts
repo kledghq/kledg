@@ -54,6 +54,10 @@ export const RATE_LIMITS = {
   export: { window: 60, max: 30, message: "Trop d'exports en une minute. Patientez une minute avant de réessayer." },
   /** MCP calls authenticated with an API key, per key (lib/mcp/api-key.ts): assistants make many calls per conversation. */
   'mcp-api-key': { window: 60, max: 300, message: "Trop d'appels avec cette clé API en une minute. Patientez une minute." },
+  /** MCP calls authenticated with an OAuth token, per user and assistant (lib/mcp/auth.ts): the same ceiling as an API key. */
+  'mcp-oauth': { window: 60, max: 300, message: "Trop d'appels de cet assistant en une minute. Patientez une minute." },
+  /** MCP draft writes (create_draft_entry and the draft tools of lib/mcp/drafts), per user. */
+  'mcp-write': { window: 60, max: 60, message: "Trop d'enregistrements par l'assistant en une minute. Patientez une minute avant de continuer." },
   /** Approval or refusal of an action prepared by an assistant (password typed again), per user. */
   'ai-action-approval': { window: 900, max: 20, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Saving or resetting one's dashboard layout, per user. */

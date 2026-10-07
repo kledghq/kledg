@@ -23,6 +23,7 @@ import { assertEntryWritableInFiscalYear, GUARDED_FISCAL_YEAR_SELECT } from '@/l
 import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
 import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
 import { writeAuditLog } from '@/lib/audit'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { uniqueReconciliationMatches, type UniqueMatch } from '@/lib/reconciliation/unique-match'
 import { day, fail, json, run } from '@/lib/mcp/tool-result'
@@ -849,6 +850,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { entries: ['create'] })
+        await enforceRateLimit('mcp-write', user.id)
         const date = toEntryDate(args.date)
         const found = await getFiscalYearForDate(args.companyId, date)
         const fiscalYear = found

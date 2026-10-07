@@ -24,6 +24,7 @@ import {
 import { processTransactions } from '@/lib/services/transactions/transaction-processing-service'
 import { createRule, deleteRule, findRule, listRules, updateRule } from '@/lib/transactions/manage-rules.service'
 import { limitBankCalls } from '@/lib/banking/guard'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { createManualAccount, refreshConnection } from '@/lib/banking/connections.service'
 import {
   analyzeStatement,
@@ -409,7 +410,9 @@ const importStatementTool = fullControlTool({
   never: 'imports a transaction twice (exact duplicates are skipped) or reconciles the imported lines.',
   idempotent: true,
   confirmation: true,
-  async preview({ companyId, bankAccountId, fileName, contentBase64, options, keep }) {
+  // Every parse counts in the import limit of the user, like the import route (app/api/banking/import-statement/route.ts).
+  async preview({ companyId, bankAccountId, fileName, contentBase64, options, keep }, ctx) {
+    await enforceRateLimit('import', ctx.access.user.id)
     const analysis = await analyzeStatement({
       companyId,
       bankAccountId,
@@ -420,7 +423,8 @@ const importStatementTool = fullControlTool({
     })
     return analysis
   },
-  async execute({ companyId, bankAccountId, fileName, contentBase64, options, keep, allowErrors }) {
+  async execute({ companyId, bankAccountId, fileName, contentBase64, options, keep, allowErrors }, ctx) {
+    await enforceRateLimit('import', ctx.access.user.id)
     const result = await importStatement({
       companyId,
       bankAccountId,

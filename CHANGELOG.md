@@ -10,6 +10,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Vues MCP : les demandes des boutons « Proposer une écriture » et « Retrouver la pièce » citent le libellé bancaire, la contrepartie et le fournisseur entre « » comme des données, comme « Proposer avec l'IA » : un libellé ne peut plus ajouter une consigne à la demande envoyée à l'assistant.
 - Assistants IA en mode validation : l'envoi d'un justificatif à Qonto (`upload_receipt`) demande maintenant votre approbation dans Kledg, comme les autres écritures chez Qonto ; l'aperçu montre la transaction et le fichier (nom, type, taille, empreinte SHA-256).
 - Serveur MCP : `export_fec` suit les limites de `export_report` et du téléchargement du FEC (limite d'exports par minute de l'utilisateur, fichier de 5 Mo au plus, à télécharger depuis Kledg au-delà).
+- Serveur MCP : un assistant connecté par OAuth est limité à 300 appels par minute, comme une clé API ; les enregistrements de brouillons à 60 par minute et par utilisateur ; l'import d'un relevé par un assistant compte dans la limite des imports.
 
 ### Corrigé
 

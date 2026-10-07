@@ -262,4 +262,54 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       expect(uploadExpenseReceipt).toHaveBeenCalledTimes(1)
     })
   })
+
+  describe('KLEDG-R3-MCP-05: limits of draft writes and statement imports', () => {
+    /** Runs `fn` with the rate limits on (the file turns them off), `name` already at its limit for the owner. */
+    async function atLimit(name: string, max: number, fn: () => Promise<void>) {
+      await prisma.rateLimit.upsert({
+        where: { key: `${name}|${OWNER.id}` },
+        create: { id: `rl-${name}`, key: `${name}|${OWNER.id}`, count: max, lastRequest: BigInt(Date.now()) },
+        update: { count: max, lastRequest: BigInt(Date.now()) },
+      })
+      delete process.env.RATE_LIMIT_DISABLED
+      try {
+        await fn()
+      } finally {
+        process.env.RATE_LIMIT_DISABLED = 'true'
+        await prisma.rateLimit.deleteMany({ where: { key: `${name}|${OWNER.id}` } })
+      }
+    }
+
+    it('limits create_draft_entry and the draft tools per user', async () => {
+      const key = await apiKey('write')
+      await atLimit('mcp-write', 60, async () => {
+        const entry = await call(key, 'create_draft_entry', {
+          companyId: ids.company,
+          journalCode: 'OD',
+          date: '2025-03-02',
+          description: 'Papier',
+          lines: [
+            { accountCode: '606', debit: 10 },
+            { accountCode: '401', credit: 10 },
+          ],
+        })
+        expect(entry.ok).toBe(false)
+        expect(entry.text).toMatch(/Trop d'enregistrements/)
+        const tiers = await call(key, 'manage_tiers', { companyId: ids.company, action: 'create', tiers: { kind: 'SUPPLIER', name: 'Durand' } })
+        expect(tiers.ok).toBe(false)
+        expect(tiers.text).toMatch(/Trop d'enregistrements/)
+      })
+    })
+
+    it('counts import_statement, dry runs included, in the import limit of the user', async () => {
+      const key = await apiKey('admin')
+      await bankTransaction()
+      await atLimit('import', 30, async () => {
+        const csv = Buffer.from('Date;Libellé;Montant\n10/03/2025;PRLV SEPA FREE;-47,99\n').toString('base64')
+        const dry = await call(key, 'import_statement', { companyId: ids.company, bankAccountId: ids.bankAccount, fileName: 'releve.csv', contentBase64: csv })
+        expect(dry.ok).toBe(false)
+        expect(dry.text).toMatch(/Trop d'imports/)
+      })
+    })
+  })
 })

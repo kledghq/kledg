@@ -27,6 +27,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { ValidationError } from '@/lib/accounting/errors'
 import { parseInput } from '@/lib/api/zod-fields'
 import type { Permission } from '@/lib/rbac/authorize'
@@ -114,6 +115,7 @@ export function registerDraftTool<S extends Shape, R extends DraftResult>(server
         const permissions = [...basePermissions, ...permissionsOfAction(tool.actions, (args as { action?: unknown }).action)]
         if (permissions.length === 0) throw new ValidationError('Action inconnue.')
         for (const permission of permissions) await guard.require(args.companyId, permission)
+        await enforceRateLimit('mcp-write', access.user.id)
         const authorize = (permission: Permission) => guard.require(args.companyId, permission)
         const result = await tool.execute(args, { access, companyId: args.companyId, authorize })
         const ids = tool.audit(args, result)

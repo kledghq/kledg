@@ -563,4 +563,25 @@ describe.skipIf(!available)('assistant access level and revocation', () => {
       expect(anonymous.status).toBe(401)
     })
   })
+
+  // KLEDG-R3-MCP-05: an OAuth assistant has the ceiling of an API key.
+  describe('rate limit', () => {
+    it('answers 429 with Retry-After past 300 calls a minute of one assistant, without touching another one', async () => {
+      const clientId = await registerClient()
+      const tokens = await connect(clientId, await signIn(OWNER))
+      const other = await registerClient()
+      const otherTokens = await connect(other, await signIn(OWNER))
+      await prisma.rateLimit.create({ data: { id: `rl-${clientId}`, key: `mcp-oauth|${OWNER.id}:${clientId}`, count: 299, lastRequest: BigInt(Date.now()) } })
+      delete process.env.RATE_LIMIT_DISABLED
+      try {
+        expect((await rpc(tokens.access_token, 'tools/list')).status).toBe(200)
+        const limited = await rpc(tokens.access_token, 'tools/list')
+        expect(limited.status).toBe(429)
+        expect(limited.headers.get('retry-after')).toBe('60')
+        expect((await rpc(otherTokens.access_token, 'tools/list')).status).toBe(200)
+      } finally {
+        process.env.RATE_LIMIT_DISABLED = 'true'
+      }
+    })
+  })
 })
