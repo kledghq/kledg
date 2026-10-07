@@ -52,6 +52,9 @@ export const INVOICE_NOT_FOUND = 'Facture introuvable'
 
 type Db = Prisma.TransactionClient | typeof prisma
 
+/** A list cursor that is not an invoice of the company. */
+const INVALID_CURSOR = 'Curseur invalide\u00a0: rechargez la liste.'
+
 const directionSchema = z.enum(['SALE', 'PURCHASE'], { error: 'Choisissez une facture de vente ou d’achat' })
 
 const lineSchema = z.object({
@@ -227,6 +230,13 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
 }
 
 export async function listInvoices(companyId: string, query: ListInvoicesQuery) {
+  // The cursor must be an invoice of the company (KLEDG-R3-AUTHZ-02): Prisma
+  // reads the sort values of the cursor row by its id alone, so an id of
+  // another company would reveal its existence and its date.
+  if (query.cursor) {
+    const owned = await prisma.invoice.findFirst({ where: { id: query.cursor, companyId }, select: { id: true } })
+    if (!owned) throw new ValidationError(INVALID_CURSOR)
+  }
   const term = query.search?.trim()
   const where: Prisma.InvoiceWhereInput = {
     companyId,

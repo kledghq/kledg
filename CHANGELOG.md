@@ -15,6 +15,9 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Le changement d'adresse email répond dans le même délai que la nouvelle adresse soit libre ou déjà utilisée par un autre compte.
 - La page de connexion n'affiche plus le texte passé dans son adresse : seuls les codes d'erreur connus ont un message, les autres un message générique.
 - Modèles de bilan : un modèle enregistré par une société reste propre à cette société ; seuls les modèles fournis par Kledg sont partagés entre les sociétés de l'instance. Les modèles qu'une société avait rendus publics redeviennent privés à cette société (migration `20261121090000_statement_templates_private`).
+- Listes des factures et des notes de frais : un curseur de pagination qui n'appartient pas à la société est refusé.
+- Déclarer une société actionnaire demande de pouvoir modifier les paramètres de cette société (administrateur) : un simple lecteur ne peut plus faire entrer une société dans son groupe ([documentation](docs/vue-groupe.md#accès--chaque-société-est-vérifiée)).
+- Exports de l'espace groupe : une filiale n'est exportée que si l'utilisateur a le droit d'exporter dans cette filiale ; une filiale où il n'est que lecteur reste visible dans les pages du groupe et est signalée comme non exportée dans le fichier.
 
 ## [0.3.1] - 2026-10-05
 

@@ -6,7 +6,8 @@
  *
  * Invariants owned here:
  * - every subsidiary is checked with the user's own role there
- *   (reports:read), through a GroupAccess: the web routes build it from the
+ *   (reports:read, or reports:export for an export: GroupAccess.readPermission),
+ *   through a GroupAccess: the web routes build it from the
  *   user's roles, the MCP tools from their company guard, which also applies
  *   the connection's company grant (lib/management-fees/access.ts);
  * - a subsidiary out of reach (not a member, outside an assistant's grant)
@@ -27,6 +28,13 @@ import type { GroupCompanyRef } from './match'
 import { readStake, type Stake } from './read-member'
 
 export const GROUP_READ = { reports: ['read'] } as const
+/** An export of the group space takes each company's figures out of Kledg: the right to export them, in each one. */
+export const GROUP_EXPORT = { reports: ['export'] } as const
+
+/** The same access, reading only the companies where the user may export (KLEDG-R3-AUTHZ-04). */
+export function exportAccess(access: GroupAccess): GroupAccess {
+  return { ...access, readPermission: GROUP_EXPORT }
+}
 
 export interface GroupMemberRef extends GroupCompanyRef {
   /** The company's slug, for links into its own pages. */
@@ -58,7 +66,7 @@ export async function readIfAllowed<T>(
   fn: () => Promise<T>,
 ): Promise<{ ok: true; value: T } | { ok: false; unreachable: UnreachableSubsidiary }> {
   try {
-    return { ok: true, value: await inCompany(access, companyId, GROUP_READ, fn) }
+    return { ok: true, value: await inCompany(access, companyId, access.readPermission ?? GROUP_READ, fn) }
   } catch (error) {
     if (error instanceof NotFoundError) return { ok: false, unreachable: { name: null, reason: 'out_of_reach' } }
     if (error instanceof ForbiddenError) {

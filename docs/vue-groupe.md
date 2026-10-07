@@ -108,10 +108,13 @@ Les lignes d'actionnaires appartiennent à la filiale : un membre de la holding 
 | Action | Holding | Chaque filiale |
 | --- | --- | --- |
 | Voir les pages de l'espace groupe | `reports:read` | `reports:read` |
-| Exporter (CSV, Excel) | `reports:export` | `reports:read` |
+| Exporter (CSV, Excel) | `reports:export` | `reports:export` |
+| Déclarer la holding parmi les actionnaires d'une société | `settings:update` | `settings:update` (dans la société détenue) |
 
 - Une filiale dont l'utilisateur n'est pas membre, ou qu'un assistant IA n'a pas reçue dans son autorisation, est **comptée comme non accessible et jamais lue** : ni son nom, ni son identifiant, ni son SIREN, ni ses transactions, associés ou échéances ne sortent du serveur, sur aucune page ni dans aucun export ; ses chiffres ne sont pas additionnés et ses flux ne sont pas éliminés.
 - Une filiale dont l'utilisateur est membre avec un rôle qui ne lit pas les états est nommée (il en est membre) et n'est pas lue.
+- Un export ne contient que les sociétés où l'utilisateur a le droit d'exporter (`reports:export`) : une filiale où il n'est que lecteur (`viewer`) se voit dans les pages du groupe, mais ses chiffres, transactions et écritures ne sortent pas dans un fichier ; elle y est comptée comme non lue, avec la même mention qu'une filiale non accessible. Les exports de chaque société demandent le même droit.
+- Déclarer une société actionnaire (page Informations de la filiale, actionnaire « Société ») la fait entrer dans le groupe de cette holding : il faut pouvoir modifier les paramètres de la filiale et ceux de la holding (`settings:update` dans les deux). Un lecteur de la holding ne peut pas lui ajouter une filiale.
 - Chaque filiale lisible est lue dans son propre périmètre d'isolation (`inCompany`, `lib/management-fees/access.ts`) : la base décide encore d'après les adhésions de l'utilisateur et l'autorisation de l'assistant.
 
 ## Exercices
@@ -221,7 +224,7 @@ Transactions fusionne les transactions des sociétés page par page (`merge-page
 
 ## Exports et outils MCP
 
-Chaque tableau a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/export?report=`) : `combined`, `participations`, `companies`, `indicators`, `evolution`, `treasury`, `persons`, `deadlines`, `transactions` (les 5 000 plus récentes, avec les filtres de la page), `ledger`, `structure` (nœuds et détentions de l'organigramme), `tax` (impôt par société, régime mère-fille, périmètre et simulation d'intégration avec les retraitements saisis, sources). Droit `reports:export` dans la holding, `reports:read` dans chaque filiale lue ; cellules protégées contre les formules (`lib/reports/csv-safe.ts`).
+Chaque tableau a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/export?report=`) : `combined`, `participations`, `companies`, `indicators`, `evolution`, `treasury`, `persons`, `deadlines`, `transactions` (les 5 000 plus récentes, avec les filtres de la page), `ledger`, `structure` (nœuds et détentions de l'organigramme), `tax` (impôt par société, régime mère-fille, périmètre et simulation d'intégration avec les retraitements saisis, sources). Droit `reports:export` dans la holding et dans chaque filiale exportée (une filiale où l'utilisateur n'a que `reports:read` est laissée hors du fichier, avec une mention) ; cellules protégées contre les formules (`lib/reports/csv-safe.ts`).
 
 | Outil | Rôle |
 | --- | --- |

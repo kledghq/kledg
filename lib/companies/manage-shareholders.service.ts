@@ -9,8 +9,10 @@
  * - a natural person (PHYSICAL) is a Person of the company (or already one
  *   of its shareholders);
  * - a shareholder company (LEGAL with companyShareholderId) is another
- *   company the user can access; a legal person that is not a company of the
- *   instance has a name (and optionally a SIRET).
+ *   company where the user may change the settings (KLEDG-R3-AUTHZ-03: the
+ *   link makes this company a subsidiary in that company's group space, so a
+ *   viewer of it cannot declare one); a legal person that is not a company
+ *   of the instance has a name (and optionally a SIRET).
  *
  * Ids of other companies are answered like missing rows.
  */
@@ -18,8 +20,8 @@
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { getUserRolesForCompany, isGlobalAdmin } from '@/lib/rbac/authorize'
+import { ForbiddenError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
+import { getUserRolesForCompany, isGlobalAdmin, rolesGrant } from '@/lib/rbac/authorize'
 import { withUserContext } from '@/lib/rls/context'
 import type { CurrentUser } from '@/lib/session'
 import {
@@ -32,6 +34,8 @@ import {
 export const SHAREHOLDER_NOT_FOUND_MESSAGE = 'Actionnaire introuvable'
 const UNKNOWN_PERSON_MESSAGE = "La personne spécifiée n'existe pas"
 const UNKNOWN_COMPANY_MESSAGE = "La société actionnaire spécifiée n'existe pas"
+export const SHAREHOLDER_COMPANY_FORBIDDEN_MESSAGE =
+  'Pour déclarer une société actionnaire, vous devez pouvoir modifier ses paramètres (administrateur de cette société).'
 
 /** A number or a decimal string, as forms send them; checked exactly by shareholder-values. */
 const decimalInput = z.union([z.number(), z.string(), z.null()]).optional()
@@ -85,11 +89,19 @@ async function assertPersonOfCompany(tx: Prisma.TransactionClient, personId: str
   return person.id
 }
 
-/** A shareholder company must be another company the user can access (member of it, or instance administrator). */
+/**
+ * A shareholder company must be another company the user can access (member
+ * of it, or instance administrator). A new link also needs `settings:update`
+ * in that company: it makes the edited company one of its subsidiaries
+ * (kledg_group_subsidiary_ids, its group space, annexe and tax group), which
+ * only someone who may change that company's settings decides. Keeping an
+ * existing link (`linking` false) only needs access.
+ */
 async function assertShareholderCompany(
   shareholderCompanyId: string,
   companyId: string,
   actor: Actor,
+  linking = true,
 ): Promise<{ id: string; name: string }> {
   if (shareholderCompanyId === companyId) throw new ValidationError("Une société ne peut pas être actionnaire d'elle-même")
   // The route narrows its statements to the company being edited (docs/rls.md),
@@ -100,14 +112,16 @@ async function assertShareholderCompany(
   const company = await withUserContext(
     actor.id,
     async () => {
-      const accessible = isGlobalAdmin(actor) || (await getUserRolesForCompany(actor.id, shareholderCompanyId)).length > 0
-      if (!accessible) return null
-      return prisma.company.findUnique({ where: { id: shareholderCompanyId }, select: { id: true, name: true } })
+      const roles = isGlobalAdmin(actor) ? null : await getUserRolesForCompany(actor.id, shareholderCompanyId)
+      if (roles && roles.length === 0) return null
+      const found = await prisma.company.findUnique({ where: { id: shareholderCompanyId }, select: { id: true, name: true } })
+      return found && { ...found, mayLink: !roles || rolesGrant(roles, { settings: ['update'] }) }
     },
     { companyIds: [shareholderCompanyId] },
   )
   if (!company) throw new ValidationError(UNKNOWN_COMPANY_MESSAGE)
-  return company
+  if (linking && !company.mayLink) throw new ForbiddenError(SHAREHOLDER_COMPANY_FORBIDDEN_MESSAGE)
+  return { id: company.id, name: company.name }
 }
 
 /** Percentages of the company's shareholders, the new one included, stay within 100 %. */
@@ -198,8 +212,12 @@ export async function updateShareholder(
   input: UpdateShareholderInput,
   actor: Actor,
 ) {
+  // Only a new link needs the right to change the shareholder company's settings.
+  const current = input.companyShareholderId
+    ? await prisma.shareholder.findFirst({ where: { id: shareholderId, companyId }, select: { companyShareholderId: true } })
+    : null
   const shareholderCompany = input.companyShareholderId
-    ? await assertShareholderCompany(input.companyShareholderId, companyId, actor)
+    ? await assertShareholderCompany(input.companyShareholderId, companyId, actor, current?.companyShareholderId !== input.companyShareholderId)
     : null
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shareholder.findFirst({
