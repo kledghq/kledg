@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
 vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+vi.mock('@/lib/banking/guard', () => ({ limitBankCalls: vi.fn() }))
 vi.mock('@/lib/integrations/public-https-fetch', () => ({
   publicFetch: (...args: Parameters<typeof fetch>) => fetch(...args),
 }))

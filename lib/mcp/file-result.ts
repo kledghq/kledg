@@ -49,6 +49,16 @@ function bytesOf(content: McpFile['content']): Buffer {
   return content instanceof ArrayBuffer ? Buffer.from(new Uint8Array(content)) : Buffer.from(content.buffer, content.byteOffset, content.byteLength)
 }
 
+/**
+ * The budget of a file read from a provider for an assistant (Qonto,
+ * lib/integrations/providers/qonto/files.ts): cut at MAX_MCP_FILE_BYTES, with
+ * the message of fileResult, instead of downloading up to the provider limit.
+ */
+export const MCP_FILE_BUDGET = {
+  maxBytes: MAX_MCP_FILE_BYTES,
+  tooLarge: (size: number) => new ValidationError(fileTooLargeMessage(size)),
+}
+
 /** A file name safe to show and to put in the resource uri (no path, no control character). */
 function cleanName(fileName: string): string {
   return fileName.replace(/[\\/\r\n\t\0]+/g, '_').trim().slice(0, 200) || 'fichier'

@@ -50,6 +50,32 @@ export const FILE_UNAVAILABLE_MESSAGE = "Ce fichier n'est pas disponible chez Qo
 
 const FILE_TOO_LARGE_MESSAGE = 'Ce fichier dépasse la taille maximale acceptée (25 Mo).'
 
+/**
+ * Most bytes read from Qonto for one file, and the error past them. A
+ * reader with a smaller limit (an MCP tool: 5 MB) passes its own budget,
+ * so a larger file is cut as soon as it passes that limit instead of being
+ * downloaded in full and refused afterwards.
+ */
+export interface FileBudget {
+  maxBytes: number
+  tooLarge: (size: number) => Error
+}
+
+export const PROVIDER_FILE_BUDGET: FileBudget = {
+  maxBytes: MAX_PROVIDER_FILE_BYTES,
+  tooLarge: () => new ExternalServiceError(FILE_TOO_LARGE_MESSAGE),
+}
+
+/**
+ * Refuses a file whose size, as Qonto's metadata declares it, passes the
+ * budget: before any download. A missing or unreadable size is checked
+ * while reading.
+ */
+export function assertDeclaredFileSize(size: number | string | null | undefined, budget: FileBudget = PROVIDER_FILE_BUDGET): void {
+  const bytes = Number(size)
+  if (Number.isFinite(bytes) && bytes > budget.maxBytes) throw budget.tooLarge(bytes)
+}
+
 const isIpLiteral = (host: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[')
 
 function isQontoApiOrigin(url: string, apiUrl: string = getQontoApiUrl()): boolean {
@@ -79,12 +105,13 @@ export function isAllowedQontoFileUrl(value: string, apiUrl: string = getQontoAp
 
 /**
  * Downloads a file Qonto links to. Throws NotFoundError for a URL outside
- * the allowed hosts (logged: Qonto should never send one) and
- * ExternalServiceError when the download fails, is refused (non-public
- * address) or passes MAX_PROVIDER_FILE_BYTES. `fetchImpl` replaces the
+ * the allowed hosts (logged: Qonto should never send one),
+ * ExternalServiceError when the download fails or is refused (non-public
+ * address), and the budget's error as soon as the file passes its limit
+ * (MAX_PROVIDER_FILE_BYTES by default). `fetchImpl` replaces the
  * public-address fetch in tests.
  */
-export async function fetchQontoFile(url: string, fetchImpl?: typeof fetch): Promise<ArrayBuffer> {
+export async function fetchQontoFile(url: string, fetchImpl?: typeof fetch, budget: FileBudget = PROVIDER_FILE_BUDGET): Promise<ArrayBuffer> {
   if (!isAllowedQontoFileUrl(url)) {
     logger.error('[Qonto] Refused a file URL outside the allowed hosts', { host: safeHost(url) })
     throw new NotFoundError(FILE_UNAVAILABLE_MESSAGE)
@@ -99,27 +126,34 @@ export async function fetchQontoFile(url: string, fetchImpl?: typeof fetch): Pro
     throw new ExternalServiceError(FILE_UNAVAILABLE_MESSAGE)
   }
   const declared = Number(response.headers.get('content-length') ?? 0)
-  if (declared > MAX_PROVIDER_FILE_BYTES) {
+  if (declared > budget.maxBytes) {
     controller.abort()
     await response.body?.cancel().catch(() => undefined)
-    throw new ExternalServiceError(FILE_TOO_LARGE_MESSAGE)
+    throw budget.tooLarge(declared)
   }
   try {
-    return await readWithBudget(response, MAX_PROVIDER_FILE_BYTES)
+    return await readWithBudget(response, budget)
   } catch (error) {
     controller.abort()
-    if (error instanceof ExternalServiceError) throw error
+    if (error instanceof TooLarge) throw budget.tooLarge(error.size)
     logger.error('[Qonto] File download interrupted', { host: safeHost(url), error })
     throw new ExternalServiceError(FILE_UNAVAILABLE_MESSAGE)
   }
 }
 
+/** A body cut at the budget, with the bytes read so far. */
+class TooLarge extends Error {
+  constructor(readonly size: number) {
+    super('file too large')
+  }
+}
+
 /**
  * Reads a response body chunk by chunk and stops, cancelling the stream, as
- * soon as it passes `maxBytes`: a body without content-length (or lying
+ * soon as it passes the budget: a body without content-length (or lying
  * about it) is never buffered beyond the limit.
  */
-async function readWithBudget(response: Response, maxBytes: number): Promise<ArrayBuffer> {
+async function readWithBudget(response: Response, { maxBytes }: FileBudget): Promise<ArrayBuffer> {
   if (!response.body) return new ArrayBuffer(0)
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
@@ -130,7 +164,7 @@ async function readWithBudget(response: Response, maxBytes: number): Promise<Arr
     total += value.byteLength
     if (total > maxBytes) {
       await reader.cancel().catch(() => undefined)
-      throw new ExternalServiceError(FILE_TOO_LARGE_MESSAGE)
+      throw new TooLarge(total)
     }
     chunks.push(value)
   }

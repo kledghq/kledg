@@ -62,3 +62,46 @@ describe('fetchQontoFile', () => {
     await expect(fetchQontoFile('https://files.qonto.com/a.pdf', huge as unknown as typeof fetch)).rejects.toThrow('25 Mo')
   })
 })
+
+// KLEDG-R3-MCP-06: a reader with a smaller budget (an MCP tool) stops at its
+// own limit, without downloading up to the provider limit first.
+describe('fetchQontoFile with the budget of an assistant', () => {
+  const MB = 1024 * 1024
+  /** A body of `size` bytes in 1 MB chunks, without content-length, counting the bytes pulled. */
+  function streamed(size: number) {
+    const pulled = { bytes: 0 }
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled.bytes >= size) return controller.close()
+        const chunk = new Uint8Array(Math.min(MB, size - pulled.bytes))
+        pulled.bytes += chunk.byteLength
+        controller.enqueue(chunk)
+      },
+    })
+    return { fetchImpl: vi.fn(async () => new Response(body, { status: 200 })) as unknown as typeof fetch, pulled }
+  }
+
+  it('cuts a 6 MB body at 5 MB with the French message of the assistant files', async () => {
+    const { MCP_FILE_BUDGET } = await import('@/lib/mcp/file-result')
+    const { fetchImpl, pulled } = streamed(6 * MB)
+    await expect(fetchQontoFile('https://files.qonto.com/a.pdf', fetchImpl, MCP_FILE_BUDGET)).rejects.toThrow(/^Fichier trop volumineux pour être transmis à l'assistant/)
+    expect(pulled.bytes).toBeLessThanOrEqual(6 * MB)
+    expect(pulled.bytes).toBeGreaterThan(5 * MB)
+  })
+
+  it('refuses from the declared length before reading, and from the size in the metadata before fetching', async () => {
+    const { MCP_FILE_BUDGET } = await import('@/lib/mcp/file-result')
+    const { assertDeclaredFileSize } = await import('@/lib/integrations/providers/qonto/files')
+    const declared = vi.fn(async () => new Response('x', { status: 200, headers: { 'content-length': String(5 * MB + 1) } }))
+    await expect(fetchQontoFile('https://files.qonto.com/a.pdf', declared as unknown as typeof fetch, MCP_FILE_BUDGET)).rejects.toThrow(/Fichier trop volumineux/)
+    expect(() => assertDeclaredFileSize(String(6 * MB), MCP_FILE_BUDGET)).toThrow(/Fichier trop volumineux/)
+    expect(() => assertDeclaredFileSize(4 * MB, MCP_FILE_BUDGET)).not.toThrow()
+    expect(() => assertDeclaredFileSize(undefined, MCP_FILE_BUDGET)).not.toThrow()
+  })
+
+  it('keeps the provider limit for the routes', async () => {
+    const { fetchImpl } = streamed(6 * MB)
+    const body = await fetchQontoFile('https://files.qonto.com/a.pdf', fetchImpl)
+    expect(body.byteLength).toBe(6 * MB)
+  })
+})
