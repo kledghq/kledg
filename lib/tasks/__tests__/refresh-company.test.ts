@@ -14,9 +14,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
 vi.mock('@/lib/crypto/encryption-key', () => ({ getEncryptionKey: () => mocks.encryptionKey }))
-vi.mock('@/lib/services/banking/update-entry-dates-from-transactions.service', () => ({
-  updateEntryDatesFromReconciledTransactions: vi.fn(),
-}))
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({ getActiveFiscalYear: vi.fn() }))
 vi.mock('@/lib/transactions/rule-service', () => ({
   loadRuleMatcher: async () => (t: { id: string }) => mocks.findMatchingRules(t),
@@ -25,7 +22,6 @@ vi.mock('@/lib/transactions/rule-executor', () => ({ applyRule: mocks.applyRule 
 
 import { prisma } from '@/lib/prisma'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
-import { updateEntryDatesFromReconciledTransactions } from '@/lib/services/banking/update-entry-dates-from-transactions.service'
 import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
 import { BankAuthorizationError, UNEXPECTED_BANK_ERROR_MESSAGE } from '@/lib/banking/errors'
 import { refreshCompany, rulesExecutionMessage } from '../refresh-company'
@@ -42,7 +38,6 @@ function resetSteps() {
   mocks.encryptionKey = 'key'
   db.integration.findMany.mockResolvedValue([])
   db.bankTransaction.findMany.mockResolvedValue([])
-  vi.mocked(updateEntryDatesFromReconciledTransactions).mockResolvedValue({ entriesUpdated: 0 })
   vi.mocked(getActiveFiscalYear).mockResolvedValue(null)
 }
 
@@ -72,12 +67,9 @@ describe('refreshCompany error messages', () => {
     expect(bankSync.message).not.toMatch(/Encryption key/)
   })
 
-  it('reports a failed entry date alignment and a failed rules run in French', async () => {
-    vi.mocked(updateEntryDatesFromReconciledTransactions).mockRejectedValue(new Error(RAW_DETAIL))
+  it('reports a failed rules run in French', async () => {
     vi.mocked(getActiveFiscalYear).mockRejectedValue(new Error(RAW_DETAIL))
     const result = await refreshCompany('company-1')
-    expect(result.entryDatesSync).toMatchObject({ success: false, entriesUpdated: 0 })
-    expect(result.entryDatesSync.message).toMatch(/^Erreur lors de la mise à jour des dates d'écriture : /)
     expect(result.rulesExecution).toMatchObject({ success: false, transactionsProcessed: 0 })
     expect(result.rulesExecution.message).toMatch(/^Erreur lors de l'exécution des règles : /)
     expect(JSON.stringify(result)).not.toContain('ECONNREFUSED')

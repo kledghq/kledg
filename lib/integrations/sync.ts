@@ -26,7 +26,6 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { IntegrationFeature, type SyncResult } from '@/lib/integrations/types'
 import { logger } from '@/lib/logger'
-import { updateEntryDatesFromReconciledTransactions } from '@/lib/services/banking/update-entry-dates-from-transactions.service'
 import { openCredentials } from '@/lib/banking/credentials'
 import { createBankProvider, isBankProvider, providerKind } from '@/lib/banking/providers'
 import { shouldStoreTransaction, type BankProvider } from '@/lib/banking/providers/types'
@@ -285,8 +284,6 @@ async function syncTransactions(
       result.itemsSynced += stored.created
       result.matched = (result.matched ?? 0) + stored.matched
 
-      // Align the dates of reconciled draft entries on their transactions
-      await updateEntryDatesFromReconciledTransactions({ companyId: integration.companyId, bankAccountId: bankAccount.id })
       await prisma.bankAccount.update({ where: { id: bankAccount.id }, data: { lastSyncedAt: now, lastSyncError: null } })
     } catch (error) {
       const reason = errorReason(error)
