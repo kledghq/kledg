@@ -66,11 +66,14 @@ function mount(name: ViewName, { theme = 'light' }: { theme?: 'light' | 'dark' }
   virtualConsole.on('jsdomError', (error) => errors.push(error.message))
   virtualConsole.on('error', (...args: unknown[]) => errors.push(args.map(String).join(' ')))
   const parent = { postMessage: (message: unknown) => outbox.push(JSON.parse(JSON.stringify(message))) }
+  // The clock of the view (Date.now of its window), moved by tick().
+  const clock = { now: 1_800_000_000_000 }
   const dom = new JSDOM(viewHtml(name), {
     runScripts: 'dangerously',
     virtualConsole,
     beforeParse(window) {
       Object.defineProperty(window, 'parent', { value: parent, configurable: true })
+      window.Date.now = () => clock.now
     },
   })
   const window = dom.window
@@ -95,7 +98,10 @@ function mount(name: ViewName, { theme = 'light' }: { theme?: 'light' | 'dark' }
     await deliver({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { content: [{ type: 'text', text: '{}' }], ...(data && { structuredContent: data }), ...extra } })
   }
   const text = () => window.document.getElementById('app')!.textContent ?? ''
-  return { window, document: window.document, outbox, errors, open, deliver, reply, requests, text, flush }
+  const tick = (ms: number) => {
+    clock.now += ms
+  }
+  return { window, document: window.document, outbox, errors, open, deliver, reply, requests, text, flush, tick }
 }
 
 const button = (document: Document, label: string) => {
@@ -330,6 +336,7 @@ describe('MCP actionable list', () => {
     pointer.click()
     await view.flush()
     expect(view.requests('tools/call')).toHaveLength(0)
+    view.tick(1000)
     pointer.click()
     await view.flush()
     const [call] = view.requests('tools/call')
@@ -385,6 +392,7 @@ describe('MCP "Rapprocher" button', () => {
       await view.flush()
       expect(view.requests('tools/call')).toHaveLength(0)
       expect(view.text()).toContain('Rapprocher cette transaction avec l’écriture existante')
+      view.tick(1000)
       reconcile[0].click()
       await view.flush()
       const [call] = view.requests('tools/call')
@@ -403,6 +411,7 @@ describe('MCP "Rapprocher" button', () => {
     rule.click()
     await view.flush()
     expect(view.text()).toContain('Créer l’écriture en brouillon de la règle « Hébergement OVH »')
+    view.tick(1000)
     rule.click()
     await view.flush()
     const [call] = view.requests('tools/call')
@@ -413,6 +422,48 @@ describe('MCP "Rapprocher" button', () => {
     await view.reply(call, { isError: true, content: [{ type: 'text', text: 'Cette transaction est déjà rapprochée.' }] })
     expect(view.text()).toContain('Cette transaction est déjà rapprochée.')
     expect(view.errors).toEqual([])
+  })
+})
+
+// KLEDG-R3-MCP-08: the confirmation click of a direct write holds against a double click.
+describe('confirmation click of a direct write', () => {
+  const companyId = 'cmp_atelier'
+  const args = { companyId, onlyUnreconciled: true, limit: 50 }
+
+  it('ignores the second click of a double click, then acts on a later click', async () => {
+    const view = mount('actions')
+    await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode: 'automatic' }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
+    const reconcile = view.document.querySelector<HTMLButtonElement>('button[data-label="Rapprocher"]')!
+    reconcile.click()
+    view.tick(50)
+    reconcile.click()
+    await view.flush()
+    expect(view.requests('tools/call')).toHaveLength(0)
+    expect(reconcile.textContent).toBe('Confirmer ?')
+    view.tick(800)
+    reconcile.click()
+    reconcile.click()
+    await view.flush()
+    // One call: the buttons are disabled while it runs.
+    expect(view.requests('tools/call')).toHaveLength(1)
+    expect(reconcile.disabled).toBe(true)
+    expect(view.errors).toEqual([])
+  })
+
+  it('asks again when the confirmation comes too late', async () => {
+    const view = mount('actions')
+    await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode: 'automatic' }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
+    const reconcile = view.document.querySelector<HTMLButtonElement>('button[data-label="Rapprocher"]')!
+    reconcile.click()
+    view.tick(60_000)
+    reconcile.click()
+    await view.flush()
+    expect(view.requests('tools/call')).toHaveLength(0)
+    expect(reconcile.textContent).toBe('Confirmer ?')
+    view.tick(1000)
+    reconcile.click()
+    await view.flush()
+    expect(view.requests('tools/call')).toHaveLength(1)
   })
 })
 

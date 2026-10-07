@@ -148,7 +148,9 @@ shows what the server returned.
   calls again with the `actionId`. In automatic mode the view sends
   `dryRun: true` first and executes only on "Confirmer". A direct write
   (`reconcile_transaction`, "Rapprocher" or "Pointer sans écriture") needs
-  a second click.
+  a second click, counted only from 600 ms after the question is shown (the
+  second half of a double click is ignored) and within 10 seconds (a later
+  click asks again); every button is disabled while a call runs.
   Tool buttons appear only when the connection has full control
   (`executionMode` in the data, null otherwise).
 - A message button ("Proposer une écriture", "Retrouver la pièce") sends
