@@ -93,7 +93,11 @@ déductible des factures d'achat comptabilisées
 (`lib/invoices/posting-plan.ts`, la part non déductible s'ajoute aux lignes
 de charge au prorata des bases), du mode simple et des règles d'affectation
 (`vatDeductionShareOn`, `lib/vat-deduction/coefficient.ts`). Les écritures
-déjà passées ne changent pas.
+déjà passées ne changent pas. Le coefficient ne réduit jamais la TVA
+collectée : une vente taxée d'une société partiellement exonérée porte sa TVA
+au 44571 comme toute autre (CGI, art. 256) ; en mode simple, une vente
+exonérée se saisit avec la réponse « Sans TVA ». Seule la franchise en base ne
+collecte rien (art. 293 B).
 
 ### Régularisation en brouillon
 

@@ -18,7 +18,11 @@
  *    nothing for a franchise, CGI art. 293 B). The recoverable VAT goes to 44562 for
  *    a fixed asset, 44566 otherwise (PCG art. 944-44); the rest stays in the
  *    charge or the asset.
- * 4. Income: the collected VAT goes to 44571, unless the company is exempt.
+ * 4. Income: the collected VAT goes to 44571, unless the company is under
+ *    the franchise (CGI art. 293 B). A partly exempt company (coefficient de
+ *    déduction) collects VAT on its taxed sales like any other: the
+ *    coefficient limits what it deducts, never what it collects; an exempt
+ *    sale is the answer "Sans TVA".
  *    A refund of an expense (money in) takes back what the expense booked:
  *    the same lines on the credit side, the recovered VAT included.
  * 5. Movements that are not taxed operations (taxes paid, loans, transfers,
@@ -134,6 +138,12 @@ export interface PostingInput {
    */
   recoveryRatio: number | null
   /**
+   * The company is under the franchise en base (CGI art. 293 B): no VAT
+   * collected on its sales. Absent: it collects VAT on its taxed sales,
+   * whatever its coefficient de déduction.
+   */
+  franchise?: boolean
+  /**
    * The operation is a meal alone of the exploitant of a company taxed at
    * the impôt sur le revenu, in this calendar year: the charge is split
    * (isExploitantMeal tells when). Null or absent: no split.
@@ -188,7 +198,7 @@ function buildPlainPostingLines(input: PostingInput): PostingPlan {
   if (vatCents <= 0) return single(RECOVERY_LABELS['no-vat'])
 
   if (kind === 'income') {
-    if (input.recoveryRatio !== null) return { ...single('Société exonérée de TVA : pas de TVA collectée'), vatCents }
+    if (input.franchise) return { ...single('Franchise en base de TVA : pas de TVA collectée (CGI art. 293 B)'), vatCents }
     return {
       lines: [line(posting.account, amountCents - vatCents, 'base'), line(VAT_COLLECTED, vatCents, 'vat')],
       vatCents,

@@ -15,7 +15,11 @@ import { describe, expect, it } from 'vitest'
 import { ALL_CATEGORIES, findCategory } from '../categories'
 import { buildPostingLines, exclTaxCents, plausibleBankVat, resolvePosting, type Side } from '../posting'
 
-function plan(id: string, amountCents: number, options: { side?: Side; answers?: Record<string, string>; bankVatCents?: number | null; recoveryRatio?: number | null } = {}) {
+function plan(
+  id: string,
+  amountCents: number,
+  options: { side?: Side; answers?: Record<string, string>; bankVatCents?: number | null; recoveryRatio?: number | null; franchise?: boolean } = {},
+) {
   const category = findCategory(id)!
   const resolution = resolvePosting(category, options.answers ?? {}, amountCents, options.bankVatCents)
   if (resolution.status !== 'ready') throw new Error(`${id}: ${resolution.status}`)
@@ -27,6 +31,7 @@ function plan(id: string, amountCents: number, options: { side?: Side; answers?:
     amountCents,
     bankVatCents: options.bankVatCents,
     recoveryRatio: options.recoveryRatio ?? null,
+    franchise: options.franchise,
   })
 }
 
@@ -156,8 +161,23 @@ describe('income VAT lines', () => {
     ])
   })
 
-  it('collects no VAT for an exempt company', () => {
-    expect(lines(plan('ventes-prestations', 120_000, { side: 'credit', recoveryRatio: 0 }))).toEqual([['706', 0, 120_000]])
+  it('collects no VAT for a company under the franchise (CGI art. 293 B)', () => {
+    const franchise = plan('ventes-prestations', 120_000, { side: 'credit', recoveryRatio: 0, franchise: true })
+    expect(lines(franchise)).toEqual([['706', 0, 120_000]])
+    expect(franchise.vatNote).toMatch(/Franchise en base/)
+  })
+
+  // R3 QUAL-01: the coefficient de déduction limits what a partly exempt
+  // company deducts, never what it collects on a taxed sale (CGI art. 256).
+  it('collects the VAT of a taxed sale of a partly exempt company: 1 200 € TTC at 20 %, coefficient 60 %', () => {
+    const partial = plan('ventes-prestations', 120_000, { side: 'credit', answers: { 'sale-vat-rate': 'standard' }, recoveryRatio: 0.6 })
+    expect(lines(partial)).toEqual([
+      ['706', 0, 100_000],
+      ['44571', 0, 20_000],
+    ])
+    expect(partial.vatNote).toBe('TVA collectée')
+    // Its exempt sales (training, CGI art. 261, 4, 4° a) are the answer "Sans TVA"
+    expect(lines(plan('ventes-prestations', 120_000, { side: 'credit', answers: { 'sale-vat-rate': 'none' }, recoveryRatio: 0.6 }))).toEqual([['706', 0, 120_000]])
   })
 
   it('books a grant and interest without VAT', () => {

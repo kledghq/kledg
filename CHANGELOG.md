@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Mode simple : une vente taxée d'une société partiellement exonérée (coefficient de déduction, organisme de formation) porte de nouveau sa TVA collectée au 44571 ; seule la franchise en base ne collecte pas de TVA.
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
 
 ## [0.3.1] - 2026-10-05

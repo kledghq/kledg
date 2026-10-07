@@ -49,7 +49,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
-import { vatDeductionShareOn } from '@/lib/vat-deduction/coefficient'
+import { vatDeductionOn, type VatDeductionOnDay } from '@/lib/vat-deduction/coefficient'
 import { counterpartyOf } from '@/lib/reconciliation/prefill'
 import {
   bankAccountMissingMessage,
@@ -176,18 +176,19 @@ interface PreparedAsset {
   expenseAccountId: string
 }
 
-/** The share of deductible VAT recovered on the day (provisional coefficient de déduction), null when the company deducts all of it. */
-async function recoveryRatioFor(companyId: string, day: string): Promise<number | null> {
-  return vatDeductionShareOn(companyId, day)
+/** The franchise and the share of deductible VAT recovered on the day (provisional coefficient de déduction). */
+async function deductionFor(companyId: string, day: string): Promise<VatDeductionOnDay> {
+  return vatDeductionOn(companyId, day)
 }
 
 /** A category books the same way every time, so a rule can repeat it. */
-function canLearn(category: SimpleCategory, posting: Posting, recoveryRatio: number | null): boolean {
+function canLearn(category: SimpleCategory, posting: Posting, franchise: boolean): boolean {
   // A refund reverses a charge and its VAT: rules book the charge side only
   if (category.kind === 'refund') return false
   if (category.question && !category.question.reusable) return false
   if (posting.vatRule === 'fuel' || posting.vatRule === 'gift') return false
-  if (recoveryRatio !== null && category.kind === 'income' && posting.vatRateBp > 0) return false
+  // A rule books the collected VAT of its rate: a company under the franchise collects none (CGI art. 293 B)
+  if (franchise && category.kind === 'income' && posting.vatRateBp > 0) return false
   return true
 }
 
@@ -212,8 +213,8 @@ async function prepareCategory(
 
   const side = normalizeSide(transaction.side)
   const mealQuestion = resolution.question?.id === EXPLOITANT_MEAL_ANSWER.questionId
-  const [recoveryRatio, mealRule] = await Promise.all([
-    recoveryRatioFor(companyId, day),
+  const [deduction, mealRule] = await Promise.all([
+    deductionFor(companyId, day),
     mealQuestion ? mealRulesOn(companyId, [day]).then((rules) => rules.get(day)!) : null,
   ])
   // At IR, who ate changes what is deductible: the meal question has no default
@@ -222,7 +223,7 @@ async function prepareCategory(
   }
   // A meal alone of the exploitant, at a company taxed at the impôt sur le revenu: only the frais supplémentaires are deductible
   const exploitantMeal = mealRule?.applies && isExploitantMeal(resolution.answers) ? { year: Number(day.slice(0, 4)) } : null
-  const plan = buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side, amountCents, bankVatCents, recoveryRatio, exploitantMeal })
+  const plan = buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side, amountCents, bankVatCents, recoveryRatio: deduction.share, franchise: deduction.franchise, exploitantMeal })
   const nonDeductibleLine = plan.lines.find((l) => l.role === 'non-deductible')
 
   // Durable equipment: the asset line of the posting, with the category's depreciation accounts
@@ -289,7 +290,7 @@ async function prepareCategory(
     answers: Object.keys(resolution.answers).length ? resolution.answers : null,
     vatNote: plan.vatNote,
     mealNote: plan.mealSplit ? mealSplitReason(plan.mealSplit) : mealRule?.unknown && isExploitantMeal(resolution.answers) ? mealRule.explanation : null,
-    learnable: canLearn(category, resolution.posting, recoveryRatio) ? { category, posting: resolution.posting, codes } : null,
+    learnable: canLearn(category, resolution.posting, deduction.franchise) ? { category, posting: resolution.posting, codes } : null,
     asset,
     invoice: null,
   }
