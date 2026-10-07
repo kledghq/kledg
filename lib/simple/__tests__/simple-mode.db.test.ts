@@ -328,6 +328,33 @@ describe.skipIf(!available)('simple mode (PostgreSQL)', () => {
     expect((await call('viewer', 'confirmAll', 'POST', '/api/simple/expenses/confirm-all', { body: { companyId: a.id, transactionIds: [urssaf.id] } })).status).toBe(403)
   })
 
+  it('reports an unexpected failure of one line and keeps confirming the others (KLEDG-R3-QUAL-23)', async () => {
+    const first = await transaction(a, 'PRLV SEPA FREE PRO', 47.99)
+    const second = await transaction(a, 'PRLV SEPA FREE PRO', 29.99, { day: '2026-03-12' })
+    const spy = vi.spyOn(prisma.bankTransaction, 'findFirst').mockImplementationOnce((() => Promise.reject(new Error('connection reset'))) as never)
+    try {
+      const result = await confirmService.confirmHighConfidenceExpenses(a.id, [first.id, second.id], { userId: USERS.owner.id, canValidate: true, source: 'web' })
+      expect(result.confirmed.map((r) => r.transactionId)).toEqual([second.id])
+      expect(result.skipped).toEqual([{ transactionId: first.id, reason: 'Une erreur inattendue a empêché la confirmation\u00a0: réessayez pour cette ligne.' }])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('learns one rule when two confirmations of the same counterparty run at once (KLEDG-R3-QUAL-23)', async () => {
+    for (const day of ['2026-03-05', '2026-04-05']) {
+      const t = await transaction(a, 'VIR SEPA SARL MARTIN FACTURE', 600, { day, counterpartyName: 'SARL Martin' })
+      await confirm('owner', t.id, { categoryId: 'sous-traitance' })
+    }
+    const [third, fourth] = [
+      await transaction(a, 'VIR SEPA SARL MARTIN FACTURE', 600, { day: '2026-05-05', counterpartyName: 'SARL Martin' }),
+      await transaction(a, 'VIR SEPA SARL MARTIN FACTURE', 600, { day: '2026-05-06', counterpartyName: 'SARL Martin' }),
+    ]
+    const results = await Promise.all([confirm('owner', third.id, { categoryId: 'sous-traitance' }), confirm('owner', fourth.id, { categoryId: 'sous-traitance' })])
+    expect(results.map((r) => r.status)).toEqual([201, 201])
+    expect(await prisma.transactionRule.count({ where: { companyId: a.id, name: 'SARL Martin (mode simple)' } })).toBe(1)
+  })
+
   it('learns a rule after three identical choices and suggests it next time', async () => {
     const days = ['2026-03-05', '2026-04-05', '2026-05-05']
     let learned: { id: string; name: string; created: boolean } | null = null

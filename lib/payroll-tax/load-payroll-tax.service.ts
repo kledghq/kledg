@@ -118,12 +118,17 @@ export function computedOf(core: YearCore, frequency: PayrollTaxFrequency): Payr
   return { liable: core.liability === 'liable', frequency, dueCents: core.computation?.dueCents ?? 0 }
 }
 
-export async function buildPayrollTax(companyId: string, query: PayrollTaxQuery, options: { now?: Date } = {}): Promise<{ view: PayrollTaxView; core: YearCore }> {
+export async function buildPayrollTax(
+  companyId: string,
+  query: PayrollTaxQuery,
+  /** `data`: the year's inputs about to be saved, used instead of the stored ones (savePayrollTax computes before it writes). */
+  options: { now?: Date; data?: PayrollTaxData } = {},
+): Promise<{ view: PayrollTaxView; core: YearCore }> {
   const today = day(todayUtc(options.now))
   const currentYear = Number(today.slice(0, 4))
   const year = query.year ?? currentYear
   const rows = await prisma.payrollTaxYear.findMany({ where: { companyId, year: { in: [year - 1, year] } }, select: { year: true, data: true }, take: 2 })
-  const data = parsePayrollTaxData(rows.find((r) => r.year === year)?.data)
+  const data = options.data ?? parsePayrollTaxData(rows.find((r) => r.year === year)?.data)
   const previousData = rows.find((r) => r.year === year - 1) ? parsePayrollTaxData(rows.find((r) => r.year === year - 1)!.data) : null
 
   const [core, previousCore, booksSalariesCents, entry, fiscalYears] = await Promise.all([

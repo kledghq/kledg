@@ -168,13 +168,13 @@ export async function findRule(companyId: string, ruleId: string): Promise<RuleW
   return rule
 }
 
-export async function createRule(companyId: string, input: RuleInput): Promise<RuleWithDetails> {
+export async function createRule(companyId: string, input: RuleInput, db: Prisma.TransactionClient | typeof prisma = prisma): Promise<RuleWithDetails> {
   const name = input.name?.trim()
   if (!name) throw new ValidationError('Donnez un nom à la règle.')
   const conditions = input.conditions ?? []
   const entryLines = input.entryLines ?? []
   assertRulePatternsValid(conditions)
-  return prisma.transactionRule.create({
+  return db.transactionRule.create({
     data: {
       companyId,
       name,
@@ -196,27 +196,30 @@ export async function createRule(companyId: string, input: RuleInput): Promise<R
  * and entry lines are replaced by the given lists (empty when omitted).
  */
 export async function updateRule(companyId: string, ruleId: string, input: RuleInput): Promise<RuleWithDetails> {
+  return prisma.$transaction((tx) => updateRuleInTx(tx, companyId, ruleId, input))
+}
+
+/** updateRule inside the caller's transaction. */
+export async function updateRuleInTx(tx: Prisma.TransactionClient, companyId: string, ruleId: string, input: RuleInput): Promise<RuleWithDetails> {
   assertRulePatternsValid(input.conditions ?? [])
-  return prisma.$transaction(async (tx) => {
-    const rule = await tx.transactionRule.findFirst({ where: { id: ruleId, companyId }, select: { id: true } })
-    if (!rule) throw new NotFoundError(RULE_NOT_FOUND_MESSAGE)
-    await tx.transactionRuleCondition.deleteMany({ where: { ruleId: rule.id } })
-    await tx.transactionRuleEntryLine.deleteMany({ where: { ruleId: rule.id } })
-    return tx.transactionRule.update({
-      where: { id: rule.id },
-      data: {
-        name: input.name,
-        description: input.description || null,
-        enabled: input.enabled,
-        priority: input.priority,
-        journalCode: input.journalCode,
-        defaultVatAccountCode: input.defaultVatAccountCode || null,
-        autoCreate: input.autoCreate,
-        conditions: { create: conditionRows(input.conditions ?? []) },
-        entryLines: { create: lineRows(input.entryLines ?? []) },
-      },
-      include: RULE_INCLUDE,
-    })
+  const rule = await tx.transactionRule.findFirst({ where: { id: ruleId, companyId }, select: { id: true } })
+  if (!rule) throw new NotFoundError(RULE_NOT_FOUND_MESSAGE)
+  await tx.transactionRuleCondition.deleteMany({ where: { ruleId: rule.id } })
+  await tx.transactionRuleEntryLine.deleteMany({ where: { ruleId: rule.id } })
+  return tx.transactionRule.update({
+    where: { id: rule.id },
+    data: {
+      name: input.name,
+      description: input.description || null,
+      enabled: input.enabled,
+      priority: input.priority,
+      journalCode: input.journalCode,
+      defaultVatAccountCode: input.defaultVatAccountCode || null,
+      autoCreate: input.autoCreate,
+      conditions: { create: conditionRows(input.conditions ?? []) },
+      entryLines: { create: lineRows(input.entryLines ?? []) },
+    },
+    include: RULE_INCLUDE,
   })
 }
 

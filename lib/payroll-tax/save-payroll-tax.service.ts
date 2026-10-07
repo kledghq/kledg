@@ -24,11 +24,13 @@ export async function savePayrollTax(companyId: string, input: SavePayrollTaxBod
   const body = SavePayrollTaxBodySchema.parse(input)
   if (new Set(body.data.employees.map((e) => e.id)).size !== body.data.employees.length) throw new ValidationError('Deux salariés ont le même identifiant.')
   const where = { companyId_year: { companyId, year: body.year } }
-  await prisma.payrollTaxYear.upsert({ where, create: { companyId, year: body.year, data: body.data, createdById: options.userId ?? null }, update: { data: body.data } })
-  // The calendar reads the computation of the saved data (liability, frequency from the year before).
-  const { view, core } = await buildPayrollTax(companyId, { year: body.year }, { now: options.now })
+  // The calendar reads the computation of the saved data (liability, frequency from the year before):
+  // computed from the body first, then data and computation written together in one statement, so a
+  // concurrent save or a failure never leaves inputs with the computation of other inputs, or none.
+  const { view, core } = await buildPayrollTax(companyId, { year: body.year }, { now: options.now, data: body.data })
   const computed = computedOf(core, view.frequency)
-  await prisma.payrollTaxYear.update({ where, data: { data: { ...body.data, computed } } })
+  const stored = { ...body.data, computed }
+  await prisma.payrollTaxYear.upsert({ where, create: { companyId, year: body.year, data: stored, createdById: options.userId ?? null }, update: { data: stored } })
   await writeAuditLog('info', `Payroll tax of ${body.year} saved`, {
     action: 'SAVE_PAYROLL_TAX',
     companyId,
