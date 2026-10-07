@@ -9,7 +9,7 @@
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { validateAccountCode } from '@/lib/accounting/validator'
-import { getOrCreateActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
+import { ensureActiveFiscalYear } from '@/lib/accounting/active-fiscal-year.service'
 
 export interface CreateAccountInput {
   code: string
@@ -31,7 +31,7 @@ export async function createAccount(companyId: string, input: CreateAccountInput
     if (!fiscalYear) throw new NotFoundError('Exercice introuvable')
     fiscalYearId = fiscalYear.id
   } else {
-    fiscalYearId = (await getOrCreateActiveFiscalYear(companyId)).id
+    fiscalYearId = (await ensureActiveFiscalYear(companyId)).id
   }
 
   const existing = await prisma.account.findUnique({

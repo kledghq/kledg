@@ -35,8 +35,8 @@ vi.mock('@/lib/import/fec', () => ({
 
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({
   getFiscalYearForDate: vi.fn().mockResolvedValue({ id: 'fy-1', year: 2026 }),
-  getOrCreateActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }),
 }))
+vi.mock('@/lib/accounting/active-fiscal-year.service', () => ({ ensureActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }) }))
 
 vi.mock('@/lib/accounting/services', () => ({
   createAccountingEntryWithWarnings: vi.fn(),

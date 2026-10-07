@@ -25,8 +25,8 @@ vi.mock('@/lib/prisma', () => ({
 }))
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({
   getFiscalYearForDate: vi.fn(async () => ({ id: 'fy', year: 2025 })),
-  getOrCreateActiveFiscalYear: vi.fn(async () => ({ id: 'fy' })),
 }))
+vi.mock('@/lib/accounting/active-fiscal-year.service', () => ({ ensureActiveFiscalYear: vi.fn(async () => ({ id: 'fy' })) }))
 vi.mock('@/lib/accounting/services', () => ({
   createAccountingEntry: vi.fn(),
   createAccountingEntryWithWarnings: mocks.createEntry,
