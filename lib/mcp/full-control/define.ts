@@ -20,6 +20,11 @@
  *      preview without writing, for an assistant that wants to show it;
  *    When only some actions of a tool are high impact (`highImpactActions`),
  *    the others run at once, like a direct tool;
+ *    In validation mode the approval is bound to the data, not only to the
+ *    arguments: a fingerprint of the dry run and of the rows the tool
+ *    targets (`targetState`) is stored with the pending action and computed
+ *    again before the execution; when the data changed since the approval
+ *    the action is refused (fingerprint.ts);
  * 4. every action (not the dry runs nor the plain reads) is written to the
  *    audit log with the user, the assistant (OAuth client name or API key
  *    name), the execution mode, the tool and the main ids.
@@ -39,10 +44,11 @@ import type { Permission } from '@/lib/rbac/authorize'
 import { FULL_CONTROL_REQUIRED_MESSAGE, type CompanyGuard, type McpAccess } from '@/lib/mcp/company-access'
 import { json, run, type ToolResult } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool, permissionsOfAction, writeAnnotations, type ActionPermissions } from '@/lib/mcp/tool-meta'
-import { ForbiddenError } from '@/lib/accounting/errors'
+import { ConflictError, ForbiddenError } from '@/lib/accounting/errors'
 import type { GroupAccess } from '@/lib/management-fees/access'
 import type { ExecutionMode } from '@/lib/ai-access/access'
 import { claimApprovedAction, createPendingAction, finishAction } from './pending-actions'
+import { STATE_CHANGED_MESSAGE, stateFingerprint } from './fingerprint'
 import { TWO_STEP, stepFor } from './descriptions'
 
 export const companyIdInput = z.string().describe('Company id, from list_companies.')
@@ -111,6 +117,14 @@ export interface ConfirmedTool<S extends Shape, P, R> extends ToolBase<S, R> {
    * direct tool. Every action is high impact when absent.
    */
   highImpactActions?: readonly string[]
+  /**
+   * The rows the action acts on (entries with their lines, an invoice with
+   * its lines, rules...), read again before the execution: in validation
+   * mode the approval is refused when they, or the dry run, changed since
+   * the user approved it (fingerprint.ts). The dry run alone is compared
+   * when absent.
+   */
+  targetState?: (args: Args<S>, ctx: FullControlContext) => Promise<unknown>
 }
 
 export type FullControlTool<S extends Shape, P, R> = DirectTool<S, R> | ConfirmedTool<S, P, R>
@@ -258,6 +272,7 @@ export function registerFullControlTool<S extends Shape, P, R>(
 
         if (tool.confirmation && highImpact) {
           const audited = tool.audit
+          const targetState = tool.targetState
           return highImpactCall<P, R>({
             access,
             tool: tool.name,
@@ -265,6 +280,7 @@ export function registerFullControlTool<S extends Shape, P, R>(
             args,
             actionId,
             preview: () => tool.preview(args, ctx),
+            targetState: targetState && (() => targetState(args, ctx)),
             execute: () => tool.execute(args, ctx),
             audit: audited && ((result: R) => audited(args, result)),
           })
@@ -287,6 +303,8 @@ interface HighImpactCall<P, R> {
   args: unknown
   actionId?: string
   preview: () => Promise<P>
+  /** The rows the action acts on, part of the fingerprint the approval is bound to. */
+  targetState?: () => Promise<unknown>
   execute: () => Promise<R>
   /** Main ids written to the audit log with the action. */
   audit: ((result: R) => Record<string, unknown>) | null
@@ -312,10 +330,11 @@ async function highImpactCall<P, R>(call: HighImpactCall<P, R>): Promise<ToolRes
   }
 
   const binding = { userId: access.user.id, caller: access.caller, tool, companyId, args: call.args }
+  const fingerprintOf = async (preview: P) => stateFingerprint(preview, call.targetState ? await call.targetState() : null)
   if (!call.actionId) {
     const preview = await call.preview()
     const assistant = await assistantOf(access)
-    const pending = await createPendingAction(binding, preview, assistant.name)
+    const pending = await createPendingAction(binding, preview, assistant.name, await fingerprintOf(preview))
     await audit(tool, access, companyId, { actionId: pending.id }, undefined, 'MCP_FULL_CONTROL_PENDING')
     return json({
       dryRun: true,
@@ -327,10 +346,22 @@ async function highImpactCall<P, R>(call: HighImpactCall<P, R>): Promise<ToolRes
     })
   }
   const actionId = call.actionId
+  let approvedFingerprint: string | null
   try {
-    await claimApprovedAction(actionId, binding)
+    approvedFingerprint = (await claimApprovedAction(actionId, binding)).fingerprint
   } catch (error) {
     // Unapproved, refused, replayed, expired or tampered actions leave a trace before the refusal.
+    await audit(tool, access, companyId, { actionId }, error instanceof Error ? error.message : 'refused')
+    throw error
+  }
+  // The approval covers the data the user saw: the action is claimed (it
+  // cannot run twice), then refused if the dry run or the target rows
+  // changed since (an approved draft edited by a direct tool, say).
+  try {
+    const current = await fingerprintOf(await call.preview())
+    if (approvedFingerprint === null || current !== approvedFingerprint) throw new ConflictError(STATE_CHANGED_MESSAGE)
+  } catch (error) {
+    await finishAction(actionId, false)
     await audit(tool, access, companyId, { actionId }, error instanceof Error ? error.message : 'refused')
     throw error
   }

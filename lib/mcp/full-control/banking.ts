@@ -34,6 +34,7 @@ import {
 import type { TabularOptions } from '@/lib/banking/import/types'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
+import { rulesState } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -162,6 +163,8 @@ const runRules = fullControlTool({
   never: 'validates the entries the rules create (drafts), or reconciles a transaction twice.',
   idempotent: true,
   confirmation: true,
+  // The dry run only counts: the rules themselves are bound to the approval (update_rule before the execution refuses it).
+  targetState: ({ companyId }) => rulesState(companyId),
   async preview({ companyId, transactionIds }) {
     const result = await processTransactions({ companyId, transactionIds, autoApply: false })
     return { processed: result.processed, matched: result.matched, wouldApply: result.applicable, errors: result.errors }
@@ -284,6 +287,7 @@ const deleteRuleTool = fullControlTool({
   never: 'deletes the entries the rule created.',
   confirmation: true,
   destructive: true,
+  targetState: ({ companyId, ruleId }) => rulesState(companyId, ruleId),
   preview: async ({ companyId, ruleId }) => ({ ruleToDelete: summarizeRule(await findRule(companyId, ruleId)) }),
   execute: async ({ companyId, ruleId }) => ({ deleted: true, ...(await deleteRule(companyId, ruleId)) }),
   audit: ({ ruleId }, result) => ({ ruleId, name: result.name }),

@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Sécurité
+
+- Assistants IA en mode validation : une action approuvée dans Kledg n'est exécutée que si les données qu'elle vise (écritures et leurs lignes, factures, règles d'affectation, notes de frais) et son aperçu n'ont pas changé depuis l'approbation ; sinon elle est refusée et doit être préparée puis approuvée de nouveau. Migration `20261122090000_mcp_pending_action_fingerprint` (colonne ajoutée, additive).
+
 ### Corrigé
 
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
