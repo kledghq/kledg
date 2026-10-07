@@ -62,7 +62,7 @@ describe('provisional and definitive coefficients', () => {
   })
 
   it('regularises the BOFiP example: 784 € x 50 % less 352,80 € deducted at 45 % is 39,20 €', () => {
-    // BOI-TVA-DED-20-10-40, example 3: "784 X 0,5 – 352,8, soit 39,2 euros"
+    // BOI-TVA-DED-20-10-40, example 3: "784 x 0,5 - 352,80 = 39,20 €"
     expect(regularisationCents(78_400, 35_280, 50)).toBe(3_920)
     expect(incurredFromDeducted(35_280, 45)).toBe(78_400)
   })
