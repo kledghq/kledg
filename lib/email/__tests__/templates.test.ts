@@ -86,3 +86,18 @@ describe('emailChangeNoticeEmail', () => {
     expect(message.html).not.toContain('<img src=x')
   })
 })
+
+describe('[KLEDG-R3-INPUT-06] links in templates', () => {
+  it('escapes the URL in the button and in clear', () => {
+    const url = 'https://kledg.example.com/x?a=1&b="><img src=x onerror=alert(1)>'
+    const { html } = resetPasswordEmail('a@example.fr', url)
+    expect(html).not.toContain('"><img')
+    expect(html).toContain('href="https://kledg.example.com/x?a=1&amp;b=&quot;&gt;&lt;img src=x onerror=alert(1)&gt;"')
+  })
+
+  it('never links anything but http(s)', () => {
+    const { html } = welcomeEmail('a@example.fr', 'javascript:alert(1)')
+    expect(html).not.toContain('javascript:')
+    expect(html).toContain('href="#"')
+  })
+})

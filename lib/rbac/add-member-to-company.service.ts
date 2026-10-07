@@ -5,6 +5,8 @@ import { auth } from '@/lib/auth'
 import { roles } from '@/lib/permissions'
 import { ensureCompanyOrganization } from './ensure-company-organization.service'
 import { isEmailEnabled } from '@/lib/email'
+import { sendAsWelcome } from '@/lib/email/welcome-context'
+import { withinRateLimit } from '@/lib/rate-limit'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 
 /** Roles a member can hold in a company (lib/permissions.ts defines what each one grants). */
@@ -34,6 +36,18 @@ export type AddMemberResult = {
   /** True when a "choose your password" email was sent. */
   welcomeEmailSent: boolean
   roles: string[]
+}
+
+/**
+ * Sends the "choose your password" welcome email (a reset link, welcome
+ * variant decided on the server), at most a few times a day per person
+ * (rule welcome-email): removing and adding someone again cannot flood
+ * their inbox. Returns whether it was sent.
+ */
+async function sendWelcome(userId: string, email: string): Promise<boolean> {
+  if (!(await withinRateLimit('welcome-email', userId))) return false
+  await sendAsWelcome(() => auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password?welcome=1' } }))
+  return true
 }
 
 function assertValidRole(role: string): asserts role is CompanyRoleName {
@@ -108,8 +122,7 @@ export async function addMemberToCompany(
     await resetUnconfirmedAccount(user.id, input.name?.trim() || email.split('@')[0], password)
     resetUnconfirmedUser = true
     if (await isEmailEnabled()) {
-      await auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password?welcome=1' } })
-      welcomeEmailSent = true
+      welcomeEmailSent = await sendWelcome(user.id, email)
     } else {
       generatedPassword = password
     }
@@ -135,10 +148,7 @@ export async function addMemberToCompany(
 
     if (await isEmailEnabled()) {
       // The user chooses their own password through an emailed link.
-      await auth.api.requestPasswordReset({
-        body: { email, redirectTo: '/reset-password?welcome=1' },
-      })
-      welcomeEmailSent = true
+      welcomeEmailSent = await sendWelcome(user.id, email)
     } else {
       generatedPassword = password
     }

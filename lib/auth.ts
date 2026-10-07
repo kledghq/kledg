@@ -17,6 +17,7 @@ import { actionRefusalMessage, authActionOf, isActionAllowed } from './instance'
 import { REQUIRE_EMAIL_VERIFICATION } from './instance/policy'
 import { authRateLimit, isAccountRouteOnlyPath, isOrganizationMutationPath, isUserRouteOnlyPath } from './auth-policy'
 import { isEmailChangeToken } from './account/verification-token'
+import { isWelcomeReset } from './email/welcome-context'
 import { checkAccountDeletion } from './account/deletion-guards'
 import { prisma } from './prisma'
 import { CLIENT_IP_HEADER } from './client-ip'
@@ -47,8 +48,9 @@ function createAuth() {
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       // Members added by an administrator get a "welcome" variant of the same
-      // link (see lib/rbac/add-member-to-company.service.ts).
-      const isWelcome = decodeURIComponent(url).includes('welcome=1')
+      // link, decided on the server (lib/email/welcome-context.ts), never from
+      // the URL a caller may choose (KLEDG-R3-INPUT-06).
+      const isWelcome = isWelcomeReset()
       // Sent after the response (KLEDG-SEC-009): Better Auth awaits this hook
       // only for an existing account, so awaiting the delivery would make a
       // known address measurably slower to answer than an unknown one. On

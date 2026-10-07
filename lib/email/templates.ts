@@ -12,9 +12,16 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/** Only http(s) links reach a template; the URL is escaped wherever it appears (KLEDG-R3-INPUT-06). */
+function safeUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? escapeHtml(url) : '#'
 }
 
 function layout(title: string, intro: string, cta: { label: string; url: string }, outro: string): string {
+  const url = safeUrl(cta.url)
   return `<!doctype html>
 <html lang="fr">
   <body style="margin:0;padding:32px 16px;background:#f6f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#18181b">
@@ -23,9 +30,9 @@ function layout(title: string, intro: string, cta: { label: string; url: string 
         <p style="margin:0 0 24px;font-size:15px;font-weight:600;letter-spacing:-0.01em">${APP_NAME}</p>
         <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3">${title}</h1>
         <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#3f3f46">${intro}</p>
-        <a href="${cta.url}" style="display:inline-block;padding:10px 18px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">${cta.label}</a>
+        <a href="${url}" style="display:inline-block;padding:10px 18px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">${cta.label}</a>
         <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#71717a">${outro}</p>
-        <p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#a1a1aa;word-break:break-all">${cta.url}</p>
+        <p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#a1a1aa;word-break:break-all">${url}</p>
       </td></tr>
     </table>
   </body>
