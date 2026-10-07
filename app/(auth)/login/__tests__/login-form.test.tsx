@@ -85,17 +85,40 @@ describe('LoginForm', () => {
     expect(nav.push).not.toHaveBeenCalled()
   })
 
-  it('shows an error passed in the URL, then removes it from the address', async () => {
-    nav.search = new URLSearchParams({ error: 'Lien expiré' })
+  it('shows the fixed message of a known error code, then removes it from the address', async () => {
+    nav.search = new URLSearchParams({ error: 'TOKEN_EXPIRED' })
     render(<LoginForm />)
-    expect(await screen.findByText('Lien expiré')).toBeInTheDocument()
+    expect(await screen.findByText('Ce lien a expiré. Demandez-en un nouveau.')).toBeInTheDocument()
     expect(nav.replace).toHaveBeenCalledWith('/login')
   })
 
-  it('shows an error containing a percent sign without crashing', async () => {
-    nav.search = new URLSearchParams({ error: 'Remise de 100% refusée' })
+  // KLEDG-R3-AUTH-04: the parameter is a code, never text shown as is.
+  it.each(['Votre compte est suspendu. Appelez le 01 23 45 67 89', 'Remise de 100% refusée', 'constructor', '__proto__'])(
+    'shows a generic message for free text in the URL (%s)',
+    async (error) => {
+      nav.search = new URLSearchParams({ error })
+      render(<LoginForm />)
+      expect(await screen.findByText('La connexion n’a pas abouti. Réessayez.')).toBeInTheDocument()
+      expect(screen.queryByText(error, { exact: false })).not.toBeInTheDocument()
+    },
+  )
+
+  it('keeps the page to go back to when it removes the error (email change link)', async () => {
+    const back = '/api/auth/verify-email?token=abc&callbackURL=%2Fsettings%2Fprofile'
+    nav.search = new URLSearchParams({ error: 'SIGN_IN_TO_CONFIRM_EMAIL', redirect: back })
     render(<LoginForm />)
-    expect(await screen.findByText('Remise de 100% refusée')).toBeInTheDocument()
+    expect(await screen.findByText('Connectez-vous pour confirmer votre nouvelle adresse email.')).toBeInTheDocument()
+    expect(nav.replace).toHaveBeenCalledWith(`/login?${new URLSearchParams({ redirect: back })}`)
+  })
+
+  it('opens an API path after sign-in with a full navigation', async () => {
+    const location = { href: 'http://localhost/login' }
+    vi.stubGlobal('location', location)
+    nav.search = new URLSearchParams({ redirect: '/api/auth/verify-email?token=abc' })
+    render(<LoginForm />)
+    await signIn()
+    await waitFor(() => expect(location.href).toBe('/api/auth/verify-email?token=abc'))
+    expect(nav.push).not.toHaveBeenCalled()
   })
 
   it('sends a signed-in user on to the requested page, except during an OAuth authorization', async () => {

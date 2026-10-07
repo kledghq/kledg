@@ -381,7 +381,13 @@ describe.skipIf(!available)('assistant access level and revocation', () => {
         new Request(`${BASE}/api/ai-access/api-keys`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: `Clé ${level ?? 'défaut'}`, access: { allCompanies: true, companyIds: [] }, ...(level && { level }) }),
+          body: JSON.stringify({
+            name: `Clé ${level ?? 'défaut'}`,
+            access: { allCompanies: true, companyIds: [] },
+            ...(level && { level }),
+            // Full control asks for the password again (KLEDG-R3-AUTH-01).
+            ...(level === 'admin' && { password: PASSWORD }),
+          }),
         }),
       )
       expect(response.status).toBe(201)

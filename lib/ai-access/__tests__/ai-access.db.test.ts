@@ -43,6 +43,7 @@ const OWNER = { id: 'u-owner', email: 'owner@test.local', name: 'Owner', role: '
 const OTHER = { id: 'u-other', email: 'other@test.local', name: 'Other', role: 'user' }
 const CLIENT = 'client-claude'
 const OTHER_CLIENT = 'client-chatgpt'
+const PASSWORD = 'correct horse battery staple'
 
 /** Rows of companies A and B (owner is a member of both) and C (owner is not a member). */
 const ids = {} as Record<string, string>
@@ -93,8 +94,10 @@ async function seedCompany(prefix: 'a' | 'b' | 'c', name: string, siren: string,
 
 async function seed() {
   await prepareTestDatabase('ai_access')
+  const hash = await (await auth.$context).password.hash(PASSWORD)
   for (const user of [OWNER, OTHER]) {
     await prisma.user.create({ data: { id: user.id, email: user.email, name: user.name, role: user.role } })
+    await prisma.authAccount.create({ data: { id: `acc-${user.id}`, accountId: user.id, providerId: 'credential', userId: user.id, password: hash } })
   }
   await seedCompany('a', 'Atelier Alpha', '111111111', [OWNER.id])
   await seedCompany('b', 'Bureau Beta', '222222222', [OWNER.id, OTHER.id])
@@ -343,13 +346,13 @@ describe.skipIf(!available)('AI access grants', () => {
     it('creates a key in automatic mode unless validation is chosen, and edits the mode', async () => {
       as(OWNER)
       const access = { allCompanies: true, companyIds: [] }
-      const automatic = (await (await call('apiKeys', 'POST', '/api/ai-access/api-keys', { name: 'Auto', access, level: 'admin' })).json()) as {
+      const automatic = (await (await call('apiKeys', 'POST', '/api/ai-access/api-keys', { name: 'Auto', access, level: 'admin', password: PASSWORD })).json()) as {
         id: string
         executionMode: string
       }
       expect(automatic.executionMode).toBe('automatic')
       const validation = (await (
-        await call('apiKeys', 'POST', '/api/ai-access/api-keys', { name: 'Valid', access, level: 'admin', executionMode: 'validation' })
+        await call('apiKeys', 'POST', '/api/ai-access/api-keys', { name: 'Valid', access, level: 'admin', executionMode: 'validation', password: PASSWORD })
       ).json()) as { id: string; executionMode: string }
       expect(validation.executionMode).toBe('validation')
       expect((await call('apiKeys', 'POST', '/api/ai-access/api-keys', { name: 'Bad', access, executionMode: 'yolo' })).status).toBe(400)

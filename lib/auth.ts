@@ -17,6 +17,7 @@ import { actionRefusalMessage, authActionOf, isActionAllowed } from './instance'
 import { REQUIRE_EMAIL_VERIFICATION } from './instance/policy'
 import { authRateLimit, isAccountRouteOnlyPath, isOrganizationMutationPath, isUserRouteOnlyPath } from './auth-policy'
 import { isEmailChangeToken } from './account/verification-token'
+import { revokeDelegatedAccess } from './account/revoke-delegated-access'
 import { checkAccountDeletion } from './account/deletion-guards'
 import { prisma } from './prisma'
 import { CLIENT_IP_HEADER } from './client-ip'
@@ -25,6 +26,20 @@ import { resilientSingleton } from './resilient-singleton'
 
 /** Lifetime of the session cookie cache (see `session.cookieCache` below and docs/configuration.md). */
 export const SESSION_COOKIE_CACHE_SECONDS = 60
+
+/** The user whose password a successful Better Auth call just changed, if any. */
+function passwordChangedFor(path: string | undefined, returned: unknown, body: unknown): string | null {
+  if (!returned || returned instanceof APIError || returned instanceof Response) return null
+  if (path === '/change-password') {
+    const id = (returned as { user?: { id?: unknown } }).user?.id
+    return typeof id === 'string' ? id : null
+  }
+  if (path === '/admin/set-user-password') {
+    const id = (body as { userId?: unknown } | undefined)?.userId
+    return typeof id === 'string' ? id : null
+  }
+  return null
+}
 
 function createAuth() {
   return betterAuth({
@@ -45,6 +60,12 @@ function createAuth() {
     // A reset is how a user evicts someone who knows the old password: every
     // session of the account ends, including the one that may be stolen.
     revokeSessionsOnPasswordReset: true,
+    // ...and so does everything that acts for the account without a session:
+    // API keys and AI assistants (KLEDG-R3-AUTH-01). A change of password
+    // does the same (hooks.after below).
+    onPasswordReset: async ({ user }) => {
+      await revokeDelegatedAccess(user.id)
+    },
     sendResetPassword: async ({ user, url }) => {
       // Members added by an administrator get a "welcome" variant of the same
       // link (see lib/rbac/add-member-to-company.service.ts).
@@ -64,7 +85,14 @@ function createAuth() {
     sendVerificationEmail: async ({ user, url, token }) => {
       // Email changes (lib/account/change-email.service.ts) reuse this hook
       // with the new address: the link switches the account to it.
-      await sendEmail(isEmailChangeToken(token) ? changeEmailVerificationEmail(user.email, url) : verifyEmailEmail(user.email, url))
+      // Sent after the response (KLEDG-R3-AUTH-03, as KLEDG-SEC-009): Better
+      // Auth awaits this hook only when the new address is free, so awaiting
+      // the delivery would tell a registered address from a free one.
+      waitUntil(
+        sendEmail(isEmailChangeToken(token) ? changeEmailVerificationEmail(user.email, url) : verifyEmailEmail(user.email, url)).catch(
+          () => {},
+        ),
+      )
     },
   },
   user: {
@@ -129,6 +157,18 @@ function createAuth() {
           throw new APIError('FORBIDDEN', { message: actionRefusalMessage(action) })
         }
       }
+      // KLEDG-R3-AUTH-02: an email change link must not sign in whoever opens
+      // it. Better Auth creates a session for the requesting account when the
+      // link is opened without one; the link only completes in a browser
+      // already signed in to that account (another account is refused by
+      // Better Auth), so a signed out browser signs in first and comes back.
+      if (ctx.path === '/verify-email') {
+        const token = typeof ctx.query?.token === 'string' ? ctx.query.token : ''
+        if (isEmailChangeToken(token) && !(await getSessionFromCtx(ctx))) {
+          const back = `/api/auth/verify-email?${new URL(ctx.request.url).searchParams.toString()}`
+          throw ctx.redirect(`/login?error=SIGN_IN_TO_CONFIRM_EMAIL&redirect=${encodeURIComponent(back)}`)
+        }
+      }
       if (isAccountRouteOnlyPath(ctx.path)) {
         throw new APIError('FORBIDDEN', { message: 'Utilisez la page Profil de Kledg pour cette action.' })
       }
@@ -147,6 +187,14 @@ function createAuth() {
           })
         }
       }
+    }),
+    // KLEDG-R3-AUTH-01: a new password evicts whoever knew the old one or
+    // held a session, API keys and AI assistants included (the reset path is
+    // emailAndPassword.onPasswordReset above). Runs for HTTP and in-process
+    // calls alike, only when the change succeeded.
+    after: createAuthMiddleware(async (ctx) => {
+      const userId = passwordChangedFor(ctx.path, ctx.context.returned, ctx.body)
+      if (userId) await revokeDelegatedAccess(userId)
     }),
   },
   plugins: [

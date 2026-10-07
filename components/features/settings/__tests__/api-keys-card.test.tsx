@@ -78,6 +78,11 @@ describe('NewApiKeyCard', () => {
     await user.click(screen.getByRole('radio', { name: /Validation dans Kledg/ }))
     await user.click(screen.getByRole('radio', { name: /Seulement les sociétés choisies/ }))
     await user.click(screen.getByRole('checkbox', { name: /Beta SARL/ }))
+    // Full control asks for the password again (KLEDG-R3-AUTH-01).
+    await user.click(screen.getByRole('button', { name: 'Créer la clé' }))
+    expect(screen.getByText('Saisissez votre mot de passe pour créer une clé à contrôle total.')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText(/Votre mot de passe/), 'secret-password')
     await user.click(screen.getByRole('button', { name: 'Créer la clé' }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -86,6 +91,7 @@ describe('NewApiKeyCard', () => {
       access: { allCompanies: false, companyIds: ['c2'] },
       level: 'admin',
       executionMode: 'validation',
+      password: 'secret-password',
     })
     await waitFor(() => expect(screen.getByRole('radio', { name: /Lecture et brouillons/ })).toBeChecked())
     expect(screen.getByLabelText('Nom')).toHaveValue('')

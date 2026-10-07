@@ -47,6 +47,8 @@ Après une réduction, l'autorisation enregistrée ne couvre plus tout ce que l'
 
 Une clé API reçoit son niveau à sa création (**Lecture et brouillons d'écritures** par défaut, jamais Contrôle total sans le choisir), et pour le contrôle total son mode d'exécution (**Automatique** par défaut), modifiable ensuite avec **Modifier**. Il est affiché dans la liste des clés ; pour en changer, créez une nouvelle clé et révoquez l'ancienne. Une clé sans niveau enregistré n'a que la lecture ; les clés créées avant l'ajout des niveaux ont reçu, par une migration, le niveau qu'elles avaient (lecture et brouillons).
 
+Une clé à **Contrôle total** agit comme vous et survit à la session qui l'a créée : sa création demande de saisir de nouveau votre mot de passe (10 tentatives par quart d'heure), une session ouverte ne suffit pas.
+
 ### Pour les outils de contrôle total
 
 Les outils qui agissent au-delà des brouillons (`lib/mcp/full-control`) ne sont enregistrés que si la connexion a le contrôle total (`access.canAdmin` dans `registerKledgTools`). Ils sont tous déclarés avec `fullControlTool` et enregistrés par `registerFullControlTool` (`lib/mcp/full-control/define.ts`), qui, à chaque appel et dans cet ordre :
@@ -84,6 +86,20 @@ Le bouton **Révoquer** d'un assistant autorisé supprime, pour votre compte :
 - l'accès des jetons déjà émis : un jeton d'accès encore valide est refusé par `/api/mcp` dès la requête suivante (réponse 401 `invalid_token`), puisque l'autorisation n'existe plus.
 
 Le nettoyage est fait par la base de données (déclencheurs sur la table des autorisations), quel que soit le chemin de la révocation. Les autres utilisateurs du même assistant ne sont pas concernés. Pour rétablir l'accès, reconnectez l'assistant : la page d'autorisation s'affiche de nouveau.
+
+### Changement ou réinitialisation du mot de passe
+
+Un nouveau mot de passe écarte quiconque connaissait l'ancien ou tenait une de vos sessions. La réinitialisation (« Mot de passe oublié ») et le changement depuis **Profil** suppriment, en plus des sessions :
+
+- toutes vos clés API ;
+- toutes vos autorisations d'assistants (Claude, ChatGPT...), leurs jetons et leurs choix de sociétés : un jeton d'accès encore valide est refusé dès la requête suivante ;
+- les actions en attente d'approbation et les confirmations des assistants.
+
+Recréez ensuite les clés dont vous avez besoin et reconnectez vos assistants. La liste de ce qui est supprimé est la même que pour un compte jamais confirmé repris par un administrateur (`lib/account/revoke-delegated-access.ts`).
+
+### Déconnexion du navigateur
+
+Le jeton de rafraîchissement d'un assistant est lié à la session du navigateur dans laquelle vous avez accepté la page d'autorisation. Si vous vous déconnectez de ce navigateur (ou si cette session expire ou est révoquée depuis **Profil**, **Sessions**), l'assistant ne peut plus renouveler son jeton : il fonctionne jusqu'à l'expiration de son jeton d'accès (1 heure), puis demande à être reconnecté. Pour qu'un assistant reste connecté longtemps, autorisez-le depuis un navigateur où vous restez connecté, ou utilisez une clé API.
 
 ## Proposer avec l'IA
 

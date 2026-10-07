@@ -8,6 +8,13 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
 
+### Sécurité
+
+- Un changement ou une réinitialisation du mot de passe supprime aussi toutes les clés API et déconnecte tous les assistants IA du compte (autorisations, jetons, actions en attente), en plus des autres sessions ; la création d'une clé API à contrôle total demande de saisir de nouveau le mot de passe ([documentation](docs/mcp.md#changement-ou-réinitialisation-du-mot-de-passe)).
+- Le lien de confirmation d'une nouvelle adresse email ne connecte plus le navigateur qui l'ouvre : il faut d'abord se connecter au compte concerné, puis la confirmation se termine.
+- Le changement d'adresse email répond dans le même délai que la nouvelle adresse soit libre ou déjà utilisée par un autre compte.
+- La page de connexion n'affiche plus le texte passé dans son adresse : seuls les codes d'erreur connus ont un message, les autres un message générique.
+
 ## [0.3.1] - 2026-10-05
 
 ### Ajouté

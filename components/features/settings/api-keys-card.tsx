@@ -52,6 +52,9 @@ export function NewApiKeyCard({
   const [level, setLevel] = useState<AccessLevel>('write')
   // Full control only: automatic by default (owner's choice).
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('automatic')
+  // Full control only: the password is typed again (the server checks it).
+  const [password, setPassword] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
   const [accessMessage, setAccessMessage] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [newKey, setNewKey] = useState<string | null>(null)
@@ -63,12 +66,21 @@ export function NewApiKeyCard({
       setAccessMessage(invalid)
       return
     }
+    if (level === 'admin' && !password) {
+      setPasswordMessage('Saisissez votre mot de passe pour créer une clé à contrôle total.')
+      return
+    }
     setCreating(true)
     try {
       const response = await fetch('/api/ai-access/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() || 'Clé MCP', access, level, ...(level === 'admin' && { executionMode }) }),
+        body: JSON.stringify({
+          name: name.trim() || 'Clé MCP',
+          access,
+          level,
+          ...(level === 'admin' && { executionMode, password }),
+        }),
       })
       const data = (await response.json().catch(() => ({}))) as { key?: string; error?: string }
       if (!response.ok || !data.key) {
@@ -80,6 +92,7 @@ export function NewApiKeyCard({
       setAccess(ALL_COMPANIES)
       setLevel('write')
       setExecutionMode('automatic')
+      setPassword('')
       await onCreated()
     } finally {
       setCreating(false)
@@ -113,6 +126,25 @@ export function NewApiKeyCard({
           </Field>
           <AccessLevelPicker value={level} onChange={setLevel} disabled={creating} />
           {level === 'admin' && <ExecutionModePicker value={executionMode} onChange={setExecutionMode} disabled={creating} />}
+          {level === 'admin' && (
+            <Field
+              label="Votre mot de passe"
+              hint="Une clé à contrôle total agit comme vous&nbsp;: confirmez avec votre mot de passe."
+              error={passwordMessage ?? undefined}
+              required
+            >
+              <Input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setPasswordMessage(null)
+                }}
+                disabled={creating}
+              />
+            </Field>
+          )}
           <CompanyAccessPicker
             companies={companies}
             loading={companiesLoading}
