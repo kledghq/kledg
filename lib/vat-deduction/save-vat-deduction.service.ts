@@ -18,6 +18,9 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal } from '@/lib/utils/money'
+import { parisDayOf } from '@/lib/accounting/entry-date'
+import { taxationOf } from './coefficient'
+import { deductedVatOf } from './load-vat-deduction.service'
 import { VAT_TREATMENTS } from './revenue'
 
 const percent = (message: string) => z.number({ error: message }).int(message).min(0, message).max(100, message)
@@ -44,9 +47,47 @@ export type SaveVatDeductionBody = z.infer<typeof SaveVatDeductionBodySchema>
 
 const YEAR_FIELDS = ['estimatedTaxationPercent', 'assujettissementPercent', 'incurredVatCents', 'note'] as const
 
-export async function saveVatDeduction(companyId: string, body: SaveVatDeductionBody, options: { userId?: string } = {}): Promise<{ saved: string[] }> {
+/**
+ * The years whose applied coefficient this save changes after VAT was
+ * already deducted in them (vat_deduction_years.coefficientChangedOn): the
+ * estimate or the coefficient d'assujettissement of a year that has
+ * started, or the deduction by coefficient switched on or off during the
+ * current year. Their VAT borne then has to be entered: it no longer reads
+ * back from the VAT deducted (load-vat-deduction.service.ts).
+ */
+async function yearsChangedAfterDeductions(companyId: string, body: SaveVatDeductionBody, today: string): Promise<number[]> {
+  const currentYear = Number(today.slice(0, 4))
+  const candidates = new Set<number>()
+  if (body.year !== undefined && body.year <= currentYear && (body.estimatedTaxationPercent !== undefined || body.assujettissementPercent !== undefined)) {
+    const row = await prisma.vatDeductionYear.findUnique({
+      where: { companyId_year: { companyId, year: body.year } },
+      select: { estimatedTaxationPercent: true, assujettissementPercent: true },
+    })
+    // The estimate applies only to a year without a definitive coefficient the year before (provisionalTaxation)
+    const estimateChanged =
+      body.estimatedTaxationPercent !== undefined &&
+      body.estimatedTaxationPercent !== (row?.estimatedTaxationPercent ?? null) &&
+      (await taxationOf(companyId, `${body.year - 1}-01-01`, `${body.year - 1}-12-31`)).percent === null
+    const assujettissementChanged = body.assujettissementPercent !== undefined && body.assujettissementPercent !== (row?.assujettissementPercent ?? 100)
+    if (estimateChanged || assujettissementChanged) candidates.add(body.year)
+  }
+  if (body.partialVatDeduction !== undefined) {
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { partialVatDeduction: true } })
+    if (company && company.partialVatDeduction !== body.partialVatDeduction) candidates.add(currentYear)
+  }
+  const changed: number[] = []
+  for (const year of candidates) {
+    const until = year < currentYear ? `${year}-12-31` : today
+    if ((await deductedVatOf(companyId, `${year}-01-01`, until)) !== 0) changed.push(year)
+  }
+  return changed
+}
+
+export async function saveVatDeduction(companyId: string, body: SaveVatDeductionBody, options: { userId?: string; now?: Date } = {}): Promise<{ saved: string[] }> {
   const yearFields = YEAR_FIELDS.filter((key) => body[key] !== undefined)
   if (yearFields.length > 0 && body.year === undefined) throw new ValidationError('Indiquez l’année des coefficients.')
+  const today = parisDayOf(options.now ?? new Date())
+  const changedYears = await yearsChangedAfterDeductions(companyId, body, today)
   if (body.accounts && new Set(body.accounts.map((a) => a.accountCode)).size !== body.accounts.length) {
     throw new ValidationError('Un compte figure deux fois.')
   }
@@ -71,6 +112,15 @@ export async function saveVatDeduction(companyId: string, body: SaveVatDeduction
       })
       saved.push(...yearFields)
     }
+    // Keep the first day the applied coefficient changed (an existing marker is not moved)
+    for (const year of changedYears) {
+      await tx.vatDeductionYear.upsert({
+        where: { companyId_year: { companyId, year } },
+        create: { companyId, year, coefficientChangedOn: new Date(`${today}T00:00:00.000Z`), createdById: options.userId ?? null },
+        update: {},
+      })
+      await tx.vatDeductionYear.updateMany({ where: { companyId, year, coefficientChangedOn: null }, data: { coefficientChangedOn: new Date(`${today}T00:00:00.000Z`) } })
+    }
     const accounts = body.accounts ?? []
     const existingRows = accounts.length
       ? await tx.revenueAccountSetting.findMany({ where: { companyId, accountCode: { in: accounts.map((a) => a.accountCode) } }, select: { accountCode: true, trainingOrigin: true } })
@@ -91,7 +141,7 @@ export async function saveVatDeduction(companyId: string, body: SaveVatDeduction
   await writeAuditLog('info', 'VAT deduction settings saved', {
     action: 'SAVE_VAT_DEDUCTION',
     companyId,
-    metadata: { year: body.year ?? null, fields: saved, accounts: body.accounts?.length ?? 0 },
+    metadata: { year: body.year ?? null, fields: saved, accounts: body.accounts?.length ?? 0, coefficientChangedYears: changedYears },
   })
   return { saved }
 }

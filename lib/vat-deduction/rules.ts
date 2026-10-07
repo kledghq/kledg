@@ -22,8 +22,8 @@
  * - During year N the coefficient is provisional, from the turnover of the
  *   year before (BOI-TVA-DED-20-10-40, example 3); the definitive one,
  *   from the turnover of N, is set "avant le 25 avril de l'année suivante"
- *   (art. 206, V, 2) and the difference is regularised whatever its size
- *   (BOI-TVA-DED-20-10-20 §460): a complement of deduction on CA3 line 21
+ *   (art. 206, V, 2) and the difference with the VAT actually deducted is
+ *   regularised whatever its size (BOI-TVA-DED-20-10-20 §460): a complement of deduction on CA3 line 21
  *   (CA12 line 25), a reversement on CA3 line 15 (CA12 line 18) (notices of
  *   the 2026 forms).
  *
@@ -64,8 +64,9 @@ export function percentOf(cents: number, percent: number): number {
 /**
  * The VAT borne in the year (before the coefficient) derived from the VAT
  * deducted under the provisional coefficient: deducted x 100 / provisional,
- * rounded half up. Null when nothing could be deducted (coefficient 0): the
- * user enters the VAT borne.
+ * rounded half up. Right only when that coefficient applied all year (the
+ * caller checks it, load-vat-deduction.service.ts). Null when nothing could
+ * be deducted (coefficient 0): the user enters the VAT borne.
  */
 export function incurredFromDeducted(deductedCents: number, provisionalPercent: number): number | null {
   if (provisionalPercent <= 0) return null
@@ -75,12 +76,16 @@ export function incurredFromDeducted(deductedCents: number, provisionalPercent: 
 }
 
 /**
- * The regularisation of a year: VAT borne x (definitive - provisional) /
- * 100. Positive: a complement of deduction; negative: VAT to pay back.
- * Due whatever its size (BOI-TVA-DED-20-10-20 §460).
+ * The regularisation of a year: the VAT the definitive coefficient allows
+ * on the VAT borne, minus the VAT actually deducted during the year (with
+ * whatever provisional coefficients were applied). Positive: a complement
+ * of deduction; negative: VAT to pay back. Due whatever its size
+ * (BOI-TVA-DED-20-10-20 §460). BOI-TVA-DED-20-10-40, example 3: 784 € of
+ * VAT, 352,80 € deducted at 0,45, definitive 0,5: 784 x 0,5 - 352,80 =
+ * 39,20 € to deduct in addition.
  */
-export function regularisationCents(incurredCents: number, provisionalPercent: number, definitivePercent: number): number {
-  return percentOf(incurredCents, definitivePercent - provisionalPercent)
+export function regularisationCents(incurredCents: number, deductedCents: number, definitivePercent: number): number {
+  return percentOf(incurredCents, definitivePercent) - deductedCents
 }
 
 export type ProvisionalSource = 'previous-year' | 'estimate' | 'books-to-date'

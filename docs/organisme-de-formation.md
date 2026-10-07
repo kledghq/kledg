@@ -64,7 +64,7 @@ l'ancien prorata mensuel des recettes avec TVA, sans base légale.
 | Coefficient de taxation | Chiffre d'affaires ouvrant droit à déduction / chiffre d'affaires des opérations dans le champ de la TVA, de l'année civile, hors taxe ; les ventes exonérées de formation au dénominateur seulement ; les cessions d'immobilisations, débours, subventions non imposables et produits financiers accessoires hors des deux termes | ann. II, art. 206, III, 3 ; BOI-TVA-DED-20-10-20 §50, §90, §100, §140, §150 |
 | Arrondi | Chaque coefficient arrondi par excès au pourcentage entier, puis leur produit (0,66 x 0,84 = 0,5544 donne 56 %) | ann. II, art. 206, V, 2 ; BOI-TVA-DED-20-10-40 §1 |
 | Coefficient provisoire | Celui, définitif, de l'année précédente ; pour une première année, l'estimation saisie (à défaut, Kledg prend les comptes de l'année à ce jour et le signale : aucun texte consulté ne fixe la méthode d'une première année) | BOI-TVA-DED-20-10-40, exemple 3 |
-| Coefficient définitif et régularisation | Arrêté avant le 25 avril de l'année suivante ; TVA supportée x (définitif - provisoire), quelle que soit l'importance de l'écart | ann. II, art. 206, V, 2 ; BOI-TVA-DED-20-10-20 §460 ; BOI-TVA-DED-60-10 |
+| Coefficient définitif et régularisation | Arrêté avant le 25 avril de l'année suivante ; TVA supportée x définitif, moins la TVA réellement déduite dans l'année (784 x 0,5 - 352,80 = 39,20 € dans l'exemple du BOFiP), quelle que soit l'importance de l'écart | ann. II, art. 206, V, 2 et 207, I ; BOI-TVA-DED-20-10-40, exemple 3 ; BOI-TVA-DED-20-10-20 §460 |
 | Ligne de la déclaration | Complément : CA3 ligne 21 (case 0059), CA12 ligne 25 ; reversement : CA3 ligne 15 (case 0600), CA12 ligne 18 ; coefficient de taxation unique : CA3 ligne 22A, CA12 ligne 25A | Notices 3310-CA3-SD et 3517-S-SD 2026 |
 | Coefficient d'assujettissement | Saisi (100 % par défaut) | ann. II, art. 206, II |
 | Coefficient d'admission | Appliqué dépense par dépense (véhicules de tourisme, carburant, cadeaux), comme avant | ann. II, art. 206, IV |
@@ -105,9 +105,16 @@ collecte rien (art. 293 B).
 brouillon au journal OD daté du 31 mars de l'année suivante, référence
 `COEF-TVA-<année>`, pour la déclaration déposée en avril : complément 44566 /
 758, reversement 658 / 44566 (comptes par défaut, à reventiler si besoin
-avant validation). La TVA supportée est celle saisie, sinon la TVA déduite
-de l'année (44562 et 44566, liquidations exclues) divisée par le coefficient
-provisoire ; avec un coefficient provisoire de 0 %, elle doit être saisie.
+avant validation). La régularisation est la TVA supportée multipliée par le coefficient
+définitif, moins la TVA déduite de l'année (44562 et 44566, liquidations
+exclues). La TVA supportée est celle saisie, sinon la TVA déduite divisée par
+le coefficient provisoire, seulement quand un même coefficient s'est appliqué
+toute l'année (celui de l'année précédente, ou une estimation saisie avant
+toute déduction). Elle doit être saisie avec un coefficient provisoire de 0 %,
+pour une première année sans estimation (le coefficient suivait les comptes à
+ce jour) et quand l'estimation, le coefficient d'assujettissement ou la
+déduction par coefficient ont changé après des déductions de l'année (la page
+le signale avec la date du changement).
 Idempotent (même rédacteur de brouillons que l'impôt sur les sociétés). La
 déclaration de TVA lit cette écriture à part : ligne 21 ou 15.
 

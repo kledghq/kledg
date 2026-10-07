@@ -60,7 +60,7 @@ export async function prepareVatRegularisation(companyId: string, input: VatRegu
   if (!view.yearClosed) throw new ConflictError(`L’année ${body.year} n’est pas terminée : le coefficient définitif se calcule sur le chiffre d’affaires de toute l’année.`)
   const amount = view.regularisation.amountCents
   if (amount === null) throw new ConflictError('Saisissez la TVA supportée dans l’année pour calculer la régularisation.')
-  if (amount === 0) return nothing('Le coefficient définitif est égal au coefficient provisoire : aucune régularisation.')
+  if (amount === 0) return nothing('La TVA déduite dans l’année correspond déjà au coefficient définitif : aucune régularisation.')
 
   const date = view.regularisation.entryDate
   const at = new Date(`${date}T00:00:00.000Z`)

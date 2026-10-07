@@ -265,6 +265,51 @@ describe.skipIf(!available)('training organisation (PostgreSQL)', () => {
       expect(march.deductionCoefficient).toMatchObject({ year: 2027, line: '22A', taxationPercent: 60 })
     })
 
+    // R3 QUAL-02: the regularisation is definitive x VAT borne minus the VAT actually deducted
+    // (CGI ann. II art. 207, I; BOI-TVA-DED-20-10-40, example 3)
+    it('first year without an estimate: asks for the VAT borne, then regularises against the VAT actually deducted', async () => {
+      const purchase = (date: string, vat: number) =>
+        svc.createEntry({
+          companyId: b.companyId,
+          journalId: b.journals.AC,
+          date,
+          description: 'Achat',
+          status: 'validated',
+          lines: [
+            { accountId: b.accounts[Number(date.slice(0, 4))]['6064'], debit: String(vat * 5), credit: '0' },
+            { accountId: b.accounts[Number(date.slice(0, 4))]['445660'], debit: String(vat), credit: '0' },
+            { accountId: b.accounts[Number(date.slice(0, 4))]['401000'], debit: '0', credit: String(vat * 6) },
+          ],
+        })
+      // January: only taxed sales so far, the coefficient to date is 100 %: 1 000 € of VAT deducted in full
+      await sale(b, 2026, '2026-01-15', '706100', 30_000, 6_000, 'C00001')
+      await purchase('2026-01-20', 1_000)
+      // The rest of the year: exempt training; definitive coefficient 60 %
+      await sale(b, 2026, '2026-06-30', '706100', 30_000, 6_000, 'C00001')
+      await sale(b, 2026, '2026-09-30', '706200', 40_000, 0, 'C00002')
+      let view = await json<VatDeductionView>(await call('outsider', routes.vat.GET, 'GET', '/x?year=2026', undefined, b.companyId))
+      expect(view).toMatchObject({ mode: 'coefficient', definitiveDeductionPercent: 60, provisional: { source: 'books-to-date', deductionPercent: 60 } })
+      // The coefficient moved with the books: the VAT borne cannot be read back, Kledg proposed 0 before
+      expect(view.regularisation).toMatchObject({ deductedCents: 100_000, incurredCents: null, amountCents: null })
+      expect(view.hints.some((h) => h.includes('suivi les comptes'))).toBe(true)
+      await json(await call('outsider', routes.vat.PUT, 'PUT', '/x', { year: 2026, incurredVatCents: 100_000 }, b.companyId))
+      view = await json<VatDeductionView>(await call('outsider', routes.vat.GET, 'GET', '/x?year=2026', undefined, b.companyId))
+      // 1 000 x 60 % - 1 000 = -400 €: VAT to pay back (CA3 line 15)
+      expect(view.regularisation).toMatchObject({ incurredCents: 100_000, incurredSource: 'entered', amountCents: -40_000, line: { code: '15' } })
+
+      // 2027: the coefficient d'assujettissement changes after a deduction: the VAT borne must be entered
+      await purchase('2027-02-01', 100)
+      await json(await call('outsider', routes.vat.PUT, 'PUT', '/x', { year: 2027, assujettissementPercent: 90 }, b.companyId))
+      const marker = await prisma.vatDeductionYear.findUniqueOrThrow({ where: { companyId_year: { companyId: b.companyId, year: 2027 } }, select: { coefficientChangedOn: true } })
+      expect(marker.coefficientChangedOn?.toISOString().slice(0, 10)).toBe('2027-04-05')
+      view = await json<VatDeductionView>(await call('outsider', routes.vat.GET, 'GET', '/x?year=2027', undefined, b.companyId))
+      expect(view.regularisation.incurredSource).toBeNull()
+      expect(view.hints.some((h) => h.includes('05/04/2027'))).toBe(true)
+      // A change before any deduction of the year leaves no marker
+      await json(await call('outsider', routes.vat.PUT, 'PUT', '/x', { year: 2028, assujettissementPercent: 80 }, b.companyId))
+      expect((await prisma.vatDeductionYear.findUniqueOrThrow({ where: { companyId_year: { companyId: b.companyId, year: 2028 } } })).coefficientChangedOn).toBeNull()
+    })
+
     it('keeps full deduction for a company subject to VAT on everything', async () => {
       await prisma.company.update({ where: { id: b.companyId }, data: { partialVatDeduction: false } })
       const { vatDeductionShareOn } = await import('@/lib/vat-deduction/coefficient')
