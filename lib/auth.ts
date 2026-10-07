@@ -140,7 +140,11 @@ function createAuth() {
     // Only the address resolved by lib/client-ip.ts (trusted proxy
     // configuration), written by app/api/auth over any value the client sent.
     // Without one, Better Auth keys its limits on a single shared bucket.
-    ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] },
+    // IPv6 clients count per /64 (one subscriber holds the whole prefix) and
+    // an IPv4-mapped address as its IPv4 address, the grouping of Kledg's own
+    // limits (rateLimitIpSubject, lib/client-ip.ts; KLEDG-R3-CLOUD-07). Set
+    // explicitly so a change of Better Auth's default cannot loosen it.
+    ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER], ipv6Subnet: 64 },
   },
   hooks: {
     // Only HTTP calls are checked; in-process calls (seed, admin services) are trusted.
