@@ -7,12 +7,17 @@
  *
  * Buttons of the actionable lists only name tools of this server and their
  * arguments; the server checks every call again (lib/mcp/views/html/actions.ts).
+ * The requests of their message buttons reach the assistant as the user's
+ * words: every value read from the books (bank label, counterparty,
+ * supplier name) is quoted as data with quote() of lib/ai-assist/prompts.ts,
+ * and ids go through its id(), so a label cannot carry an instruction.
  */
 
 import { prisma } from '@/lib/prisma'
 import type { McpAccess } from '@/lib/mcp/company-access'
 import { kledgPageUrl } from '@/lib/mcp/tool-meta'
 import { formatIsoDateFr } from '@/lib/utils/date'
+import { id as promptId, quote } from '@/lib/ai-assist/prompts'
 import { formatCentsFr, toCents } from '@/lib/utils/money'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
 import { generateIncomeStatement } from '@/lib/reports/income-statement/generate-income-statement.service'
@@ -468,7 +473,7 @@ export function bankTransactionsList(
       actions.push({
         kind: 'message',
         label: 'Proposer une écriture',
-        prompt: `Propose l'écriture de rapprochement de la transaction bancaire ${t.id} du ${formatIsoDateFr(t.date)} (${t.label ?? 'sans libellé'}, ${euroText(amount)}) de la société ${companyId}. Montre-moi la proposition avant de rapprocher quoi que ce soit.`,
+        prompt: `Propose l'écriture de rapprochement de la transaction bancaire ${promptId(t.id)} du ${formatIsoDateFr(t.date)}, libellé ${quote(t.label)}, ${euroText(amount)}, de la société ${promptId(companyId)}. Montre-moi la proposition avant de rapprocher quoi que ce soit.`,
       })
       if (access.canAdmin) {
         actions.push({
@@ -569,7 +574,7 @@ export function missingReceiptsList(companyId: string, access: Pick<McpAccess, '
         {
           kind: 'message' as const,
           label: 'Retrouver la pièce',
-          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${t.id} du ${formatIsoDateFr(t.date)} (${t.label ?? 'sans libellé'}${t.counterparty ? `, ${t.counterparty}` : ''}, ${euroText(t.amount)}) de la société ${companyId} : quel document chercher et auprès de qui${t.supplier ? ` (fournisseur reconnu\u00a0: ${t.supplier.name}${t.supplier.invoicesUrl ? `, factures sur ${t.supplier.invoicesUrl}` : ''})` : ''}.`,
+          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${promptId(t.id)} du ${formatIsoDateFr(t.date)}, libellé ${quote(t.label)}${t.counterparty ? `, contrepartie ${quote(t.counterparty)}` : ''}, ${euroText(t.amount)}, de la société ${promptId(companyId)}\u00a0: quel document chercher et auprès de qui${t.supplier ? ` (fournisseur reconnu\u00a0: ${quote(t.supplier.name)}${t.supplier.invoicesUrl ? `, factures sur ${t.supplier.invoicesUrl}` : ''})` : ''}.`,
         },
       ],
     })),

@@ -63,7 +63,7 @@ export function quote(value: string | null | undefined): string {
 }
 
 /** An id as Kledg writes them (cuid, uuid, slug): anything else is dropped from the request. */
-function id(value: string): string {
+export function id(value: string): string {
   return /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : 'inconnu'
 }
 

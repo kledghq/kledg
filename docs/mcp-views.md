@@ -151,6 +151,14 @@ shows what the server returned.
   a second click.
   Tool buttons appear only when the connection has full control
   (`executionMode` in the data, null otherwise).
+- A message button ("Proposer une écriture", "Retrouver la pièce") sends
+  its request to the assistant as the user's words (`ui/message`): every
+  value read from the books (bank label, counterparty, supplier name) is
+  quoted as data with `quote()` of `lib/ai-assist/prompts.ts` (between « »,
+  without quotes, line breaks or control characters, 120 characters at
+  most) and ids go through its `id()`, so a label sent by a third party
+  cannot add an instruction. A test fails if a request interpolates book
+  text otherwise.
 - The data keeps the tool's access rules: builders read nothing the tool
   could not read (the N-1 statement goes through the same company guard as
   N), hidden subsidiaries stay unnamed.
