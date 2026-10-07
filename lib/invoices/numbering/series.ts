@@ -21,7 +21,9 @@
  *   the series existed keep their numbers), and a number already taken is
  *   never given again;
  * - the next number of the current period can be raised (a company coming
- *   from another tool), never lowered onto numbers already given.
+ *   from another tool) only before Kledg gives its first number of the
+ *   period and without skipping numbers it knows, never lowered onto
+ *   numbers already given (raiseNextNumbers).
  */
 
 import type { Prisma } from '@prisma/client'
@@ -176,8 +178,18 @@ export async function assignSeriesNumber(tx: Prisma.TransactionClient, companyId
 
 /**
  * Raises the next number of the current period of each series given
- * (`today` decides the period). Refused below or onto a number already
- * given: the series never gives a number twice.
+ * (`today` decides the period), for a company continuing a sequence started
+ * in another tool. The sequence must stay "chronologique et continue" (CGI
+ * ann. II art. 242 nonies A, I, 7°; BOI-TVA-DECLA-30-20-20-10), so a raise
+ * never opens a gap in what Kledg knows:
+ * - refused once Kledg has given a number of the series in the period: the
+ *   numbers between would never be issued;
+ * - when numbers of the series are already recorded in the period (typed or
+ *   imported), only the number right after the highest one;
+ * - otherwise any number above those already given: the sequence goes on
+ *   from the other tool.
+ * Refused below or onto a number already given: the series never gives a
+ * number twice.
  */
 export async function raiseNextNumbers(
   tx: Prisma.TransactionClient,
@@ -198,10 +210,34 @@ export async function raiseNextNumbers(
   for (const [series, value] of wanted) {
     const format = formatOf(settings, series)
     const counter = await lockedCounter(tx, companyId, settings, series, period)
-    const floor = Math.max(counter.lastValue, await highestRecorded(tx, companyId, format, yearOfPeriod(settings, period)))
+    const recorded = await highestRecorded(tx, companyId, format, yearOfPeriod(settings, period))
+    const floor = Math.max(counter.lastValue, recorded)
     if (value <= floor) {
       const last = renderNumber(format, { year: period.year, month: period.month, sequence: floor })
       throw new ConflictError(`Le numéro ${last} est déjà attribué : le prochain numéro doit être supérieur à ${floor} (la numérotation ne revient jamais en arrière).`)
+    }
+    const given = await tx.invoice.findFirst({
+      where: {
+        companyId,
+        direction: 'SALE',
+        origin: 'AUTO',
+        numberAssignedAt: { not: null },
+        typeCode: { in: typeCodesOf(settings, series) },
+        ...(period.bounds ? { issueDate: { gte: dayToDate(period.bounds.start), lte: dayToDate(period.bounds.end) } } : {}),
+      },
+      select: { number: true },
+    })
+    if (given) {
+      throw new ConflictError(
+        `Kledg a déjà attribué le numéro ${given.number} dans cette période : relever le prochain numéro laisserait des numéros jamais émis, alors que la numérotation doit être continue (CGI ann. II art. 242 nonies A). Le prochain numéro ne se règle qu’avant la première facture numérotée par Kledg dans la période.`,
+      )
+    }
+    if (recorded > 0 && value !== recorded + 1) {
+      const highest = renderNumber(format, { year: period.year, month: period.month, sequence: recorded })
+      const after = renderNumber(format, { year: period.year, month: period.month, sequence: recorded + 1 })
+      throw new ConflictError(
+        `La facture n° ${highest} est déjà enregistrée : le prochain numéro est ${after}, un numéro plus élevé laisserait un trou dans la numérotation continue (CGI ann. II art. 242 nonies A).`,
+      )
     }
     await tx.invoiceNumberCounter.update({ where: { id: counter.id }, data: { lastValue: value - 1 } })
   }

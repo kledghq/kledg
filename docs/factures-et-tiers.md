@@ -44,7 +44,7 @@ Source : CGI ann. II art. 242 nonies A, I, 7° (« un numéro unique basé sur 
 | Format | préfixe (20 caractères au plus : lettres, chiffres, `- / _ .`), année sur 4 ou 2 chiffres ou sans année, mois facultatif, séparateur (`-`, `/`, `_`, `.` ou aucun), chiffres de la séquence (1 à 9, complétés par des zéros ; au-delà le numéro s'allonge, il n'est jamais coupé) | `F{YYYY}-{SEQ:4}`, soit F2026-0001 |
 | Remise à 1 | chaque année civile, à chaque exercice (l'année imprimée est celle de la fin de l'exercice), ou jamais | chaque année civile |
 | Avoirs | dans la série des factures, ou dans leur propre série avec leur préfixe | série des factures, préfixe A |
-| Prochain numéro | reprise de la séquence de la période en cours pour une société venant d'un autre outil : seulement à la hausse, jamais sur un numéro déjà donné ou déjà enregistré | |
+| Prochain numéro | reprise de la séquence de la période en cours pour une société venant d'un autre outil : seulement à la hausse, jamais sur un numéro déjà donné ou déjà enregistré ; seulement avant le premier numéro donné par Kledg dans la période, et juste après le plus haut numéro déjà enregistré quand il y en a, pour ne jamais laisser de trou (CGI ann. II art. 242 nonies A, I, 7° : séquence chronologique et continue) | |
 | Créer dans Qonto | voir [création dans Qonto](#création-dans-qonto) | oui quand la connexion Qonto le permet |
 
 Une remise à 1 exige l'année dans le format (sinon deux factures porteraient le même numéro) ; l'aperçu du réglage montre le format et le prochain numéro.
