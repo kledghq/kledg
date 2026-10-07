@@ -314,7 +314,10 @@ it must hold for every code path, by the database (trigger in a migration).
 - No unsanitized HTML: no `dangerouslySetInnerHTML` outside
   `components/ui/chart.tsx` (static CSS).
 - Uploads: `assertRequestSize` before reading, `assertFileSize`,
-  `assertSafeZip` for `.xlsx` (`lib/api/files.ts`).
+  `assertSafeZip` for `.xlsx` (`lib/api/files.ts`). Read an uploaded `.xlsx`
+  only through `loadWorkbook` and `readSheetRows` (`lib/api/xlsx.ts`): they
+  bound cells, rows, columns and time, and never let ExcelJS expand a range
+  cell by cell; never `row.values` or `eachRow({ includeEmpty: true })`.
 - **Rate limits** (tested by `lib/__tests__/rate-limit.test.ts`): every
   limit of Kledg's own code is a named rule of `RATE_LIMITS` in
   `lib/rate-limit.ts` (window, maximum, French message), applied with

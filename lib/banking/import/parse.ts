@@ -4,9 +4,9 @@
  * ValidationError with a French message for files it cannot read.
  */
 
-import ExcelJS from 'exceljs'
 import { ValidationError } from '@/lib/accounting/errors'
-import { assertSafeZip, isZip } from '@/lib/api/files'
+import { isZip } from '@/lib/api/files'
+import { loadWorkbook, readSheetRows } from '@/lib/api/xlsx'
 import { parseCamt053 } from './camt053'
 import { decodeText, looksBinary } from './encoding'
 import { parseOfx } from './ofx'
@@ -42,22 +42,17 @@ function rejectBinary(bytes: Uint8Array): void {
   throw new ValidationError('Fichier illisible : formats acceptés CSV, Excel (.xlsx), OFX/QFX et camt.053 (XML).')
 }
 
+/** Last row a statement sheet may use (a year of a busy account is a few thousand lines). */
+export const STATEMENT_MAX_ROWS = 100_000
+
 async function readWorkbook(bytes: Uint8Array, sheetName?: string): Promise<{ rows: Cell[][]; sheetNames: string[] }> {
-  await assertSafeZip(bytes)
-  const workbook = new ExcelJS.Workbook()
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await workbook.xlsx.load(Buffer.from(bytes) as any)
-  } catch {
-    throw new ValidationError('Fichier Excel invalide ou corrompu.')
-  }
+  const { workbook, deadline } = await loadWorkbook(bytes, 'Fichier Excel invalide ou corrompu.')
   const sheetNames = workbook.worksheets.map((w) => w.name)
   const sheet = sheetName ? workbook.getWorksheet(sheetName) : workbook.worksheets[0]
   if (!sheet) throw new ValidationError(sheetName ? `Feuille « ${sheetName} » introuvable dans le classeur.` : 'Classeur Excel vide.')
   const rows: Cell[][] = []
-  sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
-    const values = (row.values as unknown[]).slice(1)
-    rows[rowNumber - 1] = values.map((raw): Cell => {
+  for (const row of readSheetRows(sheet, { maxRows: STATEMENT_MAX_ROWS, deadline })) {
+    rows[row.number - 1] = row.values.map((raw): Cell => {
       if (raw === null || raw === undefined) return null
       if (raw instanceof Date || typeof raw === 'number' || typeof raw === 'string') return raw
       if (typeof raw === 'boolean') return String(raw)
@@ -67,7 +62,8 @@ async function readWorkbook(bytes: Uint8Array, sheetName?: string): Promise<{ ro
       if ('text' in o) return String(o.text)
       return null
     })
-  })
+  }
+  // Rows absent from the file (bounded by STATEMENT_MAX_ROWS) keep their line numbers
   for (let i = 0; i < rows.length; i++) rows[i] ??= []
   return { rows, sheetNames }
 }
@@ -94,6 +90,9 @@ export async function parseStatementFile(bytes: Uint8Array, options: TabularOpti
     return { format, encoding, ...parseCamt053(text) }
   }
   const { delimiter, rows } = splitCsv(text, options.delimiter)
+  if (rows.length > STATEMENT_MAX_ROWS) {
+    throw new ValidationError(`Fichier refusé : ${rows.length} lignes (maximum ${STATEMENT_MAX_ROWS}). Découpez le relevé en plusieurs fichiers.`)
+  }
   if (!rows.some((row) => row.some((cell) => cell.trim() !== ''))) throw new ValidationError('Le fichier ne contient aucune ligne.')
   const parsed = parseTabular(rows, options, { delimiter })
   return { format: 'csv', encoding, transactions: parsed.transactions, errors: parsed.errors, warnings: parsed.warnings, accounts: [], tabular: parsed.detection }

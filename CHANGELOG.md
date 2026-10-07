@@ -4,6 +4,11 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Sécurité
+
+- Import Excel (relevés bancaires et import comptable) : un petit fichier .xlsx ne peut plus saturer la mémoire ni bloquer le serveur. La lecture est bornée (1 000 000 de cellules, 256 colonnes, 100 000 lignes pour un relevé et 500 000 pour l'import comptable, 30 secondes), les cellules fusionnées, validations de données, mises en forme conditionnelles et noms définis ne sont plus lus, et un fichier au-delà des limites est refusé avec un message qui dit quoi faire. Un relevé CSV est limité à 100 000 lignes.
+- Import Excel : une archive .xlsx ambiguë (entrées cachées ou en double, données ajoutées avant ou après l'archive, ZIP64, noms non ASCII) est refusée comme « Fichier Excel invalide ou corrompu », pour que le contrôle de taille voie exactement ce que le lecteur décompresse.
+
 ### Corrigé
 
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
