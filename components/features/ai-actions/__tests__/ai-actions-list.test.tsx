@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
 
-import { AiActionsList } from '../ai-actions-list'
+import { AiActionsList, requesterName } from '../ai-actions-list'
 
 const action = (overrides: Record<string, unknown>) => ({
   id: 'a1',
@@ -58,6 +58,8 @@ describe('AiActionsList', () => {
     expect(screen.getByText('Exécutée')).toBeInTheDocument()
     expect(screen.getByText('Échouée')).toBeInTheDocument()
     expect(screen.getAllByText(/Alpha SAS · demandée par un assistant le/)).toHaveLength(1)
+    // The name an OAuth client chose is shown as data (KLEDG-R3-MCP-12; the text matcher turns non-breaking spaces into spaces).
+    expect(screen.getAllByText(/demandée par l'assistant « Claude » le/).length).toBeGreaterThan(0)
     expect(screen.getByText(/"contentBase64": "\(8 caractères\)"/)).toBeInTheDocument()
     expect(screen.queryByText(/QUJDRA==/)).toBeNull()
     // Only the pending action can be decided.
@@ -145,5 +147,14 @@ describe('AiActionsList', () => {
     expect(await screen.findByText("Les actions n'ont pas pu être chargées")).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(await screen.findByText('Valider des écritures')).toBeInTheDocument()
+  })
+})
+
+describe('requesterName', () => {
+  it('quotes the name of the assistant, without invisible characters, and cuts it short', () => {
+    expect(requesterName('Kledg')).toBe("l'assistant «\u00a0Kledg\u00a0»")
+    expect(requesterName('Kl\u202Eedg\u200B')).toBe("l'assistant «\u00a0Kledg\u00a0»")
+    expect(requesterName(null)).toBe('un assistant')
+    expect(requesterName('x'.repeat(100))).toHaveLength("l'assistant «\u00a0".length + 60 + 2)
   })
 })

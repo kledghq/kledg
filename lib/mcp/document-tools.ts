@@ -28,7 +28,7 @@ import { z } from 'zod'
 import type { CompanyGuard } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
-import { MCP_FILE_BUDGET, fileResult } from '@/lib/mcp/file-result'
+import { MCP_FILE_BUDGET, documentMimeType, fileResult } from '@/lib/mcp/file-result'
 import type { Permission } from '@/lib/rbac/authorize'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { limitBankCalls } from '@/lib/banking/guard'
@@ -180,12 +180,12 @@ export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
         if (args.source === 'bank_receipt') {
           if (!args.attachmentId) throw new ValidationError('attachmentId est requis pour un justificatif.')
           const receipt = await readQontoReceipt(args.companyId, args.attachmentId, args.transactionUuid, MCP_FILE_BUDGET)
-          return fileResult({ content: receipt.body, fileName: receipt.fileName, contentType: receipt.contentType }, base, { source: args.source })
+          return fileResult({ content: receipt.body, fileName: receipt.fileName, contentType: documentMimeType(receipt.contentType) }, base, { source: args.source })
         }
         if (args.source === 'invoice') {
           if (!args.invoiceId) throw new ValidationError('invoiceId est requis pour une facture.')
           const file = await readInvoiceAttachment(args.companyId, args.invoiceId, undefined, MCP_FILE_BUDGET)
-          return fileResult({ content: file.body, fileName: file.fileName, contentType: file.contentType }, base, { source: args.source })
+          return fileResult({ content: file.body, fileName: file.fileName, contentType: documentMimeType(file.contentType) }, base, { source: args.source })
         }
         if (!args.statementId || !QONTO_ID.test(args.statementId)) throw new ValidationError(INVALID_STATEMENT)
         await limitBankCalls(args.companyId)
@@ -198,7 +198,7 @@ export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
           {
             content: body,
             fileName: statement.file.file_name || `releve-${args.statementId}.pdf`,
-            contentType: statement.file.file_content_type || 'application/pdf',
+            contentType: documentMimeType(statement.file.file_content_type || 'application/pdf'),
           },
           base,
           { source: args.source, period: statement.period },

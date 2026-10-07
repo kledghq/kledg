@@ -188,7 +188,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         summary:
           'Lists the fiscal years of a company with their dates and whether they are closed.',
         access: 'read',
-        permission: { reports: ['read'] },
+        permission: { entries: ['read'] },
         amounts: 'none',
         units: 'Dates as yyyy-mm-dd.',
         never: 'changes anything (read only).',
@@ -198,7 +198,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     },
     ({ companyId }) =>
       run(async () => {
-        await guard.require(companyId, { reports: ['read'] })
+        // entries:read, the right of its routes (GET /api/companies/[id]/fiscal-years)
+        await guard.require(companyId, { entries: ['read'] })
         const years = await prisma.fiscalYear.findMany({
           where: { companyId },
           orderBy: { startDate: 'desc' },

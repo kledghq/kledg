@@ -59,9 +59,27 @@ export const MCP_FILE_BUDGET = {
   tooLarge: (size: number) => new ValidationError(fileTooLargeMessage(size)),
 }
 
-/** A file name safe to show and to put in the resource uri (no path, no control character). */
-function cleanName(fileName: string): string {
-  return fileName.replace(/[\\/\r\n\t\0]+/g, '_').trim().slice(0, 200) || 'fichier'
+/**
+ * A file name safe to show and to put in the resource uri: no path, no
+ * control character, no invisible format character (bidi overrides such as
+ * U+202E that would show "fdp.exe" as "exe.pdf", zero width characters).
+ */
+export function cleanName(fileName: string): string {
+  return fileName.replace(/[\p{Cf}]+/gu, '').replace(/[\\/\p{Cc}]+/gu, '_').trim().slice(0, 200) || 'fichier'
+}
+
+/** Types of the documents read from a bank (receipts, invoices, statements). */
+const DOCUMENT_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg'])
+
+/**
+ * The MIME type of a document read from a bank, from the type it declares:
+ * PDF, PNG or JPEG (parameters dropped), anything else
+ * application/octet-stream, so a type chosen by a third party never reaches
+ * the assistant as is.
+ */
+export function documentMimeType(declared: string | null | undefined): string {
+  const type = (declared ?? '').split(';')[0].trim().toLowerCase()
+  return DOCUMENT_TYPES.has(type) ? type : 'application/octet-stream'
 }
 
 /**

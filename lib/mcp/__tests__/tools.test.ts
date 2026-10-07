@@ -158,6 +158,16 @@ const DRAFT_TOOLS = [
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
 const caller = { kind: 'apiKey' as const, apiKeyId: 'k1' }
 
+describe('list_fiscal_years', () => {
+  // KLEDG-R3-MCP-12: the right of its routes (GET /api/companies/[id]/fiscal-years), entries:read.
+  it('checks entries:read, like its routes', () => {
+    const source = readFileSync(path.resolve(__dirname, '../tools.ts'), 'utf8')
+    const tool = source.slice(source.indexOf("'list_fiscal_years'"), source.indexOf('server.registerTool(', source.indexOf("'list_fiscal_years'")))
+    expect(tool).toContain("await guard.require(companyId, { entries: ['read'] })")
+    expect(tool).not.toContain("reports: ['read']")
+  })
+})
+
 describe('registerKledgTools', () => {
   it('registers read tools as read-only', () => {
     const server = fakeServer()

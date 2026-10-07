@@ -48,6 +48,25 @@ const TOOL_LABELS: Record<string, string> = {
   create_company: 'Créer une société',
   archive_company: 'Archiver une société',
   restore_company: 'Restaurer une société',
+  upload_receipt: 'Envoyer un justificatif à Qonto',
+  bulk_reconcile: 'Rapprocher des transactions',
+  sync_bank_data: "Actualiser et appliquer les règles d'affectation",
+  create_rule: "Créer une règle d'affectation automatique",
+  update_rule: "Modifier une règle d'affectation automatique",
+  add_rule_from_template: 'Ajouter une règle de la bibliothèque',
+  copy_rules_from_company: "Copier des règles d'une autre société",
+}
+
+/**
+ * The name of the assistant that asked, shown as data between « »: an OAuth
+ * client chooses its own name at registration (it could call itself
+ * "Kledg"), so it never reads as part of the sentence. Invisible and
+ * control characters are dropped and the name is cut short.
+ */
+export function requesterName(callerName: string | null): string {
+  const name = (callerName ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim()
+  if (!name) return 'un assistant'
+  return `l'assistant «\u00a0${name.length > 60 ? `${name.slice(0, 59)}\u2026` : name}\u00a0»`
 }
 
 /** Arguments shown without the file content of an import (base64). */
@@ -151,7 +170,7 @@ export function AiActionsList({ highlight }: { highlight: string | null }) {
                 <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
               </div>
               <CardDescription>
-                {action.companyName} · demandée par {action.callerName ?? 'un assistant'} le{' '}
+                {action.companyName} · demandée par {requesterName(action.callerName)} le{' '}
                 <DateDisplay value={action.createdAt} />
               </CardDescription>
             </CardHeader>
