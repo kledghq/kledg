@@ -18,6 +18,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { expenseActorOf } from '@/lib/expense-reports/actor'
 import { assignPriorDistances, computeReport, type LineInput } from '@/lib/expense-reports/amounts'
+import { withDeduction } from '@/lib/expense-reports/deduction'
 import { EXPENSE_LINE_CATEGORIES, type ExpenseCategory } from '@/lib/expense-reports/categories'
 import { matchCategoryRule } from '@/lib/expense-reports/category-rules'
 import { listCategoryRules } from '@/lib/expense-reports/manage-category-rules.service'
@@ -146,7 +147,6 @@ async function previewOf(args: Args, actor: ExpenseActor) {
     mealRulesOn(args.companyId, lines.map((l) => l.date)),
     loadMealRule(args.companyId, actor, { claimantId, day: args.periodEnd }),
   ])
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: args.companyId }, select: { isVatExempt: true } })
   const { rules } = await listCategoryRules(args.companyId)
   const inputs = assignPriorDistances(
     lines.map<LineInput>((l) => ({
@@ -164,7 +164,8 @@ async function previewOf(args: Args, actor: ExpenseActor) {
     })),
     {},
   )
-  const totals = computeReport(inputs, { vatExempt: company.isVatExempt })
+  // Franchise and coefficient de déduction on each line's day, as the report will record them
+  const totals = computeReport(await withDeduction(args.companyId, inputs), { vatExempt: false })
   return {
     periodStart: args.periodStart,
     periodEnd: args.periodEnd,

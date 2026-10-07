@@ -27,7 +27,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { dayToDate } from '@/lib/accounting/entry-date'
+import { dayToDate, parisDayOf } from '@/lib/accounting/entry-date'
 import { calendarDay, centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { formatVatRate, isFrenchVatRate } from '@/lib/invoices/amounts'
@@ -35,6 +35,7 @@ import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import type { ExpenseActor } from './actor'
 import { assignPriorDistances, computeReport, vehicleKey, type LineInput } from './amounts'
+import { deductionPercentByYear, withDeduction } from './deduction'
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KEYS, isExpenseAccountCode, type ExpenseCategory } from './categories'
 import { matchCategoryRule } from './category-rules'
 import { listCategoryRules } from './manage-category-rules.service'
@@ -293,8 +294,11 @@ function lineInputOf(line: DetailRow['lines'][number]): LineInput {
 export async function getExpenseReport(companyId: string, id: string, actor: ExpenseActor) {
   const row = await prisma.expenseReport.findFirst({ where: { id, ...visibleTo(companyId, actor) }, select: DETAIL_SELECT })
   if (!row) throw new NotFoundError(REPORT_NOT_FOUND)
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { isVatExempt: true } })
-  const computed = computeReport(row.lines.map(lineInputOf), { vatExempt: company.isVatExempt })
+  // Franchise and coefficient de déduction on each line's day (deduction.ts); the editor previews with the year's
+  const computed = computeReport(await withDeduction(companyId, row.lines.map(lineInputOf)), { vatExempt: false })
+  const today = parisDayOf(new Date())
+  const years = row.lines.map((l) => Number((calendarDayOf(l.date) as string).slice(0, 4)))
+  const deduction = await deductionPercentByYear(companyId, Math.min(Number(today.slice(0, 4)), ...years), Number(today.slice(0, 4)), today)
   const baselines = await mileageBaselines(prisma, companyId, row.claimant.id, id, row.lines.map((l) => calendarDayOf(l.date) as string))
   const meals = await reportMealRule(prisma, companyId, row)
   return {
@@ -302,7 +306,10 @@ export async function getExpenseReport(companyId: string, id: string, actor: Exp
     returnNote: row.returnNote,
     claimant: { ...summaryOf(row, actor).claimant, accountCode: row.claimant.accountCode },
     storedStatus: row.status,
-    vatExempt: company.isVatExempt,
+    /** The company is under the franchise today (CGI art. 293 B): nothing recovered. */
+    vatExempt: deduction.franchise,
+    /** Coefficient de déduction of each year, for the editor's preview; null: full deduction. */
+    deductionPercentByYear: deduction.percentByYear,
     /** Distance already counted per vehicle and year by the claimant's other submitted reports (the editor's starting point). */
     mileageBaselines: baselines,
     lines: row.lines.map((l, i) => ({
@@ -419,7 +426,6 @@ async function prepareLines(
   input: { periodStart: string; periodEnd: string; lines: ExpenseLineBody[] },
 ): Promise<PreparedReport> {
   if (input.periodStart > input.periodEnd) throw new ValidationError('La période commence après sa fin.')
-  const company = await tx.company.findUniqueOrThrow({ where: { id: companyId }, select: { isVatExempt: true } })
   const { rules } = await listCategoryRules(companyId, tx)
   const attachmentIds = [...new Set(input.lines.map((l) => l.receiptAttachmentId).filter((v): v is string => !!v))]
   const ownAttachments = attachmentIds.length
@@ -464,7 +470,8 @@ async function prepareLines(
     })),
     baselines,
   )
-  const totals = computeReport(lineInputs, { vatExempt: company.isVatExempt })
+  // Franchise and coefficient de déduction on each line's day (CGI art. 293 B; CGI ann. II art. 205 and 206)
+  const totals = computeReport(await withDeduction(companyId, lineInputs), { vatExempt: false })
   totals.lines.forEach((line, i) => {
     if (line.error) errors.push(`Ligne ${i + 1} : ${line.error}`)
   })

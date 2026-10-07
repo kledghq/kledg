@@ -59,7 +59,9 @@ Règles appliquées dans cet ordre, la première qui s'applique décide (`lib/ex
 5. **Carburant** d'un véhicule de tourisme : 80 % de la TVA sur l'essence et le gazole (CGI art. 298, 4, 1°, a ; BOI-TVA-DED-30-30-40), arrondi au centime. Un véhicule utilitaire ouvre droit à 100 % : choisissez une autre catégorie.
 6. Sinon, toute la TVA du justificatif.
 
-La TVA non récupérée fait partie de la charge de la ligne. L'éditeur affiche la règle appliquée sous chaque ligne.
+Puis, pour une société partiellement exonérée (déduction par coefficient, [organisme de formation](organisme-de-formation.md)), la TVA récupérable de la ligne est multipliée par le coefficient de déduction provisoire du jour de la dépense (CGI ann. II art. 205 et 206), arrondie au centime le plus proche, comme pour les factures d'achat, le mode simple et les règles d'affectation. Une société exonérée dont la déduction se fait par coefficient applique ce coefficient ; seule la franchise en base ne récupère rien.
+
+La TVA non récupérée fait partie de la charge de la ligne. L'éditeur affiche la règle appliquée sous chaque ligne (il prévisualise avec le coefficient de l'année ; l'enregistrement retient celui du jour de chaque ligne).
 
 ### Repas de l'exploitant (société à l'impôt sur le revenu)
 

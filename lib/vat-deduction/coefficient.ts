@@ -107,6 +107,8 @@ export interface VatDeductionOnDay {
   franchise: boolean
   /** Share (0 to 1) of deductible VAT recovered, null when the company deducts all of it. */
   share: number | null
+  /** The same in whole percent (the provisional coefficient de déduction), null when the company deducts all of it. */
+  percent: number | null
 }
 
 /**
@@ -117,10 +119,10 @@ export interface VatDeductionOnDay {
 export async function vatDeductionOn(companyId: string, day: Date | string): Promise<VatDeductionOnDay> {
   const iso = typeof day === 'string' ? day : (calendarDayOf(day) as string)
   const { mode } = await deductionModeOn(companyId, iso)
-  if (mode === 'full') return { franchise: false, share: null }
-  if (mode === 'franchise') return { franchise: true, share: 0 }
+  if (mode === 'full') return { franchise: false, share: null, percent: null }
+  if (mode === 'franchise') return { franchise: true, share: 0, percent: 0 }
   const coefficient = await provisionalCoefficientOf(companyId, Number(iso.slice(0, 4)), iso)
-  return { franchise: false, share: coefficient.deductionPercent / 100 }
+  return { franchise: false, share: coefficient.deductionPercent / 100, percent: coefficient.deductionPercent }
 }
 
 /**

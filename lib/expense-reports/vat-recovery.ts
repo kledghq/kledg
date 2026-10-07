@@ -58,7 +58,7 @@ export interface RecoveryInput {
   receiptKind: ReceiptKind
   amountInclTaxCents: number
   vatCents: number
-  /** The company is under the VAT franchise (CGI art. 293 B). */
+  /** The company is under the VAT franchise (CGI art. 293 B); a partly exempt company applies its coefficient (amounts.ts). */
   vatExempt: boolean
   /** A mileage line: no VAT at all. */
   mileage?: boolean
@@ -74,6 +74,7 @@ export type RecoveryReason =
   | 'passenger-transport'
   | 'staff-lodging'
   | 'gift-over-73'
+  | 'coefficient'
 
 export interface Recovery {
   recoverableVatCents: number
@@ -91,6 +92,7 @@ export const RECOVERY_LABELS: Record<RecoveryReason, string> = {
   'passenger-transport': 'Transport de personnes\u00a0: TVA non récupérable (CGI ann. II art. 206, IV, 2, 5°)',
   'staff-lodging': 'Hébergement des dirigeants ou du personnel\u00a0: TVA non récupérable (CGI ann. II art. 206, IV, 2, 2°)',
   'gift-over-73': 'Cadeau de plus de 73 € TTC\u00a0: TVA non récupérable (CGI ann. II art. 206, IV, 2, 3°)',
+  coefficient: 'TVA récupérable au coefficient de déduction de la société (CGI ann. II art. 205 et 206)',
 }
 
 /** n x percent / 100 rounded half away from zero, n >= 0. */

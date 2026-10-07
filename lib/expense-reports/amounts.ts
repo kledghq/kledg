@@ -8,9 +8,13 @@
  *   receipt at one rate (a receipt with two rates is two lines). The VAT
  *   typed may differ from TTC x rate / (1 + rate) by rounding per item on
  *   the receipt, 2 cents at most; empty, it is computed.
- * - The recoverable part of that VAT follows vat-recovery.ts; the charge of
- *   the line is TTC minus the recoverable VAT: VAT the company cannot
- *   recover is part of what the expense costs it.
+ * - The recoverable part of that VAT follows vat-recovery.ts, then, for a
+ *   partly exempt company, its coefficient de déduction on the day of the
+ *   expense (CGI ann. II art. 205 and 206; lib/vat-deduction/coefficient.ts,
+ *   as purchase invoices, simple mode and rules apply it), rounded half up
+ *   as lib/invoices/posting-plan.ts does; the charge of the line is TTC
+ *   minus the recoverable VAT: VAT the company cannot recover is part of
+ *   what the expense costs it.
  * - A mileage line is paid by the scale (mileage-scale.ts), without VAT.
  * - The report owes the claimant the sum of the TTC amounts; its charges
  *   and its recoverable VAT add up to that sum to the cent.
@@ -38,6 +42,14 @@ export interface LineInput {
   distanceKm?: number | null
   /** Distance of the same vehicle already counted in the year before this trip (assignPriorDistances). */
   priorDistanceKm?: number | null
+  /**
+   * Provisional coefficient de déduction of the company on the line's day,
+   * in whole percent (lib/vat-deduction/coefficient.ts); null or absent:
+   * the company deducts all of its VAT.
+   */
+  deductionPercent?: number | null
+  /** The company is under the franchise on the line's day (CGI art. 293 B): nothing recovered. */
+  franchise?: boolean
 }
 
 export interface ComputedLine {
@@ -65,6 +77,11 @@ export interface ReportTotals {
 }
 
 const yearOf = (day: string) => Number(day.slice(0, 4))
+
+/** n x percent / 100 rounded half up, n >= 0 (the deductible share of lib/invoices/posting-plan.ts). */
+function percentHalfUp(n: number, percent: number): number {
+  return Math.floor((n * Math.max(0, Math.min(percent, 100)) * 2 + 100) / 200)
+}
 
 export function computeLine(line: LineInput, company: { vatExempt: boolean }): ComputedLine {
   if (line.kind === 'MILEAGE') {
@@ -99,13 +116,16 @@ export function computeLine(line: LineInput, company: { vatExempt: boolean }): C
   else if (Math.abs(vat - computed) > VAT_TOLERANCE_CENTS) {
     error = `La TVA ne correspond pas au taux\u00a0: environ ${formatCentsFr(computed)} pour ce montant. Une note à deux taux se saisit sur deux lignes.`
   }
-  const recovery = recoverableVat({ category: line.category, receiptKind: line.receiptKind, amountInclTaxCents: amount, vatCents: error ? 0 : vat, vatExempt: company.vatExempt })
+  const recovery = recoverableVat({ category: line.category, receiptKind: line.receiptKind, amountInclTaxCents: amount, vatCents: error ? 0 : vat, vatExempt: company.vatExempt || line.franchise === true })
+  const coefficient = line.deductionPercent ?? null
+  const partial = coefficient !== null && coefficient < 100 && recovery.recoverableVatCents > 0
+  const recoverableVatCents = partial ? percentHalfUp(recovery.recoverableVatCents, coefficient) : recovery.recoverableVatCents
   return {
     amountInclTaxCents: amount,
     vatCents: error ? 0 : vat,
-    recoverableVatCents: recovery.recoverableVatCents,
-    expenseCents: amount - recovery.recoverableVatCents,
-    reason: recovery.reason,
+    recoverableVatCents,
+    expenseCents: amount - recoverableVatCents,
+    reason: partial ? 'coefficient' : recovery.reason,
     scaleYear: null,
     powerClass: null,
     error,
