@@ -12,6 +12,7 @@ import {
   type ReconciliationDraft,
   type ReconciliationLine,
 } from '../validation'
+import { vatIncludedCents } from '@/lib/expense-reports/vat-recovery'
 
 const FY_2025: FiscalYearPeriod = { id: 'fy25', year: 2025, startDate: '2025-01-01', endDate: '2025-12-31', isClosed: true }
 const FY_2026: FiscalYearPeriod = { id: 'fy26', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31', isClosed: false }
@@ -58,6 +59,28 @@ describe('VAT split helpers', () => {
     expect(vatOnBase(1003, 20)).toBe(201) // 200,6
     expect(vatOnBase(1002, 20)).toBe(200) // 200,4
     expect(vatOnBase(10000, 5.5)).toBe(550)
+  })
+
+  // R3 QUAL-21: one rounding rule for the VAT inside a TTC amount, negatives handled
+  it('rounds the VAT inside a TTC amount as simple mode and the expense reports do', () => {
+    // 10,05 € TTC at 20 %: 1,675 € of VAT, rounded half away from zero to 1,68 € everywhere
+    expect(splitInclusiveAmount(1_005, 20)).toEqual({ baseCents: 837, vatCents: 168 })
+    expect(vatIncludedCents(1_005, 2000)).toBe(168)
+    for (let ttc = 0; ttc < 5000; ttc += 3) {
+      for (const rate of [20, 10, 5.5, 2.1]) {
+        expect(splitInclusiveAmount(ttc, rate).vatCents).toBe(vatIncludedCents(ttc, Math.round(rate * 100)))
+      }
+    }
+  })
+
+  it('splits a negative TTC as the opposite of the positive one, half away from zero', () => {
+    // -1,20 € TTC at 20 %: base -1,00 €, VAT -0,20 €
+    expect(splitInclusiveAmount(-120, 20)).toEqual({ baseCents: -100, vatCents: -20 })
+    expect(splitInclusiveAmount(-1_005, 20)).toEqual({ baseCents: -837, vatCents: -168 })
+    // VAT on -0,50 € at 20 %: -0,10 €
+    expect(vatOnBase(-50, 20)).toBe(-10)
+    expect(vatOnBase(-1_003, 20)).toBe(-201)
+    expect(vatIncludedCents(-1_005, 2000)).toBe(-168)
   })
 })
 

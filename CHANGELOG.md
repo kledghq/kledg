@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- TVA comprise dans un montant TTC : une seule règle d'arrondi (au centime le plus proche, la moitié en s'éloignant de zéro) pour le rapprochement, le mode simple et les notes de frais ; 10,05 € TTC à 20 % donne 1,68 € de TVA partout, et un montant négatif se partage comme son opposé.
 - Mode simple : les logiciels, l'hébergement et la publicité achetés à un fournisseur établi hors de France (Notion, GitHub, Microsoft, Adobe, OpenAI, Anthropic, Canva, Google Ads, Meta, LinkedIn) ne déduisent plus une TVA française absente du prix : la TVA est autoliquidée (4452) et déduite (44566), comme dans la bibliothèque de règles. Nouvelle question « Votre facture mentionne-t-elle de la TVA française ? », répondue d'office pour ces fournisseurs.
 - Mode simple : les frais bancaires et commissions de paiement déduisent la TVA lue par la banque sur la facture (abonnement Qonto), comme le modèle de règle.
 - TVA lue par la banque (Qonto) : une seule règle pour le mode simple, les règles d'affectation, leur aperçu et le rapprochement. Un montant supérieur à 20 % de la base est ignoré (le taux de la catégorie ou de la règle s'applique) ; un montant nul ne vaut « sans TVA » qu'avec un taux de 0 %.

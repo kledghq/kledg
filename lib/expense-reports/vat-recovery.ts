@@ -1,6 +1,6 @@
 /**
  * Recoverable VAT of an expense report line. Pure module (it imports only
- * the category catalogue, itself pure): the line editor shows what the
+ * the category catalogue and the money rules of lib/invoices/amounts.ts, both pure): the line editor shows what the
  * server records.
  *
  * Rules, in order (the first that applies decides):
@@ -39,6 +39,7 @@
  * Amounts are integer cents; the 80 % share is rounded half away from zero.
  */
 
+import { vatIncludedInCents } from '@/lib/invoices/amounts'
 import { EXPENSE_CATEGORIES, type ExpenseCategory, type VatRule } from './categories'
 
 /** Simplified receipts are accepted up to this amount excluding tax (BOI-TVA-DECLA-30-20-20-20, § 130). */
@@ -131,11 +132,11 @@ export function recoverableVatByRule(vatRule: VatRule, input: Omit<RecoveryInput
 
 /**
  * VAT included in an amount at a rate (basis points): TTC x rate / (1 + rate),
- * rounded half away from zero. What the editor proposes from the TTC.
+ * rounded half away from zero, signed (lib/invoices/amounts.ts
+ * vatIncludedInCents, the one rule). What the editor proposes from the TTC.
  */
 export function vatIncludedCents(amountInclTaxCents: number, rateBp: number): number {
-  if (rateBp <= 0 || amountInclTaxCents <= 0) return 0
-  return Math.floor((amountInclTaxCents * rateBp * 2 + (10_000 + rateBp)) / (2 * (10_000 + rateBp)))
+  return vatIncludedInCents(amountInclTaxCents, rateBp)
 }
 
 /** A VAT typed from a receipt may differ from the computed one by rounding per item: 2 cents at most. */

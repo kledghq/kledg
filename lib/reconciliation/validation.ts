@@ -11,6 +11,7 @@
  * All amounts are integer cents: totals are exact, never float sums.
  */
 
+import { vatIncludedInCents, vatOnBaseCents } from '@/lib/invoices/amounts'
 import { formatCentsFr } from '@/lib/utils/money'
 import { formatIsoDateFr, isIsoDate } from '@/lib/utils/date'
 
@@ -87,26 +88,19 @@ export const isBankAccountCode = (code: string) => code.startsWith('51')
 
 /**
  * Splits an amount including VAT (TTC) into base and VAT at `ratePercent`
- * (20, 10, 5.5...): base = TTC / (1 + rate) rounded to the cent, VAT = TTC - base,
- * so the two always add up to the TTC amount.
+ * (20, 10, 5.5...): VAT = TTC x rate / (1 + rate) rounded half away from
+ * zero, base = TTC - VAT, so the two always add up to the TTC amount. The
+ * same rule as simple mode and the expense reports (vatIncludedInCents,
+ * lib/invoices/amounts.ts); a negative TTC gives the opposite split.
  */
 export function splitInclusiveAmount(ttcCents: number, ratePercent: number): { baseCents: number; vatCents: number } {
-  const basisPoints = BigInt(Math.round(ratePercent * 100))
-  const TEN_THOUSAND = BigInt(10000)
-  const TWO = BigInt(2)
-  const ttc = BigInt(ttcCents)
-  const denominator = TEN_THOUSAND + basisPoints
-  // Round half up: (2 * ttc * 10000 + denominator) / (2 * denominator)
-  const base = (TWO * ttc * TEN_THOUSAND + denominator) / (TWO * denominator)
-  return { baseCents: Number(base), vatCents: ttcCents - Number(base) }
+  const vatCents = vatIncludedInCents(ttcCents, Math.round(ratePercent * 100))
+  return { baseCents: ttcCents - vatCents, vatCents }
 }
 
-/** VAT due at `ratePercent` on a tax-free amount, rounded to the cent (half up). */
+/** VAT due at `ratePercent` on a tax-free amount, rounded to the cent half away from zero (vatOnBaseCents). */
 export function vatOnBase(baseCents: number, ratePercent: number): number {
-  const basisPoints = BigInt(Math.round(ratePercent * 100))
-  const TWO = BigInt(2)
-  const TEN_THOUSAND = BigInt(10000)
-  return Number((TWO * BigInt(baseCents) * basisPoints + TEN_THOUSAND) / (TWO * TEN_THOUSAND))
+  return vatOnBaseCents(baseCents, Math.round(ratePercent * 100))
 }
 
 /** The locked bank line: money in debits the bank account, money out credits it. */
