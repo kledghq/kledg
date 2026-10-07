@@ -7,8 +7,8 @@
  *    VAT rule (resolvePosting). The durable equipment question applies only
  *    above 500 € HT (BOI-BIC-CHG-20-30-10); below, the purchase is expensed.
  * 2. The VAT included in the amount is the VAT the bank read on the receipt
- *    when it gives a plausible one (at most 20 % of the base, CGI art. 278),
- *    else the category's rate applied to the amount (TTC x rate / (1 + rate),
+ *    when it can be trusted (lib/banking/bank-vat.ts: at most 20 % of the
+ *    base, CGI art. 278; zero only with a rate of 0 %), else the category's rate applied to the amount (TTC x rate / (1 + rate),
  *    rounded half up, lib/expense-reports/vat-recovery.ts).
  * 3. Expenses: the recoverable part follows the category's rule
  *    (recoverableVatByRule: passenger transport and staff lodging nothing,
@@ -39,6 +39,7 @@
  * so they sum exactly to the transaction amount. Amounts are integer cents.
  */
 
+import { trustedBankVatCents } from '@/lib/banking/bank-vat'
 import { recoverableVatByRule, vatIncludedCents, RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
 import { NON_DEDUCTIBLE_MEALS_ACCOUNT, splitExploitantMeal, type MealSplit } from '@/lib/expense-reports/exploitant-meals'
 import { EXPLOITANT_MEAL_ANSWER, type CategoryKind, type Posting, type Question, type SimpleCategory } from './categories'
@@ -55,9 +56,6 @@ export type Resolution =
 export const VAT_ON_ASSETS = '44562'
 export const VAT_DEDUCTIBLE = '44566'
 export const VAT_COLLECTED = '44571'
-
-/** Highest French rate (CGI art. 278): a VAT read by the bank above it is not trusted. */
-const MAX_RATE_PERCENT = 20
 
 /** Amount excluding VAT at a rate: what the 500 € HT threshold compares. */
 export function exclTaxCents(amountCents: number, rateBp: number, bankVatCents?: number | null): number {
@@ -93,11 +91,14 @@ export function resolvePosting(category: SimpleCategory, answers: Answers, amoun
   return { status: 'ready', posting: { ...category.posting, ...answer.posting }, answers: { [question.id]: answer.id }, question, kind: answer.kind ?? category.kind }
 }
 
-/** The VAT the bank read, when it is plausible: positive, below the amount, at most 20 % of the base (one cent of rounding). */
+/**
+ * The VAT the bank read, as bankVatCentsOf gives it (lib/banking/bank-vat.ts,
+ * the one plausibility rule): 0 when the receipt shows no VAT, a positive
+ * amount below the amount and at most 20 % of the base (one cent of
+ * rounding), null otherwise.
+ */
 export function plausibleBankVat(amountCents: number, bankVatCents?: number | null): number | null {
-  if (bankVatCents == null || !Number.isSafeInteger(bankVatCents) || bankVatCents <= 0 || bankVatCents >= amountCents) return null
-  const base = amountCents - bankVatCents
-  return bankVatCents * 100 <= base * MAX_RATE_PERCENT + 100 ? bankVatCents : null
+  return trustedBankVatCents(amountCents, bankVatCents == null ? null : { amountCents: bankVatCents, ratePercent: bankVatCents === 0 ? 0 : null })
 }
 
 export interface CounterpartLine {
@@ -128,7 +129,7 @@ export interface PostingInput {
   side: Side
   /** Absolute amount of the transaction, VAT included. */
   amountCents: number
-  /** VAT read by the bank on the receipt (Qonto), in cents. */
+  /** VAT read by the bank on the receipt (Qonto), in cents, as bankVatCentsOf trusts it: 0 when the receipt shows no VAT. */
   bankVatCents?: number | null
   /**
    * The company is exempt from VAT (franchise or exempt activity) or partly

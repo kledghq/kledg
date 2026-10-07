@@ -128,7 +128,9 @@ describe('expense VAT lines', () => {
       ['44566', 2_000, 0],
     ])
     expect(plausibleBankVat(12_000, 2_000)).toBe(2_000)
-    expect(plausibleBankVat(12_000, 0)).toBeNull()
+    // Zero is "no VAT on the receipt": bankVatCentsOf gives it only with a rate of 0 % (lib/banking/bank-vat.ts)
+    expect(plausibleBankVat(12_000, 0)).toBe(0)
+    expect(lines(plan('fournitures', 12_000, { bankVatCents: 0 }))).toEqual([['6064', 12_000, 0]])
     expect(plausibleBankVat(12_000, null)).toBeNull()
     expect(exclTaxCents(60_000, 2000)).toBe(50_000)
   })

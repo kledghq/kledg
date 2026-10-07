@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- TVA lue par la banque (Qonto) : une seule règle pour le mode simple, les règles d'affectation, leur aperçu et le rapprochement. Un montant supérieur à 20 % de la base est ignoré (le taux de la catégorie ou de la règle s'applique) ; un montant nul ne vaut « sans TVA » qu'avec un taux de 0 %.
 - Mode simple : une vente taxée d'une société partiellement exonérée (coefficient de déduction, organisme de formation) porte de nouveau sa TVA collectée au 44571 ; seule la franchise en base ne collecte pas de TVA.
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
 

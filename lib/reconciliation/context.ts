@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { findOwned, transactionOfCompany } from '@/lib/api/resources'
+import { bankVatOf } from '@/lib/banking/bank-vat'
 import { toCents } from '@/lib/utils/money'
 import { toIsoDateUtc } from '@/lib/utils/date'
 import { counterpartyOf, suggestEntry } from './prefill'
@@ -33,14 +34,8 @@ export async function getReconciliationContext(companyId: string, transactionId:
   const accountYear = fiscalYear && !fiscalYear.isClosed ? fiscalYear : [...fiscalYears].reverse().find((fy) => !fy.isClosed)
   const bank = accountYear ? await resolveBankLedgerAccount(companyId, accountYear.id) : null
 
-  const provider = transaction.providerData as { vat_rate?: number; vat_amount?: number; vat_amount_cents?: number } | null
-  const vatRate = transaction.vatRate != null ? Number(transaction.vatRate) : (provider?.vat_rate ?? null)
-  const vatAmountCents =
-    transaction.vatAmount != null
-      ? toCents(transaction.vatAmount)
-      : provider?.vat_amount != null
-        ? toCents(provider.vat_amount)
-        : (provider?.vat_amount_cents ?? null)
+  // The VAT the bank read, when it can be trusted (lib/banking/bank-vat.ts)
+  const bankVat = bankVatOf(transaction, amountCents)
 
   return {
     transaction: {
@@ -53,8 +48,8 @@ export async function getReconciliationContext(companyId: string, transactionId:
       counterpartyName: counterpartyOf(transaction),
       reconciled: transaction.reconciled,
       reconciledWith: transaction.reconciledWith,
-      vatRatePercent: vatRate != null && vatRate >= 0 ? vatRate : null,
-      vatAmountCents: vatAmountCents != null && vatAmountCents > 0 ? vatAmountCents : null,
+      vatRatePercent: bankVat?.ratePercent ?? null,
+      vatAmountCents: bankVat?.amountCents ?? null,
     },
     bankLine: bankLineOf({ amountCents, side }),
     bankAccount: bank ? { code: bank.code, label: bank.label } : null,

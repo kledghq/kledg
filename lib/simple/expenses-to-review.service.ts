@@ -29,6 +29,7 @@ import { checkEntryDate, isBankAccountCode, isVatAccount, type FiscalYearPeriod 
 import { loadRuleMatcher } from '@/lib/transactions/rule-service'
 import { pickRule } from '@/lib/transactions/rule-matcher'
 import { counterpartyKey } from '@/lib/subscriptions/detect'
+import { bankVatCentsOf } from '@/lib/banking/bank-vat'
 import { toCents } from '@/lib/utils/money'
 import { addUtcDays, todayUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { mealRulesOn } from '@/lib/expense-reports/meal-rule.service'
@@ -247,13 +248,8 @@ export async function loadSuggestionSignals(companyId: string, options: { now?: 
 
 type LoadedTransaction = Parameters<typeof enrichTransaction>[0]
 
-/** VAT the bank read on the receipt (Qonto), in cents, when it gives one. */
-export function bankVatCentsOf(transaction: Pick<LoadedTransaction, 'vatAmount' | 'providerData'>): number | null {
-  if (transaction.vatAmount != null) return toCents(transaction.vatAmount)
-  const provider = transaction.providerData as { vat_amount?: number; vat_amount_cents?: number } | null
-  if (provider?.vat_amount != null) return toCents(provider.vat_amount)
-  return provider?.vat_amount_cents ?? null
-}
+/** VAT the bank read on the receipt (Qonto), in cents, when it can be trusted: the one rule of lib/banking/bank-vat.ts. */
+export { bankVatCentsOf } from '@/lib/banking/bank-vat'
 
 /** The bank's own category of the transaction (Qonto). */
 function bankCategoryOf(transaction: LoadedTransaction): string | null {
