@@ -6,6 +6,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Mode simple : les logiciels, l'hébergement et la publicité achetés à un fournisseur établi hors de France (Notion, GitHub, Microsoft, Adobe, OpenAI, Anthropic, Canva, Google Ads, Meta, LinkedIn) ne déduisent plus une TVA française absente du prix : la TVA est autoliquidée (4452) et déduite (44566), comme dans la bibliothèque de règles. Nouvelle question « Votre facture mentionne-t-elle de la TVA française ? », répondue d'office pour ces fournisseurs.
+- Mode simple : les frais bancaires et commissions de paiement déduisent la TVA lue par la banque sur la facture (abonnement Qonto), comme le modèle de règle.
 - TVA lue par la banque (Qonto) : une seule règle pour le mode simple, les règles d'affectation, leur aperçu et le rapprochement. Un montant supérieur à 20 % de la base est ignoré (le taux de la catégorie ou de la règle s'applique) ; un montant nul ne vaut « sans TVA » qu'avec un taux de 0 %.
 - Mode simple : une vente taxée d'une société partiellement exonérée (coefficient de déduction, organisme de formation) porte de nouveau sa TVA collectée au 44571 ; seule la franchise en base ne collecte pas de TVA.
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).

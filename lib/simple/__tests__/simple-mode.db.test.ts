@@ -212,6 +212,33 @@ describe.skipIf(!available)('simple mode (PostgreSQL)', () => {
     expect(await prisma.accountingEntry.count({ where: { companyId: a.id } })).toBe(1)
   })
 
+  it('self-assesses the VAT of a foreign supplier and deducts the VAT the bank read on bank fees (R3 QUAL-03, QUAL-13)', async () => {
+    // Notion bills a French business without French VAT: 20 % self-assessed (CGI art. 259, 1° and 283, 2)
+    const notion = await transaction(a, 'CB NOTION LABS INC', 10)
+    const response = await confirm('owner', notion.id)
+    expect(response.status).toBe(201)
+    const result = await response.json()
+    expect(result).toMatchObject({ categoryId: 'logiciels', status: 'validated' })
+    expect(linesOf(await entryOf(result.entryId))).toEqual([
+      ['4452', 0, 200],
+      ['44566', 200, 0],
+      ['5121', 0, 1_000],
+      ['6511', 1_000, 0],
+    ])
+    // Qonto read 2,00 € of VAT on its 12,00 € plan
+    seq += 1
+    const qonto = await prisma.bankTransaction.create({
+      data: { bankAccountId: a.bankAccountId, externalTransactionId: `simple-${seq}`, amount: 12, date: new Date('2026-03-10T00:00:00Z'), side: 'debit', label: 'QONTO ABONNEMENT ESSENTIAL', vatAmount: 2, vatRate: 20 },
+    })
+    const fees = await (await confirm('owner', qonto.id)).json()
+    expect(fees).toMatchObject({ categoryId: 'frais-bancaires' })
+    expect(linesOf(await entryOf(fees.entryId))).toEqual([
+      ['44566', 200, 0],
+      ['5121', 0, 1_200],
+      ['627', 1_000, 0],
+    ])
+  })
+
   it('with an accountant member, leaves a draft to validate, which the accountant validates through the usual route', async () => {
     await addAccountant()
     const meal = await transaction(a, 'CB LE PETIT BISTROT', 64.5, { day: '2026-09-25' })

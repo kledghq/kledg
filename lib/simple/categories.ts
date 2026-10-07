@@ -49,11 +49,20 @@ export type CategoryKind = 'expense' | 'income' | 'other' | 'refund'
 
 /**
  * How the VAT of the operation is recovered: the expense report rules
- * (lib/expense-reports/vat-recovery.ts), plus `passenger-vehicle` (rental,
- * leasing, repairs of a passenger car: nothing recovered, CGI ann. II art.
- * 206, IV, 2, 6°).
+ * (lib/expense-reports/vat-recovery.ts), plus:
+ * - `passenger-vehicle`: rental, leasing, repairs of a passenger car,
+ *   nothing recovered (CGI ann. II art. 206, IV, 2, 6°);
+ * - `detected`: an exempt operation that may bear VAT on option (banking
+ *   services, CGI art. 261 C, 1° and 260 B): the VAT the bank read on the
+ *   receipt is deducted, none when it reads nothing (the rules library
+ *   template "qonto-frais" books the same);
+ * - `self-assessed`: a service of a supplier established outside France
+ *   (CGI art. 259, 1° and 283, 2): the amount paid holds no French VAT, the
+ *   company self-assesses it at the category's rate on the amount (4452)
+ *   and deducts it (44566), as the rules library templates of foreign
+ *   suppliers book it (lib/simple/foreign-suppliers.ts).
  */
-export type SimpleVatRule = VatRule | 'passenger-vehicle'
+export type SimpleVatRule = VatRule | 'passenger-vehicle' | 'detected' | 'self-assessed'
 
 /** What an entry needs from a category: the account, the VAT rate and the recovery rule. */
 export interface Posting {
@@ -64,7 +73,7 @@ export interface Posting {
   vatRule: SimpleVatRule
 }
 
-export type QuestionId = 'durable' | 'meal-guests' | 'vehicle' | 'rent-vat' | 'sale-vat-rate' | 'owner-money'
+export type QuestionId = 'durable' | 'meal-guests' | 'vehicle' | 'rent-vat' | 'sale-vat-rate' | 'owner-money' | 'supplier-vat'
 
 export interface QuestionAnswer {
   id: string
@@ -213,6 +222,28 @@ const RENT_VAT: Question = {
 }
 
 /**
+ * Software, hosting and advertising are often bought from suppliers
+ * established outside France, who bill a French business without French
+ * VAT: the service is taxed in France (CGI art. 259, 1°) and the customer
+ * pays the VAT (CGI art. 283, 2), self-assessed and deducted in the same
+ * entry (BOI-TVA-DECLA-10-10-20). A supplier the rules library knows
+ * (lib/simple/foreign-suppliers.ts) is answered for the user; the answer is
+ * kept for the same counterparty.
+ */
+export const SUPPLIER_VAT: Question = {
+  id: 'supplier-vat',
+  text: 'Votre facture mentionne-t-elle de la TVA française ?',
+  help: 'Un fournisseur établi hors de France (Notion, GitHub, Google Ads, Meta...) facture sans TVA française : vous l’autoliquidez.',
+  answers: [
+    { id: 'french', label: 'Oui, TVA française', posting: {} },
+    { id: 'foreign', label: 'Non, fournisseur hors de France (autoliquidation)', posting: { vatRule: 'self-assessed' } },
+  ],
+  reusable: true,
+  defaultAnswerId: 'french',
+  source: 'CGI art. 259, 1° (lieu des services entre assujettis) et 283, 2 (TVA due par le preneur) ; BOI-TVA-DECLA-10-10-20',
+}
+
+/**
  * VAT collected on a sale, at the rate of the invoice: 20 % by default (CGI
  * art. 278), 10 % (art. 279: restaurants, works in dwellings, passenger
  * transport), 5,5 % (art. 278-0 bis: food, books, energy works), 2,1 % (art.
@@ -306,15 +337,15 @@ const DEFS: Def[] = [
   // Communication et logiciels
   { id: 'telephone-internet', label: 'Téléphone et internet', group: 'Communication et logiciels', kind: 'expense', account: '626', vatRateBp: STANDARD, vatRule: 'standard',
     hint: 'Forfait mobile, box internet, ligne fixe.', keywords: ['telephone', 'internet', 'mobile', 'box', 'forfait', 'free', 'orange', 'sfr', 'bouygues'], source: pcg('626', 'Frais postaux et de télécommunications') },
-  { id: 'logiciels', label: 'Logiciels et abonnements', group: 'Communication et logiciels', kind: 'expense', account: '6511', vatRateBp: STANDARD, vatRule: 'standard',
+  { id: 'logiciels', label: 'Logiciels et abonnements', group: 'Communication et logiciels', kind: 'expense', account: '6511', vatRateBp: STANDARD, vatRule: 'standard', question: SUPPLIER_VAT,
     hint: 'Abonnements en ligne, licences de logiciels.', keywords: ['logiciel', 'abonnement', 'saas', 'licence', 'application', 'adobe', 'microsoft', 'google'],
     source: `${pcg('6511', 'Redevances pour concessions, brevets, licences, solutions informatiques')} (règlement ANC n° 2022-06)` },
-  { id: 'hebergement-web', label: 'Hébergement web et noms de domaine', group: 'Communication et logiciels', kind: 'expense', account: '6511', vatRateBp: STANDARD, vatRule: 'standard',
+  { id: 'hebergement-web', label: 'Hébergement web et noms de domaine', group: 'Communication et logiciels', kind: 'expense', account: '6511', vatRateBp: STANDARD, vatRule: 'standard', question: SUPPLIER_VAT,
     hint: 'Serveurs, site internet, noms de domaine.', keywords: ['hebergement', 'serveur', 'domaine', 'site', 'cloud', 'ovh'], source: pcg('6511', 'Redevances pour solutions informatiques') },
   { id: 'courrier', label: 'Courrier et timbres', group: 'Communication et logiciels', kind: 'expense', account: '626', vatRateBp: 0, vatRule: 'none',
     hint: 'Timbres et lettres recommandées (sans TVA).', keywords: ['courrier', 'timbre', 'poste', 'recommande', 'lettre'],
     source: `${pcg('626', 'Frais postaux et de télécommunications')}; CGI art. 261, 4, 5° (service universel postal exonéré)` },
-  { id: 'publicite', label: 'Publicité et marketing', group: 'Communication et logiciels', kind: 'expense', account: '623', vatRateBp: STANDARD, vatRule: 'standard',
+  { id: 'publicite', label: 'Publicité et marketing', group: 'Communication et logiciels', kind: 'expense', account: '623', vatRateBp: STANDARD, vatRule: 'standard', question: SUPPLIER_VAT,
     hint: 'Annonces en ligne, cartes de visite, flyers, site.', keywords: ['publicite', 'marketing', 'annonce', 'ads', 'flyer', 'cartes de visite', 'communication'], source: pcg('623', 'Publicité, publications, relations publiques') },
   { id: 'salons', label: 'Salons et événements', group: 'Communication et logiciels', kind: 'expense', account: '6233', vatRateBp: STANDARD, vatRule: 'standard',
     hint: 'Stand, inscription à un salon professionnel.', keywords: ['salon', 'foire', 'exposition', 'evenement', 'stand'], source: pcg('6233', 'Foires et expositions') },
@@ -373,12 +404,12 @@ const DEFS: Def[] = [
     source: `${pcg('6582', 'Pénalités, amendes fiscales et pénales')}; CGI art. 39, 2` },
 
   // Banque et finances
-  { id: 'frais-bancaires', label: 'Frais bancaires', group: 'Banque et finances', kind: 'expense', account: '627', vatRateBp: 0, vatRule: 'none',
+  { id: 'frais-bancaires', label: 'Frais bancaires', group: 'Banque et finances', kind: 'expense', account: '627', vatRateBp: 0, vatRule: 'detected',
     hint: 'Abonnement du compte, frais de carte, commissions.', keywords: ['frais', 'banque', 'commission', 'carte', 'abonnement bancaire', 'qonto', 'shine'],
-    source: `${pcg('627', 'Services bancaires et assimilés')}; CGI art. 261 C, 1° (opérations bancaires exonérées)` },
-  { id: 'commissions-paiement', label: 'Commissions de paiement en ligne', group: 'Banque et finances', kind: 'expense', account: '6278', vatRateBp: 0, vatRule: 'none',
+    source: `${pcg('627', 'Services bancaires et assimilés')}; CGI art. 261 C, 1° (opérations bancaires exonérées) et 260 B (option de la banque : seule la TVA lue sur la facture est déduite)` },
+  { id: 'commissions-paiement', label: 'Commissions de paiement en ligne', group: 'Banque et finances', kind: 'expense', account: '6278', vatRateBp: 0, vatRule: 'detected',
     hint: 'Frais de Stripe, SumUp, PayPal sur vos encaissements.', keywords: ['stripe', 'sumup', 'paypal', 'commission', 'terminal'],
-    source: `${pcg('6278', 'Autres frais et commissions sur prestations de services')}; CGI art. 261 C, 1°` },
+    source: `${pcg('6278', 'Autres frais et commissions sur prestations de services')}; CGI art. 261 C, 1° et 260 B (seule la TVA lue sur la facture est déduite)` },
   { id: 'agios', label: 'Agios et intérêts bancaires', group: 'Banque et finances', kind: 'expense', account: '6616', vatRateBp: 0, vatRule: 'none',
     hint: 'Intérêts de découvert.', keywords: ['agios', 'decouvert', 'interets debiteurs'], source: pcg('6616', 'Intérêts bancaires et sur opérations de financement') },
   { id: 'interets-emprunt', label: "Intérêts d'emprunt", group: 'Banque et finances', kind: 'expense', account: '6611', vatRateBp: 0, vatRule: 'none',

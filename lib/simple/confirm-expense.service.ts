@@ -68,10 +68,11 @@ import { counterpartyKey } from '@/lib/subscriptions/detect'
 import { createFixedAssetInTx } from '@/lib/fixed-assets/create-fixed-asset.service'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { formatIsoDateFr, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
-import { EXPLOITANT_MEAL_ANSWER, findCategory, type Posting, type SimpleCategory } from './categories'
+import { EXPLOITANT_MEAL_ANSWER, findCategory, SUPPLIER_VAT, type Posting, type SimpleCategory } from './categories'
+import { supplierVatAnswerOf } from './foreign-suppliers'
 import { mealRulesOn, nonDeductibleMealsAccount } from '@/lib/expense-reports/meal-rule.service'
 import { mealSplitReason, NON_DEDUCTIBLE_MEALS_ACCOUNT } from '@/lib/expense-reports/exploitant-meals'
-import { buildPostingLines, isExploitantMeal, resolvePosting, VAT_COLLECTED, VAT_DEDUCTIBLE, VAT_ON_ASSETS, type Answers, type CounterpartLine } from './posting'
+import { buildPostingLines, isExploitantMeal, resolvePosting, VAT_COLLECTED, VAT_DEDUCTIBLE, VAT_ON_ASSETS, VAT_SELF_ASSESSED, type Answers, type CounterpartLine } from './posting'
 import { resolveLedgerAccounts } from './ledger-accounts'
 import { assetLifetimeFor, DEPRECIATION_EXPENSE_ACCOUNT } from './asset-lifetimes'
 import { accountantReviewRequired } from './simple-mode-settings.service'
@@ -182,13 +183,15 @@ async function deductionFor(companyId: string, day: string): Promise<VatDeductio
 }
 
 /** A category books the same way every time, so a rule can repeat it. */
-function canLearn(category: SimpleCategory, posting: Posting, franchise: boolean): boolean {
+function canLearn(category: SimpleCategory, posting: Posting, franchise: boolean, partialDeduction: boolean): boolean {
   // A refund reverses a charge and its VAT: rules book the charge side only
   if (category.kind === 'refund') return false
   if (category.question && !category.question.reusable) return false
   if (posting.vatRule === 'fuel' || posting.vatRule === 'gift') return false
   // A rule books the collected VAT of its rate: a company under the franchise collects none (CGI art. 293 B)
   if (franchise && category.kind === 'income' && posting.vatRateBp > 0) return false
+  // The rules engine deducts self-assessed VAT in full: not for a company with a coefficient de déduction
+  if (partialDeduction && posting.vatRule === 'self-assessed') return false
   return true
 }
 
@@ -205,7 +208,9 @@ async function prepareCategory(
 
   const amountCents = Math.abs(toCents(transaction.amount) ?? 0)
   const bankVatCents = bankVatCentsOf(transaction)
-  const resolution = resolvePosting(category, answers, amountCents, bankVatCents)
+  // A supplier the rules library knows to bill without French VAT answers the supplier question (lib/simple/foreign-suppliers.ts)
+  const withKnown = category.question?.id === SUPPLIER_VAT.id && !answers[SUPPLIER_VAT.id] ? { ...answers, [SUPPLIER_VAT.id]: supplierVatAnswerOf(transaction) } : answers
+  const resolution = resolvePosting(category, withKnown, amountCents, bankVatCents)
   if (resolution.status === 'pending') {
     throw new ValidationError(`Répondez d'abord à la question : ${resolution.question.text}`).withDetails({ question: resolution.question })
   }
@@ -255,7 +260,7 @@ async function prepareCategory(
   const name = displayNameOf(counterpartyOf(transaction), transaction.label)
   const description = transaction.label?.trim() || name
   const vatLabel = (line: CounterpartLine) =>
-    line.accountCode === VAT_COLLECTED ? 'TVA collectée' : line.accountCode === VAT_ON_ASSETS ? 'TVA sur immobilisation' : line.accountCode === VAT_DEDUCTIBLE ? 'TVA déductible' : 'TVA'
+    line.accountCode === VAT_COLLECTED ? 'TVA collectée' : line.accountCode === VAT_SELF_ASSESSED ? 'TVA autoliquidée due' : line.accountCode === VAT_ON_ASSETS ? 'TVA sur immobilisation' : line.accountCode === VAT_DEDUCTIBLE ? 'TVA déductible' : 'TVA'
   const lines: GeneratedLine[] = [
     { accountId: bank.id, ...bankLineOf({ amountCents, side }), description },
     ...plan.lines.map((line) => ({
@@ -290,7 +295,7 @@ async function prepareCategory(
     answers: Object.keys(resolution.answers).length ? resolution.answers : null,
     vatNote: plan.vatNote,
     mealNote: plan.mealSplit ? mealSplitReason(plan.mealSplit) : mealRule?.unknown && isExploitantMeal(resolution.answers) ? mealRule.explanation : null,
-    learnable: canLearn(category, resolution.posting, deduction.franchise) ? { category, posting: resolution.posting, codes } : null,
+    learnable: canLearn(category, resolution.posting, deduction.franchise, deduction.share !== null) ? { category, posting: resolution.posting, codes } : null,
     asset,
     invoice: null,
   }
@@ -380,6 +385,26 @@ async function prepareRule(companyId: string, transactionId: string, ruleId: str
 function learnedRuleLines(learnable: NonNullable<Prepared['learnable']>): RuleInput['entryLines'] {
   const { category, posting, codes } = learnable
   const account = codes.get(posting.account) ?? posting.account
+  if (category.kind !== 'other' && posting.vatRule === 'self-assessed') {
+    // The rules library's self-assessed line (selfAssessedLine): 20 % on the amount, deductible and due
+    return [
+      {
+        accountCode: account,
+        lineType: 'auto',
+        amountType: 'full',
+        order: 0,
+        vatType: 'intracom',
+        vatRateSource: 'fixed',
+        vatRate: posting.vatRateBp / 100,
+        vatAccountCode: codes.get(VAT_DEDUCTIBLE) ?? VAT_DEDUCTIBLE,
+        vatAccount2Code: codes.get(VAT_SELF_ASSESSED) ?? VAT_SELF_ASSESSED,
+      },
+    ]
+  }
+  if (category.kind !== 'other' && posting.vatRule === 'detected') {
+    // The rules library's detected line (detectedVatLine): the VAT the bank read, none otherwise
+    return [{ accountCode: account, lineType: 'auto', amountType: 'full', order: 0, vatType: 'deductible', vatRateSource: 'transaction', vatAccountCode: codes.get(VAT_DEDUCTIBLE) ?? VAT_DEDUCTIBLE }]
+  }
   const recovers = posting.vatRateBp > 0 && (posting.vatRule === 'standard' || category.kind === 'income')
   if (category.kind === 'other' || !recovers) {
     return [{ accountCode: account, lineType: 'auto', amountType: 'full', order: 0 }]

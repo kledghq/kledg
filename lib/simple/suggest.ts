@@ -42,7 +42,8 @@
  * all at once ("Tout confirmer").
  */
 
-import { findCategory, refundOf, type Question, type SimpleCategory } from './categories'
+import { findCategory, refundOf, SUPPLIER_VAT, type Question, type SimpleCategory } from './categories'
+import { supplierVatAnswerOf } from './foreign-suppliers'
 import { matchInvoice, significantWords, type OpenInvoice } from './match-invoice'
 import { announcesRefund, bankText, KEYWORDS, matchDictionary, PAYEES } from './payees'
 import { questionApplies, type Answers, type Side } from './posting'
@@ -374,7 +375,9 @@ function finish(candidate: Candidate | null, tx: EngineTransaction, askMealGuest
   let pendingQuestion: Question | null = null
   const question = category.question
   if (question && questionApplies(category, tx.amountCents, tx.bankVatCents)) {
-    const known = question.reusable ? candidate.answers?.[question.id] : undefined
+    // An earlier answer for the counterparty, else what the rules library knows of a foreign supplier
+    const known =
+      (question.reusable ? candidate.answers?.[question.id] : undefined) ?? (question.id === SUPPLIER_VAT.id ? supplierVatAnswerOf(tx) : undefined)
     if (known && question.answers.some((a) => a.id === known)) answers[question.id] = known
     else if (question.defaultAnswerId && !(askMealGuests && question.id === 'meal-guests')) answers[question.id] = question.defaultAnswerId
     else pendingQuestion = question
