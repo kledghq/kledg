@@ -94,7 +94,7 @@ export interface RuleInput {
  * (rule-regex.ts, KLEDG-SEC-001), with the reason in French, before the
  * rule is saved by the API or the MCP server.
  */
-export function assertRulePatternsValid(conditions: TransactionRuleConditionInput[]): void {
+function assertRulePatternsValid(conditions: TransactionRuleConditionInput[]): void {
   for (const [index, condition] of conditions.entries()) {
     if (condition.operator !== 'regex' || !condition.value) continue
     const compiled = compileRulePattern(condition.value)
@@ -196,6 +196,8 @@ export async function createRule(companyId: string, input: RuleInput, db: Prisma
  * and entry lines are replaced by the given lists (empty when omitted).
  */
 export async function updateRule(companyId: string, ruleId: string, input: RuleInput): Promise<RuleWithDetails> {
+  // Refused before any database work (checked again in updateRuleInTx for its other callers)
+  assertRulePatternsValid(input.conditions ?? [])
   return prisma.$transaction((tx) => updateRuleInTx(tx, companyId, ruleId, input))
 }
 
