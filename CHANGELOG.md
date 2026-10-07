@@ -13,6 +13,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Unicité du SIREN, du SIRET et de l'identifiant d'URL des sociétés : la vérification passe par une seule fonction de la base, SIRET compris, qui ne voit plus seulement les sociétés de l'utilisateur. Une instance dont les clients partagent la base peut la limiter aux sociétés de chaque client et ajouter un suffixe aléatoire aux identifiants d'URL ([points d'extension](docs/extension-points.md#company-identifiers)). Rien ne change sur une instance standard, sauf les messages : « Une société avec le SIREN … existe déjà. » Migration `20261123090000_company_identifier_scope` (fonction remplacée, additive).
 - En-tête `Referrer-Policy: strict-origin` sur toutes les réponses : le référent ne porte plus que l'origine, même d'une page de l'instance à une autre, si bien que l'adresse d'une page (identifiant de la société, recherche) n'est lisible par aucun script ni service de mesure d'audience.
 - Une instance dont la politique exige la sécurité au niveau des lignes (point d'extension `requiresRowLevelSecurity`, [documentation](docs/extension-points.md)) refuse de démarrer et d'ouvrir la base sans `KLEDG_RLS=enforce`, avec un message qui nomme la variable. Sans effet sur une instance standard.
+- Limites de tentatives par adresse IP de `/setup` et des routes propres d'une instance : une adresse IPv6 compte pour son préfixe /64, que détient un seul abonné, au lieu de l'adresse exacte.
 
 ## [0.3.1] - 2026-10-05
 
