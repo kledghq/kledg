@@ -35,6 +35,7 @@ const connection: ConnectionSummary = {
   tokenExpiresAt: null,
   expired: false,
   expiresSoon: false,
+  tokenReachesOtherRepos: false,
   connectedAt: '2026-10-01T12:00:00.000Z',
 }
 
