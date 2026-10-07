@@ -3,7 +3,7 @@
  * this module.
  *
  * - Every response (next.config.ts): no framing (X-Frame-Options DENY, and
- *   frame-ancestors in the CSP), nosniff, a strict referrer policy, HSTS
+ *   frame-ancestors in the CSP), nosniff, an origin-only referrer, HSTS
  *   (browsers ignore it on plain HTTP, so local development is unaffected),
  *   a cross-origin opener policy and a permissions policy that turns off
  *   the device features Kledg never uses.
@@ -54,7 +54,10 @@ export const STATIC_SECURITY_HEADERS: HeaderRule[] = [
     headers: [
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      // The origin only, even to this instance's own pages: a page address
+      // (company slug, record ids, search terms) never reaches a script or a
+      // service that reads the referrer, analytics included (KLEDG-R3-CLOUD-03).
+      { key: 'Referrer-Policy', value: 'strict-origin' },
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
       { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
       {
