@@ -198,5 +198,6 @@ export function averageMonthlyChange(monthlyNetCents: readonly number[]): number
   if (monthlyNetCents.length === 0) return null
   const total = monthlyNetCents.reduce((sum, cents) => sum + cents, 0)
   const average = Math.abs(total) / monthlyNetCents.length
-  return Math.sign(total) * Math.round(average)
+  // `|| 0`: never -0 for a small negative average rounded to zero
+  return Math.sign(total) * Math.round(average) || 0
 }

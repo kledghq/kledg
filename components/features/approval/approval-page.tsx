@@ -16,12 +16,15 @@ import { docsUrl } from '@/lib/docs-links'
 import type { ApprovalView } from '@/lib/approval/get-approval.service'
 import type { ApprovalDetails } from '@/lib/approval/schemas'
 import { ApprovalForm } from './approval-form'
+import { localDateToIso } from '@/lib/utils/date'
+import { fromCents } from '@/lib/utils/money'
 
-const euros = (cents: number) => cents / 100
+const euros = fromCents
 
 /** The accounts to approve are those of the latest fiscal year already ended. */
 const latestEnded = (years: Array<{ id: string; endDate: string }>) => {
-  const today = new Date().toISOString().slice(0, 10)
+  // The user's calendar day (docs/conventions.md#dates: client days in local time)
+  const today = localDateToIso(new Date())
   return [...years].filter((fy) => fy.endDate.slice(0, 10) < today).sort((a, b) => b.endDate.localeCompare(a.endDate))[0]?.id
 }
 

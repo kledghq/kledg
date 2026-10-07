@@ -13,7 +13,8 @@ import { prisma } from '@/lib/prisma'
 import type { McpAccess } from '@/lib/mcp/company-access'
 import { kledgPageUrl } from '@/lib/mcp/tool-meta'
 import { formatIsoDateFr } from '@/lib/utils/date'
-import { formatCentsFr, toCents } from '@/lib/utils/money'
+import { formatCentsFr, fromCents, toCents } from '@/lib/utils/money'
+import { isDebitSide, signedBankCents } from '@/lib/banking/side'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
 import { generateIncomeStatement } from '@/lib/reports/income-statement/generate-income-statement.service'
 import type { BalanceSheetData, BalanceSheetLine } from '@/lib/reports/balance-sheet/types'
@@ -49,6 +50,11 @@ function num(value: Numeric): number {
   const n = typeof value === 'number' ? value : Number(String(value))
   return Number.isFinite(n) ? n : 0
 }
+
+/** A Decimal, string or number of euros as integer cents (sums stay exact, docs/conventions.md#money). */
+const cents = (value: Numeric): number => toCents(value ?? 0) ?? 0
+/** Euros of a sum of cents. */
+const eurosOf = (values: number[]): number => fromCents(values.reduce((sum, c) => sum + c, 0))
 
 const euroText = (value: number) => formatCentsFr(toCents(value) ?? 0)
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
@@ -195,6 +201,7 @@ const PCG_CLASSES: Record<string, string> = {
 
 export function trialBalanceStatement(companyId: string, companyName: string, data: TrialBalanceData): StatementView {
   const byClass = new Map<string, StatementView['sections'][number]>()
+  /** Subtotals in cents: no float drift. */
   const sums = new Map<string, [number, number, number]>()
   let hidden = 0
   for (const row of data.balances) {
@@ -211,11 +218,11 @@ export function trialBalanceStatement(companyId: string, companyName: string, da
     }
     section.rows.push({ label: row.label, code: row.code, depth: 0, kind: 'line', values: [row.debit, row.credit, row.balance] })
     const s = sums.get(key)!
-    sums.set(key, [toEuros(s[0] + row.debit), toEuros(s[1] + row.credit), toEuros(s[2] + row.balance)])
+    sums.set(key, [s[0] + cents(row.debit), s[1] + cents(row.credit), s[2] + cents(row.balance)])
   }
   const sections = [...byClass.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, section]) => ({ ...section, total: { label: `Total classe ${key}`, values: sums.get(key)! } }))
+    .map(([key, section]) => ({ ...section, total: { label: `Total classe ${key}`, values: sums.get(key)!.map(fromCents) } }))
   return {
     view: 'statement',
     title: `Balance générale, ${companyName}`,
@@ -227,9 +234,6 @@ export function trialBalanceStatement(companyId: string, companyName: string, da
     links: [{ label: 'Ouvrir la balance dans Kledg', url: kledgPageUrl(companyId, 'reports/trial-balance') }],
   }
 }
-
-/** Sums of euros kept to the cent (no float drift in the subtotals). */
-const toEuros = (value: number) => Math.round(value * 100) / 100
 
 // -------------------------------------------------------------------- charts
 
@@ -365,7 +369,7 @@ export function entriesList(
         date: e.date,
         journal: e.journal,
         description: [e.description, e.reference].filter(Boolean).join(', ') || null,
-        amount: toEuros(e.lines.reduce((sum, l) => sum + num(l.debit), 0)),
+        amount: eurosOf(e.lines.map((l) => cents(l.debit))),
         status: draft ? 'Brouillon' : 'Validée',
       },
       breakdown: e.lines.map((l) => ({
@@ -403,7 +407,7 @@ export function entriesList(
     refresh: { tool: 'list_entries', arguments: args },
     figures: [
       { label: 'Brouillons', value: drafts.length, format: 'number' },
-      { label: 'Montant des brouillons', value: toEuros(drafts.reduce((sum, e) => sum + e.lines.reduce((s, l) => s + num(l.debit), 0), 0)), format: 'euros' },
+      { label: 'Montant des brouillons', value: eurosOf(drafts.flatMap((e) => e.lines.map((l) => cents(l.debit)))), format: 'euros' },
     ],
     empty: onlyDrafts ? 'Aucune écriture en brouillon sur cette période.' : 'Aucune écriture sur cette période.',
     links: [{ label: 'Ouvrir les écritures dans Kledg', url: kledgPageUrl(companyId, 'entries') }],
@@ -422,7 +426,8 @@ interface BankTransactionLike {
 }
 
 /** Signed amount of a bank transaction: money out (debit) negative. */
-const signed = (t: { amount: Numeric; side: string }) => (t.side === 'debit' ? -Math.abs(num(t.amount)) : Math.abs(num(t.amount)))
+const signedCents = (t: { amount: Numeric; side: string }) => signedBankCents(cents(t.amount), t.side)
+const signed = (t: { amount: Numeric; side: string }) => fromCents(signedCents(t))
 
 /** What "Rapprocher" asks before its call: the match in words, and a second click. */
 function reconcileQuestion(match: UniqueMatch): string {
@@ -517,8 +522,8 @@ export function bankTransactionsList(
     refresh: { tool: 'list_bank_transactions', arguments: args },
     figures: [
       { label: 'À rapprocher', value: open.length, format: 'number' },
-      { label: 'Encaissements', value: toEuros(open.filter((t) => t.side !== 'debit').reduce((s, t) => s + signed(t), 0)), format: 'euros' },
-      { label: 'Décaissements', value: toEuros(open.filter((t) => t.side === 'debit').reduce((s, t) => s + signed(t), 0)), format: 'euros' },
+      { label: 'Encaissements', value: eurosOf(open.filter((t) => !isDebitSide(t.side)).map(signedCents)), format: 'euros' },
+      { label: 'Décaissements', value: eurosOf(open.filter((t) => isDebitSide(t.side)).map(signedCents)), format: 'euros' },
     ],
     empty: 'Aucune transaction à rapprocher\u00a0: tout est à jour.',
     links: [{ label: 'Ouvrir le rapprochement dans Kledg', url: kledgPageUrl(companyId, 'reconciliation') }],

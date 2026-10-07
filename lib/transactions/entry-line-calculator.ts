@@ -6,7 +6,7 @@
  */
 
 import type { EntryLine } from './types';
-import { toCents } from '@/lib/utils/money';
+import { sumCents, toCents } from '@/lib/utils/money';
 
 /**
  * Generic rule entry line interface for calculations
@@ -334,7 +334,8 @@ export function balanceEntryLines(
  * @returns Whether the entry is balanced
  */
 export function validateEntryBalance(entryLines: EntryLine[]): boolean {
-  const totalDebit = entryLines.reduce((sum, line) => sum + line.debit, 0);
-  const totalCredit = entryLines.reduce((sum, line) => sum + line.credit, 0);
-  return Math.abs(totalDebit - totalCredit) < 0.01;
+  // In cents: exact, never a float tolerance
+  const totalDebit = sumCents(entryLines.map((line) => toCents(line.debit) ?? 0));
+  const totalCredit = sumCents(entryLines.map((line) => toCents(line.credit) ?? 0));
+  return totalDebit === totalCredit;
 }

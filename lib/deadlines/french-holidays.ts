@@ -1,6 +1,7 @@
 /**
  * French public holidays (jours fériés légaux) and business days, on ISO
- * calendar days (yyyy-mm-dd). Pure, no imports: usable on both sides.
+ * calendar days (yyyy-mm-dd). Pure, only the pure day helpers of
+ * lib/utils/date.ts: usable on both sides.
  *
  * The list is the one of the Code du travail, art. L3133-1
  * (https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006902611):
@@ -14,15 +15,10 @@
  * suivant le 1er mai" and for deadlines postponed to the next business day.
  */
 
-const DAY_MS = 86_400_000
+import { addIsoDays, toIsoDateUtc, utcDate } from '@/lib/utils/date'
 
-function iso(year: number, month: number, day: number): string {
-  return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10)
-}
-
-function shift(day: string, days: number): string {
-  return new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
-}
+const iso = (year: number, month: number, day: number): string => toIsoDateUtc(utcDate(year, month, day))
+const shift = addIsoDays
 
 /**
  * Easter Sunday of a Gregorian year (anonymous Gregorian algorithm, Meeus,

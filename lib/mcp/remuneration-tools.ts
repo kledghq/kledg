@@ -19,8 +19,10 @@ import { breakdownRows, DISCLAIMER, SCENARIO_ORDER } from '@/lib/remuneration/br
 import { DIRECTOR_STATUSES, DIVIDEND_TAXATIONS, type RemunerationOverrides } from '@/lib/remuneration/schemas'
 import { REMUNERATION_READ } from '@/lib/remuneration/permissions'
 import { fromCents } from '@/lib/utils/money'
+import { percentInput } from '@/lib/mcp/euros'
 
-const percent = z.number().finite().min(0).max(100)
+/** Two decimals at most: 12,345 % is refused, never rounded to 1 235 basis points. */
+const percent = percentInput
 
 const InputSchema = z.object({
   companyId: z.string().min(1, 'La société est requise').describe('Company id, from list_companies.'),

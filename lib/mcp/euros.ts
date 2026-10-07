@@ -60,6 +60,17 @@ function percentField(schema: AnySchema): AnySchema {
   return z.number({ error: 'Taux invalide : un pourcentage est attendu' }).min(0).max(100).describe('In percent (20 for 20 %).')
 }
 
+/**
+ * A rate in percent sent by an assistant: 0 to 100, two decimals at most
+ * (12,34 % is 1 234 basis points; 12,345 % is refused, never rounded).
+ */
+export const percentInput = z
+  .number({ error: 'Taux invalide : un pourcentage est attendu' })
+  .finite()
+  .min(0)
+  .max(100)
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) <= 1e-6, 'Taux invalide : en pour cent avec deux décimales au plus.')
+
 /** Basis points of a rate in percent sent by an assistant (four decimals at most), or a French 400. */
 function basisPointsOf(percent: number, field: string): number {
   const bp = Math.round(percent * 100)

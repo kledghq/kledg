@@ -41,6 +41,7 @@ import {
 } from '@/components/features/reports/trial-balance-columns'
 import type { TrialBalanceData } from '@/lib/reports/trial-balance/get-trial-balance.service'
 import { formatTransactionDate } from '@/lib/utils/date'
+import { toCents } from '@/lib/utils/money'
 
 interface FiscalYear {
   id: string
@@ -138,9 +139,9 @@ export default function TrialBalancePage() {
     // truly empty accounts when needed.
     if (
       !showZeroBalances &&
-      Math.abs(balance.debit) < 0.01 &&
-      Math.abs(balance.credit) < 0.01 &&
-      Math.abs(balance.balance) < 0.01
+      toCents(balance.debit) === 0 &&
+      toCents(balance.credit) === 0 &&
+      toCents(balance.balance) === 0
     ) {
       return false
     }

@@ -26,6 +26,7 @@
  */
 
 import { nextBusinessDay, nthBusinessDayAfter, isBusinessDay } from './french-holidays'
+import { addIsoDays, formatIsoDateFr, lastDayOfMonth } from '@/lib/utils/date'
 import { RULES, type RuleId } from './rules'
 import { defaultVatFilingDay, type DeadlineSettings } from './settings'
 import type { Deadline } from './types'
@@ -143,18 +144,15 @@ const ACCOUNTS_FILING_FORMS = new Set(['SARL', 'EURL', 'SELARL', 'SA', 'SAS', 'S
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
 const QUARTERS = ['1er', '2e', '3e', '4e']
 const ORDINALS = ['1er', '2e', '3e', '4e', '5e', '6e', '7e', '8e']
-const DAY_MS = 86_400_000
 
 // ------------------------------------------------------------ day helpers
+// (dates: lib/utils/date.ts, addIsoDays, lastDayOfMonth, formatIsoDateFr)
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const isoOf = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`
 const yearOf = (day: string) => Number(day.slice(0, 4))
 const monthOf = (day: string) => Number(day.slice(5, 7))
 const dayOf = (day: string) => Number(day.slice(8, 10))
-const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate()
-const addDays = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
-const frDay = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`
 
 /** Year and month `months` after (y, m). */
 function shiftMonth(y: number, m: number, months: number): [number, number] {
@@ -170,14 +168,14 @@ function shiftMonth(y: number, m: number, months: number): [number, number] {
  */
 export function addMonthsEom(day: string, months: number): string {
   const [y, m] = shiftMonth(yearOf(day), monthOf(day), months)
-  const last = lastDay(y, m)
-  const endOfMonth = dayOf(day) === lastDay(yearOf(day), monthOf(day))
+  const last = lastDayOfMonth(y, m)
+  const endOfMonth = dayOf(day) === lastDayOfMonth(yearOf(day), monthOf(day))
   return isoOf(y, m, endOfMonth ? last : Math.min(dayOf(day), last))
 }
 
 function previousBusinessDay(day: string): string {
   let current = day
-  while (!isBusinessDay(current)) current = addDays(current, -1)
+  while (!isBusinessDay(current)) current = addIsoDays(current, -1)
   return current
 }
 
@@ -323,18 +321,18 @@ function fiscalYearSpans(input: DeadlineInput): FiscalYearSpan[] {
     ...fy,
     projected: false,
     // The company's first exercice when it is the earliest known and starts with the company.
-    first: index === 0 && foundation !== null && foundation >= addDays(fy.startDate, -31) && foundation <= fy.endDate,
+    first: index === 0 && foundation !== null && foundation >= addIsoDays(fy.startDate, -31) && foundation <= fy.endDate,
   }))
   let last = spans[spans.length - 1]
   while (last && last.endDate < input.to && spans.length < sorted.length + 4) {
     const endDate = addMonthsEom(last.endDate, 12)
-    last = { id: `projected-${endDate}`, startDate: addDays(last.endDate, 1), endDate, projected: true, first: false }
+    last = { id: `projected-${endDate}`, startDate: addIsoDays(last.endDate, 1), endDate, projected: true, first: false }
     spans.push(last)
   }
   return spans
 }
 
-const exerciceLabel = (fy: FiscalYearSpan) => `l'exercice clos le ${frDay(fy.endDate)}`
+const exerciceLabel = (fy: FiscalYearSpan) => `l'exercice clos le ${formatIsoDateFr(fy.endDate)}`
 
 // ------------------------------------------------------------ VAT
 
@@ -439,7 +437,7 @@ export function isAcompteDates(fy: DeadlineFiscalYear): string[] {
   const [py, pm] = dayOf(end) >= 20 ? shiftMonth(yearOf(end), monthOf(end), 1) : [yearOf(end), monthOf(end)]
   const pivot = isoOf(py, pm, 15)
   const count = quarterlyDates(fy.startDate, fy.endDate).length
-  const sequence = quarterlyDates(addDays(pivot, -366 * 3), pivot)
+  const sequence = quarterlyDates(addIsoDays(pivot, -366 * 3), pivot)
   return count === 0 ? [] : sequence.slice(-count)
 }
 
@@ -478,7 +476,7 @@ function corporateTaxDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): C
       bringForward: !december,
       label: `Déclaration de résultat et liasse fiscale de ${exerciceLabel(fy)}`,
       form: regime === 'simplified' ? '2065 et 2033' : '2065 et 2050',
-      extendedDate: addDays(liasseDate, 15),
+      extendedDate: addIsoDays(liasseDate, 15),
       note: ONLINE_EXTENSION_NOTE,
       projected,
     })
@@ -529,7 +527,7 @@ function yearlyDeadlines(input: DeadlineInput): Candidate[] {
         legalDate: date,
         label: `Déclaration de valeur ajoutée et des effectifs ${y}`,
         condition: "Chiffre d'affaires supérieur à 152 500 € hors taxes.",
-        extendedDate: addDays(date, 15),
+        extendedDate: addIsoDays(date, 15),
         note: y === CVAE_LAST_YEAR ? 'Dernière déclaration\u00a0: la CVAE est supprimée à partir de 2030.' : ONLINE_EXTENSION_NOTE,
       })
     }
@@ -625,7 +623,7 @@ function legalDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidat
       legalDate: approval,
       label: `Approbation des comptes de ${exerciceLabel(fy)}`,
       note: approvedOn
-        ? `Comptes approuvés le ${frDay(approvedOn)}.`
+        ? `Comptes approuvés le ${formatIsoDateFr(approvedOn)}.`
         : company.legalType === 'SAS'
           ? 'Dans une SAS, le délai est celui des statuts, six mois le plus souvent.'
           : company.legalType === 'SASU'
@@ -643,11 +641,11 @@ function legalDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidat
       legalDate: filingDeadlineOf(approvedOn ?? approval, online),
       label: `Dépôt des comptes de ${exerciceLabel(fy)} au greffe`,
       note: filedOn
-        ? `Comptes déposés le ${frDay(filedOn)}.`
+        ? `Comptes déposés le ${formatIsoDateFr(filedOn)}.`
         : approvedOn
           ? online
-            ? `Deux mois après l'approbation du ${frDay(approvedOn)}, pour un dépôt en ligne.`
-            : `Un mois après l'approbation du ${frDay(approvedOn)} (deux mois en cas de dépôt en ligne).`
+            ? `Deux mois après l'approbation du ${formatIsoDateFr(approvedOn)}, pour un dépôt en ligne.`
+            : `Un mois après l'approbation du ${formatIsoDateFr(approvedOn)} (deux mois en cas de dépôt en ligne).`
           : online
             ? "Deux mois après l'approbation pour un dépôt en ligne, comptés ici depuis la date limite d'approbation."
             : "Un mois après l'approbation (deux mois en cas de dépôt en ligne), compté ici depuis la date limite d'approbation.",
@@ -671,7 +669,7 @@ function trainingDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candi
       label: `Bilan pédagogique et financier de ${exerciceLabel(fy)}`,
       extendedDate: extendedDate ?? undefined,
       note: extendedDate
-        ? `Avant le 30 avril (Code du travail, art. R6352-23) ; campagne prolongée jusqu'au ${frDay(extendedDate)}.`
+        ? `Avant le 30 avril (Code du travail, art. R6352-23) ; campagne prolongée jusqu'au ${formatIsoDateFr(extendedDate)}.`
         : "Avant le 30 avril (Code du travail, art. R6352-23) ; le ministère annonce chaque année une éventuelle prolongation.",
       projected: fy.projected,
     }
