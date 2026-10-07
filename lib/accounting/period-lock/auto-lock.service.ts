@@ -21,6 +21,7 @@ import { handleError } from '@/lib/accounting/errors'
 import { parisDayOf } from '@/lib/accounting/entry-date'
 import { writeAuditLog } from '@/lib/audit'
 import { parseDeadlineSettings } from '@/lib/deadlines/settings'
+import { withinRateLimit } from '@/lib/rate-limit'
 import { withSystemContext } from '@/lib/rls/context'
 import { addIsoDays, calendarDayOf } from '@/lib/utils/date'
 import { lockPeriod } from './lock-period.service'
@@ -65,7 +66,7 @@ export async function lockOpenYearsThrough(companyId: string, through: string, u
       result.skipped.push({ fiscalYearId: year.id, reason: handleError(error).message })
     }
   }
-  if (result.skipped.length > 0) {
+  if (result.skipped.length > 0 && !(await sameAsLastSkip(companyId, through, result.skipped))) {
     await writeAuditLog('warn', 'Automatic period closing skipped', {
       action: 'PERIOD_AUTO_LOCK_SKIPPED',
       companyId,
@@ -74,6 +75,30 @@ export async function lockOpenYearsThrough(companyId: string, through: string, u
     })
   }
   return result
+}
+
+/**
+ * Whether the last skip recorded for the company was this one (same date,
+ * same years, same reasons): a retry that changes nothing writes no audit
+ * row, so repeated runs cannot grow the append-only log (KLEDG-R3-INPUT-03).
+ */
+async function sameAsLastSkip(companyId: string, through: string, skipped: AutoLockResult['skipped']): Promise<boolean> {
+  try {
+    const last = await prisma.auditLog.findFirst({
+      where: { companyId, action: 'PERIOD_AUTO_LOCK_SKIPPED' },
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true },
+    })
+    const metadata = last?.metadata as { through?: unknown; skipped?: Array<{ fiscalYearId?: unknown; reason?: unknown }> } | null | undefined
+    if (!metadata || metadata.through !== through || !Array.isArray(metadata.skipped)) return false
+    return (
+      metadata.skipped.length === skipped.length &&
+      skipped.every((s, i) => metadata.skipped![i]?.fiscalYearId === s.fiscalYearId && metadata.skipped![i]?.reason === s.reason)
+    )
+  } catch {
+    // Unreadable (row level security of the caller): record it, as before
+    return false
+  }
 }
 
 /** The daily run: every company in monthly mode, each narrowed to itself (row level security). */
@@ -102,13 +127,19 @@ export async function runMonthlyPeriodLocks(now = new Date()): Promise<{ compani
  * GET handler of app/api/cron/period-locks. With CRON_SECRET, only a
  * request with the bearer token runs; without it the route still works (a
  * fresh deployment needs no secret to paste) since it can only do what the
- * schedule would do anyway. The answer holds counts only.
+ * schedule would do anyway, at most twice a day for the whole instance
+ * (rule cron-keyless-period-lock, as the keyless bank sync). The answer
+ * holds counts only.
  */
 export async function handlePeriodLockCron(request: Request): Promise<Response> {
-  if (process.env.CRON_SECRET && !isCronRequest(request)) {
+  const keyless = !process.env.CRON_SECRET
+  if (!keyless && !isCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {
+    if (keyless && !(await withinRateLimit('cron-keyless-period-lock', 'instance'))) {
+      return NextResponse.json({ success: true, skipped: 'rate-limited' })
+    }
     return NextResponse.json({ success: true, ...(await runMonthlyPeriodLocks()) })
   } catch (error) {
     const { message, statusCode } = handleError(error)
