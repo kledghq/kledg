@@ -264,7 +264,11 @@ describe.skipIf(!available)('invoice routes (PostgreSQL)', () => {
     const view = await read.json()
     expect(view).toMatchObject({ patterns: { invoice: 'F{YYYY}-{SEQ:4}' }, qonto: { connected: false, active: false } })
     const settings = { ...view.settings, prefix: 'FV' }
-    const saved = await call('numbering', 'PUT', `/api/companies/${books.companyId}/invoice-numbering`, { settings, nextNumbers: { invoice: 10 } }, { id: books.companyId })
+    // Kledg numbered F2026-0001 in this period: raising the next number would leave a gap (CGI ann. II art. 242 nonies A)
+    const raised = await call('numbering', 'PUT', `/api/companies/${books.companyId}/invoice-numbering`, { settings, nextNumbers: { invoice: 10 } }, { id: books.companyId })
+    expect(raised.status).toBe(409)
+    expect((await raised.json()).error).toMatch(/déjà attribué le numéro F2026-0001/)
+    const saved = await call('numbering', 'PUT', `/api/companies/${books.companyId}/invoice-numbering`, { settings }, { id: books.companyId })
     expect(saved.status).toBe(200)
     expect((await saved.json()).patterns.invoice).toBe('FV{YYYY}-{SEQ:4}')
     const bad = await call('numbering', 'PUT', `/api/companies/${books.companyId}/invoice-numbering`, { settings: { ...settings, year: 'NONE' } }, { id: books.companyId })
