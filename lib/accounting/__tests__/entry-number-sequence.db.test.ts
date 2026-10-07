@@ -52,16 +52,6 @@ describe.skipIf(!available)('entry number sequence (PostgreSQL)', () => {
     expect(rows.map((r) => [r.n, r.s === null ? null : Number(r.s)])).toEqual(NUMBERS.map((n) => [n, sequentialPartOf(n)]))
   })
 
-  it('serves max() from the partial expression index', async () => {
-    const plan = await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off')
-      return tx.$queryRawUnsafe<Array<{ 'QUERY PLAN': string }>>(
-        `EXPLAIN SELECT max(kledg_entry_sequence("entryNumber")) FROM "accounting_entries" WHERE "fiscalYearId" = '${ids.fy}' AND "status" = 'validated'`,
-      )
-    })
-    expect(plan.map((r) => r['QUERY PLAN']).join('\n')).toContain('accounting_entries_validated_sequence_idx')
-  })
-
   it('numbers concurrent bulk validations as one continuous sequence after legacy numbers', async () => {
     const draft = (i: number) =>
       lifecycle.createEntry({
@@ -90,5 +80,27 @@ describe.skipIf(!available)('entry number sequence (PostgreSQL)', () => {
     const numbers = (await prisma.accountingEntry.findMany({ where: { id: { in: drafts } }, select: { entryNumber: true } })).map((e) => Number(e.entryNumber))
     expect(numbers.sort((x, y) => x - y)).toEqual(Array.from({ length: 30 }, (_, i) => 8 + i))
     expect(await numbering.nextDefinitiveEntryNumber(ids.fy)).toBe('38')
+  })
+
+  it('serves max() from the partial expression index on a year of 5 000 validated entries', async () => {
+    const fy = await prisma.fiscalYear.create({ data: { companyId: ids.company, year: 2027, startDate: new Date('2027-01-01T00:00:00Z'), endDate: new Date('2027-12-31T00:00:00Z') } })
+    await prisma.$executeRaw`
+      INSERT INTO "accounting_entries" ("id", "companyId", "fiscalYearId", "journalId", "entryNumber", "date", "description", "status", "createdAt", "updatedAt")
+      SELECT 'bulk-' || n, ${ids.company}, ${fy.id}, ${ids.journal}, n::text, '2027-03-01', 'Écriture ' || n, 'draft', now(), now()
+      FROM generate_series(1, 5000) AS n`
+    const bank = await prisma.account.create({ data: { companyId: ids.company, fiscalYearId: fy.id, code: '512000', label: 'Banque' } })
+    const sales = await prisma.account.create({ data: { companyId: ids.company, fiscalYearId: fy.id, code: '706000', label: 'Ventes' } })
+    await prisma.$executeRaw`
+      INSERT INTO "entry_lines" ("id", "accountingEntryId", "accountingEntryNumber", "accountId", "accountFiscalYearId", "debit", "credit", "createdAt", "updatedAt")
+      SELECT 'bulk-' || n || '-' || side, 'bulk-' || n, n::text, CASE side WHEN 1 THEN ${bank.id} ELSE ${sales.id} END, ${fy.id},
+        CASE side WHEN 1 THEN 10 ELSE 0 END, CASE side WHEN 1 THEN 0 ELSE 10 END, now(), now()
+      FROM generate_series(1, 5000) AS n, generate_series(1, 2) AS side`
+    await prisma.$executeRaw`UPDATE "accounting_entries" SET "status" = 'validated', "validatedAt" = now() WHERE "fiscalYearId" = ${fy.id}`
+    await prisma.$executeRawUnsafe('ANALYZE "accounting_entries"')
+    const plan = await prisma.$queryRawUnsafe<Array<{ 'QUERY PLAN': string }>>(
+      `EXPLAIN SELECT max(kledg_entry_sequence("entryNumber")) FROM "accounting_entries" WHERE "fiscalYearId" = '${fy.id}' AND "status" = 'validated'`,
+    )
+    expect(plan.map((r) => r['QUERY PLAN']).join('\n')).toContain('accounting_entries_validated_sequence_idx')
+    expect(await numbering.nextDefinitiveEntryNumber(fy.id)).toBe('5001')
   })
 })
