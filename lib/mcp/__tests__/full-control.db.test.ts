@@ -640,9 +640,11 @@ describe.skipIf(!available)('full control MCP tools', () => {
       }
       const created = await call(key, 'create_rule', { companyId: ids.aCompany, ...rule })
       expect(created.ok, created.text).toBe(true)
-      const ruleId = created.data.id
+      // Without autoCreate, rules are written at once (answered like an executed action).
+      expect(created.data.executed).toBe(true)
+      const ruleId = created.data.result.id
       const updated = await call(key, 'update_rule', { companyId: ids.aCompany, ruleId, ...rule, name: 'Frais', priority: 5 })
-      expect(updated.data).toMatchObject({ name: 'Frais', priority: 5, conditions: [{ conditionType: 'label', value: 'FRAIS' }] })
+      expect(updated.data.result).toMatchObject({ name: 'Frais', priority: 5, conditions: [{ conditionType: 'label', value: 'FRAIS' }] })
       expect((await call(key, 'list_rules', { companyId: ids.aCompany })).data).toHaveLength(1)
       const ofB = await call(key, 'update_rule', { companyId: ids.bCompany, ruleId, ...rule })
       expect(ofB.text).toBe('Règle introuvable')

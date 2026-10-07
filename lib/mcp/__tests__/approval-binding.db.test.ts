@@ -233,7 +233,7 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       await approve(dry.actionId)
       await ok(key, 'update_rule', {
         companyId: ids.company,
-        ruleId: rule.id,
+        ruleId: rule.result.id,
         name: 'Frais bancaires',
         conditions: [{ conditionType: 'label', operator: 'contains', value: 'VIR' }],
         entryLines: [{ accountCode: '455', lineType: 'auto', amountType: 'full' }],
@@ -339,6 +339,45 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       // Pointage without entry is not concerned.
       const pointed = await bankTransaction('FRAIS', '1.00')
       await ok(key, 'reconcile_transaction', { companyId: ids.company, transactionId: pointed.id, withoutEntry: true })
+    })
+  })
+
+  describe('KLEDG-R3-MCP-10: applying rules and reconciling follow the approval of run_rules', () => {
+    it('in validation mode, answers a dry run and an approval link for apply_rule, mark_reconciled, the refresh and an autoCreate rule', async () => {
+      const key = await apiKey('admin')
+      const transaction = await bankTransaction('PRLV FREE', '29.99')
+      const rule = await ok(key, 'create_rule', {
+        companyId: ids.company,
+        name: 'Free',
+        conditions: [{ conditionType: 'label', operator: 'contains', value: 'FREE' }],
+        entryLines: [{ accountCode: '627', lineType: 'auto', amountType: 'full' }],
+      })
+      // A rule applied only on demand is created at once.
+      expect(rule.executed).toBe(true)
+      const ruleId = rule.result.id
+
+      for (const [tool, args] of [
+        ['bulk_reconcile', { action: 'apply_rule', transactionId: transaction.id, ruleId }],
+        ['bulk_reconcile', { action: 'mark_reconciled', transactionIds: [transaction.id] }],
+        ['sync_bank_data', { scope: 'refresh' }],
+        ['create_rule', { name: 'Auto', autoCreate: true, conditions: [{ conditionType: 'label', operator: 'contains', value: 'X' }], entryLines: [{ accountCode: '627', lineType: 'auto', amountType: 'full' }] }],
+        ['update_rule', { ruleId, name: 'Free', autoCreate: true, conditions: [{ conditionType: 'label', operator: 'contains', value: 'FREE' }], entryLines: [{ accountCode: '627', lineType: 'auto', amountType: 'full' }] }],
+      ] as const) {
+        const dry = await ok(key, tool, { companyId: ids.company, ...args })
+        expect(dry.dryRun, tool).toBe(true)
+        expect(dry.approvalUrl, tool).toContain(dry.actionId)
+      }
+      expect((await prisma.bankTransaction.findUniqueOrThrow({ where: { id: transaction.id } })).reconciled).toBe(false)
+      expect(await prisma.transactionRule.count({ where: { companyId: ids.company, autoCreate: true } })).toBe(0)
+      expect(await prisma.transactionRule.count({ where: { companyId: ids.company, name: 'Auto' } })).toBe(0)
+
+      // Once approved, apply_rule books the draft and reconciles.
+      const dry = await ok(key, 'bulk_reconcile', { companyId: ids.company, action: 'apply_rule', transactionId: transaction.id, ruleId })
+      expect(dry.preview.rule).toMatchObject({ id: ruleId, name: 'Free' })
+      await approve(dry.actionId)
+      const done = await ok(key, 'bulk_reconcile', { companyId: ids.company, action: 'apply_rule', transactionId: transaction.id, ruleId, actionId: dry.actionId })
+      expect(done.executed).toBe(true)
+      expect((await prisma.bankTransaction.findUniqueOrThrow({ where: { id: transaction.id } })).reconciled).toBe(true)
     })
   })
 })

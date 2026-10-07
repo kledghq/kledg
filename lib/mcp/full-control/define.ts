@@ -118,6 +118,12 @@ export interface ConfirmedTool<S extends Shape, P, R> extends ToolBase<S, R> {
    */
   highImpactActions?: readonly string[]
   /**
+   * Tools whose calls are high impact only with some arguments (a rule
+   * marked autoCreate, applied without a click): whether this call is. The
+   * other calls run at once, like a direct tool. Replaces highImpactActions.
+   */
+  highImpactWhen?: (args: Args<S>) => boolean
+  /**
    * The rows the action acts on (entries with their lines, an invoice with
    * its lines, rules...), read again before the execution: in validation
    * mode the approval is refused when they, or the dry run, changed since
@@ -263,7 +269,9 @@ export function registerFullControlTool<S extends Shape, P, R>(
             companyIds: () => guard.companyIds(),
           },
         }
-        const highImpact = tool.confirmation && (!tool.highImpactActions || tool.highImpactActions.includes(String(action)))
+        const highImpact =
+          tool.confirmation &&
+          (tool.highImpactWhen ? tool.highImpactWhen(args) : !tool.highImpactActions || tool.highImpactActions.includes(String(action)))
 
         // A dry run asked in automatic mode only previews, whatever the action.
         if (tool.confirmation && automatic && dryRun) {

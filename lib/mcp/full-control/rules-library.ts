@@ -11,7 +11,8 @@ import { z } from 'zod'
 import { addRuleFromTemplate } from '@/lib/rules-library/manage-rule-templates.service'
 import { MAX_COPIED_RULES, copyRulesFromCompany } from '@/lib/rules-library/copy-rules.service'
 import { fullControlTool, type RegisterTool } from './define'
-import { ACTS_AS_USER } from './descriptions'
+import { ACTS_AS_USER, TWO_STEP } from './descriptions'
+import { AUTO_CREATE_EFFECT, AUTO_CREATE_STEP } from './banking'
 
 const createMissingAccounts = z
   .boolean()
@@ -21,7 +22,7 @@ const createMissingAccounts = z
 const addRuleFromTemplateTool = fullControlTool({
   name: 'add_rule_from_template',
   title: 'Ajouter une règle de la bibliothèque',
-  description: `Adds the assignment rule of a template of the rules library (ids from list_rule_templates) to a company: its conditions, its entry lines and VAT, account codes mapped to the company's chart (a subdivision the company made is preferred, e.g. 6262 for 626). Refused when the same rule exists (same name or same conditions) unless allowDuplicate. ${ACTS_AS_USER}`,
+  description: `Adds the assignment rule of a template of the rules library (ids from list_rule_templates) to a company: its conditions, its entry lines and VAT, account codes mapped to the company's chart (a subdivision the company made is preferred, e.g. 6262 for 626). Refused when the same rule exists (same name or same conditions) unless allowDuplicate. ${ACTS_AS_USER} ${AUTO_CREATE_STEP}`,
   input: {
     templateId: z.string().min(1).max(60).describe('Template id, from list_rule_templates.'),
     createMissingAccounts,
@@ -34,7 +35,9 @@ const addRuleFromTemplateTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'none',
   never: 'runs the rule (run_rules does), or creates an account unless createMissingAccounts is true.',
-  confirmation: false,
+  confirmation: true,
+  highImpactWhen: ({ autoCreate }) => autoCreate === true,
+  preview: async (input) => ({ ruleFromTemplate: input, effect: AUTO_CREATE_EFFECT }),
   async execute({ companyId, templateId, ...input }) {
     const result = await addRuleFromTemplate(companyId, templateId, input)
     return {
@@ -54,7 +57,7 @@ const addRuleFromTemplateTool = fullControlTool({
 const copyRulesFromCompanyTool = fullControlTool({
   name: 'copy_rules_from_company',
   title: 'Copier des règles depuis une autre société',
-  description: `Copies assignment rules of another company of the user (sourceCompanyId, from list_companies; rule ids from list_rules on that company) into this company, account codes mapped to its chart. Needs banking:read in the source company and ledger:manage here, both within this connection's companies. Copies are inactive unless enabled; a rule with the same name or conditions as one of this company is skipped. ${ACTS_AS_USER}`,
+  description: `Copies assignment rules of another company of the user (sourceCompanyId, from list_companies; rule ids from list_rules on that company) into this company, account codes mapped to its chart. Needs banking:read in the source company and ledger:manage here, both within this connection's companies. Copies are inactive unless enabled; a rule with the same name or conditions as one of this company is skipped. ${ACTS_AS_USER} Enabled copies keep the autoCreate of their source (applied without a click by every refresh), so enabled: true is high impact, like run_rules: ${TWO_STEP} Inactive copies are made at once.`,
   input: {
     sourceCompanyId: z.string().min(1).max(64).describe('Company to copy from, from list_companies.'),
     ruleIds: z.array(z.string().min(1).max(64)).min(1).max(MAX_COPIED_RULES).describe('Rule ids of the source company, from list_rules.'),
@@ -64,7 +67,9 @@ const copyRulesFromCompanyTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'none',
   never: 'changes the source company, or runs the copied rules.',
-  confirmation: false,
+  confirmation: true,
+  highImpactWhen: ({ enabled }) => enabled === true,
+  preview: async ({ sourceCompanyId, ruleIds, createMissingAccounts, enabled }) => ({ sourceCompanyId, ruleIds, createMissingAccounts, enabled, effect: AUTO_CREATE_EFFECT }),
   execute: ({ companyId, ...input }, ctx) => copyRulesFromCompany(ctx.group, companyId, input),
   audit: ({ sourceCompanyId }, result) => ({ sourceCompanyId, ruleIds: result.copied.map((c) => c.ruleId), createdAccounts: result.createdAccounts }),
 })
