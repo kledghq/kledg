@@ -105,6 +105,7 @@ describe.skipIf(!available)('report routes', () => {
       bsLineId: import('@/app/api/companies/[id]/balance-sheet/config/line/[lineId]/route'),
       bsHistory: import('@/app/api/companies/[id]/balance-sheet/config/history/route'),
       bsTemplates: import('@/app/api/companies/[id]/balance-sheet/config/templates/route'),
+      bsTemplate: import('@/app/api/companies/[id]/balance-sheet/config/templates/[templateId]/route'),
       isConfig: import('@/app/api/companies/[id]/income-statement/config/route'),
       isDefault: import('@/app/api/companies/[id]/income-statement/config/default/route'),
       isLine: import('@/app/api/companies/[id]/income-statement/config/line/route'),
@@ -295,6 +296,20 @@ describe.skipIf(!available)('report routes', () => {
       const foreign = await call(routes.bsTemplates.POST, 'POST', '/x', { action: 'apply', templateId: ids.otherTemplate })
       expect(foreign.status).toBe(404)
       expect(await errorOf(foreign)).toBe('Modèle introuvable')
+    })
+
+    it('[KLEDG-R3-AUTHZ-01] deletes a template of the company only, never a shared one nor another company\'s', async () => {
+      const created = await call(routes.bsTemplates.POST, 'POST', '/x', { action: 'create', name: 'À supprimer', variant: 'simplified' })
+      const own = (await created.json()) as { id: string }
+      const shared = await prisma.balanceSheetConfigTemplate.create({ data: { name: 'Kledg', reportVariant: 'simplified', isPublic: true, configData: {} } })
+      for (const templateId of [ids.otherTemplate, shared.id, 'missing']) {
+        const refused = await call(routes.bsTemplate.DELETE, 'DELETE', '/x', undefined, { templateId })
+        expect(refused.status).toBe(404)
+        expect(await errorOf(refused)).toBe('Modèle introuvable')
+      }
+      expect(await prisma.balanceSheetConfigTemplate.count({ where: { id: { in: [ids.otherTemplate, shared.id] } } })).toBe(2)
+      expect((await call(routes.bsTemplate.DELETE, 'DELETE', '/x', undefined, { templateId: own.id })).status).toBe(204)
+      expect(await prisma.balanceSheetConfigTemplate.count({ where: { id: own.id } })).toBe(0)
     })
 
     it('[KLEDG-R3-AUTHZ-01] refuses to publish a template to the other companies of the instance', async () => {

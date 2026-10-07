@@ -272,7 +272,8 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
   await prisma.integration.create({
     data: { id: `revolut${prefix}integration0`, companyId: company.id, provider: 'REVOLUT', type: 'BANKING', name: 'Revolut', credentials: {}, credentialsEncrypted: false },
   })
-  Object.assign(ids, { [`${prefix}BsLine`]: bsLine.id, [`${prefix}IsLine`]: isLine.id, [`${prefix}Connection`]: connection.id })
+  const template = await prisma.balanceSheetConfigTemplate.create({ data: { companyId: company.id, name: 'Modèle maison', reportVariant: 'simplified', configData: {} } })
+  Object.assign(ids, { [`${prefix}BsLine`]: bsLine.id, [`${prefix}IsLine`]: isLine.id, [`${prefix}Connection`]: connection.id, [`${prefix}Template`]: template.id })
   const integration = await prisma.integration.create({
     data: {
       companyId: company.id,
@@ -616,6 +617,7 @@ const ROUTE_MODULES = {
   balanceSheetLine: () => import('@/app/api/companies/[id]/balance-sheet/config/line/route'),
   balanceSheetLineOne: () => import('@/app/api/companies/[id]/balance-sheet/config/line/[lineId]/route'),
   balanceSheetTemplates: () => import('@/app/api/companies/[id]/balance-sheet/config/templates/route'),
+  balanceSheetTemplate: () => import('@/app/api/companies/[id]/balance-sheet/config/templates/[templateId]/route'),
   validateIncomeStatement: () => import('@/app/api/companies/[id]/balance-sheet/validate-income-statement/route'),
   incomeStatementLayout: () => import('@/app/api/companies/[id]/income-statement/config/route'),
   incomeStatementLayoutReset: () => import('@/app/api/companies/[id]/income-statement/config/default/route'),
@@ -904,6 +906,7 @@ const WRITES: Call[] = [
   { label: 'update balance sheet line', route: 'balanceSheetLineOne', method: 'PATCH', path: () => `/api/companies/${A()}/balance-sheet/config/line/${ids.aBsLine}`, params: p({ id: A, lineId: () => ids.aBsLine }), body: () => ({ lineLabel: 'Trésorerie' }) },
   { label: 'delete balance sheet line', route: 'balanceSheetLineOne', method: 'DELETE', path: () => `/api/companies/${A()}/balance-sheet/config/line/${ids.aBsLine}`, params: p({ id: A, lineId: () => ids.aBsLine }) },
   { label: 'save balance sheet template', route: 'balanceSheetTemplates', method: 'POST', path: () => `/api/companies/${A()}/balance-sheet/config/templates`, params: p({ id: A }), body: () => ({ action: 'create', name: 'Modèle', variant: 'simplified' }) },
+  { label: 'delete balance sheet template', route: 'balanceSheetTemplate', method: 'DELETE', path: () => `/api/companies/${A()}/balance-sheet/config/templates/${ids.aTemplate}`, params: p({ id: A, templateId: () => ids.aTemplate }) },
   { label: 'add income statement layout line', route: 'incomeStatementLayout', method: 'POST', path: () => `/api/companies/${A()}/income-statement/config`, params: p({ id: A }), body: () => ({ reportVariant: 'simplified', section: 'charges', lineLabel: 'Achats', accountCodes: ['60'], balanceType: 'debit', order: 2 }) },
   { label: 'reset income statement layout', route: 'incomeStatementLayoutReset', method: 'POST', path: () => `/api/companies/${A()}/income-statement/config/default`, params: p({ id: A }), body: () => ({ variant: 'simplified' }) },
   { label: 'update income statement line', route: 'incomeStatementLineOne', method: 'PATCH', path: () => `/api/companies/${A()}/income-statement/config/line/${ids.aIsLine}`, params: p({ id: A, lineId: () => ids.aIsLine }), body: () => ({ lineLabel: 'Chiffre d’affaires' }) },
@@ -1134,6 +1137,7 @@ const ACCOUNTANT_FORBIDDEN = new Set([
   'update balance sheet line',
   'delete balance sheet line',
   'save balance sheet template',
+  'delete balance sheet template',
   'add income statement layout line',
   'reset income statement layout',
   'update income statement line',

@@ -49,6 +49,7 @@ import {
   updateBalanceSheetLine,
   updateIncomeStatementLine,
 } from '@/lib/reports/config/manage-layouts.service'
+import { deleteBalanceSheetTemplate } from '@/lib/reports/balance-sheet/config/manage-templates.service'
 import {
   ConfigHistoryActionSchema,
   CreateBalanceSheetLineSchema,
@@ -228,15 +229,15 @@ const manageCompanyRecordsTool = fullControlTool({
   audit: ({ action, establishmentId, shareholderId, taxRegimeId, personId }) => ({ action, establishmentId: establishmentId ?? null, shareholderId: shareholderId ?? null, taxRegimeId: taxRegimeId ?? null, personId: personId ?? null }),
 })
 
-const LAYOUT_ACTIONS = ['reset_default', 'create_default', 'create_line', 'update_line', 'delete_line', 'snapshot_line', 'restore_line', 'save_template', 'apply_template'] as const
-const BALANCE_SHEET_ONLY = new Set(['create_default', 'snapshot_line', 'restore_line', 'save_template', 'apply_template'])
+const LAYOUT_ACTIONS = ['reset_default', 'create_default', 'create_line', 'update_line', 'delete_line', 'snapshot_line', 'restore_line', 'save_template', 'apply_template', 'delete_template'] as const
+const BALANCE_SHEET_ONLY = new Set(['create_default', 'snapshot_line', 'restore_line', 'save_template', 'apply_template', 'delete_template'])
 
 const lineFields = CreateBalanceSheetLineSchema.partial().extend(UpdateBalanceSheetLineSchema.shape).extend(CreateIncomeStatementLineSchema.partial().shape)
 
 const manageStatementLayoutTool = fullControlTool({
   name: 'manage_statement_layout',
   title: 'Modifier la mise en page des états',
-  description: `Changes the layout of the balance sheet or of the income statement (variant complete or simplified), like the layout pages: reset_default (back to the PCG default), create_default (balance sheet: create the default layout), create_line, update_line (the fields given), delete_line, and for the balance sheet snapshot_line and restore_line (history of a line), save_template (save the layout as a template of the company) and apply_template (a template of the company or one provided by Kledg). Lines have a label, a type, a parent, form codes, account codes (included, excluded, depreciation), a sense (debit, credit, auto), a display and an order. Read it with get_statement_layout. ${ACTS_AS_USER} ${TWO_STEP}`,
+  description: `Changes the layout of the balance sheet or of the income statement (variant complete or simplified), like the layout pages: reset_default (back to the PCG default), create_default (balance sheet: create the default layout), create_line, update_line (the fields given), delete_line, and for the balance sheet snapshot_line and restore_line (history of a line), save_template (save the layout as a template of the company), apply_template (a template of the company or one provided by Kledg) and delete_template (a template of the company). Lines have a label, a type, a parent, form codes, account codes (included, excluded, depreciation), a sense (debit, credit, auto), a display and an order. Read it with get_statement_layout. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: {
     statement: z.enum(['balance_sheet', 'income_statement']),
     action: z.enum(LAYOUT_ACTIONS),
@@ -245,7 +246,7 @@ const manageStatementLayoutTool = fullControlTool({
     line: assistantInput(lineFields).optional().describe('create_line and update_line: the fields of the line (lineLabel required to create).'),
     version: z.number().int().optional().describe('restore_line: the version to restore.'),
     changeReason: z.string().max(500).optional().describe('snapshot_line: why.'),
-    templateId: z.string().max(64).optional().describe('apply_template: from get_statement_layout view templates.'),
+    templateId: z.string().max(64).optional().describe('apply_template and delete_template: from get_statement_layout view templates.'),
     templateName: z.string().max(200).optional().describe('save_template: its name.'),
     templateDescription: z.string().max(1000).optional(),
   },
@@ -299,6 +300,10 @@ const manageStatementLayoutTool = fullControlTool({
           action === 'save_template' ? { action: 'create', name: templateName, description: templateDescription, variant } : { action: 'apply', templateId },
         )
         return forAssistant((await runBalanceSheetTemplateAction(companyId, userId, body)).result)
+      }
+      case 'delete_template': {
+        if (!templateId) throw new ValidationError('templateId est requis pour cette action.')
+        return { deleted: (await deleteBalanceSheetTemplate(companyId, templateId)).id }
       }
     }
   },

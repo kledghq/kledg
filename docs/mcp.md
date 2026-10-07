@@ -288,7 +288,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `import_accounting_file` | Importer un FEC, un CSV ou un Excel d'écritures (base64, 5 Mo au plus) ; l'aperçu donne les exercices du FEC | `entries:create` et `ledger:manage` | Oui |
 | `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances, numérotation des factures (et prochain numéro de la période, seulement à la hausse), seuil et réglages de la prévision de trésorerie | `settings:update` | Oui |
 | `manage_company_records` | Établissements, personnes (création, rectification, effacement dans les limites de la conservation légale, RGPD art. 16 et 17), associés, régimes fiscaux, adresses | `settings:update` | Oui |
-| `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles) | `settings:update` | Oui |
+| `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles de la société : enregistrer, appliquer, supprimer) | `settings:update` | Oui |
 | `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
 | `manage_bank_accounts` | Nom, compte 512 et synchronisation d'un compte bancaire, compte par défaut, comptes synchronisés d'une connexion, déconnexion d'une banque (identifiants supprimés, opérations gardées) | `banking:manage` | Oui (comptes synchronisés, déconnexion) |
 | `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui (annulation, rapprochement automatique) |
@@ -432,9 +432,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 227 | 186 | 41 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 228 | 187 | 41 |
 | Lectures (GET) | 182 | 154 | 28 |
-| Total | 409 | 340 | 69 |
+| Total | 410 | 341 | 69 |
 
 ### Exclusions
 
@@ -549,6 +549,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/companies/[id]/balance-sheet/config` | settings:update | `manage_statement_layout` (CT) |
 | `GET /api/companies/[id]/balance-sheet/config/templates` | settings:read | `get_statement_layout` (L) |
 | `POST /api/companies/[id]/balance-sheet/config/templates` | settings:update | `manage_statement_layout` (CT) |
+| `DELETE /api/companies/[id]/balance-sheet/config/templates/[templateId]` | settings:update | `manage_statement_layout` (CT) ; Action delete_template. |
 | `GET /api/companies/[id]/balance-sheet/export-excel` | reports:export | `export_report` (L) |
 | `GET /api/companies/[id]/balance-sheet/export-pdf` | reports:export | `export_report` (L) |
 | `GET /api/companies/[id]/balance-sheet` | reports:read | `get_balance_sheet` (L) |

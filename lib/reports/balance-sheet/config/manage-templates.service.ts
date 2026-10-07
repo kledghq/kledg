@@ -219,3 +219,15 @@ export async function applyBalanceSheetTemplate(
     lines: buildConfigTree(createdConfigs) as BalanceSheetLineConfig[],
   }
 }
+
+/**
+ * Deletes a template of the company (KLEDG-R3-AUTHZ-01). Kledg's shared
+ * templates and those of other companies answer 404 like a missing one.
+ * Layout lines created from it keep their own copy (templateId is only a
+ * reference, without foreign key).
+ */
+export async function deleteBalanceSheetTemplate(companyId: string, templateId: string): Promise<{ id: string }> {
+  const { count } = await prisma.balanceSheetConfigTemplate.deleteMany({ where: { id: templateId, companyId } })
+  if (count === 0) throw new NotFoundError('Modèle introuvable')
+  return { id: templateId }
+}
