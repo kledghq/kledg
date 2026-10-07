@@ -5,7 +5,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { encrypt, decrypt } from '@/lib/integrations/encryption'
+import { encrypt, decrypt, UPDATE_TOKEN_CONTEXT } from '@/lib/integrations/encryption'
 import { getEncryptionKey } from '@/lib/crypto/encryption-key'
 import { ValidationError } from '@/lib/accounting/errors'
 import {
@@ -177,7 +177,7 @@ export async function saveConnection(token: string, validation: TokenValidation,
   const data = {
     owner: validation.repository.owner,
     repo: validation.repository.repo,
-    tokenEncrypted: encrypt(token, requireKey()),
+    tokenEncrypted: encrypt(token, requireKey(), UPDATE_TOKEN_CONTEXT),
     tokenLast4: token.slice(-4),
     tokenExpiresAt: validation.expiresAt,
     isFork: validation.kind === 'fork',
@@ -256,7 +256,7 @@ export async function loadConnection(): Promise<ActiveConnection> {
   if (!row) throw new ValidationError("Aucun dépôt GitHub connecté. Connectez votre dépôt d'abord.")
   let token: string
   try {
-    token = decrypt(row.tokenEncrypted, requireKey())
+    token = decrypt(row.tokenEncrypted, requireKey(), UPDATE_TOKEN_CONTEXT)
   } catch (error) {
     if (error instanceof ValidationError) throw error
     throw new ValidationError('Le jeton enregistré est illisible (clé de chiffrement modifiée). Reconnectez GitHub.')

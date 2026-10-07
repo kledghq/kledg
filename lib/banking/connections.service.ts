@@ -101,7 +101,7 @@ export async function refreshConnection(input: {
     }
     const provider = createBankProvider(
       'PONTO',
-      openCredentials('PONTO', integration.credentials, integration.credentialsEncrypted, input.encryptionKey),
+      openCredentials('PONTO', integration.credentials, integration.credentialsEncrypted, input.encryptionKey, input.companyId),
     )
     // Every Ponto account except those a direct connection already covers
     const superseded = new Set(connection.bankAccounts.map((a) => a.externalAccountId))
@@ -297,7 +297,7 @@ export async function updateIntegrationCredentials(input: {
   }
 
   // Empty secrets keep the stored ones: the form never shows them again
-  const stored = openCredentials(provider, integration.credentials, integration.credentialsEncrypted, input.encryptionKey)
+  const stored = openCredentials(provider, integration.credentials, integration.credentialsEncrypted, input.encryptionKey, input.companyId)
   const merged: Record<string, unknown> = { ...stored }
   for (const [key, value] of Object.entries(input.credentials)) {
     if (typeof value === 'string' && value.trim() === '') continue
@@ -316,7 +316,7 @@ export async function updateIntegrationCredentials(input: {
     throw error
   }
 
-  const sealed = sealCredentials(provider, merged, input.encryptionKey)
+  const sealed = sealCredentials(provider, merged, input.encryptionKey, input.companyId)
   await prisma.$transaction(async (tx) => {
     await tx.integration.update({
       where: { id: integration.id },

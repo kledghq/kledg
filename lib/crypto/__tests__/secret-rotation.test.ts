@@ -10,6 +10,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { decrypt, encrypt } from '@/lib/integrations/encryption'
+
+const CTX = 'bank_connections:company-1:QONTO:secretKeyEncrypted'
 import { getEncryptionKey, previousEncryptionKeys } from '@/lib/crypto/encryption-key'
 import { reseal } from '@/lib/crypto/reencrypt'
 
@@ -44,16 +46,33 @@ describe('reseal', () => {
   const newKey = getEncryptionKey({ BETTER_AUTH_SECRET: NEW })!
 
   it('seals again with the current key a value only an older key opens', () => {
-    const outcome = reseal(encrypt('qonto-secret', oldKey), newKey, [oldKey])
+    const outcome = reseal(encrypt('qonto-secret', oldKey, CTX), newKey, [oldKey], CTX)
     expect(outcome.kind).toBe('resealed')
-    if (outcome.kind === 'resealed') expect(decrypt(outcome.value, newKey)).toBe('qonto-secret')
+    if (outcome.kind === 'resealed') expect(decrypt(outcome.value, newKey, CTX)).toBe('qonto-secret')
+  })
+
+  it('[KLEDG-R3-INPUT-06] seals again in v2, bound to its row, a legacy value the current key opens', async () => {
+    const crypto = await import('crypto')
+    const iv = crypto.randomBytes(16)
+    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(newKey, 'hex'), iv)
+    const body = Buffer.concat([cipher.update('qonto-secret', 'utf8'), cipher.final()])
+    const legacy = Buffer.concat([crypto.randomBytes(64), iv, cipher.getAuthTag(), body]).toString('base64')
+    const outcome = reseal(legacy, newKey, [], CTX)
+    expect(outcome.kind).toBe('resealed')
+    if (outcome.kind === 'resealed') {
+      expect(outcome.value.startsWith('v2:')).toBe(true)
+      expect(decrypt(outcome.value, newKey, CTX)).toBe('qonto-secret')
+      expect(reseal(outcome.value, newKey, [], CTX)).toEqual({ kind: 'current' })
+    }
   })
 
   it('leaves a value sealed with the current key alone', () => {
-    expect(reseal(encrypt('qonto-secret', newKey), newKey, [oldKey])).toEqual({ kind: 'current' })
+    expect(reseal(encrypt('qonto-secret', newKey, CTX), newKey, [oldKey], CTX)).toEqual({ kind: 'current' })
   })
 
   it('reports a value no configured key opens', () => {
-    expect(reseal(encrypt('qonto-secret', 'b'.repeat(64)), newKey, [oldKey])).toEqual({ kind: 'unreadable' })
+    expect(reseal(encrypt('qonto-secret', 'b'.repeat(64), CTX), newKey, [oldKey], CTX)).toEqual({ kind: 'unreadable' })
+    // Sealed for another row: unreadable here
+    expect(reseal(encrypt('qonto-secret', newKey, 'elsewhere'), newKey, [oldKey], CTX)).toEqual({ kind: 'unreadable' })
   })
 })

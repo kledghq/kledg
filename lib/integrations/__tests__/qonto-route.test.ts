@@ -36,7 +36,7 @@ vi.mock('@/lib/integrations/public-https-fetch', () => ({
 
 import { prisma } from '@/lib/prisma'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
-import { decrypt } from '@/lib/integrations/encryption'
+import { bankConnectionContext, decrypt } from '@/lib/integrations/encryption'
 import { getEncryptionKey } from '@/lib/crypto/encryption-key'
 import { guardBankConnect, limitBankCalls } from '@/lib/banking/guard'
 import { QONTO_CREDENTIALS_REFUSED } from '@/lib/banking/errors'
@@ -188,7 +188,7 @@ describe('POST /api/qonto/connect', () => {
     expect(args.where).toEqual({ companyId_provider: { companyId: COMPANY, provider: 'QONTO' } })
     expect(args.create).toMatchObject({ companyId: COMPANY, login: 'acme', selectedAccountId: 'FR76AAA', status: 'active' })
     expect(args.create.secretKeyEncrypted).not.toBe(SECRET)
-    expect(decrypt(args.create.secretKeyEncrypted as string, getEncryptionKey()!)).toBe(SECRET)
+    expect(decrypt(args.create.secretKeyEncrypted as string, getEncryptionKey()!, bankConnectionContext(COMPANY, 'QONTO'))).toBe(SECRET)
     expect(Object.keys(args.select ?? {})).not.toContain('secretKeyEncrypted')
     expect(Object.keys(args.select ?? {})).not.toContain('login')
   })

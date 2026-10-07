@@ -21,7 +21,7 @@ vi.mock('@/lib/integrations/public-https-fetch', () => ({
 import { prisma } from '@/lib/prisma'
 import { asPrismaMock } from '@/lib/__tests__/helpers/prisma-mock'
 import { logger } from '@/lib/logger'
-import { encrypt } from '@/lib/integrations/encryption'
+import { bankConnectionContext, encrypt, integrationContext } from '@/lib/integrations/encryption'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { getQontoCredentials, QONTO_NOT_CONNECTED_MESSAGE, qontoClientFor } from '@/lib/integrations/providers/qonto/get-credentials'
 import {
@@ -69,7 +69,7 @@ afterEach(() => {
 
 describe('getQontoCredentials', () => {
   it('reads the legacy key of the company connection first', async () => {
-    db.bankConnection.findUnique.mockResolvedValue({ login: 'legacy-org', secretKeyEncrypted: encrypt('legacy-secret', KEY) })
+    db.bankConnection.findUnique.mockResolvedValue({ login: 'legacy-org', secretKeyEncrypted: encrypt('legacy-secret', KEY, bankConnectionContext(COMPANY, 'QONTO')) })
     expect(await getQontoCredentials(COMPANY)).toEqual({ login: 'legacy-org', secretKey: 'legacy-secret' })
     expect(db.bankConnection.findUnique.mock.calls[0][0]).toEqual({
       where: { companyId_provider: { companyId: COMPANY, provider: 'QONTO' } },
@@ -79,8 +79,8 @@ describe('getQontoCredentials', () => {
   })
 
   it('falls back to the integration when the legacy key cannot be decrypted', async () => {
-    db.bankConnection.findUnique.mockResolvedValue({ login: 'legacy-org', secretKeyEncrypted: encrypt('legacy-secret', OTHER_KEY) })
-    db.integration.findFirst.mockResolvedValue({ credentials: { login: 'acme', secretKey: encrypt('sealed-secret', KEY) }, credentialsEncrypted: true })
+    db.bankConnection.findUnique.mockResolvedValue({ login: 'legacy-org', secretKeyEncrypted: encrypt('legacy-secret', OTHER_KEY, bankConnectionContext(COMPANY, 'QONTO')) })
+    db.integration.findFirst.mockResolvedValue({ credentials: { login: 'acme', secretKey: encrypt('sealed-secret', KEY, integrationContext(COMPANY, 'QONTO', 'secretKey')) }, credentialsEncrypted: true })
     expect(await getQontoCredentials(COMPANY)).toEqual({ login: 'acme', secretKey: 'sealed-secret' })
     expect(logger.warn).toHaveBeenCalledTimes(1)
     expect(db.integration.findFirst.mock.calls[0][0]?.where).toEqual({ companyId: COMPANY, provider: 'QONTO', status: 'active', type: 'BANKING' })
@@ -96,7 +96,7 @@ describe('getQontoCredentials', () => {
   })
 
   it('answers a French message, never the decryption detail, for a key sealed with another instance key', async () => {
-    db.integration.findFirst.mockResolvedValue({ credentials: { login: 'acme', secretKey: encrypt('sealed', OTHER_KEY) }, credentialsEncrypted: true })
+    db.integration.findFirst.mockResolvedValue({ credentials: { login: 'acme', secretKey: encrypt('sealed', OTHER_KEY, integrationContext(COMPANY, 'QONTO', 'secretKey')) }, credentialsEncrypted: true })
     const error = await getQontoCredentials(COMPANY).catch((e: unknown) => e)
     expect(error).toEqual(new ValidationError(UNREADABLE))
     expect(logger.error).toHaveBeenCalledWith('[Qonto] Integration key unreadable', expect.anything())

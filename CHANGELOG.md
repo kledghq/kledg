@@ -11,6 +11,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Clôture automatique des périodes : sans `CRON_SECRET`, la route planifiée ne tourne plus qu'au plus 2 fois par jour pour toute l'instance, et une clôture ignorée pour la même raison qu'à la dernière exécution n'ajoute plus de ligne au journal d'audit.
 - Toutes les pages reçoivent leur politique de sécurité du contenu (CSP), y compris une adresse qui se termine par une extension d'image : seuls les vrais fichiers statiques (icônes, logo, fichiers de Next.js) en sont dispensés.
 - Page **Mises à jour** : l'installation ne fusionne que la branche `kledg-update` de votre propre dépôt vers sa branche par défaut (jamais une pull request ouverte depuis un fork avec une branche du même nom), et refuse une mise à jour modifiée entre la confirmation et la fusion. La page avertit quand le jeton GitHub donne accès à d'autres dépôts privés que celui de l'instance. Migration `20261126090000_update_connection_token_scope` (colonne ajoutée, additive).
+- Identifiants bancaires et jeton GitHub chiffrés : chaque valeur est désormais liée à sa société, sa banque et son champ (copiée ailleurs dans la base, elle ne s'ouvre plus) et une valeur tronquée est refusée. Les valeurs existantes restent lisibles et sont chiffrées de nouveau dans ce format au démarrage du serveur.
 
 ### Corrigé
 

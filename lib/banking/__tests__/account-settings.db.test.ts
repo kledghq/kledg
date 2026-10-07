@@ -77,7 +77,7 @@ async function seed() {
       type: 'BANKING',
       name: 'Qonto',
       status: 'active',
-      credentials: sealCredentials('QONTO', { login: 'atelier-1234', secretKey: 'old-secret-1111' }, key) as object,
+      credentials: sealCredentials('QONTO', { login: 'atelier-1234', secretKey: 'old-secret-1111' }, key, company.id) as object,
       credentialsEncrypted: true,
       featureConfigs: { create: [{ feature: 'BANKING_ACCOUNTS' }, { feature: 'BANKING_TRANSACTIONS' }] },
     },
@@ -174,7 +174,7 @@ describe.skipIf(!available)('Banque page settings', () => {
           type: 'BANKING',
           name: 'Qonto',
           status: 'active',
-          credentials: sealCredentials('QONTO', { login: 'atelier-1234', secretKey: 'new' }, key) as object,
+          credentials: sealCredentials('QONTO', { login: 'atelier-1234', secretKey: 'new' }, key, ids.company) as object,
           credentialsEncrypted: true,
           featureConfigs: { create: [{ feature: 'BANKING_ACCOUNTS' }, { feature: 'BANKING_TRANSACTIONS' }] },
         },
@@ -202,7 +202,7 @@ describe.skipIf(!available)('Banque page settings', () => {
       expect(integration.status).toBe('active')
       expect(JSON.stringify(integration.credentials)).not.toContain('new-secret-9999')
       const { openCredentials } = await import('@/lib/banking/credentials')
-      expect(openCredentials('QONTO', integration.credentials, true, key)).toMatchObject({ secretKey: 'new-secret-9999' })
+      expect(openCredentials('QONTO', integration.credentials, true, key, ids.company)).toMatchObject({ secretKey: 'new-secret-9999' })
       // The legacy key no longer shadows the new one
       expect(await prisma.bankConnection.findFirstOrThrow({ where: { integrationId: ids.qonto } })).toMatchObject({
         secretKeyEncrypted: '',
