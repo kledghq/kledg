@@ -8,6 +8,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
 
+### Sécurité
+
+- Unicité du SIREN, du SIRET et de l'identifiant d'URL des sociétés : la vérification passe par une seule fonction de la base, SIRET compris, qui ne voit plus seulement les sociétés de l'utilisateur. Une instance dont les clients partagent la base peut la limiter aux sociétés de chaque client et ajouter un suffixe aléatoire aux identifiants d'URL ([points d'extension](docs/extension-points.md#company-identifiers)). Rien ne change sur une instance standard, sauf les messages : « Une société avec le SIREN … existe déjà. » Migration `20261123090000_company_identifier_scope` (fonction remplacée, additive).
+
 ## [0.3.1] - 2026-10-05
 
 ### Ajouté

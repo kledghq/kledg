@@ -40,10 +40,15 @@ What it does not protect against:
   (`isGlobalAdmin`); the database reads that status from `user.role`, never
   from the context.
 - **Existence through unique constraints.** A unique index (company SIREN or
-  slug, organization slug) still refuses a value another tenant holds. The
-  value is not readable, only its existence. The SIREN and slug checks go
-  through `kledg_company_identifier_taken`, which answers that boolean and
-  nothing else (`lib/companies/identifiers.ts`).
+  slug, establishment SIRET, organization slug) still refuses a value another
+  tenant holds. The value is not readable, only its existence. The SIREN,
+  SIRET and slug checks go through `kledg_company_identifier_taken`, which
+  answers that boolean and nothing else (`lib/companies/identifiers.ts`).
+  An instance whose customers share the database narrows the SIREN and SIRET
+  checks to the customer's own companies (`companyIdentifierScope`) and
+  gives slugs a random suffix (`randomCompanySlugSuffix`), so no answer
+  depends on another customer's companies
+  ([extension-points.md](extension-points.md#company-identifiers)).
 - **Subsidiaries of a holding.** The shareholder rows that make a company a
   subsidiary belong to the subsidiary. `kledg_group_subsidiary_ids` answers
   their company ids, and nothing else, for a holding the context reaches,

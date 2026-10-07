@@ -28,7 +28,7 @@ import { isoDateToUtc } from '@/lib/utils/date'
 import { logger } from '@/lib/logger'
 import { centsToDecimal } from '@/lib/utils/money'
 import { generateCompanySlug } from './slug'
-import { companyIdentifierTaken } from './identifiers'
+import { legalIdentifierTaken, SIRET_TAKEN_MESSAGE } from './identifiers'
 import { sharePercentage, shareCapitalCents, type CreateCompanyData } from './company-wizard'
 
 export interface CreatedCompany {
@@ -89,9 +89,18 @@ async function discardCreatedCompany(companyId: string): Promise<void> {
   })
 }
 
+/** 409 of a SIREN already used (the creation wizard and the MCP tool). */
+export function sirenTakenMessage(siren: string): string {
+  return `Une société avec le SIREN ${siren} existe déjà.`
+}
+
 async function createCompanyRows(input: CreateCompanyData, creator?: CompanyCreator): Promise<CreatedCompany> {
-  if (await companyIdentifierTaken('siren', input.siren)) {
-    throw new ConflictError(`Une société avec le SIREN ${input.siren} existe déjà sur cette instance.`)
+  // Within the scope of the instance policy (lib/companies/identifiers.ts): the creator's own companies on a shared service.
+  if (await legalIdentifierTaken('siren', input.siren, { companyId: null, actor: creator })) {
+    throw new ConflictError(sirenTakenMessage(input.siren))
+  }
+  if (input.headOffice?.siret && (await legalIdentifierTaken('siret', input.headOffice.siret, { companyId: null, actor: creator }))) {
+    throw new ConflictError(SIRET_TAKEN_MESSAGE)
   }
 
   const slug = await generateCompanySlug(input.name)
@@ -190,9 +199,7 @@ async function createCompanyRows(input: CreateCompanyData, creator?: CompanyCrea
   } catch (error) {
     // Two submissions at once, or an establishment SIRET already used by another company.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new ConflictError(
-        'Ce SIREN ou ce SIRET est déjà utilisé par une société de cette instance. Vérifiez le numéro saisi.',
-      )
+      throw new ConflictError('Ce SIREN ou ce SIRET est déjà utilisé par une autre société. Vérifiez le numéro saisi.')
     }
     throw error
   }

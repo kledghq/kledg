@@ -28,11 +28,11 @@ import {
   prismaAddressToAddressType,
 } from '@/lib/addresses/manage-addresses.service'
 import { isoDateToUtc } from '@/lib/utils/date'
+import { legalIdentifierTaken, SIRET_TAKEN_MESSAGE } from './identifiers'
 import { optionalCalendarDay, optionalText } from '@/lib/api/zod-fields'
 
 export const ESTABLISHMENT_NOT_FOUND_MESSAGE = 'Établissement introuvable'
 const SIRET_FORMAT_MESSAGE = 'Le SIRET doit contenir exactement 14 chiffres'
-const SIRET_TAKEN_MESSAGE = 'Un établissement avec ce SIRET existe déjà'
 
 /** Address id from a form: '' and null detach the address. */
 const addressId = z
@@ -86,9 +86,13 @@ function sirenOf(siret: string): string {
   return siret.length < 9 ? '' : siret.substring(0, 9)
 }
 
-async function assertSiretAvailable(siret: string, client: Prisma.TransactionClient): Promise<void> {
-  const existing = await client.establishment.findUnique({ where: { siret }, select: { id: true } })
-  if (existing) throw new ConflictError(SIRET_TAKEN_MESSAGE)
+/**
+ * The SIRET identifies one establishment within the scope of the instance
+ * policy (lib/companies/identifiers.ts), including those of companies the
+ * user cannot see.
+ */
+async function assertSiretAvailable(siret: string, companyId: string, client: Prisma.TransactionClient): Promise<void> {
+  if (await legalIdentifierTaken('siret', siret, { companyId }, client)) throw new ConflictError(SIRET_TAKEN_MESSAGE)
 }
 
 /** The company's current headquarters address id, read before a change that may replace it. */
@@ -121,7 +125,7 @@ export async function getCompanyEstablishments(companyId: string) {
  */
 export async function createEstablishment(companyId: string, input: CreateEstablishmentInput) {
   return prisma.$transaction(async (tx) => {
-    await assertSiretAvailable(input.siret, tx)
+    await assertSiretAvailable(input.siret, companyId, tx)
     if (input.addressId) await assertAddressUsableByCompany(tx, companyId, input.addressId)
 
     let isMain = input.isMain ?? false
@@ -178,7 +182,7 @@ export async function updateEstablishment(companyId: string, establishmentId: st
     const data: Prisma.EstablishmentUpdateInput = {}
     if (input.siret && input.siret !== current.siret) {
       if (!/^\d{14}$/.test(input.siret)) throw new ValidationError(SIRET_FORMAT_MESSAGE)
-      await assertSiretAvailable(input.siret, tx)
+      await assertSiretAvailable(input.siret, companyId, tx)
       data.siret = input.siret
       data.siren = sirenOf(input.siret)
     }

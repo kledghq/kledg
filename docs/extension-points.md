@@ -23,6 +23,8 @@ actionRefusalMessage(action: InstanceAction): string
 companyCreationRefusal(actor: InstanceActor): Promise<ActionRefusal | null>
 afterCompanyCreated(companyId: string, actor: InstanceActor): Promise<void>
 companyWriteRefusal(companyId: string): Promise<ActionRefusal | null>
+companyIdentifierScope(companyId: string | null, actor: { id, role } | null): Promise<string[] | null>
+randomCompanySlugSuffix(): boolean
 SELF_AUTHENTICATED_API_ROUTES: Record<string, string>
 PUBLIC_PAGES: readonly string[]
 SETUP_PENDING_REDIRECT: string | null
@@ -91,6 +93,33 @@ answers 409 with its message and link (`{ error, link }`); reads, reports
 and exports (all GET) keep working. A fork makes a company read-only this
 way (an unpaid subscription, a legal hold) without hiding any data. Kledg
 answers null.
+
+### Company identifiers
+
+```ts
+companyIdentifierScope(companyId: string | null, actor: { id, role } | null): Promise<string[] | null>
+randomCompanySlugSuffix(): boolean
+```
+
+A company's SIREN and its establishments' SIRETs are unique within the scope
+`companyIdentifierScope` answers: the ids of the companies they must differ
+from, or null for every company of the instance (Kledg). `companyId` is the
+company whose SIREN or establishment changes, null for a creation, where
+`actor` is the user creating it. It is checked by the creation wizard and
+`POST /api/companies`, the MCP tool `create_company`, `PATCH
+/api/companies/[id]` and the establishment routes
+(`lib/companies/identifiers.ts`). An instance whose customers share one
+database answers the customer's own companies: a customer can then neither
+block another business's SIREN (SIRENs are public) nor learn which
+businesses are customers. Such an instance drops the unique indexes on
+`companies.siren` and `establishments.siret` in its own migration.
+
+The slug is part of company URLs and stays unique across the instance. When
+`randomCompanySlugSuffix` answers true, every slug gets a random suffix of six
+letters and digits, the generated ones and those a user types alike, and a
+typed slug is never refused for being taken: no answer depends on the slugs
+of companies the user cannot see. Kledg: false, slugs follow the name and
+are numbered on collision.
 
 `lib/instance/route-coverage.ts` (`INSTANCE_ROUTE_COVERAGE`) declares the
 MCP coverage of the instance's own routes: for each `METHOD /api/path`, the
