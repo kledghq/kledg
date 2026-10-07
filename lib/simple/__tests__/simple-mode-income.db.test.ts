@@ -314,6 +314,9 @@ describe.skipIf(!available)('simple mode, money in (PostgreSQL)', () => {
     expect(await settlement(invoice.id)).toMatchObject({ paidCents: 120_000, lettered: true })
     const after = await validation.listSimpleModeEntries(a.id, { status: 'validated', limit: 50 })
     expect(after.items[0].invoice).toMatchObject({ recorded: true })
+    // KLEDG-R3-QUAL-16: at 00:30 on 1 October in Paris the summary covers October, not September
+    const midnight = await validation.listSimpleModeEntries(a.id, { status: 'validated', limit: 1 }, new Date('2026-09-30T22:30:00Z'))
+    expect(midnight.summary.period).toEqual({ from: '2026-10-01', to: '2026-10-01' })
     // Validating again records nothing twice
     expect(await receipts.recordValidatedInvoicePayments(a.id)).toEqual([])
   })

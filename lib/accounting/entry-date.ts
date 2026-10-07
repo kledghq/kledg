@@ -56,6 +56,17 @@ export function parisDayOf(instant: Date): CalendarDay {
   return PARIS_DAY.format(instant)
 }
 
+/**
+ * "Today" of a business rule (deadlines, cash forecast, summaries, current
+ * fiscal year): the calendar day in France, whatever the server timezone.
+ * Between midnight and 1 or 2 am in Paris the UTC day is still the day
+ * before. Pass the `now` the service received so tests control the clock
+ * (docs/conventions.md#dates).
+ */
+export function todayParis(now: Date = new Date()): CalendarDay {
+  return parisDayOf(now)
+}
+
 /** Whether a calendar day lies within [start, end] (both included). Days compare as strings. */
 export function isDayWithin(day: CalendarDay, start: CalendarDay, end: CalendarDay): boolean {
   return day >= start && day <= end

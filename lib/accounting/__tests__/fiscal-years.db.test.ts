@@ -161,6 +161,19 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       await expect(ensure.ensureActiveFiscalYear('missing')).rejects.toMatchObject({ statusCode: 404, message: 'Société introuvable' })
     })
 
+    it('finds the current year by calendar day, its last day included (KLEDG-R3-QUAL-15)', async () => {
+      const companyId = await company()
+      const fy2026 = await fiscalYear(companyId, 2026, '2026-01-01', '2026-12-31')
+      await fiscalYear(companyId, 2027, '2027-01-01', '2027-12-31')
+      const { resolveDashboardFiscalYear } = await import('@/lib/reports/dashboard')
+      const { calculateDepreciationTable } = await import('@/lib/reports/depreciation.service')
+      const lastDay = new Date('2026-12-31T10:00:00Z')
+      expect((await resolveDashboardFiscalYear(companyId, null, lastDay))?.id).toBe(fy2026)
+      expect((await calculateDepreciationTable(companyId, undefined, lastDay)).fiscalYear?.id).toBe(fy2026)
+      // 23:30 UTC on 31/12 is already 1 January in France
+      expect((await resolveDashboardFiscalYear(companyId, null, new Date('2026-12-31T23:30:00Z')))?.year).toBe(2027)
+    })
+
     it('never creates a year on a read (KLEDG-R3-QUAL-06)', async () => {
       const companyId = await company()
       const { getReconciliationOverview } = await import('@/lib/banking/get-reconciliation-overview.service')

@@ -11,7 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
 import { createFiscalYear } from '@/lib/accounting/manage-fiscal-years.service'
-import { parisDayOf } from '@/lib/accounting/entry-date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { addIsoDays, lastDayOfMonth, toIsoDateUtc } from '@/lib/utils/date'
 
 /**
@@ -37,7 +37,7 @@ export async function ensureActiveFiscalYear(companyId: string, now: Date = new 
   const closingDay = company.closingDay || 31
   const closingMonth = company.closingMonth || 12
 
-  let target = fiscalYearAround(parisDayOf(now), closingDay, closingMonth)
+  let target = fiscalYearAround(todayParis(now), closingDay, closingMonth)
   // The year of today exists and is closed: the next one
   const latest = await prisma.fiscalYear.findFirst({ where: { companyId }, orderBy: { year: 'desc' }, select: { year: true, endDate: true } })
   if (latest && latest.year >= target.year) {

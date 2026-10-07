@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import type { FiscalYear } from '@prisma/client'
 import { IS_CLOSING, sqlTimestamp } from './ledger/aggregate'
 import { fromCents } from '@/lib/utils/money'
+import { isoDateToUtc } from '@/lib/utils/date'
+import { todayParis } from '@/lib/accounting/entry-date'
 
 interface DashboardStats {
   totalRevenue: number
@@ -25,7 +27,8 @@ interface DashboardWindow {
 
 export async function resolveDashboardFiscalYear(
   companyId: string,
-  fiscalYearId?: string | null
+  fiscalYearId?: string | null,
+  now: Date = new Date(),
 ): Promise<FiscalYear | null> {
   if (fiscalYearId) {
     const fy = await prisma.fiscalYear.findFirst({
@@ -34,12 +37,14 @@ export async function resolveDashboardFiscalYear(
     if (fy) return fy
   }
 
-  const now = new Date()
+  // Fiscal year bounds are calendar days at midnight UTC: compare with today's
+  // day in France, not the current instant (missed on the last day otherwise)
+  const today = isoDateToUtc(todayParis(now))
   const active = await prisma.fiscalYear.findFirst({
     where: {
       companyId,
-      startDate: { lte: now },
-      endDate: { gte: now },
+      startDate: { lte: today },
+      endDate: { gte: today },
     },
     orderBy: { startDate: 'desc' },
   })

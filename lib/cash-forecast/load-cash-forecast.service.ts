@@ -18,7 +18,8 @@ import { z } from 'zod'
 import type { FiscalYear } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { addIsoDays, calendarDayOf, todayUtc } from '@/lib/utils/date'
+import { addIsoDays, calendarDayOf } from '@/lib/utils/date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { parseCents } from '@/lib/utils/money'
 import { ledgerCashByMonth } from '@/lib/dashboard/ledger-cash'
 import { loadThirdPartyLines, loadTiersDirectory } from '@/lib/reports/third-parties/get-third-party-reports.service'
@@ -342,7 +343,7 @@ function bound(items: CashFlowItem[]): { items: CashFlowItem[]; truncated: numbe
 }
 
 export async function getCashForecast(companyId: string, query: CashForecastQuery = {}, now?: Date): Promise<CashForecastView> {
-  const today = day(todayUtc(now))
+  const today = todayParis(now)
   const settings = (await getCashForecastSettings(companyId)).settings
   const horizonMonths = query.horizon ?? settings.horizonMonths
   const granularity = query.granularity ?? 'month'

@@ -25,6 +25,7 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { calendarDay } from '@/lib/api/zod-fields'
 import { toCents } from '@/lib/utils/money'
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { findCategory } from './categories'
 import { displayNameOf } from './payees'
 import { fixedAssetMention } from './asset-lifetimes'
@@ -123,7 +124,7 @@ function answerLabels(categoryId: string | null, answers: Record<string, string>
 }
 
 /** Entries confirmed in simple mode, the drafts to validate first by default. */
-export async function listSimpleModeEntries(companyId: string, query: z.output<typeof SimpleModeEntriesQuerySchema>): Promise<SimpleModeEntryList> {
+export async function listSimpleModeEntries(companyId: string, query: z.output<typeof SimpleModeEntriesQuerySchema>, now: Date = new Date()): Promise<SimpleModeEntryList> {
   const status = query.status === 'to-validate' ? 'draft' : query.status === 'validated' ? 'validated' : undefined
   const rows = await prisma.simpleModeEntry.findMany({
     where: {
@@ -162,7 +163,8 @@ export async function listSimpleModeEntries(companyId: string, query: z.output<t
     orderBy: [{ entry: { date: 'asc' } }, { createdAt: 'asc' }],
     take: query.limit,
   })
-  const today = toIsoDateUtc(new Date())
+  // The month in France: on the 1st at 00:30 in Paris the summary covers the new month
+  const today = todayParis(now)
   const firstOfMonth = `${today.slice(0, 7)}-01`
   const summary = await simpleValidationSummary(companyId, { from: query.from ?? firstOfMonth, to: query.to ?? today })
   return {

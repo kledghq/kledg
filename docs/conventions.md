@@ -235,10 +235,18 @@ hooks/                   client hooks
     `addIsoDays`, `parseFrenchDate`, `formatIsoDateFr`.
   - `lib/accounting/entry-date.ts` (accounting edges, French errors):
     `toEntryDate`, `dayToDate`, `requireDay`, `isDayWithin`, `fecDateOf`,
-    `parisDayOf` (validation day in France).
+    `parisDayOf` (validation day in France), `todayParis`.
   - Bank statement files: `parseCalendarDate` (`lib/banking/import/date.ts`).
 
   Do not write a local `addDay`, `nextDay`, `utcDay` or `frDay`.
+- **"Today" is the calendar day in France**: a business rule that depends
+  on the current day (deadlines and their status, cash forecast, simple mode
+  summary, the current fiscal year) reads `todayParis(now)`, with the `now`
+  the service received so tests control the clock. Between midnight and 1 or
+  2 am in Paris the UTC day is still the day before, so `todayUtc` is only
+  for technical timestamps. Compare it with stored days as strings, or as
+  `isoDateToUtc(todayParis(now))` against columns at midnight UTC; never
+  compare a column holding a day with the current instant.
 - **Server code never uses local-time Date APIs** (enforced in `lib/` and
   `app/api/`): no `getFullYear`/`getMonth`/`getDate`/`setDate`..., no
   `new Date(y, m, d)`. Use `getUTC*`/`setUTC*` or the helpers. The few

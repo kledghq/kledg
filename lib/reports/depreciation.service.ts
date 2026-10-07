@@ -14,7 +14,8 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { buildDepreciationPlan, sumPlanCentsForPeriod } from '@/lib/fixed-assets/depreciation-plan'
-import { addUtcDays } from '@/lib/utils/date'
+import { addUtcDays, isoDateToUtc } from '@/lib/utils/date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { fromCents, parseCents } from '@/lib/utils/money'
 
 export interface DepreciationTableItem {
@@ -75,12 +76,15 @@ const cents = (value: Prisma.Decimal | number | null | undefined) => (parseCents
 
 export async function calculateDepreciationTable(
   companyId: string,
-  fiscalYearId?: string
+  fiscalYearId?: string,
+  now: Date = new Date(),
 ): Promise<DepreciationTableResult> {
+  // The current year by calendar day in France (bounds are days at midnight UTC)
+  const today = isoDateToUtc(todayParis(now))
   const fiscalYear = fiscalYearId
     ? await prisma.fiscalYear.findFirst({ where: { id: fiscalYearId, companyId } })
     : await prisma.fiscalYear.findFirst({
-        where: { companyId, startDate: { lte: new Date() }, endDate: { gte: new Date() }, isClosed: false },
+        where: { companyId, startDate: { lte: today }, endDate: { gte: today }, isClosed: false },
       })
 
   const fixedAssets = await prisma.fixedAsset.findMany({
