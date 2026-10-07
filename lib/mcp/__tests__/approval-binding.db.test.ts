@@ -312,4 +312,33 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       })
     })
   })
+
+  describe('KLEDG-R3-MCP-09: an entry justifies one bank transaction', () => {
+    it('refuses reconciling an entry already linked to another transaction, through MCP and the service', async () => {
+      const key = await apiKey('admin')
+      const first = await bankTransaction('PRLV OVH', '12.00')
+      const second = await bankTransaction('PRLV OVH', '12.00')
+      const entry = await draftEntry('OVH', '12.00')
+      await ok(key, 'reconcile_transaction', { companyId: ids.company, transactionId: first.id, entryId: entry.id })
+      const again = await call(key, 'reconcile_transaction', { companyId: ids.company, transactionId: second.id, entryId: entry.id })
+      expect(again.ok).toBe(false)
+      expect(again.text).toMatch(/déjà rapprochée avec une autre transaction/)
+      expect((await prisma.bankTransaction.findUniqueOrThrow({ where: { id: second.id } })).reconciled).toBe(false)
+
+      // The web routes call the same service: two concurrent links of one entry, one wins.
+      const { reconcileWithExistingEntry } = await import('@/lib/reconciliation/service')
+      const [a, b] = [await bankTransaction('VIR', '5.00'), await bankTransaction('VIR', '5.00')]
+      const other = await draftEntry('Virement', '5.00')
+      const results = await Promise.allSettled([
+        reconcileWithExistingEntry(ids.company, a.id, other.id),
+        reconcileWithExistingEntry(ids.company, b.id, other.id),
+      ])
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      expect(await prisma.bankTransaction.count({ where: { reconciledWith: other.id } })).toBe(1)
+
+      // Pointage without entry is not concerned.
+      const pointed = await bankTransaction('FRAIS', '1.00')
+      await ok(key, 'reconcile_transaction', { companyId: ids.company, transactionId: pointed.id, withoutEntry: true })
+    })
+  })
 })

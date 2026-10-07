@@ -17,6 +17,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Rapprochement avec une écriture existante (page Rapprochement, bouton « Rapprocher » des vues MCP, outil `reconcile_transaction`) : une écriture déjà rapprochée avec une autre transaction est refusée (409) au lieu d'être liée à deux transactions.
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
 
 ## [0.3.1] - 2026-10-05
