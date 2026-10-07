@@ -22,7 +22,6 @@ import { toEntryDate } from '@/lib/accounting/entry-date'
 import { assertEntryWritableInFiscalYear, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
 import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
 import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
-import { writeAuditLog } from '@/lib/audit'
 import { enforceRateLimit } from '@/lib/rate-limit'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { uniqueReconciliationMatches, type UniqueMatch } from '@/lib/reconciliation/unique-match'
@@ -54,6 +53,7 @@ import { registerTrainingReadTools } from '@/lib/mcp/training-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
+import { auditDraftWrite } from '@/lib/mcp/drafts/define'
 import { registerLedgerReadTools } from '@/lib/mcp/ledger-read-tools'
 import { registerCompanySettingsTools } from '@/lib/mcp/company-settings-tools'
 import { registerTransactionReadTools } from '@/lib/mcp/transaction-read-tools'
@@ -892,11 +892,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           })),
         })
 
-        await writeAuditLog('info', `Draft entry created via MCP: ${args.description}`, {
-          action: 'CREATE_ACCOUNTING_ENTRY',
-          companyId: args.companyId,
-          metadata: { entryId: entry.id, source: 'mcp', userId: user.id },
-        })
+        // Like every draft tool: MCP_WRITE naming the assistant, ids only (not the description it wrote).
+        await auditDraftWrite('create_draft_entry', access, args.companyId, { entryId: entry.id, journalCode: journal.code, date: args.date })
 
         return json({
           created: true,
