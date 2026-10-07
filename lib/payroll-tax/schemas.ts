@@ -18,8 +18,18 @@ export const PayrollTaxDataSchema = z.object({
     .default([]),
   /** Association, foundation, union or mutual entitled to the abattement of art. 1679 A. */
   association: z.boolean().default(false),
-  /** Rapport d'assujettissement entered (whole percent): first year, receipts outside the scope of VAT the books do not read; null: from the books of the year before. */
-  ratioPercent: z.number().int().min(0).max(100).nullable().default(null),
+  /**
+   * Share of the receipts without a right to deduct entered, in percent with two decimals at most (10,4):
+   * first year, receipts outside the scope of VAT the books do not read; null: from the books of the year
+   * before. The liability compares it exactly with 10 % (CGI art. 231, 1), the rapport takes its whole part.
+   */
+  ratioPercent: z
+    .number()
+    .min(0)
+    .max(100)
+    .refine((v) => Number.isInteger(Math.round(v * 100)) && Math.abs(v * 100 - Math.round(v * 100)) < 1e-9, 'Le rapport a deux décimales au plus.')
+    .nullable()
+    .default(null),
   /** Tax of the year before when Kledg does not hold it: decides the frequency of the relevés. */
   previousYearTaxCents: cents.nullable().default(null),
   note: z.string().max(2000).nullable().default(null),

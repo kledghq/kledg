@@ -53,9 +53,10 @@ export interface DeadlineCompany {
   /** TaxRegimeHistory rows: they win over the company fields for the periods they cover. */
   regimeHistory: RegimePeriod[]
   /**
-   * Chiffre d'affaires (accounts 70 of the validated entries) per calendar
-   * year, in cents: the threshold of the quarterly CA3 from 2027. Unknown
-   * years count as under it.
+   * Chiffre d'affaires majoré des acquisitions taxables per calendar year,
+   * in cents (accounts 70 of the validated entries plus the services
+   * self-assessed under CGI art. 283, 2, load-deadlines.service.ts): the
+   * threshold of the quarterly CA3 from 2027. Unknown years count as under it.
    */
   turnoverCentsByYear?: Record<number, number>
 }

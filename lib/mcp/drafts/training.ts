@@ -106,7 +106,7 @@ const savePayrollTaxTool = draftTool({
   name: 'save_payroll_tax',
   title: 'Saisir les rémunérations de la taxe sur les salaires',
   summary:
-    'Records the taxe sur les salaires data of a calendar year the books cannot give: the annual base of each employee (euros; the remunerations retained for the CSG on activity income, without the 1,75 % abatement), association (abattement of CGI art. 1679 A), a rapport d’assujettissement entered in whole percent (null: from the books of the year before), the tax of the year before when Kledg does not hold it, a note. Replaces the year as a whole; the computation is then written for the deadline calendar. Read it with get_payroll_tax.',
+    'Records the taxe sur les salaires data of a calendar year the books cannot give: the annual base of each employee (euros; the remunerations retained for the CSG on activity income, without the 1,75 % abatement), association (abattement of CGI art. 1679 A), the share of the receipts without a right to deduct entered in percent, two decimals at most (ratioPercent, 10.4: liable above 10 %, CGI art. 231, 1; null: from the books of the year before), the tax of the year before when Kledg does not hold it, a note. Replaces the year as a whole; the computation is then written for the deadline calendar. Read it with get_payroll_tax.',
   never: 'files a relevé or a declaration, pays, or posts an entry (prepare_payroll_tax_entry prepares it as a draft).',
   amounts: 'euros',
   input: assistantShape(SavePayrollTaxBodySchema),

@@ -407,5 +407,16 @@ describe.skipIf(!available)('training organisation (PostgreSQL)', () => {
       expect((await json<{ status: string }>(await call('accountant', routes.payrollEntries.POST, 'POST', '/x', { year: 2026 }))).status).toBe('unchanged')
       expect((await call('outsider', routes.payroll.GET, 'GET', '/x')).status).toBe(404)
     })
+
+    // R3 QUAL-24: the share entered keeps its decimals; 10,4 % is above 10 % (CGI art. 231, 1)
+    it('reads an entered share of 10,4 % as liable, the rapport taking its whole part', async () => {
+      const data = { employees: [{ id: 'e1', label: 'Formatrice', baseCents: 3_000_000 }], ratioPercent: 10.4 }
+      await json(await call('accountant', routes.payroll.PUT, 'PUT', '/x', { year: 2027, data }))
+      const view = await json<PayrollTaxView>(await call('viewer', routes.payroll.GET, 'GET', '/x?year=2027'))
+      expect(view).toMatchObject({ liability: 'liable', ratio: { source: 'entered', exactBasisPoints: 1_040, truncatedPercent: 10, appliedPercent: 0 } })
+      expect((await call('accountant', routes.payroll.PUT, 'PUT', '/x', { year: 2027, data: { ...data, ratioPercent: 10.444 } })).status).toBe(400)
+      await json(await call('accountant', routes.payroll.PUT, 'PUT', '/x', { year: 2027, data: { ...data, ratioPercent: 10 } }))
+      expect((await json<PayrollTaxView>(await call('viewer', routes.payroll.GET, 'GET', '/x?year=2027'))).liability).toBe('not-liable')
+    })
   })
 })

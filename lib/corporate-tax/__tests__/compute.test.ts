@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { balanceOf, quarterOf, referenceTax, scheduleAcomptes, type AcompteDue, type AcompteReference } from '../acomptes'
 import { bookAdjustments, manualAdjustments, parentSubsidiaryAdjustments } from '../adjustments'
 import { corporateTaxChecks, isReliable, type CheckInput } from '../checks'
-import { computeCorporateTax, type Adjustment, type ComputeInput } from '../compute'
+import { computeCorporateTax, eligibilityOf, type Adjustment, type ComputeInput } from '../compute'
 import { corporateTaxDeadlineTarget, corporateTaxPageOf } from '../deadline-links'
 import { annualize, deficitCap, durationOf, mulDivRound, prorate, roundToEuro, taxAtRates } from '../rules'
 
@@ -356,5 +356,15 @@ describe('links with the deadline calendar', () => {
   it('links IS deadlines to the worksheet only', () => {
     expect(corporateTaxPageOf({ id: 'is-solde:2026-12-31', ruleId: 'is-solde' })).toBe('impot-societes?echeance=is-solde%3A2026-12-31')
     expect(corporateTaxPageOf({ id: 'cfe:2026', ruleId: 'cfe' })).toBeNull()
+  })
+})
+
+// R3 QUAL-24, checked: the ceiling is "inférieur ou égal à 10 000 000 €" for years opened
+// from 1 January 2021 (BOI-IS-LIQ-20-10 § 1 and 10), so exactly 10 M€ keeps the reduced rate.
+describe('reduced rate turnover ceiling (CGI art. 219, I, b)', () => {
+  it('keeps the 15 % rate at exactly 10 000 000 €, not one cent above', () => {
+    const base = { duration: YEAR, capitalPaidUp: true, naturalPersons75: true }
+    expect(eligibilityOf({ ...base, turnoverCents: 1_000_000_000 })).toMatchObject({ turnoverOk: true, eligible: true })
+    expect(eligibilityOf({ ...base, turnoverCents: 1_000_000_001 })).toMatchObject({ turnoverOk: false, eligible: false })
   })
 })

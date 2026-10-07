@@ -97,9 +97,10 @@ async function coreOf(companyId: string, year: number, data: PayrollTaxData): Pr
     ratio = { source: 'none', exactBasisPoints: null, truncatedPercent: null, appliedPercent: 0 }
     liability = 'franchise'
   } else if (data.ratioPercent !== null) {
-    const entered = appliedRatio(data.ratioPercent, 100)!
-    ratio = { source: 'entered', exactBasisPoints: data.ratioPercent * 100, truncatedPercent: data.ratioPercent, appliedPercent: entered.appliedPercent }
-    liability = data.ratioPercent > 10 ? 'liable' : 'not-liable'
+    // Entered with its decimals: 10,4 % is above 10 %, liable (CGI art. 231, 1), whatever the rapport's rounding
+    const basisPoints = Math.round(data.ratioPercent * 100)
+    ratio = { source: 'entered', ...appliedRatio(basisPoints, 10_000)! }
+    liability = isLiable(basisPoints, 10_000) ? 'liable' : 'not-liable'
   } else if (fromBooks) {
     ratio = { source: 'books', ...fromBooks }
     liability = isLiable(nonDeductible, total) ? 'liable' : 'not-liable'
