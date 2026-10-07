@@ -33,6 +33,7 @@ Pages **Notes de frais** (`/expense-reports`, toutes les notes pour qui valide) 
 | Catégorie | Compte | TVA |
 | --- | --- | --- |
 | Transport (train, avion, taxi, VTC) | 6251 Voyages et déplacements | Jamais récupérable |
+| Péages et parking | 6251 Voyages et déplacements | Récupérable avec le reçu au nom de la société (BOI-TVA-DED-40-40, § 30 et § 330) |
 | Hébergement (hôtel) | 6256 Missions | Jamais récupérable |
 | Repas en déplacement | 6256 Missions | Récupérable |
 | Repas d'affaires et réceptions | 6257 Réceptions | Récupérable |

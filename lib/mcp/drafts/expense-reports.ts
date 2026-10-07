@@ -54,7 +54,7 @@ const input = {
         category: z
           .enum(EXPENSE_LINE_CATEGORIES as [ExpenseCategory, ...ExpenseCategory[]])
           .optional()
-          .describe('TRANSPORT, LODGING, MEALS, RECEPTION, FUEL, SUPPLIES, POSTAGE, GIFTS or OTHER. Omitted: the company’s keyword rules, else OTHER.'),
+          .describe('TRANSPORT, TOLLS_PARKING, LODGING, MEALS, RECEPTION, FUEL, SUPPLIES, POSTAGE, GIFTS or OTHER. Omitted: the company’s keyword rules, else OTHER.'),
         accountCode: z.string().max(20).optional().describe('Expense account (class 6); omitted: the category’s.'),
         amountPaid: z.number().min(0).max(1e9).describe('Amount paid, VAT included, in euros.'),
         vatRate: z.number().min(0).max(100).default(0).describe('VAT rate in percent shown on the receipt: 20, 10, 5.5, 2.1 or 0.'),

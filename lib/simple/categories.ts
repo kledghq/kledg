@@ -365,7 +365,7 @@ const DEFS: Def[] = [
     hint: 'Restaurant avec des clients, ou repas seul en déplacement.', keywords: ['restaurant', 'repas', 'dejeuner', 'diner', 'resto', 'brasserie'], source: `${pcg('6257', 'Réceptions')}; ${MEAL_GUESTS.source}` },
   { id: 'peages-parking', label: 'Péages et parking', group: 'Déplacements et repas', kind: 'expense', account: '6251', vatRateBp: STANDARD, vatRule: 'standard',
     hint: 'Autoroute, stationnement lors de déplacements professionnels.', keywords: ['peage', 'autoroute', 'parking', 'stationnement'],
-    source: `${pcg('6251', 'Voyages et déplacements')}; BOI-TVA-DED-30-30-20 (péages et stationnement)` },
+    source: `${pcg('6251', 'Voyages et déplacements')}; BOI-TVA-DED-40-40, § 30 (stationnement) et § 330 (péages autoroutiers : TVA déductible par l’usager)` },
 
   // Véhicule
   { id: 'carburant', label: 'Carburant', group: 'Véhicule', kind: 'expense', account: '6061', vatRateBp: STANDARD, vatRule: 'fuel', question: vehicle('6061'),
