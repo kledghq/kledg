@@ -11,7 +11,9 @@
  *
  * CA3 (3310-CA3-SD):
  * - A1 taxed sales, A3 services bought from a supplier not established in
- *   France (art. 283-2), B2 intra-Community acquisitions, B5 regularisations
+ *   France, in or outside the EU (art. 259, 1° and 283-2), B2 intra-Community
+ *   acquisitions of goods, B4 purchases of art. 283-1 (subaccount 44528,
+ *   classify.ts), B5 regularisations
  *   (sales credit notes), E2 sales without VAT (to split with E1 and F2);
  * - 08 (20 %), 9B (10 %), 09 (5,5 %), T6 (2,1 %): base and tax of every
  *   taxed operation, sales and self-assessed purchases alike;
@@ -24,7 +26,9 @@
  *   (25 - 26), 28 net VAT due (TD - X5), 32 total to pay (28 + 29 + Z5).
  * CA12 (3517-S-SD):
  * - 03 sales without VAT (to split with 02 and 04), 5A (20 %), 6C (10 %),
- *   06 (5,5 %), 09 (other rate, 2,1 %), AC services of art. 283-2;
+ *   06 (5,5 %), 09 (other rate, 2,1 %), AB purchases of art. 283-1, AC
+ *   services of art. 283-2 (intra-Community acquisitions of goods have no
+ *   line of their own: on the rate lines);
  * - 16 total tax due, 18 VAT previously deducted to pay back, 19 total
  *   gross VAT (16 + 17 + 18 + AD);
  * - 20 deductions on invoices, 22 (20 + 21), 23 fixed assets, 24 credit
@@ -167,7 +171,7 @@ function rateLines(form: VatForm, rates: Map<number, { baseCents: number; vatCen
 function computeCA3(input: ComputeInput): VatReturnComputation {
   const m = input.movements
   const L = CA3_LINES
-  const rates = byRate([m.collected, m.autoliquidationGoods, m.autoliquidationServices])
+  const rates = byRate([m.collected, m.autoliquidationGoods, m.autoliquidationServices, m.autoliquidationArt2831])
   const other = otherRates(rates)
   const unidentified = { baseCents: sum(m.unidentified.map((u) => u.baseCents)) + other.baseCents, vatCents: sum(m.unidentified.map((u) => u.vatCents)) + other.vatCents }
   const rateRows = rateLines('CA3', rates, unidentified)
@@ -194,7 +198,7 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
     manual(L.A2, 'Cessions d’immobilisations, livraisons à soi-même, autoliquidations du BTP : Kledg les compte en A1, déplacez-les ici.'),
     lineOf(L.A3, 'computed', { baseCents: sum(m.autoliquidationServices.map((b) => b.baseCents)) }, 'Services achetés à un prestataire non établi en France (TVA autoliquidée au compte 4452, contrepartie hors comptes 60 et 2).'),
     lineOf(L.B2, 'computed', { baseCents: sum(m.autoliquidationGoods.map((b) => b.baseCents)) }, 'Acquisitions intracommunautaires de biens (TVA autoliquidée au compte 4452, contrepartie en achats 60 ou immobilisations 2).'),
-    manual(L.B4, 'Achats auprès d’un assujetti non établi en France (article 283-1) : à remplir à la main.'),
+    lineOf(L.B4, 'computed', { baseCents: sum(m.autoliquidationArt2831.map((b) => b.baseCents)) }, 'Achats auprès d’un assujetti non établi en France dont la société est redevable (article 283-1, second alinéa) : TVA autoliquidée au sous-compte 44528, taxée sur les lignes de taux, jamais ligne 17.'),
     lineOf(L.B5, 'computed', { baseCents: m.salesCreditNotes.baseCents }, 'Avoirs et rabais accordés aux clients : base des écritures qui diminuent le compte 44571.'),
     manual(L.E1, 'Exportations hors UE : à déplacer depuis E2.'),
     lineOf(L.E2, 'computed', { baseCents: m.nonTaxedSalesCents }, 'Ventes (comptes 70) sans TVA : à répartir entre E1, E2 et F2 selon leur nature.'),
@@ -229,6 +233,7 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
 function computeCA12(input: ComputeInput): VatReturnComputation {
   const m = input.movements
   const L = CA12_LINES
+  // No line of intra-Community acquisitions on the CA12: they are taxed on the rate lines (notice 3517-S-SD 2026, lines 5A to 13)
   const rates = byRate([m.collected, m.autoliquidationGoods])
   const other = otherRates(rates)
   const unidentified = { baseCents: sum(m.unidentified.map((u) => u.baseCents)) + other.baseCents, vatCents: sum(m.unidentified.map((u) => u.vatCents)) + other.vatCents }
@@ -239,8 +244,14 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
     { baseCents: sum(m.autoliquidationServices.map((b) => b.baseCents)), amountCents: sum(m.autoliquidationServices.map((b) => b.vatCents)) },
     'Services achetés à un prestataire non établi en France (TVA autoliquidée au compte 4452, contrepartie hors comptes 60 et 2).',
   )
-  const taxEuros = sum(rateRows.map((r) => r.amount ?? 0)) + (ac.amount ?? 0)
-  const taxCents = sum(rateRows.map((r) => r.amountCents ?? 0)) + (ac.amountCents ?? 0)
+  const ab = lineOf(
+    L.AB,
+    'computed',
+    { baseCents: sum(m.autoliquidationArt2831.map((b) => b.baseCents)), amountCents: sum(m.autoliquidationArt2831.map((b) => b.vatCents)) },
+    'Achats auprès d’un assujetti non établi en France dont la société est redevable (article 283-1, second alinéa)\u00a0: TVA autoliquidée au sous-compte 44528.',
+  )
+  const taxEuros = sum(rateRows.map((r) => r.amount ?? 0)) + (ab.amount ?? 0) + (ac.amount ?? 0)
+  const taxCents = sum(rateRows.map((r) => r.amountCents ?? 0)) + (ab.amountCents ?? 0) + (ac.amountCents ?? 0)
   const l18 = lineOf(L.L18, 'computed', { amountCents: m.deductibleReversalCents }, 'TVA déduite reversée : avoirs de fournisseurs (crédit net des comptes 44562, 44566 et 44563 sur une écriture).')
   const grossEuros = taxEuros + (l18.amount ?? 0)
   const grossCents = taxCents + m.deductibleReversalCents
@@ -269,6 +280,7 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
     lineOf(L.L03, 'computed', { baseCents: m.nonTaxedSalesCents }, 'Ventes (comptes 70) sans TVA : à répartir entre les lignes 02, 03 et 04 selon leur nature.'),
     manual(L.L04, 'Livraisons intracommunautaires : à déplacer depuis la ligne 03.'),
     ...rateRows,
+    ab,
     ac,
     manual(L.L11, 'Cessions d’immobilisations : Kledg les compte avec les ventes, déplacez-les ici.'),
     manual(L.L12, 'Livraisons à soi-même : à remplir à la main.'),

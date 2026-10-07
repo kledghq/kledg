@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Déclarations de TVA : les achats auprès d'un assujetti non établi en France dont la société est redevable au titre de l'article 283-1 du CGI, comptabilisés au sous-compte 44528, vont en ligne B4 de la CA3 et AB de la CA12, et non plus en acquisitions intracommunautaires (B2, ligne 17) ; vérifié sur les notices 2026, les services d'un prestataire établi hors de l'Union européenne restent en A3 (AC sur la CA12).
 - Numérotation des factures : le prochain numéro ne peut plus être relevé une fois que Kledg a numéroté une facture de la période, ni au-delà du numéro qui suit le plus haut déjà enregistré ; il ne laisse jamais de trou dans la séquence continue exigée par le CGI (ann. II art. 242 nonies A).
 - Clôture automatique des périodes après une déclaration de TVA : elle ne bloque plus les écritures fiscales que Kledg prépare. Une liquidation de TVA, une régularisation du coefficient de déduction, une taxe sur les salaires, un impôt sur les sociétés ou une CFE dont le jour tombe dans une période clôturée est datée du premier jour ouvert, avec sa date réelle en date de pièce ; la clôture qui suit le dépôt s'arrête la veille d'une liquidation préparée encore en brouillon au lieu d'être abandonnée.
 - Simulation de l'intégration fiscale : le seuil de 95 % (CGI art. 223 A) est comparé exactement, sans arrondi ; une sous-filiale détenue à 99,86 % x 95,13 % = 94,9968 % n'est plus admise et s'affiche à 94,99 %.
