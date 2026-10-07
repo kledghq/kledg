@@ -77,10 +77,13 @@ describe('prepareUpdate', () => {
       ...workflowRoutes({ file: v1 }),
       'PUT /repos/acme/compta/contents/.github/workflows/update-from-kledg.yml': { body: {} },
     })
-    await prepareUpdate(copy, 'releases')
-    const put = fake.calls.find((c) => c.method === 'PUT')
-    expect(put?.body).toMatchObject({ sha: 'filesha', message: 'Update the Kledg update workflow' })
-    expect(Buffer.from((put?.body as { content: string }).content, 'base64').toString()).toBe(UPDATE_WORKFLOW)
+    for (const conn of [copy, fork]) {
+      fake.calls.length = 0
+      await prepareUpdate(conn, 'releases')
+      const put = fake.calls.find((c) => c.method === 'PUT')
+      expect(put?.body).toMatchObject({ sha: 'filesha', message: 'Update the Kledg update workflow' })
+      expect(Buffer.from((put?.body as { content: string }).content, 'base64').toString()).toBe(UPDATE_WORKFLOW)
+    }
   })
 
   it('explains the missing Workflows permission', async () => {
@@ -96,13 +99,13 @@ describe('prepareUpdate', () => {
 
   it('enables the workflow of a fork (Actions are disabled in new forks) and dispatches', async () => {
     const fake = fakeGitHub({
-      ...workflowRoutes({ file: 'old workflow', state: 'disabled_fork' }),
+      ...workflowRoutes({ state: 'disabled_fork' }),
       [`PUT ${WF}/enable`]: { status: 204 },
     })
     const result = await prepareUpdate(fork, 'releases')
     expect(result).toMatchObject({ mode: 'workflow', workflowInstalled: false })
     expect(fake.called('PUT', `${WF}/enable`)).toBe(true)
-    // A fork shares Kledg's history: its workflow is not rewritten.
+    // A current workflow is not rewritten (an older version is, see KLEDG-R3-INPUT-06 above).
     expect(fake.called('PUT', '/repos/acme/compta/contents/.github/workflows/update-from-kledg.yml')).toBe(false)
   })
 

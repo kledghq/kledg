@@ -189,7 +189,8 @@ export async function prepareUpdate(conn: ActiveConnection, channel: Channel | n
   }
 
   let installed = false
-  if (!workflow.present || (!workflow.current && conn.kind === 'copy')) {
+  // An older version is replaced, in a fork as in a copy: version 2 is a security fix (KLEDG-R3-INPUT-06)
+  if (!workflow.present || !workflow.current) {
     await installWorkflow(conn, workflow.sha)
     installed = true
   }
