@@ -9,7 +9,6 @@
 
 // Export all service functions
 export {
-  generateNextEntryNumber,
   nextDefinitiveEntryNumber,
   isProvisionalEntryNumber,
 } from './services/generate-next-entry-number.service'

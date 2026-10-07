@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { generateNextEntryNumber, calculateAccountBalance } from '../accounting/services'
+import { calculateAccountBalance } from '../accounting/services'
 import {
   isProvisionalEntryNumber,
-  maxSequentialPart,
   nextDefinitiveEntryNumber,
   provisionalEntryNumber,
   sequentialPartOf,
@@ -43,163 +42,36 @@ describe('Services Comptables', () => {
     db.entryLine.createMany.mockResolvedValue({ count: 2 })
   })
 
-  describe('generateNextEntryNumber', () => {
-    const mockFiscalYearId = 'fiscal-year-1'
-
-    it('devrait retourner "1" si aucune écriture n\'existe', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      expect(number).toBe('1')
-    })
-
-    it('devrait incrémenter le numéro de la dernière écriture', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: '3' },
-      ])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      // Le service extrait "3", l'incrémente à 4
-      expect(number).toBe('4')
-    })
-
-    it('devrait trouver le numéro maximum parmi plusieurs écritures', async () => {
-      // Test pour vérifier que le tri numérique fonctionne correctement
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: '1' },
-        { entryNumber: '10' },
-        { entryNumber: '2' },
-        { entryNumber: '100' },
-      ])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      // Le service doit trouver le maximum numérique (100) et l'incrémenter à 101
-      expect(number).toBe('101')
-    })
-
-    it('ignores legacy timestamp numbers (TR-<timestamp>) instead of jumping to them', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: '1' },
-        { entryNumber: 'TR-1727000000000' },
-        { entryNumber: '1727000000' },
-        { entryNumber: '2' },
-        { entryNumber: 'AN-0007' },
-      ])
-
-      expect(await generateNextEntryNumber('company-1', mockFiscalYearId)).toBe('8')
-    })
-
-    it('starts at 1 when only legacy timestamp numbers exist', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: 'TR-1727000000000' },
-        { entryNumber: 'sans numéro' },
-      ])
-
-      expect(await generateNextEntryNumber('company-1', mockFiscalYearId)).toBe('1')
-    })
-
+  describe('entry numbering', () => {
     it('reads the sequential part of entry numbers', () => {
       expect(sequentialPartOf('42')).toBe(42)
       expect(sequentialPartOf('2026-2')).toBe(2)
       expect(sequentialPartOf('OD-0042')).toBe(42)
+      expect(sequentialPartOf('OD-42')).toBe(42)
+      expect(sequentialPartOf('010')).toBe(10)
       expect(sequentialPartOf('999999999')).toBe(999999999)
       expect(sequentialPartOf('1000000000')).toBeNull()
+      expect(sequentialPartOf('1727000000')).toBeNull()
       expect(sequentialPartOf('TR-1727000000000')).toBeNull()
       expect(sequentialPartOf('OD')).toBeNull()
+      expect(sequentialPartOf('invalid')).toBeNull()
     })
 
-    it('devrait gérer les numéros avec format personnalisé', async () => {
-      // Le service extrait le dernier nombre dans le format (le numéro séquentiel)
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: '2026-2' },
-      ])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      // Le service extrait le dernier nombre (2) et l'incrémente à 3
-      expect(number).toBe('3')
-    })
-
-    it('devrait gérer les formats avec préfixe', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: 'OD-42' },
-        { entryNumber: 'OD-1' },
-      ])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      // Le service doit trouver le maximum (42) et l'incrémenter à 43
-      expect(number).toBe('43')
-    })
-
-    it('devrait gérer les anciens formats avec zéros à gauche', async () => {
-      // Pour la compatibilité avec les anciennes écritures qui ont des zéros
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: '001' },
-        { entryNumber: '002' },
-        { entryNumber: '010' },
-      ])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      // Le service doit extraire 1, 2, 10, trouver le max (10) et retourner "11"
-      expect(number).toBe('11')
-    })
-
-    it('devrait retourner "1" si le numéro est invalide', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: 'invalid' },
-      ])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      expect(number).toBe('1')
-    })
-
-    it('devrait utiliser une numérotation par exercice fiscal', async () => {
-      // Les numéros d'écriture sont uniques par exercice fiscal
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: '1' }, // Journal OD
-        { entryNumber: '2' }, // Journal AC
-        { entryNumber: '3' }, // Journal BQ
-        { entryNumber: '10' }, // Journal VT
-      ])
-
-      const number = await generateNextEntryNumber('company-1', mockFiscalYearId)
-
-      // Le service doit trouver le maximum pour cet exercice (10) et l'incrémenter à 11
-      expect(number).toBe('11')
-    })
-  })
-
-  describe('numbering at validation', () => {
     it('drafts get a provisional number, never part of the sequence', () => {
       const n = provisionalEntryNumber()
       expect(n).toMatch(/^BR-[0-9A-F]{12}$/)
       expect(isProvisionalEntryNumber(n)).toBe(true)
       expect(sequentialPartOf(n)).toBeNull()
       expect(sequentialPartOf('BR-000000000042')).toBeNull()
-      expect(maxSequentialPart(['1', 'BR-000000000099', '2'])).toBe(2)
     })
 
-    it('the next definitive number only counts validated entries of the fiscal year', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([{ entryNumber: '1' }, { entryNumber: '2' }])
-      expect(await nextDefinitiveEntryNumber('fiscal-year-1')).toBe('3')
-      expect(db.accountingEntry.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { fiscalYearId: 'fiscal-year-1', status: 'validated' } })
-      )
-    })
-
-    it('keeps ignoring legacy timestamp numbers for definitive numbers', async () => {
-      db.accountingEntry.findMany.mockResolvedValue([
-        { entryNumber: '41' },
-        { entryNumber: 'TR-1727000000000' },
-        { entryNumber: '1727000000000' },
-      ])
+    it('the next definitive number is one more than the indexed max of the validated entries (one query)', async () => {
+      db.$queryRaw.mockResolvedValueOnce([{ max: BigInt(41) }])
       expect(await nextDefinitiveEntryNumber('fiscal-year-1')).toBe('42')
+      db.$queryRaw.mockResolvedValueOnce([{ max: null }])
+      expect(await nextDefinitiveEntryNumber('fiscal-year-1')).toBe('1')
+      expect(db.$queryRaw).toHaveBeenCalledTimes(2)
+      expect(db.accountingEntry.findMany).not.toHaveBeenCalled()
     })
   })
 
