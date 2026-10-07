@@ -251,10 +251,11 @@ describe.skipIf(!available)('company settings routes', () => {
       expect((await prisma.establishment.findUniqueOrThrow({ where: { id: other.id } })).isActive).toBe(true)
     })
 
-    it('creates the main establishment on first read', async () => {
+    it('reads the establishments without creating any (KLEDG-R3-AUTHZ-07)', async () => {
       const response = await call('viewer', 'establishments', 'GET', `/api/companies/${A()}/establishments`, { params: { id: A() } })
       expect(response.status).toBe(200)
-      expect(await response.json()).toEqual([expect.objectContaining({ name: 'Siège social', isMain: true })])
+      expect(await response.json()).toEqual([])
+      expect(await prisma.establishment.count({ where: { companyId: A() } })).toBe(0)
     })
   })
 

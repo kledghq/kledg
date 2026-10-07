@@ -13,12 +13,12 @@ export const GET = companyRoute({ company, permission: { reports: ['read'] } }, 
 )
 
 /** PATCH /api/management-fees/conventions/[id]: replaces the convention (past billings keep their amounts). */
-export const PATCH = companyRoute({ company, permission: { entries: ['create'] }, body: ConventionBodySchema }, async ({ companyId, params, user, body }) =>
+export const PATCH = companyRoute({ company, permission: { entries: ['update'] }, body: ConventionBodySchema }, async ({ companyId, params, user, body }) =>
   NextResponse.json(await updateConvention(companyId, params.id as string, body, userGroupAccess(user))),
 )
 
 /** DELETE /api/management-fees/conventions/[id]: only a convention never invoiced (409 otherwise). */
-export const DELETE = companyRoute({ company, permission: { entries: ['create'] } }, async ({ companyId, params }) => {
+export const DELETE = companyRoute({ company, permission: { entries: ['delete'] } }, async ({ companyId, params }) => {
   await deleteConvention(companyId, params.id as string)
   return new NextResponse(null, { status: 204 })
 })

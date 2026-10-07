@@ -9,6 +9,7 @@
  * - KLEDG-R3-AUTHZ-03: a viewer of A cannot make their own company a subsidiary of A.
  * - KLEDG-R3-AUTHZ-04: the group export leaves out a subsidiary where the user
  *   may not export.
+ * - KLEDG-R3-AUTHZ-07: the members read writes nothing.
  *
  * Skipped when the test database server is unreachable.
  */
@@ -49,6 +50,7 @@ describe.skipIf(!available)('round 3 AUTHZ regressions', () => {
     routes.shareholders ??= (await import('@/app/api/companies/[id]/shareholders/route')) as unknown as Record<string, Handler>
     routes.groupCompanies ??= (await import('@/app/api/group/companies/route')) as unknown as Record<string, Handler>
     routes.groupExport ??= (await import('@/app/api/group/export/route')) as unknown as Record<string, Handler>
+    routes.members ??= (await import('@/app/api/companies/[id]/members/route')) as unknown as Record<string, Handler>
     routes.templates ??= (await import('@/app/api/companies/[id]/balance-sheet/config/templates/route')) as unknown as Record<string, Handler>
     await prepareTestDatabase('r3_authz')
     await seedTenants(prisma, ids)
@@ -195,5 +197,13 @@ describe.skipIf(!available)('round 3 AUTHZ regressions', () => {
     // As accountant of B (reports:export there), B's rows are in the file.
     await prisma.member.update({ where: { id: 'm-cadmin-b' }, data: { role: 'accountant' } })
     expect(await (await exported()).text()).toContain('B-CONFIDENTIAL-PAYEE')
+  })
+
+  it('[KLEDG-R3-AUTHZ-07] reading the members of a company without organization creates none', async () => {
+    const bare = await prisma.company.create({ data: { name: 'Sans organisation', slug: 'sans-organisation', siren: '444444444' } })
+    const response = await call('admin', { route: routes.members, method: 'GET', path: `/api/companies/${bare.id}/members`, params: { id: bare.id } })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
+    expect(await prisma.organization.count({ where: { companyId: bare.id } })).toBe(0)
   })
 })

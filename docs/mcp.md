@@ -221,8 +221,8 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `prepare_year_end_entries` | Préparer dotations, reprises et quotes-parts de subventions en **brouillons** au journal OD ; une seconde fois ne crée rien | `entries:create` | Oui (brouillons périmés) | Oui |
 | `create_draft_expense_report` | Note de frais en **brouillon** pour l'utilisateur ou, s'il valide les notes, un autre bénéficiaire ; `dryRun` pour un aperçu | `expenses:submit` | Non | Non |
 | `update_year_end_formalities` | Renseigner l'approbation des comptes (dates, taille, mode de décision, votes, affectation proposée, dépôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
-| `manage_accounting_methods` | Registre des méthodes comptables (créer, modifier, supprimer) ; une méthode de référence le reste (PCG art. 121-5) | `entries:create`, `entries:delete` pour supprimer | Oui | Non |
-| `manage_accounting_changes` | Changements de méthode, de réglementation ou d'estimation et corrections d'erreurs (PCG art. 122-1 à 122-6) ; `prepare_entry` prépare l'écriture de rattrapage en **brouillon** (110 / 119 ou 678 / 778) | `entries:create`, `entries:delete` pour supprimer | Oui (brouillon périmé) | Non |
+| `manage_accounting_methods` | Registre des méthodes comptables (créer, modifier, supprimer) ; une méthode de référence le reste (PCG art. 121-5) | `entries:create`, `entries:update` pour modifier, `entries:delete` pour supprimer | Oui | Non |
+| `manage_accounting_changes` | Changements de méthode, de réglementation ou d'estimation et corrections d'erreurs (PCG art. 122-1 à 122-6) ; `prepare_entry` prépare l'écriture de rattrapage en **brouillon** (110 / 119 ou 678 / 778) | `entries:create`, `entries:update` pour modifier, `entries:delete` pour supprimer | Oui (brouillon périmé) | Non |
 | `update_annexe_notes` | Renseigner l'annexe (engagements, événements postérieurs, dirigeants, échéances, effectif, crédits d'impôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
 | `prepare_vat_settlement` | Préparer l'écriture de liquidation de la TVA d'une période en **brouillon** au journal OD (comptes de TVA soldés, 44551 ou 44567, arrondi au 658 ou 758) ; inchangée si le brouillon correspond, remplacée s'il est périmé, jamais si elle est validée ; ne dépose pas la déclaration | `entries:create` | Oui (brouillon périmé) | Oui |
 | `prepare_corporate_tax_entry` | Préparer en **brouillon** la charge d'impôt de l'exercice (695 / 444, journal OD, dernier jour) ou le paiement d'un acompte de l'exercice suivant (444 / 512, journal BQ, à son échéance) ; inchangé si le brouillon correspond, remplacé s'il est périmé, jamais si l'écriture est validée ; ne dépose ni ne paie | `entries:create` | Oui (brouillon périmé) | Oui |
@@ -233,7 +233,7 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `manage_tiers` | Clients et fournisseurs : créer, modifier, rattacher les comptes auxiliaires déjà utilisés sur des lignes 40 et 41 | `entries:create` (créer, rattacher), `entries:update` (modifier) | Oui (modifier) | Non |
 | `duplicate_entry` | Copier une écriture en **brouillon** | `entries:create` | Non | Non |
 | `update_draft_invoice` | Modifier une facture encore en brouillon (champs et lignes, ou seulement les comptes des lignes d'une facture importée) ; refusé une fois comptabilisée | `entries:update` | Oui | Oui |
-| `update_provision`, `update_investment_grant` | Remplacer une provision ou une subvention ; figées dès qu'un mouvement est validé | `entries:create` | Oui | Oui |
+| `update_provision`, `update_investment_grant` | Remplacer une provision ou une subvention ; figées dès qu'un mouvement est validé | `entries:update` | Oui | Oui |
 | `update_draft_expense_report` | Remplacer la période, le libellé et les lignes d'une note de frais en brouillon (ou soumise, pour un valideur) ; Kledg recalcule montants et TVA | `expenses:submit` | Oui | Oui |
 | `reclassify_doubtful_receivable` | Reclasser une créance de 411 en 416 à la clôture, en **brouillon** | `entries:create` | Non | Non |
 | `save_vat_deduction_settings` | Régler le coefficient de déduction : assujetti partiel, estimation d'une première année, coefficient d'assujettissement, TVA supportée, traitement des comptes de produits | `entries:create` | Oui | Oui |
@@ -302,10 +302,10 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `import_qonto_invoices` | Importer les clients et les factures de Qonto (idempotent) | `entries:create` et `banking:read` | Oui |
 | `delete_tiers` | Supprimer un client ou un fournisseur sans facture | `entries:delete` | Oui |
 | `delete_budget_items` | Supprimer un budget ou une ligne | `budgets:manage` | Oui |
-| `delete_year_end_items` | Supprimer une provision, une évaluation ou une subvention, avec leurs brouillons | `entries:delete` (provision, subvention), `entries:create` (évaluation) | Oui |
+| `delete_year_end_items` | Supprimer une provision, une évaluation ou une subvention, avec leurs brouillons | `entries:delete` | Oui |
 | `manage_expense_report` | Soumettre, renvoyer, valider, rouvrir une note de frais, la comptabiliser (brouillon) ou l'annuler, constater son remboursement, la supprimer ; paiements candidats (lecture) | `expenses:submit`, `expenses:validate`, `entries:create`, `entries:delete` ou `entries:update` selon l'action, comme les routes | Oui (sauf la lecture) |
 | `manage_expense_settings` | Bénéficiaires des notes de frais et règles de mots-clés des catégories | `expenses:validate` | Oui (suppressions) |
-| `manage_management_fee_convention` | Créer, remplacer ou supprimer une convention de frais de gestion (droits vérifiés dans chaque filiale) ; la génération des factures reste dans Kledg | `entries:create` | Oui |
+| `manage_management_fee_convention` | Créer, remplacer ou supprimer une convention de frais de gestion (droits vérifiés dans chaque filiale) ; la génération des factures reste dans Kledg | `entries:create` (création), `entries:update` (remplacement), `entries:delete` (suppression) | Oui |
 | `auto_letter_account` | Lettrage automatique d'un compte de tiers (toutes les propositions) | `entries:update` | Oui |
 | `manage_fixed_asset` | Modifier une immobilisation, la supprimer avec ses brouillons de dotation | `ledger:manage` | Oui (suppression) |
 | `manage_depreciation_record` | Comptabiliser un amortissement en écriture **validée**, ou supprimer l'enregistrement | `entries:create` et `entries:validate` (comptabiliser), `entries:delete` (supprimer) | Oui |
@@ -470,12 +470,12 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/account/sessions` | session | Exclu : compte personnel |
 | `DELETE /api/account/sessions` | session | Exclu : compte personnel |
 | `POST /api/accounting-changes` | entries:create | `manage_accounting_changes` (B) |
-| `PATCH /api/accounting-changes/[id]` | entries:create | `manage_accounting_changes` (B) |
+| `PATCH /api/accounting-changes/[id]` | entries:update | `manage_accounting_changes` (B) |
 | `DELETE /api/accounting-changes/[id]` | entries:delete | `manage_accounting_changes` (B) |
 | `POST /api/accounting-changes/[id]/entry` | entries:create | `manage_accounting_changes` (B) |
 | `GET /api/accounting-methods` | reports:read | `get_annexe` (L) |
 | `POST /api/accounting-methods` | entries:create | `manage_accounting_methods` (B) |
-| `PATCH /api/accounting-methods/[id]` | entries:create | `manage_accounting_methods` (B) |
+| `PATCH /api/accounting-methods/[id]` | entries:update | `manage_accounting_methods` (B) |
 | `DELETE /api/accounting-methods/[id]` | entries:delete | `manage_accounting_methods` (B) |
 | `GET /api/accounts/[id]/balance-evolution` | entries:read | `get_ledger_report` (L) |
 | `GET /api/accounts/[id]/entries` | entries:read | `list_entries` (L) |
@@ -686,7 +686,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/expense-reports/[id]/post` | entries:create | `manage_expense_report` (CT) |
 | `DELETE /api/expense-reports/[id]/post` | entries:delete | `manage_expense_report` (CT) |
 | `GET /api/expense-reports/[id]/reimbursement` | expenses:validate, entries:read | `manage_expense_report` (CT) ; Action reimbursement_candidates, en lecture. |
-| `POST /api/expense-reports/[id]/reimbursement` | entries:update | `manage_expense_report` (CT) |
+| `POST /api/expense-reports/[id]/reimbursement` | expenses:validate, entries:update | `manage_expense_report` (CT) |
 | `GET /api/expense-reports/[id]` | entries:read | `get_expense_report` (L) |
 | `PATCH /api/expense-reports/[id]` | expenses:submit | `update_draft_expense_report` (B) |
 | `DELETE /api/expense-reports/[id]` | expenses:submit | `manage_expense_report` (CT) |
@@ -737,7 +737,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/integrations` | banking:manage | Exclu : connexion d'une banque |
 | `POST /api/integrations/sync` | banking:reconcile | `sync_bank_data` (CT) |
 | `POST /api/integrations/verify` | banking:manage | Exclu : connexion d'une banque |
-| `PATCH /api/investment-grants/[id]` | entries:create | `update_investment_grant` (B) |
+| `PATCH /api/investment-grants/[id]` | entries:update | `update_investment_grant` (B) |
 | `DELETE /api/investment-grants/[id]` | entries:delete | `delete_year_end_items` (CT) |
 | `GET /api/investment-grants` | reports:read | `get_year_end_inventory` (L) |
 | `POST /api/investment-grants` | entries:create | `create_investment_grant` (B) |
@@ -771,8 +771,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/management-fees/conventions/[id]/invoices` | entries:create | Exclu : factures de frais de gestion |
 | `GET /api/management-fees/conventions/[id]/preview` | reports:read | `preview_management_fees` (L) |
 | `GET /api/management-fees/conventions/[id]` | reports:read | `list_management_fee_conventions` (L) |
-| `PATCH /api/management-fees/conventions/[id]` | entries:create | `manage_management_fee_convention` (CT) |
-| `DELETE /api/management-fees/conventions/[id]` | entries:create | `manage_management_fee_convention` (CT) |
+| `PATCH /api/management-fees/conventions/[id]` | entries:update | `manage_management_fee_convention` (CT) |
+| `DELETE /api/management-fees/conventions/[id]` | entries:delete | `manage_management_fee_convention` (CT) |
 | `GET /api/management-fees/conventions` | reports:read | `list_management_fee_conventions` (L) |
 | `POST /api/management-fees/conventions` | entries:create | `manage_management_fee_convention` (CT) |
 | `GET /api/management-fees/subsidiaries` | reports:read | `list_management_fee_conventions` (L) |
@@ -780,8 +780,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/mcp` | aucun (voir exclusion) | Exclu : serveur mcp |
 | `DELETE /api/mcp` | aucun (voir exclusion) | Exclu : serveur mcp |
 | `PUT /api/provisions/[id]/assessment` | entries:create | `record_provision_assessment` (B) |
-| `DELETE /api/provisions/[id]/assessment` | entries:create | `delete_year_end_items` (CT) |
-| `PATCH /api/provisions/[id]` | entries:create | `update_provision` (B) |
+| `DELETE /api/provisions/[id]/assessment` | entries:delete | `delete_year_end_items` (CT) |
+| `PATCH /api/provisions/[id]` | entries:update | `update_provision` (B) |
 | `DELETE /api/provisions/[id]` | entries:delete | `delete_year_end_items` (CT) |
 | `POST /api/provisions/doubtful-receivables/reclassify` | entries:create | `reclassify_doubtful_receivable` (B) |
 | `GET /api/provisions/doubtful-receivables` | reports:read | `list_doubtful_receivables` (L) |

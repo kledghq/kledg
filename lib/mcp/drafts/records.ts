@@ -137,7 +137,7 @@ const updateProvisionTool = draftTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd.',
   input: { provisionId: id('La provision').describe('Provision id, from get_year_end_inventory.'), provision: assistantInput(ProvisionBodySchema) },
-  permission: { entries: ['create'] },
+  permission: { entries: ['update'] },
   destructive: true,
   idempotent: true,
   async execute(args) {
@@ -156,7 +156,7 @@ const updateGrantTool = draftTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, durations in years.',
   input: { grantId: id('La subvention').describe('Grant id, from get_year_end_inventory.'), grant: assistantInput(GrantBodySchema) },
-  permission: { entries: ['create'] },
+  permission: { entries: ['update'] },
   destructive: true,
   idempotent: true,
   async execute(args) {

@@ -7,6 +7,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 ### Corrigé
 
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
+- Page Informations : afficher les établissements d'une société qui n'en a pas encore n'en crée plus un « Siège social » sans SIRET (ce qui échouait pour une deuxième société) ; ajoutez l'établissement principal avec son SIRET. Lire les membres d'une société n'écrit plus rien.
 
 ### Sécurité
 

@@ -6,7 +6,7 @@ import { deleteInvestmentGrant, GrantBodySchema, updateInvestmentGrant } from '@
 const company = fromResource(companyOfInvestmentGrant)
 
 /** PATCH /api/investment-grants/[id]: replaces the grant (its terms are fixed once a transfer is validated). */
-export const PATCH = companyRoute({ company, permission: { entries: ['create'] }, body: GrantBodySchema }, async ({ companyId, params, body }) =>
+export const PATCH = companyRoute({ company, permission: { entries: ['update'] }, body: GrantBodySchema }, async ({ companyId, params, body }) =>
   NextResponse.json(await updateInvestmentGrant(companyId, params.id as string, body)),
 )
 
