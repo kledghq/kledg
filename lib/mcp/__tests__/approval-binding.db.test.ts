@@ -29,9 +29,12 @@ const state = await vi.hoisted(async () => {
 })
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => state.user }))
+// The Qonto upload itself (KLEDG-R3-MCP-03): only whether and when it is called matters here.
+vi.mock('@/lib/simple/upload-receipt.service', () => ({ uploadExpenseReceipt: vi.fn(async () => ({ attached: true })) }))
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import type { ExecutionMode } from '@/lib/ai-access/access'
+import { uploadExpenseReceipt } from '@/lib/simple/upload-receipt.service'
 
 const available = await testDatabaseAvailable()
 
@@ -86,6 +89,20 @@ async function apiKey(level: 'read' | 'write' | 'admin', mode: ExecutionMode = '
 async function approve(actionId: string) {
   const { decideAction } = await import('@/lib/mcp/full-control/pending-actions')
   await decideAction(OWNER.id, actionId, 'approve')
+}
+
+let transactionCount = 0
+
+/** A bank transaction of the company on a manual bank account of its own. */
+async function bankTransaction(label = 'PRLV SEPA FREE PRO', amount = '47.99') {
+  if (!ids.bankAccount) {
+    const connection = await prisma.bankConnection.create({ data: { companyId: ids.company, provider: 'MANUAL' } })
+    ids.bankAccount = (await prisma.bankAccount.create({ data: { bankConnectionId: connection.id, externalAccountId: 'acc-1', name: 'Compte courant', ledgerAccountCode: '512000' } })).id
+  }
+  transactionCount += 1
+  return prisma.bankTransaction.create({
+    data: { bankAccountId: ids.bankAccount, externalTransactionId: `tx-${transactionCount}`, amount, date: day('2025-03-10'), side: 'debit', label },
+  })
 }
 
 async function draftEntry(description: string, amount: string) {
@@ -224,6 +241,25 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       const done = await call(key, 'run_rules', { companyId: ids.company, actionId: dry.actionId })
       expect(done.ok).toBe(false)
       expect(done.text).toMatch(/Les données ont changé depuis l'approbation/)
+    })
+  })
+
+  describe('KLEDG-R3-MCP-03: upload_receipt is high impact', () => {
+    it('in validation mode, returns a dry run and an approval link, and sends nothing before the approval', async () => {
+      const key = await apiKey('admin')
+      const transaction = await bankTransaction()
+      const args = { companyId: ids.company, transactionId: transaction.id, fileName: 'facture.pdf', contentBase64: Buffer.from('%PDF-1.4 facture').toString('base64') }
+      vi.mocked(uploadExpenseReceipt).mockClear()
+      const dry = await ok(key, 'upload_receipt', args)
+      expect(dry).toMatchObject({ dryRun: true, preview: { transaction: { id: transaction.id, label: 'PRLV SEPA FREE PRO' }, file: { name: 'facture.pdf', type: 'application/pdf', size: 16 } } })
+      expect(dry.preview.file.sha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(dry.approvalUrl).toContain(dry.actionId)
+      expect(uploadExpenseReceipt).not.toHaveBeenCalled()
+
+      await approve(dry.actionId)
+      const done = await ok(key, 'upload_receipt', { ...args, actionId: dry.actionId })
+      expect(done.executed).toBe(true)
+      expect(uploadExpenseReceipt).toHaveBeenCalledTimes(1)
     })
   })
 })

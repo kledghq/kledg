@@ -10,9 +10,10 @@
  * app/api/integrations/** and app/api/simple/expenses/[id]/receipt.
  */
 
+import { createHash } from 'crypto'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { ValidationError } from '@/lib/accounting/errors'
+import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { forAssistant, routeBody } from '@/lib/mcp/euros'
 import { limitBankCalls } from '@/lib/banking/guard'
@@ -212,7 +213,7 @@ const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
 const uploadReceiptTool = fullControlTool({
   name: 'upload_receipt',
   title: 'Envoyer un justificatif',
-  description: `Sends the receipt of a Qonto bank transaction (JPEG, PNG or PDF, base64, 5 MB at most) to Qonto and records its reference in Kledg, like the receipt button of the simple mode and of the transactions; other banks answer what to do instead. Within the per-company limit of bank calls. ${ACTS_AS_USER}`,
+  description: `Sends the receipt of a Qonto bank transaction (JPEG, PNG or PDF, base64, 5 MB at most) to Qonto and records its reference in Kledg, like the receipt button of the simple mode and of the transactions; other banks answer what to do instead. Within the per-company limit of bank calls. A file sent to Qonto cannot be taken back by Kledg: ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the transaction and the file (name, type, size, SHA-256).`,
   input: {
     transactionId: z.string().min(1).max(64).describe('Transaction id, from list_bank_transactions or list_missing_receipts.'),
     fileName: z.string().min(1).max(200).describe('E.g. "facture-martin.pdf" (.pdf, .png, .jpg).'),
@@ -222,7 +223,19 @@ const uploadReceiptTool = fullControlTool({
   amounts: 'none',
   never: 'reconciles the transaction or books an entry.',
   openWorld: true,
-  confirmation: false,
+  // A write at Qonto that Kledg cannot undo, like the other Qonto writes (create_draft_invoice, import_qonto_invoices).
+  confirmation: true,
+  async preview({ companyId, transactionId, fileName, contentBase64 }) {
+    const bytes = decodeBase64File(contentBase64, MAX_RECEIPT_BYTES)
+    const type = receiptTypeOf(fileName)
+    const [transaction] = (await transactionsOf(companyId, [transactionId])).found as unknown[]
+    if (!transaction) throw new NotFoundError('Transaction introuvable')
+    return {
+      transaction,
+      file: { name: fileName, type, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') },
+      destination: 'Qonto',
+    }
+  },
   async execute({ companyId, transactionId, fileName, contentBase64 }) {
     const bytes = decodeBase64File(contentBase64, MAX_RECEIPT_BYTES)
     const file = new File([bytes as BlobPart], fileName, { type: receiptTypeOf(fileName) })

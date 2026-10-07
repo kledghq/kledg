@@ -281,7 +281,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `add_rule_from_template` | Ajouter la règle d'un modèle de la bibliothèque, comptes rapprochés du plan de la société ; comptes manquants créés seulement avec `createMissingAccounts` ; refusé si la même règle existe, sauf `allowDuplicate` | `ledger:manage` | Non |
 | `copy_rules_from_company` | Copier des règles d'une autre société de l'utilisateur, comptes rapprochés du plan ; copies inactives par défaut, règles déjà présentes ignorées | `ledger:manage` ici, `banking:read` dans la société source | Non |
 | `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles), copier les justificatifs de Qonto | `banking:reconcile` | Non |
-| `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) | `banking:reconcile` | Non |
+| `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) ; l'aperçu donne la transaction et le fichier (nom, type, taille, SHA-256) | `banking:reconcile` | Oui |
 | `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée, reprendre la création dans Qonto d'une facture sans réponse de Qonto ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
 | `import_qonto_invoices` | Importer les clients et les factures de Qonto (idempotent) | `entries:create` et `banking:read` | Oui |
 | `delete_tiers` | Supprimer un client ou un fournisseur sans facture | `entries:delete` | Oui |

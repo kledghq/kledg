@@ -91,7 +91,7 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   add_rule_from_template: false,
   copy_rules_from_company: false,
   sync_bank_data: false,
-  upload_receipt: false,
+  upload_receipt: true,
   manage_invoice: true,
   import_qonto_invoices: true,
   delete_tiers: true,
