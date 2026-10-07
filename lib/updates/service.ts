@@ -36,8 +36,15 @@ export function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value)
 }
 
-/** Marker of the workflow version that handles copies with unrelated history. */
-const WORKFLOW_MARKER = '# BEGIN kledg-merge'
+/**
+ * Marker of the current workflow version: an installed file without it is
+ * upgraded. Version 1 handled copies with unrelated history (BEGIN
+ * kledg-merge); version 2 passes step outputs through the environment,
+ * never inside a script, and pins actions/checkout (KLEDG-R3-INPUT-06).
+ * Bump it with every change of .github/workflows/update-from-kledg.yml that
+ * instances must get.
+ */
+export const WORKFLOW_MARKER = '# kledg-workflow-version: 2'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 let delay = sleep
@@ -87,7 +94,7 @@ export async function setChannel(conn: ActiveConnection, channel: Channel): Prom
 export interface WorkflowInfo {
   present: boolean
   state: string | null
-  /** The file handles copies with unrelated history (BEGIN kledg-merge marker). */
+  /** The file is the current version (WORKFLOW_MARKER). */
   current: boolean
   sha: string | null
 }

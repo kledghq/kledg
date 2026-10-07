@@ -70,6 +70,19 @@ describe('prepareUpdate', () => {
     expect(fake.calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ sha: 'filesha', message: 'Update the Kledg update workflow' })
   })
 
+  it('[KLEDG-R3-INPUT-06] upgrades a version 1 workflow (expressions inside scripts)', async () => {
+    const v1 = UPDATE_WORKFLOW.replace('# kledg-workflow-version: 2', '')
+    expect(v1).toContain('# BEGIN kledg-merge')
+    const fake = fakeGitHub({
+      ...workflowRoutes({ file: v1 }),
+      'PUT /repos/acme/compta/contents/.github/workflows/update-from-kledg.yml': { body: {} },
+    })
+    await prepareUpdate(copy, 'releases')
+    const put = fake.calls.find((c) => c.method === 'PUT')
+    expect(put?.body).toMatchObject({ sha: 'filesha', message: 'Update the Kledg update workflow' })
+    expect(Buffer.from((put?.body as { content: string }).content, 'base64').toString()).toBe(UPDATE_WORKFLOW)
+  })
+
   it('explains the missing Workflows permission', async () => {
     fakeGitHub({
       ...workflowRoutes({ file: null }),

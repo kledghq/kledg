@@ -1,4 +1,5 @@
 # Keeps a self-hosted copy of Kledg up to date.
+# kledg-workflow-version: 2 (lib/updates/service.ts upgrades older files)
 #
 # The "Deploy to Vercel" button creates a copy of kledghq/kledg that is not a
 # GitHub fork, so GitHub's "Sync fork" button is not available. This workflow
@@ -51,7 +52,7 @@ jobs:
       BRANCH: kledg-update
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           token: ${{ secrets.KLEDG_UPDATE_TOKEN || github.token }}
@@ -68,6 +69,13 @@ jobs:
                 echo "ref=" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
+              # A tag name is data: only the characters of a version tag go further
+              case "$TAG" in
+                *[!A-Za-z0-9._-]*)
+                  echo "::error::Unexpected Kledg release tag."
+                  exit 1
+                  ;;
+              esac
               git fetch upstream "refs/tags/$TAG:refs/tags/$TAG"
               echo "ref=refs/tags/$TAG" >> "$GITHUB_OUTPUT"
               echo "label=$TAG" >> "$GITHUB_OUTPUT"
@@ -89,8 +97,11 @@ jobs:
       - name: Check for new commits
         id: check
         if: steps.fetch.outputs.ref != ''
+        env:
+          # Expressions never go inside a script: the value comes through the environment
+          REF: ${{ steps.fetch.outputs.ref }}
         run: |
-          if git merge-base --is-ancestor "${{ steps.fetch.outputs.ref }}" HEAD; then
+          if git merge-base --is-ancestor "$REF" HEAD; then
             echo "Already up to date."
             echo "changes=false" >> "$GITHUB_OUTPUT"
           else
@@ -184,6 +195,7 @@ jobs:
           BASE: ${{ github.event.repository.default_branch }}
           ADOPTED: ${{ steps.prepare.outputs.adopted }}
           WORKFLOWS_KEPT: ${{ steps.prepare.outputs.workflows_kept }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           MIGRATIONS=$(git diff --name-only --diff-filter=A "origin/$BASE" "$BRANCH" -- prisma/migrations \
             | grep '/migration.sql$' | sed 's#^prisma/migrations/##; s#/migration.sql$##; s#^#- #' || true)
@@ -207,7 +219,7 @@ jobs:
             if ! gh pr create --head "$BRANCH" --base "$BASE" --title "$TITLE" --body "$BODY"; then
               # Repositories can forbid Actions from opening pull requests
               # (Settings > Actions > General). The branch is pushed anyway.
-              URL="${{ github.server_url }}/${{ github.repository }}/compare/$BASE...$BRANCH?expand=1"
+              URL="$REPO_URL/compare/$BASE...$BRANCH?expand=1"
               echo "::warning::Ouvrez la mise à jour en un clic : $URL"
               echo "Ouvrez la mise à jour : $URL" >> "$GITHUB_STEP_SUMMARY"
             fi
