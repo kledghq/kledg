@@ -54,7 +54,7 @@ describe('NewApiKeyCard', () => {
     expect(requestBody()).toEqual({
       url: '/api/ai-access/api-keys',
       method: 'POST',
-      body: { name: 'Clé MCP', access: { allCompanies: true, companyIds: [] }, level: 'write' },
+      body: { name: 'Clé MCP', access: { allCompanies: true, companyIds: [] }, level: 'write', expiresInDays: 90 },
     })
     expect(onCreated).toHaveBeenCalledTimes(1)
     expect(screen.getByText('Stockez-la en sécurité, elle ne sera plus affichée.')).toBeInTheDocument()
@@ -90,6 +90,7 @@ describe('NewApiKeyCard', () => {
       name: 'Claude Code',
       access: { allCompanies: false, companyIds: ['c2'] },
       level: 'admin',
+      expiresInDays: 90,
       executionMode: 'validation',
       password: 'secret-password',
     })
@@ -129,7 +130,7 @@ const keys: ApiKey[] = [
     start: 'kl_ab',
     createdAt: '2026-09-01T10:00:00.000Z',
     lastRequest: '2026-10-02T10:00:00.000Z',
-    expiresAt: null,
+    expiresAt: '2026-11-30T10:00:00.000Z',
     permissions: { kledg: ['read', 'write', 'admin'] },
   },
   {
@@ -154,11 +155,11 @@ describe('ApiKeysCard', () => {
     )
     expect(screen.getByText('2 clés')).toBeInTheDocument()
     const first = screen.getByText('Claude Code').closest('li')!
-    expect(first).toHaveTextContent('kl_ab•••• · créée le 1 septembre 2026 · dernière utilisation le 2 octobre 2026')
+    expect(first).toHaveTextContent('kl_ab•••• · créée le 1 septembre 2026 · dernière utilisation le 2 octobre 2026 · expire le 30 novembre 2026')
     expect(first).toHaveTextContent('Accès : Contrôle total, exécution avec validation dans Kledg')
     expect(first).toHaveTextContent('Sociétés : Beta SARL')
     const second = screen.getByText('Sans nom').closest('li')!
-    expect(second).toHaveTextContent('••• · créée le 1 août 2026 · jamais utilisée')
+    expect(second).toHaveTextContent('••• · créée le 1 août 2026 · jamais utilisée · sans expiration')
     // A key without a level is read-only (fail closed).
     expect(second).toHaveTextContent('Accès : Lecture seule')
     expect(second).toHaveTextContent('Sociétés : Toutes les sociétés')

@@ -12,6 +12,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 ### Sécurité
 
 - Un changement ou une réinitialisation du mot de passe supprime aussi toutes les clés API et déconnecte tous les assistants IA du compte (autorisations, jetons, actions en attente), en plus des autres sessions ; la création d'une clé API à contrôle total demande de saisir de nouveau le mot de passe ([documentation](docs/mcp.md#changement-ou-réinitialisation-du-mot-de-passe)).
+- Clés API : une durée de validité se choisit à la création (30, 90 ou 365 jours, 90 par défaut ; sans expiration seulement pour une clé en lecture seule), elle est affichée dans la liste et ne se change plus ensuite ; un email prévient le titulaire du compte de chaque nouvelle clé ([documentation](docs/mcp.md#niveau-des-clés-api)). Les clés existantes qui écrivent expirent 90 jours après la mise à jour (migration `20261121100000_api_key_expiry`).
 - Le lien de confirmation d'une nouvelle adresse email ne connecte plus le navigateur qui l'ouvre : il faut d'abord se connecter au compte concerné, puis la confirmation se termine.
 - Le changement d'adresse email répond dans le même délai que la nouvelle adresse soit libre ou déjà utilisée par un autre compte.
 - La page de connexion n'affiche plus le texte passé dans son adresse : seuls les codes d'erreur connus ont un message, les autres un message générique.

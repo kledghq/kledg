@@ -49,6 +49,8 @@ Une clé API reçoit son niveau à sa création (**Lecture et brouillons d'écri
 
 Une clé à **Contrôle total** agit comme vous et survit à la session qui l'a créée : sa création demande de saisir de nouveau votre mot de passe (10 tentatives par quart d'heure), une session ouverte ne suffit pas.
 
+Une clé a une **durée de validité** choisie à sa création : 30, 90 (par défaut) ou 365 jours. Une clé en lecture seule peut aussi ne pas expirer ; une clé qui écrit (brouillons ou contrôle total) expire toujours. La durée ne se change pas ensuite : à l'échéance, créez une nouvelle clé. La date d'expiration est affichée dans la liste des clés, et une clé expirée est refusée par `/api/mcp`. À chaque création, un email prévient le titulaire du compte (nom, accès et échéance de la clé, jamais la clé elle-même) : si vous n'êtes pas à l'origine de la clé, révoquez-la et changez votre mot de passe.
+
 ### Pour les outils de contrôle total
 
 Les outils qui agissent au-delà des brouillons (`lib/mcp/full-control`) ne sont enregistrés que si la connexion a le contrôle total (`access.canAdmin` dans `registerKledgTools`). Ils sont tous déclarés avec `fullControlTool` et enregistrés par `registerFullControlTool` (`lib/mcp/full-control/define.ts`), qui, à chaque appel et dans cet ordre :

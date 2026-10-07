@@ -2,11 +2,17 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { authedRoute } from '@/lib/api/route'
 import { ValidationError } from '@/lib/accounting/errors'
-import { AccessLevelSchema, CompanyAccessSchema, ExecutionModeSchema } from '@/lib/ai-access/access'
+import { waitUntil } from '@vercel/functions'
+import { AccessLevelSchema, ApiKeyExpirySchema, CompanyAccessSchema, DEFAULT_API_KEY_EXPIRY_DAYS, describeLevel, ExecutionModeSchema } from '@/lib/ai-access/access'
 import { createApiKeyWithGrant } from '@/lib/ai-access/create-api-key.service'
 import { writeAuditLog } from '@/lib/audit'
 import { assertCurrentPassword } from '@/lib/account/confirm-password'
 import { enforceRateLimit } from '@/lib/rate-limit'
+import { getAppUrl } from '@/lib/config'
+import { sendEmail } from '@/lib/email'
+import { apiKeyCreatedEmail } from '@/lib/email/templates'
+import { logger } from '@/lib/logger'
+import { formatIsoDateFr } from '@/lib/utils/date'
 
 const Body = z.object({
   // Better Auth's default maximum name length.
@@ -18,6 +24,8 @@ const Body = z.object({
   executionMode: ExecutionModeSchema.default('automatic'),
   /** The user's password, typed again: required for full control (KLEDG-R3-AUTH-01). */
   password: z.string().max(200).optional(),
+  /** Days before the key expires (30, 90, 365), or null for a read-only key without expiry (KLEDG-R3-AUTH-01). */
+  expiresInDays: ApiKeyExpirySchema.default(DEFAULT_API_KEY_EXPIRY_DAYS),
 })
 
 /**
@@ -33,10 +41,21 @@ export const POST = authedRoute({ body: Body }, async ({ user, body }) => {
     await enforceRateLimit('api-key-full-control', user.id)
     await assertCurrentPassword(user.id, body.password)
   }
-  const created = await createApiKeyWithGrant(user, body.name, body.access, body.level, body.executionMode)
+  const created = await createApiKeyWithGrant(user, body.name, body.access, body.level, body.executionMode, body.expiresInDays)
   await writeAuditLog('info', 'API key created', {
     action: 'CREATE_API_KEY',
-    metadata: { apiKeyId: created.id, userId: user.id, level: created.level, executionMode: created.executionMode, ...created.access },
+    metadata: { apiKeyId: created.id, userId: user.id, level: created.level, executionMode: created.executionMode, expiresAt: created.expiresAt, ...created.access },
   })
+  // The owner hears of every new key (never its secret), after the response like the other account emails.
+  const notice = apiKeyCreatedEmail(
+    user.email,
+    {
+      name: created.name ?? body.name,
+      access: describeLevel(created.level, created.executionMode),
+      expiresOn: created.expiresAt ? formatIsoDateFr(created.expiresAt.toISOString().slice(0, 10)) : null,
+    },
+    `${getAppUrl()}/settings/api-keys`,
+  )
+  waitUntil(sendEmail(notice).catch((error: unknown) => logger.warn('API key notice could not be sent', error)))
   return NextResponse.json(created, { status: 201 })
 })

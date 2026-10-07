@@ -4,7 +4,10 @@
  * - KLEDG-R3-AUTH-01: a password reset or change evicts whoever held the
  *   session or knew the old password, API keys and AI assistants included
  *   (lib/account/revoke-delegated-access.ts, the list shared with
- *   KLEDG-SEC-011); a full control key needs the password typed again.
+ *   KLEDG-SEC-011); a full control key needs the password typed again; a key
+ *   that writes always expires (30, 90 or 365 days, 90 by default), its
+ *   lifetime cannot be changed afterwards, and the owner gets an email
+ *   (without the secret) for every new key.
  * - KLEDG-R3-AUTH-02: an email change confirmation link does not sign in
  *   whoever opens it; it completes only in the account's own browser.
  * - KLEDG-R3-AUTH-03: the email change answer does not wait for an email,
@@ -436,5 +439,85 @@ describe.skipIf(!available)('round 3 AUTH regressions', () => {
     // The link to the free address was still sent; nothing to the registered one.
     expect(state.mails.some((m) => m.to === 'nobody-here@test.local')).toBe(true)
     expect(state.mails.some((m) => m.to === VICTIM.email)).toBe(false)
+  })
+
+  async function createKeyWith(cookie: string, body: Record<string, unknown>): Promise<Response> {
+    return kledgRoute('@/app/api/ai-access/api-keys/route', 'POST', '/api/ai-access/api-keys', cookie, {
+      name: 'cle',
+      access: { allCompanies: true, companyIds: [] },
+      ...body,
+    })
+  }
+
+  it('[KLEDG-R3-AUTH-01] a key that writes expires (90 days by default); only a read-only key may not', async () => {
+    const cookie = await signIn(VICTIM.email)
+    const day = 24 * 3600 * 1000
+    const expiresIn = async (response: Response) => {
+      expect(response.status).toBe(201)
+      const { expiresAt } = (await response.json()) as { expiresAt: string | null }
+      return expiresAt === null ? null : Math.round((new Date(expiresAt).getTime() - Date.now()) / day)
+    }
+    expect(await expiresIn(await createKeyWith(cookie, { level: 'admin', password: PASSWORD }))).toBe(90)
+    expect(await expiresIn(await createKeyWith(cookie, { level: 'write' }))).toBe(90)
+    expect(await expiresIn(await createKeyWith(cookie, { level: 'write', expiresInDays: 365 }))).toBe(365)
+    expect(await expiresIn(await createKeyWith(cookie, { level: 'read', expiresInDays: 30 }))).toBe(30)
+    expect(await expiresIn(await createKeyWith(cookie, { level: 'read', expiresInDays: null }))).toBeNull()
+    for (const level of ['write', 'admin']) {
+      const refused = await createKeyWith(cookie, { level, expiresInDays: null, password: PASSWORD })
+      expect(refused.status).toBe(400)
+    }
+    expect((await createKeyWith(cookie, { level: 'read', expiresInDays: 7 })).status).toBe(400)
+  })
+
+  it('[KLEDG-R3-AUTH-01] an expired key is refused, and its lifetime cannot be changed over HTTP', async () => {
+    const cookie = await signIn(VICTIM.email)
+    const created = await createKeyWith(cookie, { level: 'write', expiresInDays: 30 })
+    const { id, key } = (await created.json()) as { id: string; key: string }
+    const extended = await authRequest('/api-key/update', {
+      method: 'POST',
+      cookie,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ keyId: id, expiresIn: null }),
+    })
+    expect(extended.status).toBe(403)
+    expect((await prisma.apikey.findUniqueOrThrow({ where: { id } })).expiresAt).not.toBeNull()
+    expect((await mcpTools(key, 'x-api-key')).status).toBe(200)
+    await prisma.apikey.update({ where: { id }, data: { expiresAt: new Date(Date.now() - 1000) } })
+    const { clearVerifiedApiKeys } = await import('@/lib/mcp/api-key')
+    clearVerifiedApiKeys()
+    expect((await mcpTools(key, 'x-api-key')).status).toBe(401)
+  })
+
+  it('[KLEDG-R3-AUTH-01] the owner gets an email for every new key, without its secret', async () => {
+    const cookie = await signIn(VICTIM.email)
+    const created = await createKeyWith(cookie, { name: 'Script compta', level: 'admin', password: PASSWORD })
+    const { key } = (await created.json()) as { key: string }
+    const notice = state.mails.find((m) => m.to === VICTIM.email && m.subject?.startsWith('Nouvelle clé API'))
+    expect(notice).toBeTruthy()
+    const text = `${notice?.text ?? ''} ${notice?.html ?? ''}`
+    expect(text).toContain('Script compta')
+    expect(text).toContain('Contrôle total')
+    expect(text).toMatch(/expire le \d{2}\/\d{2}\/\d{4}/)
+    expect(text).not.toContain(key)
+    expect(text).not.toContain(key.slice(0, 12))
+  })
+
+  it('[KLEDG-R3-AUTH-01] migration 20261121100000 gives the existing keys that write an expiry', async () => {
+    const base = { referenceId: VICTIM.id, key: 'hash', enabled: true, createdAt: new Date(), updatedAt: new Date() }
+    const rows = [
+      ['k-admin', JSON.stringify({ kledg: ['read', 'write', 'admin'] })],
+      ['k-write', JSON.stringify({ kledg: ['read', 'write'] })],
+      ['k-read', JSON.stringify({ kledg: ['read'] })],
+      ['k-none', null],
+      ['k-broken', '{not json'],
+    ] as const
+    for (const [id, permissions] of rows) await prisma.apikey.create({ data: { ...base, id, key: `hash-${id}`, permissions } as never })
+    const { readFileSync } = await import('fs')
+    const sql = readFileSync('prisma/migrations/20261121100000_api_key_expiry/migration.sql', 'utf8')
+    await prisma.$executeRawUnsafe(sql)
+    const expiry = async (id: string) => (await prisma.apikey.findUniqueOrThrow({ where: { id } })).expiresAt
+    const day = 24 * 3600 * 1000
+    for (const id of ['k-admin', 'k-write']) expect(Math.round(((await expiry(id))!.getTime() - Date.now()) / day)).toBe(90)
+    for (const id of ['k-read', 'k-none', 'k-broken']) expect(await expiry(id)).toBeNull()
   })
 })

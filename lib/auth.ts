@@ -169,6 +169,11 @@ function createAuth() {
           throw ctx.redirect(`/login?error=SIGN_IN_TO_CONFIRM_EMAIL&redirect=${encodeURIComponent(back)}`)
         }
       }
+      // The lifetime of an API key is set when it is created (app/api/ai-access/api-keys):
+      // a key that writes always expires, so it cannot be extended or cleared afterwards (KLEDG-R3-AUTH-01).
+      if (ctx.path === '/api-key/update' && (ctx.body as { expiresIn?: unknown } | undefined)?.expiresIn !== undefined) {
+        throw new APIError('FORBIDDEN', { message: 'La durée de validité d’une clé API ne se change pas : créez une nouvelle clé.' })
+      }
       if (isAccountRouteOnlyPath(ctx.path)) {
         throw new APIError('FORBIDDEN', { message: 'Utilisez la page Profil de Kledg pour cette action.' })
       }
