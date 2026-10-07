@@ -9,6 +9,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Assistants IA en mode validation : une action approuvée dans Kledg n'est exécutée que si les données qu'elle vise (écritures et leurs lignes, factures, règles d'affectation, notes de frais) et son aperçu n'ont pas changé depuis l'approbation ; sinon elle est refusée et doit être préparée puis approuvée de nouveau. Migration `20261122090000_mcp_pending_action_fingerprint` (colonne ajoutée, additive).
 - Vues MCP : les demandes des boutons « Proposer une écriture » et « Retrouver la pièce » citent le libellé bancaire, la contrepartie et le fournisseur entre « » comme des données, comme « Proposer avec l'IA » : un libellé ne peut plus ajouter une consigne à la demande envoyée à l'assistant.
 - Assistants IA en mode validation : l'envoi d'un justificatif à Qonto (`upload_receipt`) demande maintenant votre approbation dans Kledg, comme les autres écritures chez Qonto ; l'aperçu montre la transaction et le fichier (nom, type, taille, empreinte SHA-256).
+- Serveur MCP : `export_fec` suit les limites de `export_report` et du téléchargement du FEC (limite d'exports par minute de l'utilisateur, fichier de 5 Mo au plus, à télécharger depuis Kledg au-delà).
 
 ### Corrigé
 

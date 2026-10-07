@@ -261,7 +261,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `generate_depreciation` | Générer les dotations de l'exercice (écritures validées, une par immobilisation) | `entries:create, validate` | Oui |
 | `close_fiscal_year` | Clôturer l'exercice : résultat en 120 / 129, exercice suivant, à-nouveaux, verrouillage définitif | `closing:execute` | Oui |
 | `allocate_result` | Affecter le résultat de l'exercice précédent (réserve légale, dividendes, autres réserves, report à nouveau) | `closing:execute` | Oui |
-| `export_fec` | FEC de l'exercice (contenu du fichier) et rapport de conformité | `reports:export` | Non |
+| `export_fec` | FEC de l'exercice (contenu du fichier, 5 Mo au plus comme `export_report`, dans la limite d'exports de l'utilisateur) et rapport de conformité | `reports:export` | Non |
 | `list_unlettered_lines` | Lignes non lettrées d'un compte de tiers (identifiants, montants, compte auxiliaire, solde progressif) et propositions de lettrage | `entries:read` | Non |
 | `letter_entry_lines` | Lettrer des lignes d'un compte de tiers : code suivant du compte et date du jour, débits égaux aux crédits, écritures validées, exercice ouvert | `entries:update` | Oui |
 | `unletter_entry_lines` | Délettrer un code d'un compte de tiers, dans un exercice ouvert | `entries:update` | Oui |
