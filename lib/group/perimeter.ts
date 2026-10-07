@@ -20,7 +20,7 @@
 
 import { ForbiddenError, NotFoundError } from '@/lib/accounting/errors'
 import { prisma } from '@/lib/prisma'
-import { COMPANY_NOT_FOUND_MESSAGE } from '@/lib/rbac/authorize'
+import { COMPANY_NOT_FOUND_MESSAGE, type Permission } from '@/lib/rbac/authorize'
 import { withUserContext } from '@/lib/rls/context'
 import { inCompany, type GroupAccess } from '@/lib/management-fees/access'
 import { listSubsidiaryIds, MAX_GROUP_SUBSIDIARIES } from '@/lib/management-fees/holding'
@@ -30,6 +30,27 @@ import { readStake, type Stake } from './read-member'
 export const GROUP_READ = { reports: ['read'] } as const
 /** An export of the group space takes each company's figures out of Kledg: the right to export them, in each one. */
 export const GROUP_EXPORT = { reports: ['export'] } as const
+
+/** Every action of `a` and `b`, per resource: a role must grant all of them. */
+export function mergePermissions(a: Permission, b: Permission | undefined): Permission {
+  if (!b) return a
+  const merged: Record<string, string[]> = {}
+  for (const source of [a, b]) {
+    for (const [resource, actions] of Object.entries(source)) {
+      merged[resource] = [...new Set([...(merged[resource] ?? []), ...((actions as readonly string[] | undefined) ?? [])])]
+    }
+  }
+  return merged as Permission
+}
+
+/**
+ * What a view of the group space needs in each company on top of the
+ * statements right, matching the company's own pages (KLEDG-R3-AUTHZ-08):
+ * bank transactions and accounts need banking:read (Transactions, Comptes
+ * bancaires), ledger lines entries:read (Écritures d'un compte).
+ */
+export const GROUP_BANK_READ = { banking: ['read'] } as const satisfies Permission
+export const GROUP_ENTRIES_READ = { entries: ['read'] } as const satisfies Permission
 
 /** The same access, reading only the companies where the user may export (KLEDG-R3-AUTHZ-04). */
 export function exportAccess(access: GroupAccess): GroupAccess {
@@ -64,9 +85,11 @@ export async function readIfAllowed<T>(
   access: GroupAccess,
   companyId: string,
   fn: () => Promise<T>,
+  /** What the view needs besides the statements right (GROUP_BANK_READ, GROUP_ENTRIES_READ). */
+  extra?: Permission,
 ): Promise<{ ok: true; value: T } | { ok: false; unreachable: UnreachableSubsidiary }> {
   try {
-    return { ok: true, value: await inCompany(access, companyId, access.readPermission ?? GROUP_READ, fn) }
+    return { ok: true, value: await inCompany(access, companyId, mergePermissions(access.readPermission ?? GROUP_READ, extra), fn) }
   } catch (error) {
     if (error instanceof NotFoundError) return { ok: false, unreachable: { name: null, reason: 'out_of_reach' } }
     if (error instanceof ForbiddenError) {

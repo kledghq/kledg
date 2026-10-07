@@ -10,6 +10,9 @@
  * - KLEDG-R3-AUTHZ-04: the group export leaves out a subsidiary where the user
  *   may not export.
  * - KLEDG-R3-AUTHZ-07: the members read writes nothing.
+ * - KLEDG-R3-AUTHZ-08: the group space checks in each subsidiary the right of
+ *   the matching company page, and never names an outside shareholder
+ *   company from the name stored on the shareholder row.
  *
  * Skipped when the test database server is unreachable.
  */
@@ -205,5 +208,68 @@ describe.skipIf(!available)('round 3 AUTHZ regressions', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
     expect(await prisma.organization.count({ where: { companyId: bare.id } })).toBe(0)
+  })
+
+  /**
+   * A role that reads the statements of B but neither its bank nor its entries
+   * (no such role today; an assistant's scope or a future reporting role):
+   * the access answers like requireCompanyPermission.
+   */
+  async function reportingOnlyInB(): Promise<import('@/lib/management-fees/access').GroupAccess> {
+    const { ForbiddenError } = await import('@/lib/accounting/errors')
+    await prisma.shareholder.create({ data: { companyId: ids.bCompany, type: 'LEGAL', name: 'Atelier Alpha', companyShareholderId: ids.aCompany, sharePercentage: 100 } })
+    await prisma.member.create({ data: { id: 'm-cadmin-b', userId: 'u-cadmin', organizationId: 'org-b', role: 'viewer', createdAt: new Date() } })
+    return {
+      userId: 'u-cadmin',
+      async require(companyId, permission) {
+        if (companyId === ids.bCompany && ('banking' in permission || 'entries' in permission)) throw new ForbiddenError('Action non autorisée')
+      },
+    }
+  }
+
+  it('[KLEDG-R3-AUTHZ-08] bank data and ledger lines of a subsidiary need banking:read and entries:read there', async () => {
+    const access = await reportingOnlyInB()
+    await prisma.bankTransaction.create({
+      data: { bankAccountId: ids.bBankAccount, externalTransactionId: 'tx-b-group', amount: -12, date: day('2026-04-02'), side: 'debit', label: 'B-BANK-ONLY' },
+    })
+    const { listGroupTransactions } = await import('@/lib/group/list-group-transactions.service')
+    const { getGroupTreasury } = await import('@/lib/group/get-group-treasury.service')
+    const { getGroupLedger } = await import('@/lib/group/get-group-ledger.service')
+    const { getGroupCompanies } = await import('@/lib/group/get-group-companies.service')
+
+    const transactions = await listGroupTransactions(ids.aCompany, {}, access)
+    expect(transactions.items.some((t) => t.companyId === ids.bCompany)).toBe(false)
+    expect(transactions.unreachable).toEqual([{ name: 'Bureau Beta', reason: 'role' }])
+    const treasury = await getGroupTreasury(ids.aCompany, {}, access)
+    expect(treasury.companies.map((c) => c.company.id)).toEqual([ids.aCompany])
+    // Balances: the statements right is enough, like the company's Grand livre; the lines of an account are not.
+    const balances = await getGroupLedger(ids.aCompany, {}, access)
+    expect(balances.companies.map((c) => c.id).sort()).toEqual([ids.aCompany, ids.bCompany].sort())
+    const lines = await getGroupLedger(ids.aCompany, { account: '512000' }, access)
+    expect(lines.companies.map((c) => c.id)).toEqual([ids.aCompany])
+    // A view of the statements still reads B.
+    const companies = await getGroupCompanies(ids.aCompany, {}, access)
+    expect(companies.unreachable).toEqual([])
+  })
+
+  it('[KLEDG-R3-AUTHZ-08] an outside shareholder company the user cannot read is not named from the stored row', async () => {
+    const { userGroupAccess } = await import('@/lib/management-fees/access')
+    const outside = await prisma.company.create({ data: { name: 'Holding Secrète', slug: 'holding-secrete', siren: '555555555' } })
+    await prisma.shareholder.create({ data: { companyId: ids.aCompany, type: 'LEGAL', name: 'Holding Secrète (nom enregistré)', companyShareholderId: outside.id, sharePercentage: 40 } })
+    const { getGroupPersons } = await import('@/lib/group/get-group-persons.service')
+    const { getGroupStructure } = await import('@/lib/group/get-group-structure.service')
+    const access = userGroupAccess({ id: 'u-cadmin', email: 'cadmin@sec.local', name: null, role: 'user' })
+
+    const persons = await getGroupPersons(ids.aCompany, access)
+    const text = JSON.stringify(persons)
+    expect(text).not.toContain('Holding Secrète')
+    expect(persons.holders.some((h) => h.kind === 'company' && h.name === 'Société actionnaire')).toBe(true)
+    expect(JSON.stringify(await getGroupStructure(ids.aCompany, access))).not.toContain('Holding Secrète')
+
+    // A member of that company sees its name.
+    await prisma.organization.create({ data: { id: 'org-outside', name: 'Holding Secrète', slug: 'org-holding-secrete', createdAt: new Date(), companyId: outside.id } })
+    await prisma.member.create({ data: { id: 'm-cadmin-outside', userId: 'u-cadmin', organizationId: 'org-outside', role: 'viewer', createdAt: new Date() } })
+    const named = await getGroupPersons(ids.aCompany, access)
+    expect(named.holders.some((h) => h.name === 'Holding Secrète')).toBe(true)
   })
 })

@@ -22,7 +22,7 @@ import { calendarDayOf } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
 import { GroupViewQuerySchema, periodRef, resolveHoldingFiscalYear, type PeriodRef } from './get-group-view.service'
 import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink } from './members'
-import type { UnreachableSubsidiary } from './perimeter'
+import { GROUP_ENTRIES_READ, type UnreachableSubsidiary } from './perimeter'
 import { matchFiscalYear } from './read-member'
 
 export const GROUP_LEDGER_NOTICE =
@@ -126,7 +126,9 @@ export async function getGroupLedger(holdingId: string, query: GroupLedgerQuery,
         })
       : []
     return { year, accounts, lines }
-  })
+    // The lines of an account need entries:read in each company, like its Écritures d'un compte page (KLEDG-R3-AUTHZ-08);
+    // the balances alone need reports:read, like its Grand livre.
+  }, query.account ? GROUP_ENTRIES_READ : undefined)
 
   const accounts = combineLedger(read.members.map((m) => ({ companyId: m.ref.id, accounts: m.value.accounts })))
   let detail: GroupLedgerReport['detail'] = null

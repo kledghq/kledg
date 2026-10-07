@@ -19,6 +19,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Listes des factures et des notes de frais : un curseur de pagination qui n'appartient pas à la société est refusé.
 - Déclarer une société actionnaire demande de pouvoir modifier les paramètres de cette société (administrateur) : un simple lecteur ne peut plus faire entrer une société dans son groupe ([documentation](docs/vue-groupe.md#accès--chaque-société-est-vérifiée)).
 - Exports de l'espace groupe : une filiale n'est exportée que si l'utilisateur a le droit d'exporter dans cette filiale ; une filiale où il n'est que lecteur reste visible dans les pages du groupe et est signalée comme non exportée dans le fichier.
+- Espace groupe : les transactions, soldes bancaires, écritures d'un compte et alertes d'une filiale demandent les mêmes droits que les pages de la filiale (banque, écritures) ; une société actionnaire hors du groupe que l'utilisateur ne lit pas s'affiche « Société actionnaire », sans le nom enregistré.
 
 ## [0.3.1] - 2026-10-05
 
