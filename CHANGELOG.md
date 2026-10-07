@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Clôture automatique des périodes après une déclaration de TVA : elle ne bloque plus les écritures fiscales que Kledg prépare. Une liquidation de TVA, une régularisation du coefficient de déduction, une taxe sur les salaires, un impôt sur les sociétés ou une CFE dont le jour tombe dans une période clôturée est datée du premier jour ouvert, avec sa date réelle en date de pièce ; la clôture qui suit le dépôt s'arrête la veille d'une liquidation préparée encore en brouillon au lieu d'être abandonnée.
 - Simulation de l'intégration fiscale : le seuil de 95 % (CGI art. 223 A) est comparé exactement, sans arrondi ; une sous-filiale détenue à 99,86 % x 95,13 % = 94,9968 % n'est plus admise et s'affiche à 94,99 %.
 - Notes de frais : nouvelle catégorie « Péages et parking » (6251), dont la TVA est récupérable avec le reçu au nom de la société (BOI-TVA-DED-40-40), comme en mode simple ; jusqu'ici un péage saisi en Transport perdait sa TVA.
 - Notes de frais : une société partiellement exonérée (déduction par coefficient) ne récupère plus que la part de son coefficient de déduction du jour de chaque dépense, comme pour les factures d'achat ; une société exonérée en coefficient n'est plus traitée comme une franchise en base (aucune TVA récupérée).

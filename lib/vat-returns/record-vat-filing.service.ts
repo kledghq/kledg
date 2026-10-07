@@ -81,7 +81,7 @@ export async function recordVatFiling(companyId: string, body: VatFilingBody, op
   const company = await prisma.company.findUnique({ where: { id: companyId }, select: { deadlineSettings: true } })
   const periodLock =
     parseDeadlineSettings(company?.deadlineSettings).periodAutoLock === 'after_vat_filing'
-      ? await lockOpenYearsThrough(companyId, period.end, options.userId)
+      ? await lockOpenYearsThrough(companyId, period.end, options.userId, { beforeKledgTaxDrafts: true })
       : null
   return {
     periodLock,
