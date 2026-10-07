@@ -222,7 +222,7 @@ const syncBankDataTool = fullControlTool({
       maxDays: maxDays ?? null,
       autoCreateRules: rules,
       unreconciledTransactions: unreconciled,
-      effect: 'Synchronisation des banques, puis écritures en brouillon créées par les règles « Créer automatiquement l’écriture » pour les transactions qui leur correspondent, rapprochées.',
+      effect: 'Synchronisation des banques, puis écritures en brouillon créées par les règles «\u00a0Créer automatiquement l’écriture\u00a0» pour les transactions qui leur correspondent, rapprochées.',
     }
   },
   async execute({ companyId, scope, integrationId, features, maxDays }) {

@@ -203,7 +203,7 @@ const ruleLine = z.object({
 /** Setting autoCreate makes the refresh apply a rule without a click: the approval of run_rules (KLEDG-R3-MCP-10). */
 export const AUTO_CREATE_STEP = `With autoCreate true (the rule is then applied without a click by every refresh), the call is high impact, like run_rules: ${TWO_STEP} Otherwise it runs at once.`
 
-export const AUTO_CREATE_EFFECT = "Avec « Créer automatiquement l'écriture », chaque actualisation applique la règle sans clic : écriture en brouillon et transaction rapprochée."
+export const AUTO_CREATE_EFFECT = "Avec «\u00a0Créer automatiquement l'écriture\u00a0», chaque actualisation applique la règle sans clic\u00a0: écriture en brouillon et transaction rapprochée."
 
 const ruleInput = {
   name: z.string().min(1).max(200),
