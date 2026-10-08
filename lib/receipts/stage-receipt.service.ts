@@ -265,7 +265,7 @@ export async function stageReceipt(
     // Not used (the file existed, another call wrote it first, or the transaction failed): the object goes.
     if (pending && !(outcome && outcome !== NEEDS_OBJECT && outcome.usedObject)) await discardObject(pending)
   }
-  if (!outcome || outcome === NEEDS_OBJECT) throw new ConflictError('Le justificatif n’a pas pu être enregistré : déposez-le de nouveau.')
+  if (!outcome || outcome === NEEDS_OBJECT) throw new ConflictError('Le justificatif n’a pas pu être enregistré : déposez-le de nouveau.')
 
   if (!outcome.duplicate) {
     await writeAuditLog('info', 'Receipt staged', {
