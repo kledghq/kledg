@@ -44,6 +44,8 @@ import { expenseReportStatus, type ExpenseReportStatus, type ExpenseStatusFilter
 import { RECOVERY_LABELS } from './vat-recovery'
 import { mealLineTreatment, type MealTaker } from './exploitant-meals'
 import { claimantMealRole, mealRulesOn } from './meal-rule.service'
+import { checkApprovedState } from '@/lib/approved-state/guard'
+import { OWN_REPORT_OTHER_VALIDATOR_MESSAGE, ownValidation, type OwnValidation } from './self-validation'
 
 export const REPORT_NOT_FOUND = 'Note de frais introuvable'
 
@@ -136,6 +138,7 @@ const SUMMARY_SELECT = {
   totalExpense: true,
   submittedAt: true,
   validatedAt: true,
+  selfValidated: true,
   createdAt: true,
   claimant: { select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true, userId: true } },
   entry: { select: { id: true, entryNumber: true, status: true, lines: LETTERED_LINES } },
@@ -162,6 +165,8 @@ export interface ExpenseReportSummary {
   entry: { id: string; entryNumber: string; status: string } | null
   submittedAt: string | null
   validatedAt: string | null
+  /** Validated by its own author, the company's only member with the validation right (self-validation.ts). */
+  selfValidated: boolean
 }
 
 function summaryOf(row: SummaryRow, actor: ExpenseActor): ExpenseReportSummary {
@@ -183,6 +188,7 @@ function summaryOf(row: SummaryRow, actor: ExpenseActor): ExpenseReportSummary {
     entry: row.entry ? { id: row.entry.id, entryNumber: row.entry.entryNumber, status: row.entry.status } : null,
     submittedAt: row.submittedAt?.toISOString() ?? null,
     validatedAt: row.validatedAt?.toISOString() ?? null,
+    selfValidated: row.selfValidated,
   }
 }
 
@@ -307,8 +313,13 @@ export async function getExpenseReport(companyId: string, id: string, actor: Exp
   const deduction = await deductionPercentByYear(companyId, Math.min(Number(today.slice(0, 4)), ...years), Number(today.slice(0, 4)), today)
   const baselines = await mileageBaselines(prisma, companyId, row.claimant.id, id, row.lines.map((l) => calendarDayOf(l.date) as string))
   const meals = await reportMealRule(prisma, companyId, row)
+  const summary = summaryOf(row, actor)
+  // A submitted report of the acting validator: may they validate it themselves (self-validation.ts)?
+  const ownValidationOf: OwnValidation | null =
+    summary.own && actor.canManage && row.status === 'SUBMITTED' ? await ownValidation(companyId, actor.userId) : null
   return {
-    ...summaryOf(row, actor),
+    ...summary,
+    ownValidation: ownValidationOf,
     returnNote: row.returnNote,
     claimant: { ...summaryOf(row, actor).claimant, accountCode: row.claimant.accountCode },
     storedStatus: row.status,
@@ -544,6 +555,8 @@ async function nextNumber(tx: Prisma.TransactionClient, companyId: string): Prom
 export async function lockExpenseReport(tx: Prisma.TransactionClient, companyId: string, id: string, actor: ExpenseActor | null) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "expense_reports" WHERE "id" = ${id} AND "companyId" = ${companyId} FOR UPDATE`
   if (rows.length === 0) throw new NotFoundError(REPORT_NOT_FOUND)
+  // An approved MCP action acts on the report as the user saw it (KLEDG-R3-MCP-01)
+  await checkApprovedState(tx, { kind: 'expenseReport', companyId, id })
   const report = await tx.expenseReport.findUniqueOrThrow({
     where: { id },
     select: { id: true, number: true, status: true, entryId: true, claimantId: true, claimant: { select: { userId: true } }, _count: { select: { lines: true } } },
@@ -638,6 +651,7 @@ export async function runExpenseWorkflow(
   options: { now?: Date; source?: string } = {},
 ): Promise<ExpenseReportDetail> {
   const now = options.now ?? new Date()
+  let selfValidated = false
   const number = await prisma.$transaction(async (tx) => {
     const report = await lockExpenseReport(tx, companyId, id, actor)
     const requireManager = () => {
@@ -661,21 +675,30 @@ export async function runExpenseWorkflow(
         requireManager()
         if (report.status !== 'SUBMITTED') throw new ConflictError(`La note de frais ${report.number} doit être soumise avant d’être validée.`)
         await assertPostable(tx, companyId, id)
-        await tx.expenseReport.update({ where: { id }, data: { status: 'VALIDATED', validatedAt: now, validatedById: actor.userId } })
+        // Its own author validates it only as the company's sole validator, and that is recorded.
+        if (report.own) {
+          if ((await ownValidation(companyId, actor.userId, tx)) === 'refused') throw new ConflictError(OWN_REPORT_OTHER_VALIDATOR_MESSAGE)
+          selfValidated = true
+        }
+        await tx.expenseReport.update({ where: { id }, data: { status: 'VALIDATED', validatedAt: now, validatedById: actor.userId, selfValidated } })
         break
       }
       case 'reopen': {
         requireManager()
         if (report.status !== 'VALIDATED') throw new ConflictError(`La note de frais ${report.number} n’est pas validée.`)
         if (report.entryId) throw new ConflictError(`La note de frais ${report.number} est comptabilisée\u00a0: supprimez d’abord son écriture en brouillon.`)
-        await tx.expenseReport.update({ where: { id }, data: { status: 'DRAFT', validatedAt: null, validatedById: null, submittedAt: null, submittedById: null } })
+        await tx.expenseReport.update({ where: { id }, data: { status: 'DRAFT', validatedAt: null, validatedById: null, selfValidated: false, submittedAt: null, submittedById: null } })
         break
       }
     }
     return report.number
   }, TX_OPTIONS)
   const actions = { submit: 'SUBMIT_EXPENSE_REPORT', return: 'RETURN_EXPENSE_REPORT', validate: 'VALIDATE_EXPENSE_REPORT', reopen: 'REOPEN_EXPENSE_REPORT' } as const
-  await writeAuditLog('info', `Expense report ${input.action}: ${number}`, { action: actions[input.action], companyId, metadata: { reportId: id, source: options.source ?? 'web' } })
+  await writeAuditLog('info', `Expense report ${input.action}${selfValidated ? ' by its own author (sole validator)' : ''}: ${number}`, {
+    action: actions[input.action],
+    companyId,
+    metadata: { reportId: id, source: options.source ?? 'web', ...(input.action === 'validate' && { selfValidated }) },
+  })
   return getExpenseReport(companyId, id, actor)
 }
 

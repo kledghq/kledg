@@ -58,14 +58,24 @@ function scriptsOf(html: string): string[] {
 
 type Message = { jsonrpc: '2.0'; id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: unknown }
 
+/** Origin of the simulated host (the parent frame). */
+const HOST_ORIGIN = 'https://host.example'
+
 /** A template loaded in jsdom, with a fake host as its parent frame. */
-function mount(name: ViewName, { theme = 'light' }: { theme?: 'light' | 'dark' } = {}) {
+function mount(name: ViewName, { theme = 'light', hostOrigin = HOST_ORIGIN }: { theme?: 'light' | 'dark'; hostOrigin?: string } = {}) {
   const outbox: Message[] = []
+  /** targetOrigin of each message sent, in the order of outbox. */
+  const targets: string[] = []
   const errors: string[] = []
   const virtualConsole = new VirtualConsole()
   virtualConsole.on('jsdomError', (error) => errors.push(error.message))
   virtualConsole.on('error', (...args: unknown[]) => errors.push(args.map(String).join(' ')))
-  const parent = { postMessage: (message: unknown) => outbox.push(JSON.parse(JSON.stringify(message))) }
+  const parent = {
+    postMessage: (message: unknown, targetOrigin: string) => {
+      outbox.push(JSON.parse(JSON.stringify(message)))
+      targets.push(targetOrigin)
+    },
+  }
   // The clock of the view (Date.now of its window), moved by tick().
   const clock = { now: 1_800_000_000_000 }
   const dom = new JSDOM(viewHtml(name), {
@@ -78,10 +88,11 @@ function mount(name: ViewName, { theme = 'light' }: { theme?: 'light' | 'dark' }
   })
   const window = dom.window
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
-  const deliver = async (message: Message) => {
+  const deliver = async (message: Message, origin: string = hostOrigin) => {
     const event = new window.Event('message')
     Object.defineProperty(event, 'data', { value: message })
     Object.defineProperty(event, 'source', { value: parent })
+    Object.defineProperty(event, 'origin', { value: origin })
     window.dispatchEvent(event)
     await flush()
   }
@@ -101,7 +112,7 @@ function mount(name: ViewName, { theme = 'light' }: { theme?: 'light' | 'dark' }
   const tick = (ms: number) => {
     clock.now += ms
   }
-  return { window, document: window.document, outbox, errors, open, deliver, reply, requests, text, flush, tick }
+  return { window, document: window.document, outbox, targets, errors, open, deliver, reply, requests, text, flush, tick }
 }
 
 const button = (document: Document, label: string) => {
@@ -234,6 +245,37 @@ describe('MCP view rendering (simulated host)', () => {
     const other = mount('statement')
     await other.open(viewSamples().find((s) => s.data.view === 'chart')!.data)
     expect(other.document.querySelector('.k-error')?.textContent).toContain('ne correspondent pas')
+  })
+
+  it('locks the target origin to the host after the handshake (KLEDG-R3-MCP-12)', async () => {
+    const view = mount('statement')
+    await view.flush()
+    // Before the handshake the host's origin is unknown: only ui/initialize leaves with '*'.
+    expect(view.outbox.map((m, i) => [m.method, view.targets[i]])).toEqual([['ui/initialize', '*']])
+    await view.open(viewSamples().find((s) => s.data.view === 'statement')!.data)
+    const after = view.outbox.slice(1)
+    expect(after.length).toBeGreaterThan(0)
+    expect(view.targets.slice(1).every((target) => target === HOST_ORIGIN)).toBe(true)
+  })
+
+  it('ignores messages of the host frame from another origin than the handshake one', async () => {
+    const view = mount('statement')
+    await view.open(null)
+    await view.deliver({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { structuredContent: viewSamples()[0].data } }, 'https://attacker.example')
+    expect(view.text()).not.toContain('Total actif')
+    // The same message from the host's origin is drawn.
+    await view.deliver({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { structuredContent: viewSamples()[0].data } })
+    expect(view.text()).toContain('Total actif')
+  })
+
+  it('with an opaque host origin, keeps posting to "*" but accepts that origin only', async () => {
+    const view = mount('statement', { hostOrigin: 'null' })
+    await view.open(null)
+    expect(view.targets.every((target) => target === '*')).toBe(true)
+    await view.deliver({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { structuredContent: viewSamples()[0].data } }, 'https://attacker.example')
+    expect(view.text()).not.toContain('Total actif')
+    await view.deliver({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { structuredContent: viewSamples()[0].data } }, 'null')
+    expect(view.text()).toContain('Total actif')
   })
 
   it('ignores messages from another frame than the host', async () => {

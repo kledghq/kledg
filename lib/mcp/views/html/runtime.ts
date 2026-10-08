@@ -167,11 +167,25 @@ export const RUNTIME_JS = String.raw`
   var SVG_NS = document.getElementById('k-svg-ns').namespaceURI;
   var root = document.getElementById('app');
   var openai = typeof window.openai === 'object' && window.openai !== null ? window.openai : null;
+  // The host's origin, learnt from its answer to ui/initialize (MCP Apps gives
+  // the view no other way to know it). Until then only ui/initialize leaves
+  // with targetOrigin '*'; afterwards every message goes to that origin only,
+  // and messages from any other origin are ignored. An opaque origin ('null',
+  // a sandboxed host) cannot be a targetOrigin: messages then still go to
+  // '*', but only messages from that same opaque origin are accepted.
+  var hostOrigin = null;
+  var postTarget = '*';
+
+  function lockOrigin(origin) {
+    if (hostOrigin !== null || typeof origin !== 'string' || origin === '') return;
+    hostOrigin = origin;
+    if (/^[a-z][a-z0-9+.-]*:\/\/[^\/\s]+$/i.test(origin)) postTarget = origin;
+  }
 
   // ------------------------------------------------------------ bridge
 
   function send(message) {
-    if (host && host !== window) host.postMessage(message, '*');
+    if (host && host !== window) host.postMessage(message, postTarget);
   }
 
   function request(method, params, timeoutMs) {
@@ -181,7 +195,7 @@ export const RUNTIME_JS = String.raw`
         delete pending[id];
         reject(new Error('Pas de réponse de l’assistant.'));
       }, timeoutMs || 15000);
-      pending[id] = { resolve: resolve, reject: reject, timer: timer };
+      pending[id] = { resolve: resolve, reject: reject, timer: timer, method: method };
       send({ jsonrpc: '2.0', id: id, method: method, params: params || {} });
     });
   }
@@ -193,6 +207,8 @@ export const RUNTIME_JS = String.raw`
   window.addEventListener('message', function (event) {
     // Only the host (the parent frame, or the sandbox proxy that forwards for it) talks to the view.
     if (event.source !== host || host === window) return;
+    // Once the handshake told the host's origin, any other origin is ignored.
+    if (hostOrigin !== null && event.origin !== hostOrigin) return;
     var message = event.data;
     if (!message || typeof message !== 'object' || message.jsonrpc !== '2.0') return;
     var hasId = message.id !== undefined && message.id !== null;
@@ -202,7 +218,10 @@ export const RUNTIME_JS = String.raw`
       delete pending[message.id];
       clearTimeout(call.timer);
       if (message.error) call.reject(new Error(typeof message.error.message === 'string' ? message.error.message : 'Erreur de l’assistant.'));
-      else call.resolve(message.result);
+      else {
+        if (call.method === 'ui/initialize') lockOrigin(event.origin);
+        call.resolve(message.result);
+      }
       return;
     }
     if (hasId) {

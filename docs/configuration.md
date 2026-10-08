@@ -47,6 +47,18 @@ Si `BETTER_AUTH_SECRET` a pu être lu par quelqu'un d'autre, remplacez-le :
 
 Avec `ENCRYPTION_KEY`, les identifiants bancaires ne dépendent pas du secret : il suffit de le remplacer.
 
+## Ancien format de chiffrement
+
+Les secrets stockés (identifiants bancaires de `bank_connections.secretKeyEncrypted` et des champs secrets de `integrations.credentials`, jeton GitHub de `update_connections.tokenEncrypted`) sont chiffrés en AES-256-GCM (`lib/integrations/encryption.ts`). Depuis la version qui suit 0.3.1, ils sont scellés au format v2 (préfixe `v2:`, liés à leur ligne et à leur champ par des données authentifiées : une valeur copiée dans une autre ligne ne s'ouvre plus). L'ancien format (sans préfixe, sans lien à la ligne) est encore lu, et chaque valeur lisible est scellée de nouveau en v2 à chaque démarrage du serveur (`reencryptStoredSecrets`, `lib/crypto/reencrypt.ts`).
+
+**Le lecteur de l'ancien format est supprimé dans Kledg 0.4** : une valeur restée dans l'ancien format ne s'ouvrira plus, et la banque ou GitHub concerné devra être reconnecté. Avant de passer en 0.4 :
+
+1. Vérifiez qu'il ne reste rien : au démarrage, le journal du serveur avertit (`Secrets in the legacy encryption format: N ...`) tant qu'il reste des valeurs, et la page **Configuration** (administrateurs de l'instance) affiche « Ancien format de chiffrement » avec leur nombre. Rien ne s'affiche quand tout est au format v2.
+2. Pour les sceller de nouveau, redémarrez le serveur, ou lancez `pnpm secrets:reencrypt` avec l'environnement de l'instance (`DATABASE_URL`, `BETTER_AUTH_SECRET` ou `ENCRYPTION_KEY`, et `BETTER_AUTH_SECRETS` pendant une rotation) : le script fait le même passage, affiche ce qui reste et sort avec le code 1 s'il reste des valeurs dans l'ancien format. Il est idempotent.
+3. Une valeur qui reste après ce passage ne s'ouvre avec aucune des clés configurées (secret perdu, `ENCRYPTION_KEY` changée) : reconnectez la banque concernée, ou GitHub dans **Mises à jour**. La nouvelle connexion est scellée en v2.
+
+`countLegacySecrets` (`lib/crypto/reencrypt.ts`) ne lit que le format des valeurs : aucune clé n'est nécessaire pour le compte.
+
 ## Sécurité
 
 - **Premier compte** : `/setup` exige une preuve de propriété de l'instance : `SETUP_TOKEN` s'il est défini (il l'emporte toujours), sinon un lien à usage unique envoyé à `ADMIN_EMAIL` (avec `RESEND_API_KEY`). Sans l'un ni l'autre, la page reste bloquée. Le lien pointe vers l'URL configurée de l'instance, jamais vers l'en-tête `Host`, et un nouveau lien n'est pas envoyé moins d'une minute après le précédent. Seul `ADMIN_EMAIL` peut créer le compte. La création est atomique : deux envois simultanés ne peuvent pas créer deux administrateurs.

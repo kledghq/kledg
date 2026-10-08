@@ -412,9 +412,13 @@ export async function resumeQontoInvoice(companyId: string, invoiceId: string): 
     throw new ConflictError('Kledg attend encore la réponse de Qonto pour cette facture : réessayez dans une minute.')
   }
   await limitBankCalls(companyId)
-  const claimed = await prisma.invoice.updateMany({
-    where: { id: invoiceId, companyId, externalId: null, qontoRequestedAt: invoice.qontoRequestedAt },
-    data: { qontoRequestedAt: new Date() },
+  // Claimed under the invoice lock, which also checks an approved MCP action's invoice (KLEDG-R3-MCP-01)
+  const claimed = await prisma.$transaction(async (tx) => {
+    await lockInvoice(tx, companyId, invoiceId)
+    return tx.invoice.updateMany({
+      where: { id: invoiceId, companyId, externalId: null, qontoRequestedAt: invoice.qontoRequestedAt },
+      data: { qontoRequestedAt: new Date() },
+    })
   })
   if (claimed.count === 0) throw new ConflictError('La création de cette facture dans Qonto est déjà reprise : actualisez la page.')
   const qonto = await qontoFor(companyId)

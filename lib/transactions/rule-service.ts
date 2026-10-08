@@ -5,6 +5,8 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
+import { approvedStateActive, checkApprovedState } from '@/lib/approved-state/guard';
 import { findMatchingRules as findMatchingRulesInternal } from './rule-matcher';
 import type { EnrichedTransaction, TransactionMatchResult } from './types';
 
@@ -35,7 +37,17 @@ export async function loadRuleMatcher(
 }
 
 function loadEnabledRules(companyId: string) {
-  return prisma.transactionRule.findMany({
+  if (!approvedStateActive()) return enabledRules(prisma, companyId);
+  // An approved MCP run applies the rules as the user saw them (KLEDG-R3-MCP-01):
+  // checked under a lock of the rules, read in the same transaction.
+  return prisma.$transaction(async (tx) => {
+    await checkApprovedState(tx, { kind: 'rules', companyId });
+    return enabledRules(tx, companyId);
+  });
+}
+
+function enabledRules(db: Prisma.TransactionClient | typeof prisma, companyId: string) {
+  return db.transactionRule.findMany({
     where: {
       companyId,
       enabled: true,

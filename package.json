@@ -33,7 +33,8 @@
     "db:rls-role": "tsx scripts/rls-role.ts",
     "check:pcg-compliance": "tsx scripts/check-pcg-compliance.ts",
     "check:pcg-accounts": "tsx scripts/check-pcg-account-compliance.ts",
-    "generate:secret": "node scripts/generate-encryption-key.js"
+    "generate:secret": "node scripts/generate-encryption-key.js",
+    "secrets:reencrypt": "tsx scripts/reencrypt-secrets.ts"
   },
   "dependencies": {
     "@better-auth/api-key": "^1.7.7",
@@ -143,7 +144,8 @@
       "@babel/core": ">=7.29.6",
       "@humanfs/node": ">=0.16.8",
       "baseline-browser-mapping": ">=2.11.0",
-      "@vitest/mocker": "^4.1.11"
+      "@vitest/mocker": "^4.1.11",
+      "source-map-js": ">=1.2.2"
     },
     "onlyBuiltDependencies": [
       "@prisma/client",

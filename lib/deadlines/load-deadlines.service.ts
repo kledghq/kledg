@@ -100,17 +100,21 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
     GROUP BY 1
   `
   // Loi n° 2025-127, art. 38, 5° a (CGI art. 287, 3 from 2027): the thresholds compare "le chiffre d'affaires
-  // majoré des acquisitions taxables", the turnover plus the operations for which the company is liable under
-  // CGI art. 283, 2 to 2 decies. Read here: the services self-assessed on 4452 (a service counterpart, as the
-  // VAT return reads them, classify.ts), not the purchases of art. 283, 1 (44528). Whether the
-  // intra-Community acquisitions of goods count was not confirmed in the text: left out.
+  // majoré des acquisitions taxables", the turnover (art. 293 D) plus the amount HT of the operations for which
+  // the company is liable under "les 2 à 2 decies de l'article 283" (and art. 293 A, 2; 277 A, II, 2; 298, 1, 4°).
+  // Both kinds self-assessed on 4452 are in that range, as the VAT return reads them (classify.ts):
+  // - the services of a supplier not established in France (art. 283, 2);
+  // - the intra-Community acquisitions of goods (purchases 60 except 604, and fixed assets 2): CGI art. 283, 2 bis,
+  //   "Pour les acquisitions intracommunautaires de biens imposables mentionnées à l'article 258 C, la taxe doit
+  //   être acquittée par l'acquéreur" (Légifrance, version of 14 March 2026); BOI-TVA-DECLA-10-20 § 1.
+  // Not the purchases of art. 283, 1, second paragraph (44528): outside "2 à 2 decies".
   const selfAssessed = await prisma.$queryRaw<Array<{ year: number; cents: bigint }>>`
     SELECT extract(year FROM e."date")::int AS year, round(sum(l."debit" - l."credit") * 100)::bigint AS cents
     FROM "entry_lines" l
     JOIN "accounting_entries" e ON e."id" = l."accountingEntryId"
     JOIN "accounts" a ON a."id" = l."accountId"
     WHERE e."companyId" = ${companyId} AND e."status" = 'validated'
-      AND a."code" LIKE '6%' AND (a."code" NOT LIKE '60%' OR a."code" LIKE '604%')
+      AND (a."code" LIKE '6%' OR a."code" LIKE '2%')
       AND EXISTS (
         SELECT 1 FROM "entry_lines" v JOIN "accounts" va ON va."id" = v."accountId"
         WHERE v."accountingEntryId" = e."id" AND va."code" LIKE '4452%' AND va."code" NOT LIKE '44528%' AND v."credit" > 0

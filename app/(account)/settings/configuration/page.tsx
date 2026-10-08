@@ -15,6 +15,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PageHeader, StatusBadge, type StatusTone } from '@/components/shared'
 import { ExternalLink, StatusRow, Steps } from '@/components/features/instance/status-row'
 import { SecretGenerator, TestEmailButton } from '@/components/features/instance/configuration-parts'
+import { LegacySecretsRow, type LegacySecretsCounts } from '@/components/features/instance/legacy-secrets-row'
+import { countLegacySecrets } from '@/lib/crypto/reencrypt'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -180,9 +183,10 @@ function BankSyncRow({ status }: { status: InstanceStatus }) {
   )
 }
 
-function SecurityRows({ status }: { status: InstanceStatus }) {
+function SecurityRows({ status, legacySecrets }: { status: InstanceStatus; legacySecrets: LegacySecretsCounts | null }) {
   return (
     <>
+      <LegacySecretsRow counts={legacySecrets} docHref={`${CONFIGURATION_DOC}#ancien-format-de-chiffrement`} />
       <StatusRow
         icon={Ticket}
         title="Jeton d'installation"
@@ -253,6 +257,11 @@ export default async function ConfigurationPage() {
   const status = instanceStatus(process.env, { sendEmailAllowed: await isActionAllowed('send-email', user) })
   const { version } = getDeployedVersion()
   const companies = await prisma.company.count()
+  // Secrets the start-up pass could not seal again in the current format (lib/crypto/reencrypt.ts)
+  const legacySecrets = await countLegacySecrets().catch((error: unknown) => {
+    logger.error('Configuration page: legacy secrets check failed', error)
+    return null
+  })
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -316,7 +325,7 @@ export default async function ConfigurationPage() {
         </CardHeader>
         <CardContent>
           <ul className="divide-y">
-            <SecurityRows status={status} />
+            <SecurityRows status={status} legacySecrets={legacySecrets} />
           </ul>
         </CardContent>
       </Card>

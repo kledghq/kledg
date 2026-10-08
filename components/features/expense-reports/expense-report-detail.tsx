@@ -33,6 +33,10 @@ export interface ExpenseReportDetailData {
   status: ExpenseReportStatus
   storedStatus: 'DRAFT' | 'SUBMITTED' | 'VALIDATED'
   own: boolean
+  /** Validated by its own author, the company's only validator (lib/expense-reports/self-validation.ts). */
+  selfValidated: boolean
+  /** The acting validator's own submitted report: refused while another validator exists, else allowed and recorded. */
+  ownValidation?: 'refused' | 'sole-validator' | null
   returnNote: string | null
   vatExempt: boolean
   /** Coefficient de déduction of each year (CGI ann. II art. 205); null: full deduction. */
@@ -263,7 +267,7 @@ export function ExpenseReportDetailView({ companyId, reportId }: { companyId: st
                 Soumettre
               </Button>
             ) : null}
-            {submitted && mayManage ? (
+            {submitted && mayManage && report.ownValidation !== 'refused' ? (
               <Button onClick={() => workflow('validate', 'Note de frais validée')} disabled={busy} loading={busy}>
                 <CheckCheck aria-hidden />
                 Valider
@@ -301,6 +305,21 @@ export function ExpenseReportDetailView({ companyId, reportId }: { companyId: st
         </div>
       </PageHeader>
 
+      {report.selfValidated && !draft ? (
+        <p role="note" className="border-warning text-sm max-w-prose rounded-md border px-3 py-2">
+          Validée par son auteur, seul membre de la société autorisé à valider les notes de frais. Cette validation est signalée dans le journal d’audit.
+        </p>
+      ) : null}
+      {submitted && mayManage && report.ownValidation === 'refused' ? (
+        <p role="note" className="text-muted-foreground text-sm max-w-prose">
+          C’est votre propre note de frais&nbsp;: un autre membre de la société autorisé à valider (administrateur ou comptable) doit la valider.
+        </p>
+      ) : null}
+      {submitted && mayManage && report.ownValidation === 'sole-validator' ? (
+        <p role="note" className="text-muted-foreground text-sm max-w-prose">
+          C’est votre propre note de frais et vous êtes le seul membre de la société autorisé à valider&nbsp;: sa validation sera signalée comme faite par son auteur.
+        </p>
+      ) : null}
       {report.returnNote && draft ? (
         <p role="note" className="border-warning text-sm max-w-prose rounded-md border px-3 py-2">
           Renvoyée par le valideur&nbsp;: {report.returnNote}

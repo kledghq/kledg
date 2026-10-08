@@ -215,6 +215,27 @@ describe.skipIf(!available)('sales invoices created in Qonto first (PostgreSQL, 
     expect(await prisma.invoice.count({ where: { id: fourth.id } })).toBe(1)
   })
 
+  it('checks every refusal before deleting the Qonto draft: a refused deletion never calls Qonto (KLEDG-R3-MCP-01)', async () => {
+    const invoice = await sale({ qontoStatus: 'draft' })
+    const externalId = createdAtQonto[createdAtQonto.length - 1].id
+    // An approved MCP deletion of the invoice as it was; the invoice is then edited before the deletion runs.
+    const { runWithApprovedState } = await import('@/lib/approved-state/guard')
+    const { loadTargetState } = await import('@/lib/approved-state/targets')
+    const ref = { kind: 'invoice' as const, companyId: books.companyId, id: invoice.id }
+    const approved = await loadTargetState(prisma, ref)
+    await prisma.invoice.update({ where: { id: invoice.id }, data: { label: 'Modifiée après approbation' } })
+    calls.length = 0
+    await expect(runWithApprovedState([{ ref, state: approved }], () => invoices.deleteInvoice(books.companyId, invoice.id))).rejects.toThrow(/Les données ont changé depuis l'approbation/)
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+    expect(createdAtQonto.some((i) => i.id === externalId)).toBe(true)
+    expect(await prisma.invoice.count({ where: { id: invoice.id } })).toBe(1)
+
+    // Qonto refusing the deletion changes nothing in Kledg either.
+    createdAtQonto[createdAtQonto.length - 1].status = 'unpaid'
+    await expect(invoices.deleteInvoice(books.companyId, invoice.id)).rejects.toThrow(/finalisée dans Qonto/)
+    expect(await prisma.invoice.count({ where: { id: invoice.id } })).toBe(1)
+  })
+
   it('refuses a Qonto status for an invoice not created in Qonto', async () => {
     await expect(sale({ qontoStatus: 'draft', numbering: 'kledg' })).rejects.toThrow(/ne vaut que pour une facture créée dans Qonto/)
   })

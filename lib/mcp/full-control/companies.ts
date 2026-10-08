@@ -40,6 +40,7 @@ import type { McpAccess } from '@/lib/mcp/company-access'
 import { fromCents } from '@/lib/utils/money'
 import { fullControlTool, instanceTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
+import { companyLock } from './fingerprint'
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
 const text = (max: number) => z.string().max(max)
@@ -172,6 +173,7 @@ const archiveCompanyTool = fullControlTool({
   permission: COMPANY_READ,
   amounts: 'none',
   never: 'deletes a company, an entry or a fiscal year.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   idempotent: true,
   async preview({ companyId }, ctx) {
@@ -196,6 +198,7 @@ const restoreCompanyTool = fullControlTool({
   permission: COMPANY_READ,
   amounts: 'none',
   never: 'changes the books of the company.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   idempotent: true,
   async preview({ companyId }, ctx) {

@@ -24,6 +24,7 @@ import { createCompanyAddress } from '@/lib/addresses/manage-addresses.service'
 import { ensureDefaultJournals } from '@/lib/accounting/default-journals'
 import { ensureCompanyOrganization } from '@/lib/rbac/ensure-company-organization.service'
 import { withSystemContext } from '@/lib/rls/context'
+import { checkApprovedTargets } from '@/lib/approved-state/guard'
 import { isoDateToUtc } from '@/lib/utils/date'
 import { logger } from '@/lib/logger'
 import { centsToDecimal } from '@/lib/utils/money'
@@ -113,6 +114,8 @@ async function createCompanyRows(input: CreateCompanyData, creator?: CompanyCrea
   let company: { id: string; slug: string; name: string }
   try {
     company = await prisma.$transaction(async (tx) => {
+      // An approved MCP creation: its targets locked and checked in this transaction (KLEDG-R3-MCP-01)
+      await checkApprovedTargets(tx)
       const created = await tx.company.create({
         data: {
           name: input.name,

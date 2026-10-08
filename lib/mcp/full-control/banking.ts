@@ -35,7 +35,7 @@ import {
 import type { TabularOptions } from '@/lib/banking/import/types'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
-import { rulesState } from './fingerprint'
+import { companyLock, rowTargets, ruleTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -120,6 +120,7 @@ const unreconcileTransactionTool = fullControlTool({
   permission: { banking: ['reconcile'] },
   amounts: 'none',
   never: 'deletes a validated entry or touches a closed fiscal year (refused).',
+  targetState: ({ companyId, transactionId }) => [companyLock(companyId), ...rowTargets('bank_transactions', companyId, transactionId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, transactionId }) {
@@ -165,7 +166,7 @@ const runRules = fullControlTool({
   idempotent: true,
   confirmation: true,
   // The dry run only counts: the rules themselves are bound to the approval (update_rule before the execution refuses it).
-  targetState: ({ companyId }) => rulesState(companyId),
+  targetState: ({ companyId }) => ruleTargets(companyId),
   async preview({ companyId, transactionIds }) {
     const result = await processTransactions({ companyId, transactionIds, autoApply: false })
     return { processed: result.processed, matched: result.matched, wouldApply: result.applicable, errors: result.errors }
@@ -264,6 +265,7 @@ const createRuleTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'euros',
   never: 'runs the rule (run_rules does).',
+  targetState: ({ companyId }) => [companyLock(companyId), ...ruleTargets(companyId)],
   confirmation: true,
   highImpactWhen: ({ autoCreate }) => autoCreate === true,
   preview: async (input) => ({ ruleToCreate: input, effect: AUTO_CREATE_EFFECT }),
@@ -281,7 +283,7 @@ const updateRuleTool = fullControlTool({
   never: 'runs the rule (run_rules does).',
   confirmation: true,
   highImpactWhen: ({ autoCreate }) => autoCreate === true,
-  targetState: ({ companyId, ruleId }) => rulesState(companyId, ruleId),
+  targetState: ({ companyId, ruleId }) => ruleTargets(companyId, ruleId),
   preview: async ({ companyId, ruleId, ...input }) => ({ current: summarizeRule(await findRule(companyId, ruleId)), replacement: input, effect: AUTO_CREATE_EFFECT }),
   idempotent: true,
   execute: async ({ companyId, ruleId, ...input }) => summarizeRule(await updateRule(companyId, ruleId, input)),
@@ -298,7 +300,7 @@ const deleteRuleTool = fullControlTool({
   never: 'deletes the entries the rule created.',
   confirmation: true,
   destructive: true,
-  targetState: ({ companyId, ruleId }) => rulesState(companyId, ruleId),
+  targetState: ({ companyId, ruleId }) => ruleTargets(companyId, ruleId),
   preview: async ({ companyId, ruleId }) => ({ ruleToDelete: summarizeRule(await findRule(companyId, ruleId)) }),
   execute: async ({ companyId, ruleId }) => ({ deleted: true, ...(await deleteRule(companyId, ruleId)) }),
   audit: ({ ruleId }, result) => ({ ruleId, name: result.name }),
@@ -419,6 +421,7 @@ const importStatementTool = fullControlTool({
   amounts: 'euros',
   never: 'imports a transaction twice (exact duplicates are skipped) or reconciles the imported lines.',
   idempotent: true,
+  targetState: ({ companyId, bankAccountId }) => [companyLock(companyId), { kind: 'lock', table: 'bank_accounts', companyId, id: bankAccountId }],
   confirmation: true,
   // Every parse counts in the import limit of the user, like the import route (app/api/banking/import-statement/route.ts).
   async preview({ companyId, bankAccountId, fileName, contentBase64, options, keep }, ctx) {

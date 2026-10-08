@@ -13,6 +13,7 @@ import { MAX_COPIED_RULES, copyRulesFromCompany } from '@/lib/rules-library/copy
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { AUTO_CREATE_EFFECT, AUTO_CREATE_STEP } from './banking'
+import { companyLock, ruleTargets } from './fingerprint'
 
 const createMissingAccounts = z
   .boolean()
@@ -35,6 +36,7 @@ const addRuleFromTemplateTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'none',
   never: 'runs the rule (run_rules does), or creates an account unless createMissingAccounts is true.',
+  targetState: ({ companyId }) => [companyLock(companyId), ...ruleTargets(companyId)],
   confirmation: true,
   highImpactWhen: ({ autoCreate }) => autoCreate === true,
   preview: async (input) => ({ ruleFromTemplate: input, effect: AUTO_CREATE_EFFECT }),
@@ -67,6 +69,7 @@ const copyRulesFromCompanyTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'none',
   never: 'changes the source company, or runs the copied rules.',
+  targetState: ({ companyId, sourceCompanyId }) => [companyLock(companyId), ...ruleTargets(companyId), ...ruleTargets(sourceCompanyId)],
   confirmation: true,
   highImpactWhen: ({ enabled }) => enabled === true,
   preview: async ({ sourceCompanyId, ruleIds, createMissingAccounts, enabled }) => ({ sourceCompanyId, ruleIds, createMissingAccounts, enabled, effect: AUTO_CREATE_EFFECT }),
