@@ -24,7 +24,7 @@ import {
   vatLineDescription,
 } from './entry-line-calculator';
 import { AccountingError, ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors';
-import { toCents } from '@/lib/utils/money';
+import { fromCents, toCents } from '@/lib/utils/money';
 import { bankVatInEuros } from '@/lib/banking/bank-vat';
 import { selfAssessedSplit } from '@/lib/vat-deduction/share';
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date';
@@ -452,13 +452,13 @@ function calculateEntryLines(
         // (CGI ann. II art. 205; lib/vat-deduction/share.ts, the one rule for every posting)
         const split = selfAssessedSplit(toCents(vatAmount) ?? 0, vatRecoveryRatio ?? null);
         if (split.nonDeductibleCents > 0) {
-          if (mainLine.debit > 0) mainLine.debit += split.nonDeductibleCents / 100;
-          else if (mainLine.credit > 0) mainLine.credit += split.nonDeductibleCents / 100;
+          if (mainLine.debit > 0) mainLine.debit = fromCents((toCents(mainLine.debit) ?? 0) + split.nonDeductibleCents);
+          else if (mainLine.credit > 0) mainLine.credit = fromCents((toCents(mainLine.credit) ?? 0) + split.nonDeductibleCents);
         }
         if (split.deductibleCents > 0) {
           entryLines.push({
             accountId: vatAccountDebitId,
-            debit: split.deductibleCents / 100,
+            debit: fromCents(split.deductibleCents),
             credit: 0,
             description: vatLineDescription(line.vatType, effectiveVatRate, 'deductible'),
           });
@@ -466,7 +466,7 @@ function calculateEntryLines(
         entryLines.push({
           accountId: vatAccount2Id,
           debit: 0,
-          credit: split.dueCents / 100,
+          credit: fromCents(split.dueCents),
           description: vatLineDescription(line.vatType, effectiveVatRate, 'due'),
         });
       } else {

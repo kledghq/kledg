@@ -371,13 +371,13 @@ function calculateSimulationResult(
         // Self-assessed VAT: due in full, deducted at the coefficient, the rest in the cost, as rule-executor.ts writes it
         const split = selfAssessedSplit(toCents(vatAmount) ?? 0, vatRecoveryRatio ?? null);
         if (split.nonDeductibleCents > 0) {
-          if (mainLine.debit > 0) mainLine.debit += split.nonDeductibleCents / 100;
-          else if (mainLine.credit > 0) mainLine.credit += split.nonDeductibleCents / 100;
+          if (mainLine.debit > 0) mainLine.debit = fromCents((toCents(mainLine.debit) ?? 0) + split.nonDeductibleCents);
+          else if (mainLine.credit > 0) mainLine.credit = fromCents((toCents(mainLine.credit) ?? 0) + split.nonDeductibleCents);
         }
         if (split.deductibleCents > 0) {
           entryLines.push({
             account: { code: vatAccountDebit.code, label: vatAccountDebit.label },
-            debit: split.deductibleCents / 100,
+            debit: fromCents(split.deductibleCents),
             credit: 0,
             description: vatLineDescription(line.vatType, effectiveRate, 'deductible'),
             vatInfo: { type: line.vatType, rate: effectiveRate ?? 0, amount: vatAmount },
@@ -386,7 +386,7 @@ function calculateSimulationResult(
         entryLines.push({
           account: { code: vatAccount2.code, label: vatAccount2.label },
           debit: 0,
-          credit: split.dueCents / 100,
+          credit: fromCents(split.dueCents),
           description: vatLineDescription(line.vatType, effectiveRate, 'due'),
           vatInfo: { type: line.vatType, rate: effectiveRate ?? 0, amount: vatAmount },
         });

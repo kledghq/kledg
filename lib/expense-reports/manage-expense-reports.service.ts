@@ -27,7 +27,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { dayToDate, parisDayOf } from '@/lib/accounting/entry-date'
+import { dayToDate, todayParis } from '@/lib/accounting/entry-date'
 import { calendarDay, centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { formatVatRate, isFrenchVatRate } from '@/lib/invoices/amounts'
@@ -302,7 +302,7 @@ export async function getExpenseReport(companyId: string, id: string, actor: Exp
   if (!row) throw new NotFoundError(REPORT_NOT_FOUND)
   // Franchise and coefficient de déduction on each line's day (deduction.ts); the editor previews with the year's
   const computed = computeReport(await withDeduction(companyId, row.lines.map(lineInputOf)), { vatExempt: false })
-  const today = parisDayOf(new Date())
+  const today = todayParis()
   const years = row.lines.map((l) => Number((calendarDayOf(l.date) as string).slice(0, 4)))
   const deduction = await deductionPercentByYear(companyId, Math.min(Number(today.slice(0, 4)), ...years), Number(today.slice(0, 4)), today)
   const baselines = await mileageBaselines(prisma, companyId, row.claimant.id, id, row.lines.map((l) => calendarDayOf(l.date) as string))

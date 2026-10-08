@@ -18,7 +18,7 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal } from '@/lib/utils/money'
-import { parisDayOf } from '@/lib/accounting/entry-date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { taxationOf } from './coefficient'
 import { deductedVatOf } from './load-vat-deduction.service'
 import { VAT_TREATMENTS } from './revenue'
@@ -86,7 +86,7 @@ async function yearsChangedAfterDeductions(companyId: string, body: SaveVatDeduc
 export async function saveVatDeduction(companyId: string, body: SaveVatDeductionBody, options: { userId?: string; now?: Date } = {}): Promise<{ saved: string[] }> {
   const yearFields = YEAR_FIELDS.filter((key) => body[key] !== undefined)
   if (yearFields.length > 0 && body.year === undefined) throw new ValidationError('Indiquez l’année des coefficients.')
-  const today = parisDayOf(options.now ?? new Date())
+  const today = todayParis(options.now)
   const changedYears = await yearsChangedAfterDeductions(companyId, body, today)
   if (body.accounts && new Set(body.accounts.map((a) => a.accountCode)).size !== body.accounts.length) {
     throw new ValidationError('Un compte figure deux fois.')

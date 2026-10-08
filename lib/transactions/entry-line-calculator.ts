@@ -6,7 +6,7 @@
  */
 
 import type { EntryLine } from './types';
-import { sumCents, toCents } from '@/lib/utils/money';
+import { fromCents, sumCents, toCents } from '@/lib/utils/money';
 import { trustedBankVatCents, trustedBankVatRate } from '@/lib/banking/bank-vat';
 import { deductibleVatCents } from '@/lib/vat-deduction/share';
 
@@ -116,7 +116,7 @@ export function calculateAmountsWithVAT(
       : line.vatRate != null
         ? Number(line.vatRate) / 100
         : null;
-  const effectiveVatAmount = transactionAmountCents != null ? transactionAmountCents / 100 : null;
+  const effectiveVatAmount = transactionAmountCents != null ? fromCents(transactionAmountCents) : null;
 
   if (line.vatType && line.vatType !== 'none' && (effectiveVatRate != null || effectiveVatAmount != null)) {
     if (effectiveVatAmount != null && effectiveVatAmount >= 0) {
@@ -250,7 +250,7 @@ export function calculateVATLineAmounts(
   // If company is VAT exempt, apply recovery ratio to deductible VAT
   if (vatRecoveryRatio !== null && vatRecoveryRatio !== undefined && vatType === 'deductible') {
     // Only the coefficient's share is recovered, half up to the cent (lib/vat-deduction/share.ts)
-    vatDebit = deductibleVatCents(toCents(vatAmount) ?? 0, vatRecoveryRatio) / 100;
+    vatDebit = fromCents(deductibleVatCents(toCents(vatAmount) ?? 0, vatRecoveryRatio));
     return { vatDebit, vatCredit };
   }
 
