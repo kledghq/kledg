@@ -4,6 +4,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.4.0] - 2026-10-08
+
 ### Ajouté
 
 - Justificatifs photographiés : prenez en photo un ticket ou une facture dans Claude ou ChatGPT, Kledg le rattache à la bonne transaction bancaire ; si aucune ne correspond, l'assistant vous demande s'il s'agit d'une note de frais et Kledg la prépare en brouillon (ligne préremplie, justificatif joint), que vous vérifiez et soumettez. Vue de dépôt dans la conversation (appareil photo ou fichier, photos réduites automatiquement), fichiers joints dans ChatGPT acceptés ; outils MCP `capture_receipt`, `stage_receipt` et `file_receipt`. Le rattachement attend votre approbation dans Kledg, sauf avec le contrôle total en mode automatique. Pour une banque autre que Qonto, Kledg conserve le justificatif et le compte comme fourni ([documentation](docs/justificatifs-photo.md)). Migration `20261201090000_receipt_capture` (tables et colonne ajoutées, additive).
