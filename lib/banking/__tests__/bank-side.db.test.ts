@@ -14,7 +14,7 @@ await vi.hoisted(async () => {
   useTestDatabase('bank_side')
 })
 
-import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import { normalizeBankSide } from '@/lib/banking/side'
 
 const available = await testDatabaseAvailable()
@@ -52,12 +52,13 @@ describe.skipIf(!available)('bank transaction side (migration 20261125090000_ban
 
   it('normalises legacy values like normalizeBankSide, then the constraint holds', async () => {
     const legacy = ['DEBIT', 'Débit', ' debit', 'D', 'Crédit', 'CREDIT', 'c', '']
-    await prisma.$executeRawUnsafe('ALTER TABLE "bank_transactions" DROP CONSTRAINT "bank_transactions_side_check"')
+    // DDL and the data migration run as the owner, as prisma migrate deploy does (KLEDG_RLS=enforce)
+    await queryAsOwner('bank_side', 'ALTER TABLE "bank_transactions" DROP CONSTRAINT "bank_transactions_side_check"')
     try {
       for (const [i, side] of legacy.entries()) await insert(`legacy-${i}`, side)
-      await prisma.$executeRawUnsafe(NORMALISE)
+      await queryAsOwner('bank_side', NORMALISE)
     } finally {
-      await prisma.$executeRawUnsafe(SQL.slice(SQL.indexOf('ALTER TABLE')))
+      await queryAsOwner('bank_side', SQL.slice(SQL.indexOf('ALTER TABLE')))
     }
     const rows = await prisma.bankTransaction.findMany({ where: { externalTransactionId: { startsWith: 'legacy-' } }, select: { externalTransactionId: true, side: true } })
     const sideOf = new Map(rows.map((r) => [r.externalTransactionId, r.side]))

@@ -15,7 +15,7 @@ await vi.hoisted(async () => {
   useTestDatabase('entry_number_sequence')
 })
 
-import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import { sequentialPartOf } from '@/lib/accounting/services/generate-next-entry-number.service'
 
 const available = await testDatabaseAvailable()
@@ -96,7 +96,8 @@ describe.skipIf(!available)('entry number sequence (PostgreSQL)', () => {
         CASE side WHEN 1 THEN 10 ELSE 0 END, CASE side WHEN 1 THEN 0 ELSE 10 END, now(), now()
       FROM generate_series(1, 5000) AS n, generate_series(1, 2) AS side`
     await prisma.$executeRaw`UPDATE "accounting_entries" SET "status" = 'validated', "validatedAt" = now() WHERE "fiscalYearId" = ${fy.id}`
-    await prisma.$executeRawUnsafe('ANALYZE "accounting_entries"')
+    // Only the owner may analyze the table (the application role under KLEDG_RLS=enforce is not)
+    await queryAsOwner('entry_number_sequence', 'ANALYZE "accounting_entries"')
     const plan = await prisma.$queryRawUnsafe<Array<{ 'QUERY PLAN': string }>>(
       `EXPLAIN SELECT max(kledg_entry_sequence("entryNumber")) FROM "accounting_entries" WHERE "fiscalYearId" = '${fy.id}' AND "status" = 'validated'`,
     )
