@@ -19,6 +19,7 @@ import { toErrorResponse } from '@/lib/api/errors'
 import { errorReason } from '@/lib/banking/errors'
 import { BANK_PROVIDERS } from '@/lib/banking/providers'
 import { withSystemContext } from '@/lib/rls/context'
+import { offloadExpenseReceiptsToQonto } from '@/lib/receipts/offload-to-qonto.service'
 import { writeAuditLog } from '@/lib/audit'
 import { withinRateLimit } from '@/lib/rate-limit'
 import { bankSyncPause } from '@/lib/banking/sync-pause'
@@ -83,6 +84,8 @@ export async function syncAllBankIntegrations(
         'cron:bank-sync',
         async () => {
           const synced = await syncIntegration(integration.id, encryptionKey, cronFeatures(integration.provider), { maxDays: 30 })
+          // Expense receipts handed to Qonto, when the instance opts in (lib/receipts/offload-to-qonto.service.ts); never fails the sync.
+          if (integration.provider === 'QONTO' && synced.success) await offloadExpenseReceiptsToQonto(integration.companyId).catch(() => undefined)
           await writeAuditLog(synced.success ? 'info' : 'warn', 'Synchronisation bancaire planifiée', {
             action: 'cron.bank-sync',
             companyId: integration.companyId,
