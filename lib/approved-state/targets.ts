@@ -17,7 +17,7 @@
  */
 
 import { createHash } from 'crypto'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { canonicalJson } from '@/lib/mcp/full-control/canonical-json'
 
@@ -47,32 +47,51 @@ export type TargetRef =
   | { kind: 'children'; table: TargetTable; companyId: string; column: string; id: string }
 
 /**
- * Tables a generic target may name, with the condition that keeps a row in
- * its company (`$2` is the company id). Identifiers are only ever taken from
- * here, never from a request.
+ * Tables a generic target may name: the table (`from`), the condition that
+ * keeps a row in its company, and the parent columns a `children` target
+ * may name. Identifiers are only ever taken from here, never from a
+ * request, and are literal SQL fragments; every value is a bind parameter.
  */
+type CompanyScope = ((companyId: string) => Prisma.Sql) | null
+interface TableSpec {
+  from: Prisma.Sql
+  company: CompanyScope
+  columns: Readonly<Record<string, Prisma.Sql>>
+}
+
+const ID = { id: Prisma.sql`"id"` } as const
+const byCompany: CompanyScope = (companyId) => Prisma.sql`"companyId" = ${companyId}`
+
 export const TABLES = {
-  companies: { company: '"id" = $2', columns: ['id'] },
-  user: { company: null, columns: ['id'] },
-  fiscal_years: { company: '"companyId" = $2', columns: ['id'] },
-  accounts: { company: '"companyId" = $2', columns: ['id'] },
-  journals: { company: '"companyId" = $2', columns: ['id'] },
-  bank_connections: { company: '"companyId" = $2', columns: ['id'] },
-  bank_accounts: { company: '"bankConnectionId" IN (SELECT "id" FROM "bank_connections" WHERE "companyId" = $2)', columns: ['id'] },
-  bank_transactions: { company: '"companyId" = $2', columns: ['id'] },
-  accounting_entries: { company: '"companyId" = $2', columns: ['id', 'fiscalYearId'] },
-  entry_lines: { company: '"companyId" = $2', columns: ['id'] },
-  tiers: { company: '"companyId" = $2', columns: ['id'] },
-  budgets: { company: '"companyId" = $2', columns: ['id'] },
-  budget_lines: { company: '"budgetId" IN (SELECT "id" FROM "budgets" WHERE "companyId" = $2)', columns: ['id'] },
-  provisions: { company: '"companyId" = $2', columns: ['id'] },
-  investment_grants: { company: '"companyId" = $2', columns: ['id'] },
-  expense_claimants: { company: '"companyId" = $2', columns: ['id'] },
-  expense_category_rules: { company: '"companyId" = $2', columns: ['id'] },
-  management_fee_conventions: { company: '"companyId" = $2', columns: ['id'] },
-  fixed_assets: { company: '"companyId" = $2', columns: ['id'] },
-  company_invitations: { company: '"companyId" = $2', columns: ['id'] },
-} as const
+  companies: { from: Prisma.sql`"companies"`, company: (companyId) => Prisma.sql`"id" = ${companyId}`, columns: ID },
+  user: { from: Prisma.sql`"user"`, company: null, columns: ID },
+  fiscal_years: { from: Prisma.sql`"fiscal_years"`, company: byCompany, columns: ID },
+  accounts: { from: Prisma.sql`"accounts"`, company: byCompany, columns: ID },
+  journals: { from: Prisma.sql`"journals"`, company: byCompany, columns: ID },
+  bank_connections: { from: Prisma.sql`"bank_connections"`, company: byCompany, columns: ID },
+  bank_accounts: {
+    from: Prisma.sql`"bank_accounts"`,
+    company: (companyId) => Prisma.sql`"bankConnectionId" IN (SELECT "id" FROM "bank_connections" WHERE "companyId" = ${companyId})`,
+    columns: ID,
+  },
+  bank_transactions: { from: Prisma.sql`"bank_transactions"`, company: byCompany, columns: ID },
+  accounting_entries: { from: Prisma.sql`"accounting_entries"`, company: byCompany, columns: { ...ID, fiscalYearId: Prisma.sql`"fiscalYearId"` } },
+  entry_lines: { from: Prisma.sql`"entry_lines"`, company: byCompany, columns: ID },
+  tiers: { from: Prisma.sql`"tiers"`, company: byCompany, columns: ID },
+  budgets: { from: Prisma.sql`"budgets"`, company: byCompany, columns: ID },
+  budget_lines: {
+    from: Prisma.sql`"budget_lines"`,
+    company: (companyId) => Prisma.sql`"budgetId" IN (SELECT "id" FROM "budgets" WHERE "companyId" = ${companyId})`,
+    columns: ID,
+  },
+  provisions: { from: Prisma.sql`"provisions"`, company: byCompany, columns: ID },
+  investment_grants: { from: Prisma.sql`"investment_grants"`, company: byCompany, columns: ID },
+  expense_claimants: { from: Prisma.sql`"expense_claimants"`, company: byCompany, columns: ID },
+  expense_category_rules: { from: Prisma.sql`"expense_category_rules"`, company: byCompany, columns: ID },
+  management_fee_conventions: { from: Prisma.sql`"management_fee_conventions"`, company: byCompany, columns: ID },
+  fixed_assets: { from: Prisma.sql`"fixed_assets"`, company: byCompany, columns: ID },
+  company_invitations: { from: Prisma.sql`"company_invitations"`, company: byCompany, columns: ID },
+} as const satisfies Record<string, TableSpec>
 
 export type TargetTable = keyof typeof TABLES
 
@@ -81,34 +100,28 @@ export function isGenericTarget(ref: TargetRef): boolean {
   return ref.kind === 'row' || ref.kind === 'lock' || ref.kind === 'children'
 }
 
-function scopeOf(table: TargetTable, companyId: string | null): string {
-  const scope = TABLES[table].company
-  if (scope === null) return 'TRUE'
+function scopeOf(spec: TableSpec, companyId: string | null): Prisma.Sql {
+  if (spec.company === null) return Prisma.sql`TRUE`
   // A generic target of a company table always names its company.
-  return companyId === null ? 'FALSE' : scope
+  return companyId === null ? Prisma.sql`FALSE` : spec.company(companyId)
 }
 
 async function loadGeneric(db: Db, ref: Extract<TargetRef, { kind: 'row' | 'lock' | 'children' }>, lock: boolean): Promise<unknown> {
-  const table = ref.table
-  if (!(table in TABLES)) throw new Error(`Unknown target table ${table}`)
-  const where = scopeOf(table, ref.companyId)
-  // $2 only when the condition uses it (PostgreSQL refuses a parameter it cannot type)
-  const params = where.includes('$2') ? [ref.id, ref.companyId] : [ref.id]
+  if (!Object.hasOwn(TABLES, ref.table)) throw new Error(`Unknown target table ${ref.table}`)
+  const spec: TableSpec = TABLES[ref.table]
+  const where = scopeOf(spec, ref.companyId)
   if (ref.kind === 'children') {
-    if (!(TABLES[table].columns as readonly string[]).includes(ref.column)) throw new Error(`Unknown target column ${ref.column}`)
-    const parent = `"${ref.column}" = $1 AND ${where}`
-    if (lock) await db.$queryRawUnsafe(`SELECT "id" FROM "${table}" WHERE ${parent} ORDER BY "id" FOR SHARE`, ...params)
-    const rows = await db.$queryRawUnsafe<Array<{ digest: string; count: bigint }>>(
-      `SELECT md5(coalesce(string_agg(to_jsonb(t)::text, ',' ORDER BY t."id"), '')) AS digest, count(*) AS count FROM "${table}" t WHERE ${parent}`,
-      ...params,
-    )
+    const column = Object.hasOwn(spec.columns, ref.column) ? spec.columns[ref.column] : undefined
+    if (!column) throw new Error(`Unknown target column ${ref.column}`)
+    const parent = Prisma.sql`${column} = ${ref.id} AND ${where}`
+    if (lock) await db.$queryRaw`SELECT "id" FROM ${spec.from} WHERE ${parent} ORDER BY "id" FOR SHARE`
+    const rows = await db.$queryRaw<Array<{ digest: string; count: bigint }>>`
+      SELECT md5(coalesce(string_agg(to_jsonb(t)::text, ',' ORDER BY t."id"), '')) AS digest, count(*) AS count FROM ${spec.from} t WHERE ${parent}`
     return { digest: rows?.[0]?.digest ?? '', count: Number(rows?.[0]?.count ?? 0) }
   }
   // FOR NO KEY UPDATE: blocks edits of the row, not the inserts of rows that reference it.
-  const rows = await db.$queryRawUnsafe<Array<{ row: unknown }>>(
-    `SELECT to_jsonb(t) AS row FROM "${table}" t WHERE "id" = $1 AND ${where}${lock ? ' FOR NO KEY UPDATE' : ''}`,
-    ...params,
-  )
+  const rows = await db.$queryRaw<Array<{ row: unknown }>>`
+    SELECT to_jsonb(t) AS row FROM ${spec.from} t WHERE "id" = ${ref.id} AND ${where}${lock ? Prisma.sql` FOR NO KEY UPDATE` : Prisma.empty}`
   if (ref.kind === 'lock') return (rows?.length ?? 0) > 0
   return rows?.[0]?.row ?? null
 }

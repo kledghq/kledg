@@ -32,7 +32,6 @@ interface Ambient {
   tx: Tx
   /** Serializes the savepoints of top-level queries and service transactions. */
   queue: Promise<unknown>
-  savepoints: number
 }
 
 const storage = new AsyncLocalStorage<{ ambient: Ambient; nested: boolean }>()
@@ -47,18 +46,21 @@ function serialized<T>(ambient: Ambient, task: () => Promise<T>): Promise<T> {
   return run
 }
 
-/** `op` inside its own savepoint: a failure rolls back to it and leaves the ambient transaction usable. */
+/**
+ * `op` inside its own savepoint: a failure rolls back to it and leaves the
+ * ambient transaction usable. Savepoints are taken one at a time (serialized),
+ * so one name serves them all (a literal: no SQL is built from strings).
+ */
 function inSavepoint<T>(ambient: Ambient, op: () => Promise<T>): Promise<T> {
   return serialized(ambient, async () => {
-    const name = `kledg_sp_${++ambient.savepoints}`
-    await ambient.tx.$executeRawUnsafe(`SAVEPOINT ${name}`)
+    await ambient.tx.$executeRaw`SAVEPOINT kledg_sp`
     try {
       const result = await op()
-      await ambient.tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${name}`)
+      await ambient.tx.$executeRaw`RELEASE SAVEPOINT kledg_sp`
       return result
     } catch (error) {
-      await ambient.tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${name}`)
-      await ambient.tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${name}`)
+      await ambient.tx.$executeRaw`ROLLBACK TO SAVEPOINT kledg_sp`
+      await ambient.tx.$executeRaw`RELEASE SAVEPOINT kledg_sp`
       throw error
     }
   })
@@ -96,7 +98,7 @@ export function ambientProperty(property: string | symbol): unknown {
   if (value === undefined || value === null) return undefined
   if (nested) return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(ambient.tx) : value
   if (typeof value === 'function') {
-    // $queryRaw, $executeRaw and their Unsafe forms: one savepoint per query
+    // $queryRaw, $executeRaw and the other raw forms: one savepoint per query
     return (...args: unknown[]) => inSavepoint(ambient, () => (value as (...a: unknown[]) => Promise<unknown>).apply(ambient.tx, args))
   }
   // A model delegate: each operation in its own savepoint
@@ -122,7 +124,7 @@ export function inAmbientTransaction(): boolean {
 export function runInAmbientTransaction<T>(client: PrismaClient, before: (tx: Tx) => Promise<void>, fn: () => Promise<T>): Promise<T> {
   return client.$transaction(async (tx) => {
     await before(tx)
-    const ambient: Ambient = { tx, queue: Promise.resolve(), savepoints: 0 }
+    const ambient: Ambient = { tx, queue: Promise.resolve() }
     return storage.run({ ambient, nested: false }, async () => {
       const result = await fn()
       // Queries started and not awaited by the service finish before the commit.
