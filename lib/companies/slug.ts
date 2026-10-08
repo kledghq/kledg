@@ -3,7 +3,9 @@
  * The route segment accepts a slug or a raw id; see resolveCompanyRef.
  */
 
+import { randomInt } from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { randomCompanySlugSuffix } from '@/lib/instance'
 import { companyIdentifierTaken } from './identifiers'
 import { ValidationError, ConflictError } from '@/lib/accounting/errors'
 
@@ -75,18 +77,55 @@ export async function uniqueSlug(base: string, isTaken: (slug: string) => Promis
   throw new ConflictError("Impossible de générer un identifiant unique pour cette société")
 }
 
-/** A free slug derived from the company name (excluding `excludeCompanyId` when renaming). */
+/** Letters and digits of random slug suffixes. */
+const SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
+export const RANDOM_SUFFIX_LENGTH = 6
+
+/** `base` followed by a random suffix of 6 letters and digits ("atelier-lumen-k3x9q2"), within the length limit. */
+export function withRandomSuffix(base: string): string {
+  let suffix = '-'
+  for (let i = 0; i < RANDOM_SUFFIX_LENGTH; i++) suffix += SUFFIX_ALPHABET[randomInt(SUFFIX_ALPHABET.length)]
+  const head = base.slice(0, SLUG_MAX_LENGTH - suffix.length).replace(/-+$/g, '')
+  return `${head || 'societe'}${suffix}`
+}
+
+/**
+ * A free slug with a random suffix: the answer never depends on the slugs
+ * other companies hold (a collision, about one in two billion, draws again).
+ */
+async function randomSlug(base: string, excludeCompanyId?: string): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = withRandomSuffix(base)
+    if (!(await companyIdentifierTaken('slug', candidate, excludeCompanyId))) return candidate
+  }
+  throw new ConflictError("Impossible de générer un identifiant unique pour cette société")
+}
+
+/**
+ * A free slug derived from the company name (excluding `excludeCompanyId`
+ * when renaming): numbered on collision, or with a random suffix when the
+ * instance policy asks for one (randomCompanySlugSuffix).
+ */
 export async function generateCompanySlug(name: string, excludeCompanyId?: string): Promise<string> {
+  if (randomCompanySlugSuffix()) return randomSlug(slugify(name), excludeCompanyId)
   return uniqueSlug(slugify(name), (slug) => companyIdentifierTaken('slug', slug, excludeCompanyId))
 }
 
-/** Validates a slug chosen by the user and checks it is free. */
-export async function assertCompanySlugAvailable(slug: string, companyId: string): Promise<void> {
+/**
+ * Validates a slug chosen by the user and returns the slug to store: the
+ * slug itself when free, a 409 when another company holds it. When the
+ * instance policy asks for random suffixes, the chosen slug gets one and is
+ * never refused for being taken, so the answer tells nothing about the
+ * companies the user cannot see.
+ */
+export async function companySlugFromChoice(slug: string, companyId: string): Promise<string> {
   const error = slugError(slug)
   if (error) throw new ValidationError(error)
+  if (randomCompanySlugSuffix()) return randomSlug(slug, companyId)
   if (await companyIdentifierTaken('slug', slug, companyId)) {
     throw new ConflictError('Cet identifiant est déjà utilisé par une autre société.')
   }
+  return slug
 }
 
 /**

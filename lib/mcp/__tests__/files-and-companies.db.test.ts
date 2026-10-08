@@ -486,7 +486,7 @@ describe.skipIf(!available)('MCP tools for files and the company lifecycle', () 
       ])
       // A SIREN already on the instance is refused, in the dry run too.
       const again = await call(key, 'create_company', NEW_COMPANY)
-      expect(again.text).toBe('Une société avec le SIREN 552100554 existe déjà sur cette instance.')
+      expect(again.text).toBe('Une société avec le SIREN 552100554 existe déjà.')
     })
 
     it('refuses a connection limited to some companies, and validates like the wizard', async () => {

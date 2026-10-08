@@ -295,7 +295,7 @@ it must hold for every code path, by the database (trigger in a migration).
   `lib/rls/tables.ts` (enforced by `lib/rls/__tests__/policy-coverage.db.test.ts`).
   Code outside a request (a job, a script) runs inside `withSystemContext`
   with a documented reason, or `withUserContext`; never as the system on
-  behalf of a user. Cross-company checks (SIREN or slug uniqueness) go
+  behalf of a user. Cross-company checks (SIREN, SIRET or slug uniqueness) go
   through a `SECURITY DEFINER` function that answers a boolean only.
 - Secrets at rest are encrypted with `encrypt`/`decrypt`
   (`lib/integrations/encryption.ts`) and the instance key

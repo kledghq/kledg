@@ -23,7 +23,11 @@ vi.mock('../identifiers', () => ({
   ),
 }))
 
-import { generateCompanySlug, resolveCompanyRef, slugError, slugify, uniqueSlug } from '../slug'
+// The instance policy's slug style (lib/instance/policy.ts): numbered in Kledg, random suffix when a test turns it on.
+const policy = vi.hoisted(() => ({ random: false }))
+vi.mock('@/lib/instance', () => ({ randomCompanySlugSuffix: () => policy.random }))
+
+import { companySlugFromChoice, generateCompanySlug, resolveCompanyRef, slugError, slugify, uniqueSlug, withRandomSuffix } from '../slug'
 
 describe('slugify', () => {
   it('lowercases, removes accents and joins words with hyphens', () => {
@@ -87,6 +91,48 @@ describe('generateCompanySlug', () => {
 
   it('keeps the current slug of the company being renamed', async () => {
     expect(await generateCompanySlug('Atelier Lumen', 'cmabc0000000000000000000a')).toBe('atelier-lumen')
+  })
+})
+
+describe('companySlugFromChoice', () => {
+  it('keeps a free slug and refuses one held by another company (409)', async () => {
+    expect(await companySlugFromChoice('bureau-neuf', 'cmabc0000000000000000000a')).toBe('bureau-neuf')
+    await expect(companySlugFromChoice('atelier-lumen-2', 'cmabc0000000000000000000a')).rejects.toThrow(/déjà utilisé/)
+    await expect(companySlugFromChoice('Pas Valide', 'cmabc0000000000000000000a')).rejects.toThrow(/minuscules/)
+  })
+})
+
+describe('random slug suffix (instance policy, KLEDG-R3-CLOUD-01)', () => {
+  const SUFFIXED = /^atelier-lumen-[a-z0-9]{6}$/
+
+  it('suffixes generated slugs whether the name is free or not', async () => {
+    policy.random = true
+    try {
+      expect(await generateCompanySlug('Atelier Lumen')).toMatch(SUFFIXED)
+      expect(await generateCompanySlug('Nouvelle Société')).toMatch(/^nouvelle-societe-[a-z0-9]{6}$/)
+    } finally {
+      policy.random = false
+    }
+  })
+
+  it('answers a chosen slug the same way whether another company holds it or not', async () => {
+    policy.random = true
+    try {
+      // atelier-lumen is held by another company, atelier-lumen-x is free: no 409 either way.
+      expect(await companySlugFromChoice('atelier-lumen', 'cmabc0000000000000000000b')).toMatch(SUFFIXED)
+      expect(await companySlugFromChoice('atelier-lumen-x', 'cmabc0000000000000000000b')).toMatch(/^atelier-lumen-x-[a-z0-9]{6}$/)
+      await expect(companySlugFromChoice('Pas Valide', 'cmabc0000000000000000000b')).rejects.toThrow(/minuscules/)
+    } finally {
+      policy.random = false
+    }
+  })
+
+  it('keeps suffixed slugs valid and within the maximum length', () => {
+    for (const base of ['x'.repeat(60), 'acme', '']) {
+      const slug = withRandomSuffix(base)
+      expect(slug.length).toBeLessThanOrEqual(60)
+      expect(slugError(slug)).toBeNull()
+    }
   })
 })
 

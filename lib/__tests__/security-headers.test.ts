@@ -30,7 +30,8 @@ describe('static security headers', () => {
     const h = await headersFor('/companies')
     expect(h.get('x-frame-options')).toBe('DENY')
     expect(h.get('x-content-type-options')).toBe('nosniff')
-    expect(h.get('referrer-policy')).toBe('strict-origin-when-cross-origin')
+    // [KLEDG-R3-CLOUD-03] the origin only, same-origin navigations included: no company slug in a referrer.
+    expect(h.get('referrer-policy')).toBe('strict-origin')
     expect(h.get('strict-transport-security')).toMatch(/max-age=\d{8}/)
     expect(h.get('cross-origin-opener-policy')).toBe('same-origin')
     expect(h.get('permissions-policy')).toContain('camera=()')

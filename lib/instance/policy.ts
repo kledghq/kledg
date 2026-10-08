@@ -60,6 +60,48 @@ export async function companyWriteRefusal(companyId: string): Promise<ActionRefu
 }
 
 /**
+ * Companies whose SIREN and establishment SIRETs a company must not repeat,
+ * as ids, or null for every company of the instance. `companyId` is the
+ * company being changed (null for a creation), `actor` the user creating it
+ * (null when unknown). Checked when a company is created or its SIREN
+ * changes, and when an establishment is added or its SIRET changes
+ * (lib/companies/identifiers.ts). A service whose customers share one
+ * database narrows it to the customer's own companies, so that no customer
+ * blocks or learns another's identifiers. Kledg: null, one organisation per
+ * instance.
+ */
+export async function companyIdentifierScope(
+  companyId: string | null,
+  actor: Pick<InstanceActor, 'id' | 'role'> | null,
+): Promise<string[] | null> {
+  void companyId
+  void actor
+  return null
+}
+
+/**
+ * Whether company slugs (the readable segment of company URLs) end with a
+ * random suffix, generated ones and those chosen by users alike. Slugs stay
+ * unique across the instance; with the suffix, an answer never depends on
+ * the slugs of companies the user cannot see. Kledg: false, slugs are
+ * derived from the name and numbered on collision.
+ */
+export function randomCompanySlugSuffix(): boolean {
+  return false
+}
+
+/**
+ * Whether this instance must run with row level security (KLEDG_RLS=enforce,
+ * docs/rls.md). When true and the policies are off, the server refuses to
+ * start (instrumentation.ts) and the database client refuses to open
+ * (lib/prisma.ts), so no request is served without them. Kledg: false.
+ */
+export function requiresRowLevelSecurity(env: Record<string, string | undefined> = process.env): boolean {
+  void env
+  return false
+}
+
+/**
  * API paths served by routes that authenticate requests themselves, with
  * the reason. A path covers itself and the paths under it, on segment
  * boundaries (lib/instance/api-paths.ts). The proxy lets them

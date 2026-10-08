@@ -224,7 +224,7 @@ describe.skipIf(!available)('company settings routes', () => {
       expect((await create({ siret: '11111111100011' })).status).toBe(201)
       const duplicate = await create({ siret: '11111111100011' })
       expect(duplicate.status).toBe(409)
-      expect(await errorOf(duplicate)).toBe('Un établissement avec ce SIRET existe déjà')
+      expect(await errorOf(duplicate)).toBe('Un établissement avec ce SIRET existe déjà.')
     })
 
     it('updates fields, keeps the SIRET when sent unchanged and refuses a malformed new one', async () => {

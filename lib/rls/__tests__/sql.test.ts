@@ -8,7 +8,8 @@ import {
   textArrayLiteral,
   transactionControlOf,
 } from '../sql'
-import { RlsConfigurationError, rlsMode } from '../mode'
+import { assertRequiredRlsMode, RlsConfigurationError, rlsMode } from '../mode'
+import { requiresRowLevelSecurity } from '@/lib/instance/policy'
 import { touchesOnlyExemptTables } from '../tables'
 
 const escape = (value: string) => `'${value.replace(/'/g, "''")}'`
@@ -21,6 +22,19 @@ describe('KLEDG_RLS', () => {
     expect(rlsMode({ KLEDG_RLS: ' Enforce ' })).toBe('enforce')
     expect(() => rlsMode({ KLEDG_RLS: 'enforced' })).toThrow(RlsConfigurationError)
     expect(() => rlsMode({ KLEDG_RLS: 'on' })).toThrow('KLEDG_RLS must be "off" or "enforce", got "on"')
+  })
+})
+
+describe('row level security required by the instance policy (KLEDG-CLOUD-007)', () => {
+  it("is never required by Kledg's own policy", () => {
+    expect(requiresRowLevelSecurity({ KLEDG_RLS: 'off' })).toBe(false)
+    expect(() => assertRequiredRlsMode(false, {})).not.toThrow()
+  })
+
+  it('refuses to serve without KLEDG_RLS=enforce when the policy requires it, with the variable to set', () => {
+    expect(() => assertRequiredRlsMode(true, {})).toThrow(RlsConfigurationError)
+    expect(() => assertRequiredRlsMode(true, { KLEDG_RLS: 'off' })).toThrow(/set KLEDG_RLS=enforce/)
+    expect(() => assertRequiredRlsMode(true, { KLEDG_RLS: 'enforce' })).not.toThrow()
   })
 })
 

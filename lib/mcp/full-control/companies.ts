@@ -32,8 +32,8 @@ import { COMPANY_NOT_FOUND_MESSAGE } from '@/lib/rbac/authorize'
 import { afterCompanyCreated, assertActionAllowed, assertCompanyCreationAllowed, type InstanceActor } from '@/lib/instance'
 import { CORPORATE_TAX_REGIMES, CreateCompanySchema, VAT_REGIMES, checkFirstFiscalYear, shareCapitalCents, type CreateCompanyData } from '@/lib/companies/company-wizard'
 import { LEGAL_TYPES } from '@/lib/companies/legal-forms'
-import { createCompany } from '@/lib/companies/create-company.service'
-import { companyIdentifierTaken } from '@/lib/companies/identifiers'
+import { createCompany, sirenTakenMessage } from '@/lib/companies/create-company.service'
+import { legalIdentifierTaken } from '@/lib/companies/identifiers'
 import { archiveCompany, restoreCompany } from '@/lib/companies/archive-company.service'
 import { centsFromEuros, eurosInput, kledgPageUrl } from '@/lib/mcp/tool-meta'
 import type { McpAccess } from '@/lib/mcp/company-access'
@@ -100,8 +100,8 @@ async function prepareCreation(args: CreateArgs, access: McpAccess): Promise<Cre
     ...rest,
     shareNominalValueCents: shareNominalValue === undefined || shareNominalValue === null ? shareNominalValue : centsFromEuros(shareNominalValue, 'Valeur nominale'),
   })
-  if (await companyIdentifierTaken('siren', data.siren)) {
-    throw new ConflictError(`Une société avec le SIREN ${data.siren} existe déjà sur cette instance.`)
+  if (await legalIdentifierTaken('siren', data.siren, { companyId: null, actor: actorOf(access) })) {
+    throw new ConflictError(sirenTakenMessage(data.siren))
   }
   return data
 }
@@ -114,7 +114,7 @@ const createCompanyTool = instanceTool({
   permission: 'company-creation',
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd.',
-  never: 'creates a company with a SIREN already on the instance, bypasses the instance policy, or deletes anything.',
+  never: 'creates a company with a SIREN already used, bypasses the instance policy, or deletes anything.',
   async preview(args, access) {
     const data = await prepareCreation(args, access)
     const check = checkFirstFiscalYear({

@@ -19,8 +19,8 @@ import { COMPANY_NOT_FOUND_MESSAGE, isGlobalAdmin } from '@/lib/rbac/authorize'
 import { optionalCalendarDay, optionalText } from '@/lib/api/zod-fields'
 import { LEGAL_TYPES } from './legal-forms'
 import { parseLogoInput } from './logo'
-import { assertCompanySlugAvailable } from './slug'
-import { companyIdentifierTaken } from './identifiers'
+import { companySlugFromChoice } from './slug'
+import { legalIdentifierTaken } from './identifiers'
 
 /** A whole number or a decimal string, as forms send them; '' and null clear the value. */
 const numberInput = z.union([z.number(), z.string(), z.null()]).optional()
@@ -97,9 +97,9 @@ export async function getCompanyById(id: string) {
   return company
 }
 
-/** The SIREN identifies one company of the instance. */
+/** The SIREN identifies one company within the scope of the instance policy (lib/companies/identifiers.ts). */
 async function assertSirenAvailable(siren: string, companyId: string): Promise<void> {
-  if (await companyIdentifierTaken('siren', siren, companyId)) {
+  if (await legalIdentifierTaken('siren', siren, { companyId })) {
     throw new ConflictError('Une autre société utilise déjà ce SIREN.')
   }
 }
@@ -144,8 +144,7 @@ export async function updateCompany(id: string, input: UpdateCompanyInput) {
 
   const data: Prisma.CompanyUpdateInput = {}
   if (input.slug !== undefined && input.slug !== null && input.slug !== current.slug) {
-    await assertCompanySlugAvailable(input.slug, id)
-    data.slug = input.slug
+    data.slug = await companySlugFromChoice(input.slug, id)
   }
   if (input.siren !== undefined) {
     await assertSirenAvailable(input.siren, id)
