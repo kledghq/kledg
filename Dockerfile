@@ -30,10 +30,12 @@ ARG KLEDG_VERSION=""
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 \
   KLEDG_RUNTIME=docker KLEDG_COMMIT=${KLEDG_COMMIT} KLEDG_VERSION=${KLEDG_VERSION}
 # postgresql18-client: pg_dump for the backup taken before each migration (dumps
-# PostgreSQL 9.2 to 18 servers, so any managed version).
+# PostgreSQL 9.2 to 18 servers, so any managed version). /app/storage: receipt
+# files of the filesystem driver (KLEDG_STORAGE_DIR), mounted as a volume.
 RUN apk add --no-cache postgresql18-client \
   && addgroup -S kledg && adduser -S kledg -G kledg \
-  && mkdir -p /app/backups && chown kledg:kledg /app/backups
+  && mkdir -p /app/backups /app/storage && chown kledg:kledg /app/backups /app/storage \
+  && chmod 700 /app/storage
 COPY --from=build --chown=kledg:kledg /app/.next/standalone ./
 COPY --from=build --chown=kledg:kledg /app/.next/static ./.next/static
 COPY --from=build --chown=kledg:kledg /app/public ./public

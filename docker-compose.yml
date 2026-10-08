@@ -43,9 +43,25 @@ services:
       # true when the platform redeploys on each push to GitHub (one-click updates).
       KLEDG_DEPLOYS_FROM_GITHUB: ${KLEDG_DEPLOYS_FROM_GITHUB:-}
       KLEDG_BACKUP: ${KLEDG_BACKUP:-on}
+      # Receipt files (docs/configuration.md, Stockage des justificatifs): the
+      # kledg-storage volume by default. Set KLEDG_S3_BUCKET and the other
+      # KLEDG_S3_* (Scaleway, Cloudflare R2, AWS S3, Garage...) for a private
+      # bucket instead: S3 wins over the volume. Files kept in the database
+      # by an older version move with KLEDG_STORAGE_MIGRATE=on (then remove it).
+      KLEDG_STORAGE_DIR: ${KLEDG_STORAGE_DIR:-/app/storage}
+      KLEDG_STORAGE_DRIVER: ${KLEDG_STORAGE_DRIVER:-}
+      KLEDG_STORAGE_MIGRATE: ${KLEDG_STORAGE_MIGRATE:-}
+      KLEDG_S3_BUCKET: ${KLEDG_S3_BUCKET:-}
+      KLEDG_S3_REGION: ${KLEDG_S3_REGION:-}
+      KLEDG_S3_ENDPOINT: ${KLEDG_S3_ENDPOINT:-}
+      KLEDG_S3_ACCESS_KEY_ID: ${KLEDG_S3_ACCESS_KEY_ID:-}
+      KLEDG_S3_SECRET_ACCESS_KEY: ${KLEDG_S3_SECRET_ACCESS_KEY:-}
+      KLEDG_S3_SSE: ${KLEDG_S3_SSE:-}
     volumes:
       # pg_dump backups taken before each migration (docker-migrate.sh).
       - kledg-backups:/app/backups
+      # Receipt files (KLEDG_STORAGE_DIR): back this volume up with the database.
+      - kledg-storage:/app/storage
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
       interval: 30s
@@ -71,3 +87,4 @@ services:
 volumes:
   kledg-postgres:
   kledg-backups:
+  kledg-storage:
