@@ -91,6 +91,7 @@ export const TABLES = {
   management_fee_conventions: { from: Prisma.sql`"management_fee_conventions"`, company: byCompany, columns: ID },
   fixed_assets: { from: Prisma.sql`"fixed_assets"`, company: byCompany, columns: ID },
   company_invitations: { from: Prisma.sql`"company_invitations"`, company: byCompany, columns: ID },
+  staged_receipts: { from: Prisma.sql`"staged_receipts"`, company: byCompany, columns: ID },
 } as const satisfies Record<string, TableSpec>
 
 export type TargetTable = keyof typeof TABLES

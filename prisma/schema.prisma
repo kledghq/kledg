@@ -197,6 +197,8 @@ model Company {
   trainingReports            TrainingReport[]
   payrollTaxYears            PayrollTaxYear[]
   invitations                CompanyInvitation[]
+  receiptFiles               ReceiptFile[]
+  stagedReceipts             StagedReceipt[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -595,6 +597,7 @@ model BankTransaction {
   reconciliationEntry AccountingEntry?      @relation("ReconciliationEntry")
   syncMatch           BankTransactionMatch?
   simpleModeEntries   SimpleModeEntry[]
+  stagedReceipts      StagedReceipt[]
 
   /// Company of the bank account's connection, set by the database (trigger
   /// kledg_rls_bank_transaction_company) for the row level security policies
@@ -1040,12 +1043,19 @@ model Attachment {
   bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
   expenseLines    ExpenseLine[]
   declarationStatuses DeclarationStatus[]
+  /// A receipt whose file Kledg keeps itself (a photo filed for a bank
+  /// without receipt API, or the receipt of an expense line); null for the
+  /// receipts the bank holds (Qonto). docs/justificatifs-photo.md.
+  receiptFileId   String?
+  receiptFile     ReceiptFile?     @relation(fields: [receiptFileId], references: [id], onDelete: NoAction)
+  stagedReceipts  StagedReceipt[]
 
   @@unique([integrationId, externalAttachmentId])
   @@index([companyId])
   @@index([integrationId])
   @@index([bankTransactionId])
   @@index([transactionUuid])
+  @@index([receiptFileId])
   @@map("attachments")
 }
 
@@ -2112,6 +2122,7 @@ model ExpenseReport {
   claimant ExpenseClaimant  @relation(fields: [claimantId], references: [id], onDelete: Restrict)
   entry    AccountingEntry? @relation("ExpenseReportEntry", fields: [entryId], references: [id], onDelete: SetNull)
   lines    ExpenseLine[]
+  stagedReceipts StagedReceipt[]
 
   @@unique([companyId, number])
   @@index([companyId, status])
@@ -3056,4 +3067,75 @@ model CompanyInvitation {
   @@index([companyId])
   @@index([companyId, email])
   @@map("company_invitations")
+}
+
+/// The bytes of a receipt Kledg keeps itself (docs/justificatifs-photo.md):
+/// a photo or PDF staged from an assistant or the Justificatifs page. One
+/// file per content in a company (sha256). JPEG, PNG or PDF, 5 MB at most
+/// (check constraints). Kept while a staged receipt or an attachment
+/// refers to it.
+model ReceiptFile {
+  id          String   @id @default(cuid())
+  companyId   String
+  /// SHA-256 of the content, hex.
+  sha256      String
+  contentType String
+  size        Int
+  content     Bytes
+  createdAt   DateTime @default(now())
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  attachments    Attachment[]
+  stagedReceipts StagedReceipt[]
+
+  @@unique([companyId, sha256])
+  @@map("receipt_files")
+}
+
+/// A receipt sent to Kledg before it is filed (lib/receipts): staged, then
+/// attached to a bank transaction, turned into an expense line, or
+/// discarded. An unclaimed one (staged) expires after 30 days with its file.
+model StagedReceipt {
+  id                String    @id @default(cuid())
+  companyId         String
+  /// The stored file; null once it lives elsewhere (sent to Qonto) or was discarded.
+  fileId            String?
+  /// SHA-256 of the content: the same file is staged once per company.
+  sha256            String
+  fileName          String
+  contentType       String
+  size              Int
+  /// view (capture view of an assistant), file_param (ChatGPT file), base64, app (Justificatifs page).
+  source            String
+  /// staged, attached, expense or discarded (check constraint).
+  status            String    @default("staged")
+  uploadedById      String?
+  /// Fields read from the receipt (by the assistant, or typed by the user): amount TTC.
+  amount            Decimal?  @db.Decimal(15, 2)
+  currency          String?
+  receiptDate       DateTime?
+  merchantName      String?
+  /// [{ ratePercent, amount }] as read on the receipt, in euros.
+  vatLines          Json?
+  paymentHint       String?
+  bankTransactionId String?
+  attachmentId      String?
+  expenseReportId   String?
+  expenseLineId     String?
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  file            ReceiptFile?     @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  attachment      Attachment?      @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  expenseReport   ExpenseReport?   @relation(fields: [expenseReportId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, sha256])
+  @@index([companyId, status])
+  @@index([uploadedById])
+  @@index([expiresAt])
+  @@index([fileId])
+  @@map("staged_receipts")
 }
