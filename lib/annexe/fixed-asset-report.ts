@@ -116,10 +116,10 @@ export function buildFixedAssetReport(input: FixedAssetReportInput): FixedAssetR
   if (input.balanceSheet) {
     checks.push(
       check('balance-sheet-gross', "Valeur brute à la fin (2054) et actif immobilisé brut du bilan", grossEnd, input.balanceSheet.grossCents, (gap) =>
-        `L'actif immobilisé brut du bilan diffère de ${euro(gap)} : un compte de la classe 2 est rangé ailleurs dans la présentation du bilan, ou un compte du bilan n'est pas une immobilisation.`,
+        `L'actif immobilisé brut du bilan diffère de ${euro(gap)} : un compte de la classe 2 est rangé ailleurs dans la présentation du bilan, ou un compte du bilan n'est pas une immobilisation.`,
       ),
       check('balance-sheet-depreciation', 'Amortissements (2055) et dépréciations (29) à la fin, et colonne amortissements du bilan', depreciationEnd + input.impairmentCents, input.balanceSheet.depreciationCents, (gap) =>
-        `La colonne amortissements et dépréciations du bilan diffère de ${euro(gap)} : vérifiez la présentation du bilan (comptes 28 et 29).`,
+        `La colonne amortissements et dépréciations du bilan diffère de ${euro(gap)} : vérifiez la présentation du bilan (comptes 28 et 29).`,
       ),
     )
   } else {
@@ -159,13 +159,13 @@ export function buildFixedAssetReport(input: FixedAssetReportInput): FixedAssetR
       if (!r) continue
       const books = (column: AssetColumn) => amountOf(form2054, entry.id, column)
       checks.push(
-        check(`register-acquisitions-${entry.id}`, `${entry.label} : acquisitions du registre et augmentations`, books('increase') + books('revaluation'), r.acquired, (gap) =>
+        check(`register-acquisitions-${entry.id}`, `${entry.label} : acquisitions du registre et augmentations`, books('increase') + books('revaluation'), r.acquired, (gap) =>
           `Les augmentations de l'exercice diffèrent de ${euro(gap)} des acquisitions du registre : une immobilisation acquise n'est pas au registre, ou une acquisition du registre n'est pas comptabilisée (les mises en service d'immobilisations en cours comptent aussi en augmentation).`,
         ),
-        check(`register-disposals-${entry.id}`, `${entry.label} : sorties du registre et diminutions`, books('disposal') + books('transferOut'), r.disposed, (gap) =>
+        check(`register-disposals-${entry.id}`, `${entry.label} : sorties du registre et diminutions`, books('disposal') + books('transferOut'), r.disposed, (gap) =>
           `Les diminutions de l'exercice diffèrent de ${euro(gap)} des sorties du registre : renseignez la date de cession dans le registre, ou comptabilisez la sortie.`,
         ),
-        check(`register-gross-${entry.id}`, `${entry.label} : valeur brute à la fin, registre et écritures`, books('closing'), r.end, (gap) =>
+        check(`register-gross-${entry.id}`, `${entry.label} : valeur brute à la fin, registre et écritures`, books('closing'), r.end, (gap) =>
           `La valeur brute à la fin diffère de ${euro(gap)} de celle du registre.`,
         ),
       )
@@ -175,10 +175,10 @@ export function buildFixedAssetReport(input: FixedAssetReportInput): FixedAssetR
       const r = registerBy2055.get(entry.id)
       if (!r) continue
       checks.push(
-        check(`register-allowance-${entry.id}`, `${entry.label} : dotations de l'exercice, registre et écritures`, amountOf(form2055, entry.id, 'allowance'), r.allowance, (gap) =>
+        check(`register-allowance-${entry.id}`, `${entry.label} : dotations de l'exercice, registre et écritures`, amountOf(form2055, entry.id, 'allowance'), r.allowance, (gap) =>
           `Les dotations comptabilisées diffèrent de ${euro(gap)} du plan d'amortissement du registre : générez les dotations manquantes, ou corrigez le montant enregistré.`,
         ),
-        check(`register-depreciation-${entry.id}`, `${entry.label} : amortissements cumulés à la fin, registre et écritures`, amountOf(form2055, entry.id, 'closing'), r.end, (gap) =>
+        check(`register-depreciation-${entry.id}`, `${entry.label} : amortissements cumulés à la fin, registre et écritures`, amountOf(form2055, entry.id, 'closing'), r.end, (gap) =>
           `Les amortissements cumulés diffèrent de ${euro(gap)} de ceux du registre.`,
         ),
       )

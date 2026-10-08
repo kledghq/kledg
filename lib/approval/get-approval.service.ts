@@ -61,7 +61,7 @@ async function yearFigures(companyId: string, fy: YearRow) {
 }
 
 /** What the books and the company record say about the approval of `fiscalYearId`. */
-export async function loadApprovalContext(companyId: string, fiscalYearId: string, now?: Date): Promise<ApprovalContext & { unallocatedPreviousCents: number }> {
+async function loadApprovalContext(companyId: string, fiscalYearId: string, now?: Date): Promise<ApprovalContext & { unallocatedPreviousCents: number }> {
   const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
   const [company, previous, drafts, capital] = await Promise.all([
     prisma.company.findUniqueOrThrow({
@@ -160,7 +160,7 @@ async function annexeDocumentOf(companyId: string, fiscalYearId: string, pack: A
     title: annexeTitle(view.annexe),
     required: !micro,
     reason: micro
-      ? "Une micro-entreprise peut ne pas établir d'annexe ; elle mentionne à la suite du bilan ses engagements et les avances à ses dirigeants (page Annexe)."
+      ? "Une micro-entreprise peut ne pas établir d'annexe ; elle mentionne à la suite du bilan ses engagements et les avances à ses dirigeants (page Annexe)."
       : `Partie des comptes annuels, déposée avec eux : ${view.annexe.listLabel.toLowerCase()} (page Annexe).`,
     sources: micro ? [SOURCES.L123_16_1] : [SOURCES.L123_16],
     missing: view.annexe.missing.map((m) => m.label),
@@ -190,7 +190,7 @@ export async function getApproval(companyId: string, fiscalYearId: string, now?:
   }
   if (context.unallocatedPreviousCents !== 0) {
     pack.warnings.unshift(
-      "Le résultat de l'exercice précédent n'est pas encore affecté (comptes 120 ou 129 reportés à nouveau) : affectez-le d'abord depuis la page Exercices, les réserves et le report à nouveau en dépendent.",
+      "Le résultat de l'exercice précédent n'est pas encore affecté (comptes 120 ou 129 reportés à nouveau) : affectez-le d'abord depuis la page Exercices, les réserves et le report à nouveau en dépendent.",
     )
   }
   const plainContext: ApprovalContext = {

@@ -18,9 +18,9 @@ describe('fixed asset inputs', () => {
     expect(amountCents(0.1 + 0.2, 'Montant')).toBe(30)
     expect(amountCents('', 'Montant')).toBeNull()
     expect(() => amountCents('10.005', 'Montant amortissable')).toThrow(
-      'Montant amortissable : montant invalide (deux décimales au plus)',
+      'Montant amortissable : montant invalide (deux décimales au plus)',
     )
-    expect(() => amountCents('-1', 'Montant')).toThrow('Montant : montant invalide')
+    expect(() => amountCents('-1', 'Montant')).toThrow('Montant : montant invalide')
   })
 
   it('reads rates and coefficients with a decimal comma, never parseFloat prefixes', () => {

@@ -226,10 +226,10 @@ describe.skipIf(!available)('bank sync: cross-source duplicates and retries', ()
 
   it('reports incomplete or unreadable stored credentials in French, without calling the bank', async () => {
     const incomplete = await syncIntegration(ids.qonto, 'a'.repeat(64), undefined, { now: NOW })
-    expect(incomplete.errors).toEqual(["Les identifiants Qonto sont incomplets : saisissez l'identifiant et la clé secrète."])
+    expect(incomplete.errors).toEqual(["Les identifiants Qonto sont incomplets : saisissez l'identifiant et la clé secrète."])
     await prisma.integration.update({ where: { id: ids.qonto }, data: { credentials: { login: 'org', secretKey: 'not-sealed' }, credentialsEncrypted: true } })
     const unreadable = await syncIntegration(ids.qonto, 'a'.repeat(64), undefined, { now: NOW })
-    expect(unreadable.errors).toEqual(['Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'])
+    expect(unreadable.errors).toEqual(['Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'])
   })
 
   it("never matches a line the provider stored itself: identical operations stay distinct", async () => {

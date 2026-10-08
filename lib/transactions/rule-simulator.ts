@@ -16,7 +16,7 @@ import {
   vatLineDescription,
 } from './entry-line-calculator';
 import { todayUtc } from '@/lib/utils/date';
-import { toCents } from '@/lib/utils/money';
+import { fromCents, sumCents, toCents } from '@/lib/utils/money';
 import { selfAssessedSplit } from '@/lib/vat-deduction/share';
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors';
 import { z } from 'zod';
@@ -37,7 +37,7 @@ async function deductionShareToday(companyId: string): Promise<number | null> {
 }
 
 const RULE_NOT_FOUND_MESSAGE = 'Règle introuvable';
-const NO_LINES_MESSAGE = "La règle n'a aucune ligne d'écriture à simuler : ajoutez-en une.";
+const NO_LINES_MESSAGE = "La règle n'a aucune ligne d'écriture à simuler : ajoutez-en une.";
 
 type AccountDisplay = { code: string; label: string };
 
@@ -420,9 +420,12 @@ function calculateSimulationResult(
     }
   }
 
-  const totalDebit = entryLines.reduce((sum, line) => sum + line.debit, 0);
-  const totalCredit = entryLines.reduce((sum, line) => sum + line.credit, 0);
-  const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  // Sums in cents (lib/utils/money.ts): exact totals, balanced to the cent
+  const debitCents = Number(sumCents(entryLines.map((line) => toCents(line.debit) ?? 0)));
+  const creditCents = Number(sumCents(entryLines.map((line) => toCents(line.credit) ?? 0)));
+  const totalDebit = fromCents(debitCents);
+  const totalCredit = fromCents(creditCents);
+  const balanced = debitCents === creditCents;
 
   return {
     entryLines,

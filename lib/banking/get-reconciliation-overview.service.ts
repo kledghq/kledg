@@ -13,13 +13,13 @@ import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ValidationError } from '@/lib/accounting/errors'
-import { getOrCreateActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
+import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
 import { bankVatOf } from '@/lib/banking/bank-vat'
 import { bankLedgerAccountsInUse, resolveBankAccountLedger, type LedgerAccountRef } from '@/lib/banking/ledger-account'
 import { fromCents, toCents } from '@/lib/utils/money'
 import { calendarDayOf, endOfDay, isoDateToUtc } from '@/lib/utils/date'
 
-const PERIOD_MESSAGE = 'Période invalide : utilisez des dates au format aaaa-mm-jj.'
+const PERIOD_MESSAGE = 'Période invalide : utilisez des dates au format aaaa-mm-jj.'
 
 /** Query of GET /api/banking/reconciliation (companyId is read by the route's resolver). */
 export const ReconciliationQuerySchema = z.object({
@@ -156,10 +156,13 @@ export async function getReconciliationOverview(companyId: string, query: Reconc
       })
     : []
 
-  const activeFiscalYear = await getOrCreateActiveFiscalYear(companyId)
-  const ledgerAccounts = bankAccountId
-    ? [await resolveBankAccountLedger(companyId, activeFiscalYear.id, bankAccountId)].filter((a): a is LedgerAccountRef => a !== null)
-    : await bankLedgerAccountsInUse(companyId, activeFiscalYear.id)
+  // A read never creates a fiscal year: without an open year there is no ledger account to show
+  const activeFiscalYear = await getActiveFiscalYear(companyId)
+  const ledgerAccounts = !activeFiscalYear
+    ? []
+    : bankAccountId
+      ? [await resolveBankAccountLedger(companyId, activeFiscalYear.id, bankAccountId)].filter((a): a is LedgerAccountRef => a !== null)
+      : await bankLedgerAccountsInUse(companyId, activeFiscalYear.id)
 
   return {
     bankAccounts: bankAccounts.map((account) => ({

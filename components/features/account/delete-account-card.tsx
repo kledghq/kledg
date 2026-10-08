@@ -113,7 +113,7 @@ function DeleteAccountDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Supprimer votre compte ?</DialogTitle>
+          <DialogTitle>Supprimer votre compte&nbsp;?</DialogTitle>
           <DialogDescription>
             Cette action est définitive. Vous serez déconnecté et ne pourrez plus vous connecter avec {email}.
           </DialogDescription>

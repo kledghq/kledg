@@ -52,7 +52,7 @@ const FILE_NAMES: Record<GroupReport, string> = {
 }
 
 /** Transactions exported at most (the most recent ones, with a notice). */
-export const MAX_EXPORTED_TRANSACTIONS = 5000
+const MAX_EXPORTED_TRANSACTIONS = 5000
 
 export const GroupExportQuerySchema = GroupLedgerQuerySchema.extend(GroupTransactionsQuerySchema.omit({ limit: true, cursor: true }).shape).extend(GroupTaxQuerySchema.omit({ fiscalYearId: true }).shape).extend({
   report: z.enum(GROUP_REPORTS, { error: 'Rapport inconnu' }).default('combined'),

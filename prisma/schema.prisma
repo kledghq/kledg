@@ -565,7 +565,7 @@ model BankTransaction {
   date                  DateTime
   label                 String?
   reference             String?
-  side                  String // debit, credit
+  side                  String // "debit" or "credit" only (check constraint bank_transactions_side_check, lib/banking/side.ts)
   note                  String?
   imported              Boolean   @default(false)
   reconciled            Boolean   @default(false) // Indique si la transaction est rapprochée

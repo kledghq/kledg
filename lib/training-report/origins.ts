@@ -41,4 +41,3 @@ export function isTrainingOrigin(value: string | null | undefined): value is Tra
   return value !== null && value !== undefined && (TRAINING_ORIGIN_CODES as readonly string[]).includes(value)
 }
 
-export const originLabel = (code: TrainingOrigin) => TRAINING_ORIGINS.find((o) => o.code === code)?.label ?? code

@@ -107,7 +107,7 @@ function NodeCard({ node, simple, selected, onSelect }: { node: StructureNode; s
 }
 
 /** One sentence per holding, for screen readers and for reading the structure as text. */
-export function structureSentences(structure: GroupStructure): string[] {
+function structureSentences(structure: GroupStructure): string[] {
   const label = new Map(structure.nodes.map((n) => [n.id, n.label]))
   return structure.edges.map((e) =>
     e.bp === null ? `${label.get(e.from)} détient ${label.get(e.to)} (pourcentage non connu)` : `${label.get(e.from)} détient ${edgeLabel(e)} de ${label.get(e.to)}${e.kind ? ` (${KIND_SHORT[e.kind]})` : ''}`,
@@ -141,7 +141,7 @@ export function StructureDiagram({ structure, simple = false }: { structure: Gro
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-muted-foreground text-xs">
-          {simple ? 'Les flèches vont de celui qui possède vers la société possédée.' : 'Les flèches vont du détenteur vers la société détenue\u00a0: plus de 50 %, filiale ; de 10 à 50 %, participation.'}
+          {simple ? 'Les flèches vont de celui qui possède vers la société possédée.' : 'Les flèches vont du détenteur vers la société détenue\u00a0: plus de 50 %, filiale ; de 10 à 50 %, participation.'}
         </p>
         <div className="flex items-center gap-1" role="group" aria-label="Zoom de l'organigramme">
           <Button variant="outline" size="icon-sm" aria-label="Zoom arrière" title="Zoom arrière" disabled={zoomIndex === 0} onClick={() => setZoomIndex((i) => Math.max(0, i - 1))}>

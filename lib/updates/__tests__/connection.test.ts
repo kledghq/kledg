@@ -132,7 +132,7 @@ describe('validateToken', () => {
         'GET /repos/acme/compta/actions/workflows?per_page=1': forbidden,
       }),
     )
-    await expect(validateToken(TOKEN, target)).rejects.toThrow('Permissions manquantes sur le jeton : Pull requests, Actions')
+    await expect(validateToken(TOKEN, target)).rejects.toThrow('Permissions manquantes sur le jeton : Pull requests, Actions')
   })
 
   it('accepts missing optional permissions and reports them', async () => {

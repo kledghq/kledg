@@ -522,7 +522,7 @@ export function compileRulePattern(pattern: string): RulePatternResult {
   try {
     return { ok: true, pattern: new CompiledRulePattern(compile(new Parser(pattern).parse())) }
   } catch (error) {
-    if (error instanceof PatternError) return { ok: false, message: `Expression régulière refusée : ${error.message}.` }
+    if (error instanceof PatternError) return { ok: false, message: `Expression régulière refusée : ${error.message}.` }
     throw error
   }
 }

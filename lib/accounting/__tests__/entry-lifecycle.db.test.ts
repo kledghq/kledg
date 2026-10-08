@@ -203,7 +203,7 @@ describe.skipIf(!available)('entry life cycle (PostgreSQL)', () => {
         status: 'validated',
         entryNumber: '2',
         reversalOfId: original.id,
-        description: "Contre-passation de l'écriture n° 1 : Vente",
+        description: "Contre-passation de l'écriture n° 1 : Vente",
         date: new Date('2025-03-10T00:00:00Z'),
       })
       expect(reversal.lines.map((l) => [l.account.code, l.debit.toString(), l.credit.toString()])).toEqual([

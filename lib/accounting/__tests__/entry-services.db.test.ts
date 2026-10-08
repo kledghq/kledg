@@ -121,7 +121,7 @@ describe.skipIf(!available)('entry services (PostgreSQL)', () => {
 
       await expect(updateAccountingEntry(draft.id, { description: 'Modifiée' })).rejects.toMatchObject({
         statusCode: 409,
-        message: "L'écriture n° 1 est validée : elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation.",
+        message: "L'écriture n° 1 est validée : elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation.",
       })
     })
 
@@ -187,7 +187,7 @@ describe.skipIf(!available)('entry services (PostgreSQL)', () => {
 
       expect(result.deleted).toEqual([{ id: a.id, description: 'Facture du 2025-03-01', reference: 'F-1' }])
       expect(result.errors).toEqual([
-        { entryId: b.id, error: `L'écriture n° ${b.entryNumber} est validée : elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation.` },
+        { entryId: b.id, error: `L'écriture n° ${b.entryNumber} est validée : elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation.` },
         { entryId: 'missing', error: 'Écriture introuvable' },
         { entryId: 42, error: 'Écriture introuvable' },
         { entryId: '', error: 'Écriture introuvable' },
@@ -213,7 +213,7 @@ describe.skipIf(!available)('entry services (PostgreSQL)', () => {
       expect(back).toEqual({
         validated: [],
         errors: [
-          { entryId: earlier.id, error: "L'écriture n° 1 est validée : elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation." },
+          { entryId: earlier.id, error: "L'écriture n° 1 est validée : elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation." },
           { entryId: draft.id, error: "L'écriture est déjà un brouillon." },
           { entryId: 'missing', error: 'Écriture introuvable' },
         ],

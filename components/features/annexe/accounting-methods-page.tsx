@@ -76,7 +76,7 @@ function MethodDialog({ companyId, method, open, onOpenChange, onSaved }: { comp
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{method ? 'Modifier la méthode' : 'Nouvelle méthode comptable'}</DialogTitle>
-          <DialogDescription>Une méthode retenue quand le plan comptable laisse un choix ; elle figure dans les règles et méthodes de l&apos;annexe.</DialogDescription>
+          <DialogDescription>Une méthode retenue quand le plan comptable laisse un choix&nbsp;; elle figure dans les règles et méthodes de l&apos;annexe.</DialogDescription>
         </DialogHeader>
         <form id="method-form" onSubmit={submit} className="space-y-4" noValidate>
           <Field label="Sujet" htmlFor="method-topic" required>
@@ -93,7 +93,7 @@ function MethodDialog({ companyId, method, open, onOpenChange, onSaved }: { comp
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Méthode retenue" htmlFor="method-label" required hint={suggestions.length > 0 ? `Usuelles : ${suggestions.join(' ; ')}.` : undefined}>
+          <Field label="Méthode retenue" htmlFor="method-label" required hint={suggestions.length > 0 ? `Usuelles : ${suggestions.join(' ; ')}.` : undefined}>
             <Input id="method-label" autoComplete="off" maxLength={200} placeholder="ex. Coût moyen unitaire pondéré" value={label} onChange={(e) => setLabel(e.target.value)} />
           </Field>
           <Field label="Application" htmlFor="method-description" required hint="Comment la méthode s'applique, tel que l'annexe le dira.">
@@ -199,7 +199,7 @@ function ChangeDialog({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{change ? 'Modifier le changement' : 'Nouveau changement ou correction'}</DialogTitle>
-          <DialogDescription>Mentionné et justifié dans l&apos;annexe (PCG art. 831-2) ; l&apos;écriture de rattrapage est préparée en brouillon.</DialogDescription>
+          <DialogDescription>Mentionné et justifié dans l&apos;annexe (PCG art. 831-2)&nbsp;; l&apos;écriture de rattrapage est préparée en brouillon.</DialogDescription>
         </DialogHeader>
         <form id="change-form" onSubmit={submit} className="space-y-4" noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -223,7 +223,7 @@ function ChangeDialog({
               required
               help={
                 <HelpTip term="Traitement">
-                  Changement de méthode&nbsp;: impact calculé à l&apos;ouverture, après impôt, en report à nouveau, sauf règle fiscale qui l&apos;impose en résultat ; prospectif s&apos;il ne peut être calculé objectivement (PCG art. 122-3). Changement d&apos;estimation&nbsp;: toujours prospectif (art. 122-5). Correction d&apos;erreur&nbsp;: en résultat exceptionnel, ou en report à nouveau si elle corrige une écriture imputée sur les capitaux propres (art. 122-6).
+                  Changement de méthode&nbsp;: impact calculé à l&apos;ouverture, après impôt, en report à nouveau, sauf règle fiscale qui l&apos;impose en résultat&nbsp;; prospectif s&apos;il ne peut être calculé objectivement (PCG art. 122-3). Changement d&apos;estimation&nbsp;: toujours prospectif (art. 122-5). Correction d&apos;erreur&nbsp;: en résultat exceptionnel, ou en report à nouveau si elle corrige une écriture imputée sur les capitaux propres (art. 122-6).
                 </HelpTip>
               }
             >
@@ -318,7 +318,7 @@ export function AccountingMethodsPage({ companyId }: { companyId: string }) {
   const { confirm, dialog } = useConfirm()
 
   const removeMethod = async (m: AccountingMethodView) => {
-    if (!(await confirm({ title: `Retirer la méthode « ${m.label} » ?`, description: 'Elle disparaît du registre et de l’annexe. Les changements qui la citent restent.', confirmLabel: 'Retirer', tone: 'destructive' }))) return
+    if (!(await confirm({ title: `Retirer la méthode « ${m.label} » ?`, description: 'Elle disparaît du registre et de l’annexe. Les changements qui la citent restent.', confirmLabel: 'Retirer', tone: 'destructive' }))) return
     try {
       await sendJson(`/api/accounting-methods/${m.id}`, 'DELETE', undefined, "La suppression n'a pas abouti. Réessayez dans un instant.")
       toast.success('Méthode retirée')
@@ -328,7 +328,7 @@ export function AccountingMethodsPage({ companyId }: { companyId: string }) {
     }
   }
   const removeChange = async (c: AccountingChangeView) => {
-    if (!(await confirm({ title: `Supprimer « ${c.label} » ?`, description: 'Son écriture en brouillon est supprimée avec lui. Une écriture validée se contre-passe d’abord.', confirmLabel: 'Supprimer', tone: 'destructive' }))) return
+    if (!(await confirm({ title: `Supprimer « ${c.label} » ?`, description: 'Son écriture en brouillon est supprimée avec lui. Une écriture validée se contre-passe d’abord.', confirmLabel: 'Supprimer', tone: 'destructive' }))) return
     try {
       await sendJson(`/api/accounting-changes/${c.id}`, 'DELETE', undefined, "La suppression n'a pas abouti. Réessayez dans un instant.")
       toast.success('Changement supprimé')

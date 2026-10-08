@@ -8,6 +8,7 @@ import { buildIncomeStatement, type IncomeStatementRule } from '../statements/in
 import { loadFiscalYearOf, loadStatementAccounts } from '../statements/load'
 import type { IncomeStatementData } from './types'
 import { upgradeLayoutIfUntouched } from '../statements/layout-upgrade'
+import { parseStatementRules } from '../config/shared/config-schema'
 
 /**
  * Generates the income statement of a fiscal year.
@@ -28,7 +29,7 @@ export async function generateIncomeStatement(
     companyId,
     fiscalYearId,
     reportVariant,
-    rules: config.lines as unknown as IncomeStatementRule[],
+    rules: parseStatementRules<IncomeStatementRule>(config.lines, 'du compte de résultat', { companyId, reportVariant }),
     accounts,
   })
   return { ...statement, layoutStatus: layoutStatus === 'empty' ? 'default' : layoutStatus }

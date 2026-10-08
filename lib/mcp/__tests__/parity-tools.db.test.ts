@@ -388,7 +388,7 @@ describe.skipIf(!available)('MCP tools covering the API', () => {
           expect(result.text, tool).not.toMatch(/Action non autorisée|Société introuvable/)
         } else {
           expect(result.ok, tool).toBe(false)
-          expect(result.text, tool).toMatch(/^Action non autorisée : votre rôle \(Lecture seule\)/)
+          expect(result.text, tool).toMatch(/^Action non autorisée\u00a0: votre rôle \(Lecture seule\)/)
         }
       }
     })

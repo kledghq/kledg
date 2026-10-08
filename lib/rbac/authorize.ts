@@ -64,6 +64,6 @@ export async function requireCompanyPermission(
   if (userRoles.includes('admin') && isGlobalAdmin(user)) return
   if (!rolesGrant(userRoles, permission)) {
     const label = userRoles.map((r) => ROLE_LABELS[r] ?? r).join(', ')
-    throw new ForbiddenError(`Action non autorisée : votre rôle (${label}) ne permet pas cette opération.`)
+    throw new ForbiddenError(`Action non autorisée : votre rôle (${label}) ne permet pas cette opération.`)
   }
 }

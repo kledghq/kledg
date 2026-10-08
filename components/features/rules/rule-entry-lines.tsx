@@ -422,7 +422,7 @@ function VatControls({
             </ToggleGroup>
             <p id={`${id}-vat-source-hint`} className="text-muted-foreground text-xs">
               {source === 'transaction'
-                ? 'Kledg reprend la TVA fournie par la banque (Qonto aujourd’hui). Si elle n’en détecte pas, le taux de secours s’applique ; sans taux, la ligne est passée sans TVA.'
+                ? 'Kledg reprend la TVA fournie par la banque (Qonto aujourd’hui). Si elle n’en détecte pas, le taux de secours s’applique ; sans taux, la ligne est passée sans TVA.'
                 : 'Ce taux s’applique à chaque transaction, quelle que soit la TVA détectée par la banque.'}
               {source === 'transaction' && !bankProvidesVat ? ' Aucune banque connectée ne fournit la TVA pour l’instant.' : null}
             </p>

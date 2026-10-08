@@ -21,14 +21,14 @@ export type CalendarDay = string
 
 /** Midnight UTC of a calendar day: how entry dates are stored. */
 export function dayToDate(day: CalendarDay): Date {
-  if (!isIsoDate(day)) throw new ValidationError(`Date invalide : ${day}`)
+  if (!isIsoDate(day)) throw new ValidationError(`Date invalide : ${day}`)
   return isoDateToUtc(day)
 }
 
 /** Entry date to store (midnight UTC), from what an API, a form or a service passes. */
 export function toEntryDate(value: Date | string | null | undefined, field = 'Date'): Date {
   const day = calendarDayOf(value)
-  if (!day) throw new ValidationError(`${field} invalide : utilisez le format AAAA-MM-JJ`)
+  if (!day) throw new ValidationError(`${field} invalide : utilisez le format AAAA-MM-JJ`)
   return dayToDate(day)
 }
 
@@ -54,6 +54,17 @@ const PARIS_DAY = new Intl.DateTimeFormat('en-CA', {
 /** Calendar day in France of an instant (validation time, for the FEC ValidDate). */
 export function parisDayOf(instant: Date): CalendarDay {
   return PARIS_DAY.format(instant)
+}
+
+/**
+ * "Today" of a business rule (deadlines, cash forecast, summaries, current
+ * fiscal year): the calendar day in France, whatever the server timezone.
+ * Between midnight and 1 or 2 am in Paris the UTC day is still the day
+ * before. Pass the `now` the service received so tests control the clock
+ * (docs/conventions.md#dates).
+ */
+export function todayParis(now: Date = new Date()): CalendarDay {
+  return parisDayOf(now)
 }
 
 /** Whether a calendar day lies within [start, end] (both included). Days compare as strings. */

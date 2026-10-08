@@ -122,8 +122,8 @@ export function AiActionsList({ highlight }: { highlight: string | null }) {
     }
     toast.success(
       deciding.decision === 'approve'
-        ? "Action approuvée : l'assistant peut maintenant l'exécuter."
-        : "Action refusée : elle ne sera pas exécutée.",
+        ? "Action approuvée : l'assistant peut maintenant l'exécuter."
+        : "Action refusée : elle ne sera pas exécutée.",
     )
     setDeciding(null)
     setPassword('')
@@ -213,7 +213,7 @@ export function AiActionsList({ highlight }: { highlight: string | null }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deciding?.decision === 'approve' ? 'Approuver cette action ?' : 'Refuser cette action ?'}
+              {deciding?.decision === 'approve' ? 'Approuver cette action ?' : 'Refuser cette action ?'}
             </DialogTitle>
             <DialogDescription>
               {deciding?.decision === 'approve'

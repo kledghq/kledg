@@ -231,7 +231,7 @@ export function UpdateActions({
             Déploiement en cours
           </CardTitle>
           <CardDescription>
-            {Host} construit la nouvelle version et applique les migrations. Cela prend généralement quelques minutes ; cette page
+            {Host} construit la nouvelle version et applique les migrations. Cela prend généralement quelques minutes&nbsp;; cette page
             se met à jour toute seule.
           </CardDescription>
         </CardHeader>
@@ -387,7 +387,7 @@ export function UpdateActions({
         <AlertDialog open={confirmOpen} onOpenChange={(open) => busy !== 'install' && setConfirmOpen(open)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Installer la mise à jour ?</AlertDialogTitle>
+              <AlertDialogTitle>Installer la mise à jour&nbsp;?</AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-3 text-sm">
                   {migrations.length ? (
@@ -419,7 +419,7 @@ export function UpdateActions({
                   ) : (
                     <p>Cette mise à jour ne modifie pas la base de données. Une sauvegarde régulière reste recommandée.</p>
                   )}
-                  <p>{Host} redéploie ensuite l&apos;instance ; elle reste disponible pendant la construction.</p>
+                  <p>{Host} redéploie ensuite l&apos;instance&nbsp;; elle reste disponible pendant la construction.</p>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>

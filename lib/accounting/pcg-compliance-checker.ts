@@ -96,7 +96,7 @@ export function checkPCGAccountStructureCompliance(): ComplianceCheckResult {
   // Vérifier la cohérence des codes (format numérique)
   for (const account of PCG_ACCOUNTS) {
     if (!/^\d+$/.test(account.code)) {
-      errors.push(`Code de compte ${account.code} invalide : doit être numérique (Art. 1123-X)`)
+      errors.push(`Code de compte ${account.code} invalide : doit être numérique (Art. 1123-X)`)
     }
     
     // Vérifier la longueur (2 à 8 chiffres selon PCG)

@@ -22,7 +22,7 @@ export function annexeDocument(annexe: Annexe, company: { name: string; siren: s
   })
   blocks.push({
     kind: 'note',
-    text: `${annexe.listLabel} (${annexe.listSource}). Montants en euros, lus dans les écritures validées de l'exercice ; les informations que les comptes ne contiennent pas ont été saisies par la société.`,
+    text: `${annexe.listLabel} (${annexe.listSource}). Montants en euros, lus dans les écritures validées de l'exercice ; les informations que les comptes ne contiennent pas ont été saisies par la société.`,
   })
   return {
     header: [company.name, `SIREN ${company.siren.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}`],

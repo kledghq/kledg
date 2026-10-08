@@ -28,7 +28,8 @@ import { createId } from '@/lib/crypto/ids'
 import { decodeFecBytes, parseFecFile, type ParsedFecFile } from '@/lib/import/fec/parser'
 import { planFecImport, type FecImportPlan, type PlannedEntry } from '@/lib/import/fec/plan'
 import { getParentAccountCode, simplifyAccountCode } from '@/lib/import/fec/mapper'
-import { attemptBankReconciliation } from '@/lib/import/fec/reconciliation'
+import { reconcileBankEntries } from '@/lib/services/banking/reconciliation-service'
+import type { BankEntryToMatch } from '@/lib/reconciliation/bank-line-match'
 import type { FECImportOptions, FiscalYearInfo, ImportResult } from '@/lib/import/fec/types'
 import { plural } from '@/lib/utils/plural'
 import { groupRefusals } from '@/lib/import/fec/refusal-report'
@@ -168,19 +169,19 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
       ? await prisma.account.findMany({ where: { id: { in: mappedAccountIds }, companyId }, select: { id: true, code: true, label: true } })
       : []
     if (mappedAccounts.length !== new Set(mappedAccountIds).size) {
-      result.errors.push("Correspondance de comptes invalide : un compte choisi n'appartient pas à cette société.")
+      result.errors.push("Correspondance de comptes invalide : un compte choisi n'appartient pas à cette société.")
     }
     const mappedJournalIds = Object.values(journalMapping).filter((id): id is string => !!id)
     const mappedJournals = mappedJournalIds.length
       ? await prisma.journal.findMany({ where: { id: { in: mappedJournalIds }, companyId }, select: { id: true } })
       : []
     if (mappedJournals.length !== new Set(mappedJournalIds).size) {
-      result.errors.push("Correspondance de journaux invalide : un journal choisi n'appartient pas à cette société.")
+      result.errors.push("Correspondance de journaux invalide : un journal choisi n'appartient pas à cette société.")
     }
 
     if (result.refused.length > 0) {
       result.errors.push(
-        `${plural(result.refused.length, 'écriture refusée', 'écritures refusées')} : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.`,
+        `${plural(result.refused.length, 'écriture refusée', 'écritures refusées')} : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.`,
         // One message per distinct reason, with its count and first lines
         ...groupRefusals(result.refused),
       )
@@ -213,14 +214,19 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
     })
     result.fiscalYears = fiscalYearInfos(plan, ctx.fiscalYears, parsed, written.fiscalYearIds)
 
-    // Best effort, after the commit: match bank journal entries with bank transactions
-    for (const entry of written.bankEntries) {
-      await attemptBankReconciliation(companyId, entry.id, entry.lines, entry.date)
+    // After the commit: match bank journal entries with bank transactions (one
+    // transaction per entry, the shared matcher of the auto-reconcile action).
+    // The import stands whatever happens here; a failure is reported.
+    const reconciliation = await reconcileBankEntries(companyId, written.bankEntries)
+    if (reconciliation.failed > 0) {
+      result.warnings!.push(
+        `Rapprochement automatique interrompu pour ${plural(reconciliation.failed, 'écriture bancaire', 'écritures bancaires')} : lancez « Rapprocher automatiquement » depuis le rapprochement bancaire.`,
+      )
     }
   } catch (error) {
     const { message } = handleError(error)
     result.success = false
-    result.errors.push(`Import annulé, aucune écriture importée : ${message}`)
+    result.errors.push(`Import annulé, aucune écriture importée : ${message}`)
     logger.debug('[import/fec] Import failed', { companyId, error: error instanceof Error ? error.message : String(error) })
   }
 
@@ -279,10 +285,12 @@ async function writePlan(db: Prisma.TransactionClient, companyId: string, plan: 
 
   // Accounts (per fiscal year): mapping (by the mapped account's number), exact number, number without trailing zeros, else created
   const accountIds = new Map<number, Map<string, string>>()
+  const codeById = new Map<string, string>()
   let accountsCreated = 0
   for (const [year, codes] of plan.accounts) {
     const fiscalYearId = fiscalYearIds.get(year)!
     const existing = await db.account.findMany({ where: { companyId, fiscalYearId }, select: { id: true, code: true } })
+    for (const a of existing) codeById.set(a.id, a.code)
     const byCode = new Map(existing.map((a) => [a.code, a.id]))
     const bySimplified = new Map<string, string>()
     for (const a of existing) if (!bySimplified.has(simplifyAccountCode(a.code))) bySimplified.set(simplifyAccountCode(a.code), a.id)
@@ -297,6 +305,7 @@ async function writePlan(db: Prisma.TransactionClient, companyId: string, plan: 
       if (!id) {
         id = createId()
         toCreate.set(code, { id, code, label })
+        codeById.set(id, code)
       }
       ids.set(fecCode, id)
     }
@@ -315,7 +324,7 @@ async function writePlan(db: Prisma.TransactionClient, companyId: string, plan: 
   const entryRows: Prisma.AccountingEntryCreateManyInput[] = []
   const lineRows: Prisma.EntryLineCreateManyInput[] = []
   const validations: Array<{ id: string; at: Date }> = []
-  const bankEntries: Array<{ id: string; date: Date; lines: Array<{ accountId: string; debit: number; credit: number }> }> = []
+  const bankEntries: BankEntryToMatch[] = []
   const base = Date.now()
   let sequence = 0
   for (const entry of plan.entries) {
@@ -348,7 +357,11 @@ async function writePlan(db: Prisma.TransactionClient, companyId: string, plan: 
       bankEntries.push({
         id,
         date: dayToDate(entry.day),
-        lines: entry.lines.map((l) => ({ accountId: accounts.get(l.accountCode)!, debit: l.debitCents / 100, credit: l.creditCents / 100 })),
+        lines: entry.lines.map((l) => ({
+          accountCode: codeById.get(accounts.get(l.accountCode)!) ?? l.accountCode,
+          debit: centsToDecimal(l.debitCents),
+          credit: centsToDecimal(l.creditCents),
+        })),
       })
     }
   }

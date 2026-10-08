@@ -6,7 +6,7 @@
 import { z } from 'zod'
 
 /** Better Auth roles of an account: instance administrator or regular user. */
-export const INSTANCE_ROLES = ['admin', 'user'] as const
+const INSTANCE_ROLES = ['admin', 'user'] as const
 export type InstanceRole = (typeof INSTANCE_ROLES)[number]
 
 export const INSTANCE_ROLE_LABELS: Record<InstanceRole, string> = {

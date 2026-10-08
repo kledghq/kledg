@@ -129,8 +129,12 @@ hooks/                   client hooks
   journal holding entries) is a 409. Anti-pattern: `return NextResponse.json({ error: 'Missing required
   fields' }, { status: 400 })` or a `try/catch` in the handler.
 - **Messages shown to users are French** and say what to do
-  ("L'exercice 2025 est clôturé : ... Passez la correction sur l'exercice
-  ouvert."). Log messages and code are English.
+  ("L'exercice 2025 est clôturé : ... Passez la correction sur l'exercice
+  ouvert."). Log messages and code are English. French typography: a
+  no-break space (U+00A0, `\u00a0` in a string, `&nbsp;` in JSX text)
+  before ":", ";", "?" and "!" (enforced by
+  `lib/__tests__/design-system-guards.test.ts`; `scripts/french-spacing.ts`
+  fixes a file), and no em or en dash.
 - **Never leak internals**: unexpected errors become the generic 500 message
   (`INTERNAL_ERROR_MESSAGE`), the detail goes to the server log. Do not
   return `error.message` of a third-party or database error to the client.
@@ -235,10 +239,18 @@ hooks/                   client hooks
     `addIsoDays`, `parseFrenchDate`, `formatIsoDateFr`.
   - `lib/accounting/entry-date.ts` (accounting edges, French errors):
     `toEntryDate`, `dayToDate`, `requireDay`, `isDayWithin`, `fecDateOf`,
-    `parisDayOf` (validation day in France).
+    `parisDayOf` (validation day in France), `todayParis`.
   - Bank statement files: `parseCalendarDate` (`lib/banking/import/date.ts`).
 
   Do not write a local `addDay`, `nextDay`, `utcDay` or `frDay`.
+- **"Today" is the calendar day in France**: a business rule that depends
+  on the current day (deadlines and their status, cash forecast, simple mode
+  summary, the current fiscal year) reads `todayParis(now)`, with the `now`
+  the service received so tests control the clock. Between midnight and 1 or
+  2 am in Paris the UTC day is still the day before, so `todayUtc` is only
+  for technical timestamps. Compare it with stored days as strings, or as
+  `isoDateToUtc(todayParis(now))` against columns at midnight UTC; never
+  compare a column holding a day with the current instant.
 - **Server code never uses local-time Date APIs** (enforced in `lib/` and
   `app/api/`): no `getFullYear`/`getMonth`/`getDate`/`setDate`..., no
   `new Date(y, m, d)`. Use `getUTC*`/`setUTC*` or the helpers. The few

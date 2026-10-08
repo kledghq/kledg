@@ -210,7 +210,7 @@ export async function importExcel(
           credit: importAmountCents(l[defaultMapping.creditColumn]),
         }))
         if (amounts.some((a) => a.debit === null || a.credit === null)) {
-          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
+          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
           continue
         }
         const fiscalYearId = await accounts.fiscalYearId(entryDate)
@@ -308,7 +308,7 @@ export async function importExcel(
 
     result.success = result.errors.length === 0
   } catch (error) {
-    result.errors.push(`Import interrompu : ${handleError(error).message}`)
+    result.errors.push(`Import interrompu : ${handleError(error).message}`)
     result.success = false
   }
 

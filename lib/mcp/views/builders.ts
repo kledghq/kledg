@@ -18,7 +18,8 @@ import type { McpAccess } from '@/lib/mcp/company-access'
 import { kledgPageUrl } from '@/lib/mcp/tool-meta'
 import { formatIsoDateFr } from '@/lib/utils/date'
 import { id as promptId, quote } from '@/lib/ai-assist/prompts'
-import { formatCentsFr, toCents } from '@/lib/utils/money'
+import { formatCentsFr, fromCents, toCents } from '@/lib/utils/money'
+import { isDebitSide, signedBankCents } from '@/lib/banking/side'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
 import { generateIncomeStatement } from '@/lib/reports/income-statement/generate-income-statement.service'
 import type { BalanceSheetData, BalanceSheetLine } from '@/lib/reports/balance-sheet/types'
@@ -54,6 +55,11 @@ function num(value: Numeric): number {
   const n = typeof value === 'number' ? value : Number(String(value))
   return Number.isFinite(n) ? n : 0
 }
+
+/** A Decimal, string or number of euros as integer cents (sums stay exact, docs/conventions.md#money). */
+const cents = (value: Numeric): number => toCents(value ?? 0) ?? 0
+/** Euros of a sum of cents. */
+const eurosOf = (values: number[]): number => fromCents(values.reduce((sum, c) => sum + c, 0))
 
 const euroText = (value: number) => formatCentsFr(toCents(value) ?? 0)
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
@@ -200,6 +206,7 @@ const PCG_CLASSES: Record<string, string> = {
 
 export function trialBalanceStatement(companyId: string, companyName: string, data: TrialBalanceData): StatementView {
   const byClass = new Map<string, StatementView['sections'][number]>()
+  /** Subtotals in cents: no float drift. */
   const sums = new Map<string, [number, number, number]>()
   let hidden = 0
   for (const row of data.balances) {
@@ -216,11 +223,11 @@ export function trialBalanceStatement(companyId: string, companyName: string, da
     }
     section.rows.push({ label: row.label, code: row.code, depth: 0, kind: 'line', values: [row.debit, row.credit, row.balance] })
     const s = sums.get(key)!
-    sums.set(key, [toEuros(s[0] + row.debit), toEuros(s[1] + row.credit), toEuros(s[2] + row.balance)])
+    sums.set(key, [s[0] + cents(row.debit), s[1] + cents(row.credit), s[2] + cents(row.balance)])
   }
   const sections = [...byClass.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, section]) => ({ ...section, total: { label: `Total classe ${key}`, values: sums.get(key)! } }))
+    .map(([key, section]) => ({ ...section, total: { label: `Total classe ${key}`, values: sums.get(key)!.map(fromCents) } }))
   return {
     view: 'statement',
     title: `Balance générale, ${companyName}`,
@@ -232,9 +239,6 @@ export function trialBalanceStatement(companyId: string, companyName: string, da
     links: [{ label: 'Ouvrir la balance dans Kledg', url: kledgPageUrl(companyId, 'reports/trial-balance') }],
   }
 }
-
-/** Sums of euros kept to the cent (no float drift in the subtotals). */
-const toEuros = (value: number) => Math.round(value * 100) / 100
 
 // -------------------------------------------------------------------- charts
 
@@ -264,7 +268,7 @@ export function tiersFlowsChart(companyId: string, report: TiersFlowsReport, kin
         ...(kind !== 'customers' ? [{ label: 'Fournisseurs', color: 'flow-supplier' as const }] : []),
       ],
     },
-    summary: `Diagramme des flux de l'exercice ${report.fiscalYear.year} : ${parts.join(', ')}.`,
+    summary: `Diagramme des flux de l'exercice ${report.fiscalYear.year}\u00a0: ${parts.join(', ')}.`,
     figures: [
       ...(kind !== 'suppliers' ? [{ label: 'Facturé aux clients', value: customers }] : []),
       ...(kind !== 'customers' ? [{ label: 'Facturé par les fournisseurs', value: suppliers }] : []),
@@ -291,7 +295,7 @@ export function groupFlowsChart(companyId: string, view: GroupView): ChartView {
   return {
     view: 'chart',
     title: `Flux entre les sociétés du groupe ${view.holding.name}`,
-    subtitle: `Exercice ${view.fiscalYear.year} : à gauche la société qui paie ou prête, à droite celle qui reçoit`,
+    subtitle: `Exercice ${view.fiscalYear.year}\u00a0: à gauche la société qui paie ou prête, à droite celle qui reçoit`,
     notice: INDICATIVE_NOTICE,
     chart: {
       kind: 'sankey',
@@ -300,7 +304,7 @@ export function groupFlowsChart(companyId: string, view: GroupView): ChartView {
       legend: kinds.map((k) => ({ label: MONEY_FLOW_LABELS[k], color: FLOW_COLORS[k] })),
     },
     summary: flows.length
-      ? `Diagramme des flux entre les sociétés du groupe sur l'exercice ${view.fiscalYear.year} : ${plural(flows.length, 'flux', 'flux')} pour ${euroText(total)} au total.`
+      ? `Diagramme des flux entre les sociétés du groupe sur l'exercice ${view.fiscalYear.year}\u00a0: ${plural(flows.length, 'flux', 'flux')} pour ${euroText(total)} au total.`
       : `Aucun flux entre les sociétés lues sur l'exercice ${view.fiscalYear.year}.`,
     figures: [
       { label: "Chiffre d'affaires combiné", value: view.combined.chiffreAffairesCents / 100 },
@@ -319,10 +323,10 @@ export function groupTreasuryChart(companyId: string, report: GroupTreasuryRepor
   return {
     view: 'chart',
     title: `Trésorerie du groupe ${report.holding.name}`,
-    subtitle: `Exercice ${report.fiscalYear.year} : solde des comptes 512 des sociétés lues, en fin de mois`,
+    subtitle: `Exercice ${report.fiscalYear.year}\u00a0: solde des comptes 512 des sociétés lues, en fin de mois`,
     chart: { kind: 'area', x: 'month', series: [{ name: 'Trésorerie comptable (512)', color: 'treasury', points }] },
     summary: last
-      ? `Trésorerie comptable du groupe par mois sur l'exercice ${report.fiscalYear.year} : ${euroText(last.y)} à fin ${last.x}${lowest ? `, au plus bas ${euroText(lowest.y)} (${lowest.x})` : ''}.`
+      ? `Trésorerie comptable du groupe par mois sur l'exercice ${report.fiscalYear.year}\u00a0: ${euroText(last.y)} à fin ${last.x}${lowest ? `, au plus bas ${euroText(lowest.y)} (${lowest.x})` : ''}.`
       : `Pas de trésorerie comptable sur l'exercice ${report.fiscalYear.year}.`,
     figures: report.totalsByCurrency.map((t) => ({ label: `Soldes bancaires (${t.currency})`, value: t.balanceCents / 100 })).slice(0, 4),
     ...(report.warnings.length && { warnings: report.warnings }),
@@ -370,7 +374,7 @@ export function entriesList(
         date: e.date,
         journal: e.journal,
         description: [e.description, e.reference].filter(Boolean).join(', ') || null,
-        amount: toEuros(e.lines.reduce((sum, l) => sum + num(l.debit), 0)),
+        amount: eurosOf(e.lines.map((l) => cents(l.debit))),
         status: draft ? 'Brouillon' : 'Validée',
       },
       breakdown: e.lines.map((l) => ({
@@ -386,7 +390,7 @@ export function entriesList(
     ? fullControl
       ? access.executionMode === 'validation'
         ? 'Valider ou supprimer passe par un aperçu, puis votre approbation dans Kledg\u00a0: l’assistant ne peut pas approuver.'
-        : 'Valider ou supprimer montre d’abord un aperçu ; rien ne change avant votre confirmation.'
+        : 'Valider ou supprimer montre d’abord un aperçu\u00a0; rien ne change avant votre confirmation.'
       : 'Les brouillons se valident dans Kledg (cette connexion n’a pas le contrôle total).'
     : undefined
   return {
@@ -408,7 +412,7 @@ export function entriesList(
     refresh: { tool: 'list_entries', arguments: args },
     figures: [
       { label: 'Brouillons', value: drafts.length, format: 'number' },
-      { label: 'Montant des brouillons', value: toEuros(drafts.reduce((sum, e) => sum + e.lines.reduce((s, l) => s + num(l.debit), 0), 0)), format: 'euros' },
+      { label: 'Montant des brouillons', value: eurosOf(drafts.flatMap((e) => e.lines.map((l) => cents(l.debit)))), format: 'euros' },
     ],
     empty: onlyDrafts ? 'Aucune écriture en brouillon sur cette période.' : 'Aucune écriture sur cette période.',
     links: [{ label: 'Ouvrir les écritures dans Kledg', url: kledgPageUrl(companyId, 'entries') }],
@@ -427,7 +431,8 @@ interface BankTransactionLike {
 }
 
 /** Signed amount of a bank transaction: money out (debit) negative. */
-const signed = (t: { amount: Numeric; side: string }) => (t.side === 'debit' ? -Math.abs(num(t.amount)) : Math.abs(num(t.amount)))
+const signedCents = (t: { amount: Numeric; side: string }) => signedBankCents(cents(t.amount), t.side)
+const signed = (t: { amount: Numeric; side: string }) => fromCents(signedCents(t))
 
 /** What "Rapprocher" asks before its call: the match in words, and a second click. */
 function reconcileQuestion(match: UniqueMatch): string {
@@ -482,7 +487,7 @@ export function bankTransactionsList(
           tool: 'reconcile_transaction',
           arguments: { companyId, transactionId: t.id, withoutEntry: true },
           highImpact: false,
-          confirm: 'Marquer cette transaction comme rapprochée sans écriture (pointage) ? À faire seulement si son écriture existe déjà ou n’est pas nécessaire. Cliquez à nouveau pour confirmer.',
+          confirm: 'Marquer cette transaction comme rapprochée sans écriture (pointage)\u00a0? À faire seulement si son écriture existe déjà ou n’est pas nécessaire. Cliquez à nouveau pour confirmer.',
         })
       }
     }
@@ -522,8 +527,8 @@ export function bankTransactionsList(
     refresh: { tool: 'list_bank_transactions', arguments: args },
     figures: [
       { label: 'À rapprocher', value: open.length, format: 'number' },
-      { label: 'Encaissements', value: toEuros(open.filter((t) => t.side !== 'debit').reduce((s, t) => s + signed(t), 0)), format: 'euros' },
-      { label: 'Décaissements', value: toEuros(open.filter((t) => t.side === 'debit').reduce((s, t) => s + signed(t), 0)), format: 'euros' },
+      { label: 'Encaissements', value: eurosOf(open.filter((t) => !isDebitSide(t.side)).map(signedCents)), format: 'euros' },
+      { label: 'Décaissements', value: eurosOf(open.filter((t) => isDebitSide(t.side)).map(signedCents)), format: 'euros' },
     ],
     empty: 'Aucune transaction à rapprocher\u00a0: tout est à jour.',
     links: [{ label: 'Ouvrir le rapprochement dans Kledg', url: kledgPageUrl(companyId, 'reconciliation') }],
@@ -778,7 +783,7 @@ export function groupStructureOrganigram(companyId: string, report: GroupStructu
   return {
     view: 'organigram',
     title: `Structure du groupe ${report.holding.name}`,
-    subtitle: 'Associés, holding et sociétés détenues ; filiale au-delà de 50 %, participation de 10 à 50 % (Code de commerce, art. L233-1 et L233-2)',
+    subtitle: 'Associés, holding et sociétés détenues\u00a0; filiale au-delà de 50 %, participation de 10 à 50 % (Code de commerce, art. L233-1 et L233-2)',
     nodes: report.nodes.map((n) => ({
       id: n.id,
       label: n.label,

@@ -602,7 +602,7 @@ export function invoiceName(invoice: { number: string | null }): string {
 }
 
 const DRAFT_ONLY = (invoice: { number: string | null }) =>
-  `${invoiceName(invoice)} est comptabilisée : supprimez d’abord son écriture en brouillon (ou contre-passez-la si elle est validée) pour la modifier.`
+  `${invoiceName(invoice)} est comptabilisée : supprimez d’abord son écriture en brouillon (ou contre-passez-la si elle est validée) pour la modifier.`
 
 export async function updateInvoice(companyId: string, id: string, input: UpdateInvoiceInput): Promise<InvoiceDetail> {
   const number = await prisma.$transaction(async (tx) => {
@@ -712,7 +712,7 @@ export async function deleteInvoice(companyId: string, id: string): Promise<{ id
     if (current.origin === 'QONTO' && current.qontoRequestedAt && !(current.qontoDraft && current.externalId)) {
       throw new ConflictError(
         current.externalId
-          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
+          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
           : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
       )
     }

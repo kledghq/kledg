@@ -10,8 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { EmptyState, PageHeader, StatusBadge } from '@/components/shared'
+import { EmptyState, PageHeader, SegmentedControl, StatusBadge } from '@/components/shared'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
 import { TiersFlowsCard } from '@/components/features/tiers/tiers-flows-card'
 import { responseError } from '@/hooks/use-cursor-list'
@@ -132,11 +131,16 @@ export default function TiersPage() {
               <Search aria-hidden className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nom, compte auxiliaire, SIREN" aria-label="Rechercher un tiers" className="pl-8" />
             </div>
-            <ToggleGroup type="single" variant="outline" size="sm" value={kind} onValueChange={(v) => v && setKind(v as KindFilter)} aria-label="Type de tiers">
-              <ToggleGroupItem value="ALL">Tous</ToggleGroupItem>
-              <ToggleGroupItem value="CUSTOMER">Clients</ToggleGroupItem>
-              <ToggleGroupItem value="SUPPLIER">Fournisseurs</ToggleGroupItem>
-            </ToggleGroup>
+            <SegmentedControl<KindFilter>
+              label="Type de tiers"
+              value={kind}
+              onValueChange={setKind}
+              options={[
+                { value: 'ALL', label: 'Tous' },
+                { value: 'CUSTOMER', label: 'Clients' },
+                { value: 'SUPPLIER', label: 'Fournisseurs' },
+              ]}
+            />
           </div>
 
           {error ? (

@@ -98,7 +98,7 @@ export function validateBalanceSheetStructure(
   const passifCents = toCents(balanceSheet.passif.total) ?? 0
   if (actifCents !== passifCents) {
     errors.push(
-      `Le bilan n'est pas équilibré : écart de ${formatCentsFr(Math.abs(actifCents - passifCents))} (Actif : ${formatCentsFr(actifCents)}, Passif : ${formatCentsFr(passifCents)})`
+      `Le bilan n'est pas équilibré : écart de ${formatCentsFr(Math.abs(actifCents - passifCents))} (Actif : ${formatCentsFr(actifCents)}, Passif : ${formatCentsFr(passifCents)})`
     )
   }
 
@@ -118,10 +118,10 @@ export function validateBalanceSheetStructure(
   } else {
     // Vérifier les sous-postes de l'actif immobilisé
     if (balanceSheet.actif.actifImmobilise.incorporelles.net < 0) {
-      warnings.push('Immobilisations incorporelles : valeur nette négative (à vérifier)')
+      warnings.push('Immobilisations incorporelles : valeur nette négative (à vérifier)')
     }
     if (balanceSheet.actif.actifImmobilise.corporelles.net < 0) {
-      warnings.push('Immobilisations corporelles : valeur nette négative (à vérifier)')
+      warnings.push('Immobilisations corporelles : valeur nette négative (à vérifier)')
     }
   }
 
@@ -196,7 +196,7 @@ export function validateBalanceSheetStructure(
 
   // Vérifier IR3 : Postes vides pendant 2 exercices consécutifs peuvent être omis (Art. 811-3)
   // Cette vérification nécessiterait un historique, donc on ne peut que suggérer
-  warnings.push('Vérifier IR3 : Les postes vides pendant 2 exercices consécutifs peuvent être omis (Art. 811-3)')
+  warnings.push('Vérifier IR3 : Les postes vides pendant 2 exercices consécutifs peuvent être omis (Art. 811-3)')
 
   return {
     valid: errors.length === 0,
@@ -388,7 +388,7 @@ export function validateIncomeStatementStructure(
   }
 
   // Vérifier IR3 : Montants négatifs entre parenthèses ou précédés du signe moins (-)
-  warnings.push('Vérifier IR3 : Les montants négatifs doivent être présentés entre parenthèses ou précédés du signe moins (-)')
+  warnings.push('Vérifier IR3 : Les montants négatifs doivent être présentés entre parenthèses ou précédés du signe moins (-)')
 
   return {
     valid: errors.length === 0,

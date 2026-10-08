@@ -41,7 +41,7 @@ export function assertTotalPercentage(others: Array<{ toString(): string }>, hun
   const total = others.reduce<number>((sum, value) => sum + (toCents(value) ?? 0), 0) + hundredths
   if (total > FULL) {
     throw new ValidationError(
-      `Le total des pourcentages ne peut pas dépasser 100 %. Total actuel : ${centsToDecimal(total).replace('.', ',')} %`,
+      `Le total des pourcentages ne peut pas dépasser 100 %. Total actuel : ${centsToDecimal(total).replace('.', ',')} %`,
     )
   }
 }

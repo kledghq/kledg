@@ -32,7 +32,7 @@ const schema = z.object({
     .string()
     .trim()
     .max(42)
-    .refine((value) => value === '' || isValidIban(value), "Cet IBAN n'est pas valide : vérifiez-le sur votre relevé."),
+    .refine((value) => value === '' || isValidIban(value), "Cet IBAN n'est pas valide : vérifiez-le sur votre relevé."),
   ledgerAccountCode: z.string().min(1, 'Choisissez le compte comptable 512 de ce compte bancaire.'),
 })
 type FormValues = z.infer<typeof schema>

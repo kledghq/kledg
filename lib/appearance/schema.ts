@@ -21,12 +21,12 @@ import {
 } from './palette'
 
 /** Version of the stored JSON (UserPreference.appearance). */
-export const APPEARANCE_VERSION = 1
+const APPEARANCE_VERSION = 1
 
 /** Far above a full custom palette (about 700 bytes), far below the default 1 MB of JSON routes. */
 export const MAX_APPEARANCE_BODY_BYTES = 4096
 
-export const HexColorField = z
+const HexColorField = z
   .string({ error: 'Couleur attendue au format #rrggbb' })
   .regex(HEX_COLOR, { error: 'Couleur attendue au format #rrggbb, par exemple #1c7f55' })
   .transform((value) => value.toLowerCase())

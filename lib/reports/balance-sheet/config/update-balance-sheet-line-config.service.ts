@@ -50,7 +50,7 @@ export async function updateBalanceSheetLineConfig(
 
   // A line of another company is not confirmed: 404 like a missing one.
   if (!existing || existing.companyId !== companyId) {
-    throw new NotFoundError('Configuration introuvable : elle a peut-être été supprimée. Rechargez la page de configuration.')
+    throw new NotFoundError('Configuration introuvable : elle a peut-être été supprimée. Rechargez la page de configuration.')
   }
 
   // Validate account codes if provided

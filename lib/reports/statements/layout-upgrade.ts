@@ -68,7 +68,7 @@ export const PREVIOUS_DEFAULT_FINGERPRINTS: Record<`${LayoutKind}:${Variant}`, s
 const currentFingerprints = new Map<string, string>()
 
 /** Fingerprint of the current default layout (works with the goods: the construction variant of the income statement). */
-export function currentDefaultFingerprint(kind: LayoutKind, variant: Variant, worksAsGoods = false): string {
+function currentDefaultFingerprint(kind: LayoutKind, variant: Variant, worksAsGoods = false): string {
   const key = `${kind}:${variant}:${worksAsGoods}`
   if (!currentFingerprints.has(key)) {
     const rules = kind === 'balance-sheet' ? defaultBalanceSheetRules(variant) : defaultIncomeStatementRules(variant, worksAsGoods)

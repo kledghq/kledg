@@ -16,11 +16,12 @@ import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, ownedFiscalYear } from './resolve'
+import { accountCode } from '@/lib/api/zod-fields'
 
 async function targetFiscalYear(companyId: string, fiscalYearId?: string) {
   if (fiscalYearId) return ownedFiscalYear(companyId, fiscalYearId)
   const active = await getActiveFiscalYear(companyId)
-  if (!active) throw new ValidationError("Aucun exercice ouvert : créez d'abord l'exercice.")
+  if (!active) throw new ValidationError("Aucun exercice ouvert : créez d'abord l'exercice.")
   return active
 }
 
@@ -29,7 +30,7 @@ const createAccountTool = fullControlTool({
   title: 'Créer un compte',
   description: `Creates an account in the chart of accounts of a fiscal year (plan comptable, accounts are per fiscal year), as a subdivision of an existing account: the code starts with the parent's code (e.g. 401DUPONT is not valid, 4010001 under 401 is). ${ACTS_AS_USER}`,
   input: {
-    code: z.string().regex(/^\d{2,8}$/, 'Le code doit contenir entre 2 et 8 chiffres').describe('Account number, 2 to 8 digits, e.g. 6064100.'),
+    code: accountCode().describe('Account number: the class digit then 1 to 19 digits or upper case letters, e.g. 6064100.'),
     label: z.string().min(1).max(200),
     parentCode: z
       .string()
@@ -53,7 +54,7 @@ const createAccountTool = fullControlTool({
         select: { id: true, code: true },
       })
       const parent = candidates.sort((a, b) => b.code.length - a.code.length)[0]
-      if (!parent) throw new ValidationError(`Aucun compte parent pour ${code} : indiquez parentCode.`)
+      if (!parent) throw new ValidationError(`Aucun compte parent pour ${code} : indiquez parentCode.`)
       parentId = parent.id
     }
     const account = await createAccount(companyId, { code, label, parentId, fiscalYearId: fiscalYear.id })

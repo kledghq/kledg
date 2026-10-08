@@ -112,7 +112,7 @@ export function RuleEditor({
   const leave = async (href: string) => {
     if (dirty) {
       const ok = await confirm({
-        title: 'Quitter sans enregistrer ?',
+        title: 'Quitter sans enregistrer ?',
         description: 'Les modifications de la règle seront perdues.',
         confirmLabel: 'Quitter sans enregistrer',
       })
@@ -150,7 +150,7 @@ export function RuleEditor({
   const handleDelete = async () => {
     if (!ruleId) return
     const ok = await confirm({
-      title: `Supprimer la règle « ${initial.name} » ?`,
+      title: `Supprimer la règle « ${initial.name} » ?`,
       description:
         'Les transactions ne seront plus reconnues par cette règle. Les écritures déjà créées avec elle sont conservées.',
       confirmLabel: 'Supprimer la règle',

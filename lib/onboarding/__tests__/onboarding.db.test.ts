@@ -267,7 +267,7 @@ describe.skipIf(!available)('onboarding', () => {
       const view = (await (await get('accountant')).json()) as View
       expect(view.canManage).toBe(true)
       expect(stepOf(view, 'bank')).toMatchObject({ done: true, detail: '4 opérations reçues' })
-      expect(stepOf(view, 'rule')?.detail).toBe('Libellés fréquents : OVH SAS (3 fois)')
+      expect(stepOf(view, 'rule')?.detail).toBe('Libellés fréquents : OVH SAS (3 fois)')
       expect(stepOf(view, 'rule')?.action?.href).toMatch(new RegExp(`^/${ids.aSlug}/rules/new\\?fromTransaction=`))
     })
 
@@ -296,7 +296,7 @@ describe.skipIf(!available)('onboarding', () => {
       expect((await post('memberB', 'dismiss')).status).toBe(404)
       const unknown = await post('accountant', 'archive')
       expect(unknown.status).toBe(400)
-      expect(((await unknown.json()) as { error: string }).error).toBe('action: Action inconnue : dismiss ou reopen')
+      expect(((await unknown.json()) as { error: string }).error).toBe('action: Action inconnue : dismiss ou reopen')
       const dismissed = await post('accountant', 'dismiss')
       expect(dismissed.status).toBe(200)
       expect(await dismissed.json()).toEqual({ dismissed: true })

@@ -25,11 +25,11 @@ import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink } fr
 import { GROUP_ENTRIES_READ, type UnreachableSubsidiary } from './perimeter'
 import { matchFiscalYear } from './read-member'
 
-export const GROUP_LEDGER_NOTICE =
+const GROUP_LEDGER_NOTICE =
   'Grand livre combiné : les comptes des sociétés lues additionnés à 100 %, flux intragroupe compris. Une agrégation, pas une consolidation.'
 
 /** Lines of one account shown at most, all companies together. */
-export const MAX_LEDGER_LINES = 1000
+const MAX_LEDGER_LINES = 1000
 
 export const GroupLedgerQuerySchema = GroupViewQuerySchema.extend({
   /** Account numbers starting with these digits (a class, "6", or an account, "512"). */

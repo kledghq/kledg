@@ -21,7 +21,7 @@ import { periodLabel } from './wording'
 
 type Row = Array<string | number | null>
 
-export function cashForecastCsv(view: CashForecastView, company: string): string {
+function cashForecastCsv(view: CashForecastView, company: string): string {
   const { projection } = view
   const amount = (cents: number) => centsToFecAmount(cents)
   const rows: Row[] = [

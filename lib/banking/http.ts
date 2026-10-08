@@ -1,7 +1,7 @@
 import { ExternalServiceError } from '@/lib/accounting/errors'
 
 /** Default timeout of a bank API call. */
-export const BANK_API_TIMEOUT_MS = 20_000
+const BANK_API_TIMEOUT_MS = 20_000
 
 /**
  * Outbound call to a bank API: fixed hosts only (the caller builds the URL

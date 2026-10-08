@@ -206,10 +206,10 @@ async function limitFullControl(userId: string) {
 }
 
 const APPROVAL_NEXT_STEP =
-  "Aperçu seulement : rien n'a été modifié. Montrez cet aperçu à l'utilisateur et donnez-lui le lien approvalUrl : il doit approuver l'action lui-même dans Kledg (vous ne pouvez pas l'approuver). Une fois approuvée, rappelez l'outil avec les mêmes arguments et actionId."
+  "Aperçu seulement\u00a0: rien n'a été modifié. Montrez cet aperçu à l'utilisateur et donnez-lui le lien approvalUrl\u00a0: il doit approuver l'action lui-même dans Kledg (vous ne pouvez pas l'approuver). Une fois approuvée, rappelez l'outil avec les mêmes arguments et actionId."
 
 const AUTOMATIC_NEXT_STEP =
-  "Aperçu seulement : rien n'a été modifié. Pour exécuter l'action, rappelez l'outil avec les mêmes arguments, sans dryRun."
+  "Aperçu seulement\u00a0: rien n'a été modifié. Pour exécuter l'action, rappelez l'outil avec les mêmes arguments, sans dryRun."
 
 export function registerFullControlTool<S extends Shape, P, R>(
   server: McpServer,

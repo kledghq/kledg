@@ -19,10 +19,10 @@ import {
 } from './github'
 
 /** Fine-grained tokens only: classic tokens cannot be limited to one repository. */
-export const TOKEN_PATTERN = /^github_pat_[A-Za-z0-9_]{20,250}$/
+const TOKEN_PATTERN = /^github_pat_[A-Za-z0-9_]{20,250}$/
 
 /** Days before expiry from which the page warns. */
-export const EXPIRY_WARNING_DAYS = 14
+const EXPIRY_WARNING_DAYS = 14
 
 export type RepoKind = 'fork' | 'copy'
 
@@ -133,7 +133,7 @@ export async function validateToken(token: string, target: RepoRef): Promise<Tok
   const missing = checks.filter((c) => c.required && !c.ok)
   if (missing.length) {
     throw new ValidationError(
-      `Permissions manquantes sur le jeton : ${missing.map((c) => c.label).join(', ')}. Modifiez le jeton sur GitHub (Repository permissions) puis réessayez.`,
+      `Permissions manquantes sur le jeton : ${missing.map((c) => c.label).join(', ')}. Modifiez le jeton sur GitHub (Repository permissions) puis réessayez.`,
     )
   }
 
@@ -169,7 +169,7 @@ async function reachesOtherRepos(token: string, target: RepoRef): Promise<boolea
 
 function requireKey(): string {
   const key = getEncryptionKey()
-  if (!key) throw new ValidationError("Clé de chiffrement absente : définissez BETTER_AUTH_SECRET ou ENCRYPTION_KEY.")
+  if (!key) throw new ValidationError("Clé de chiffrement absente : définissez BETTER_AUTH_SECRET ou ENCRYPTION_KEY.")
   return key
 }
 

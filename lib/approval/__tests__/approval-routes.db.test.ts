@@ -230,7 +230,7 @@ describe.skipIf(!available)('approval of the accounts routes', () => {
     expect(md.headers.get('content-disposition')).toMatch(/Proces_verbal_Atelier_Lumen_2025\.md/)
     const text = await md.text()
     expect(text).toContain("# Procès-verbal de l'assemblée générale ordinaire annuelle")
-    expect(text).toContain('à la réserve légale : 1 000,00 €')
+    expect(text).toContain('à la réserve légale : 1 000,00 €')
     expect(text).toContain('Holding Beta | 400 | Représenté par Paul Durand')
     expect(text).toContain('111 111 111 RCS Lyon')
 
@@ -253,7 +253,7 @@ describe.skipIf(!available)('approval of the accounts routes', () => {
     const response = await doc('owner', 'decision')
     expect(response.status).toBe(400)
     const body = (await response.json()) as { error: string; missing: string[] }
-    expect(body.error).toMatch(/^Complétez d'abord : /)
+    expect(body.error).toMatch(/^Complétez d'abord\u00a0: /)
     expect(body.missing).toContain('Ville du greffe (RCS) où la société est immatriculée')
   })
 

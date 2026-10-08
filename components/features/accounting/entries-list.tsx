@@ -595,7 +595,7 @@ export function EntriesList({
       <ConfirmDeleteDialog
         open={deletingEntry !== null}
         onOpenChange={(open) => !open && setDeletingEntry(null)}
-        title={deletingEntry ? `Supprimer le brouillon ${deletingEntry.journal.code} du ${formatDisplayDate(deletingEntry.date)} ?` : 'Supprimer le brouillon ?'}
+        title={deletingEntry ? `Supprimer le brouillon ${deletingEntry.journal.code} du ${formatDisplayDate(deletingEntry.date)}\u00a0?` : 'Supprimer le brouillon\u00a0?'}
         description="Le brouillon et ses lignes sont supprimés, sans retour en arrière."
         loading={isDeleting}
         onConfirm={() => deletingEntry && handleDelete(deletingEntry)}
@@ -604,7 +604,7 @@ export function EntriesList({
       <ConfirmDeleteDialog
         open={showBulkDeleteDialog}
         onOpenChange={setShowBulkDeleteDialog}
-        title={`Supprimer ${plural(selectedDrafts.length, 'brouillon')} ?`}
+        title={`Supprimer ${plural(selectedDrafts.length, 'brouillon')}\u00a0?`}
         description={`Les brouillons et leurs lignes sont supprimés, sans retour en arrière.${
           selectedValidated.length > 0 ? ' Les écritures validées sélectionnées restent\u00a0: elles se corrigent par contre-passation.' : ''
         }`}

@@ -35,7 +35,7 @@ export function defaultBalanceSheetRules(variant: Variant): BalanceSheetRule[] {
 }
 
 /** Rules as createDefaultBalanceSheetConfig stores the given entries. */
-export function balanceSheetRulesFrom(entries: DefaultBalanceSheetConfigEntry[], variant: Variant): BalanceSheetRule[] {
+function balanceSheetRulesFrom(entries: DefaultBalanceSheetConfigEntry[], variant: Variant): BalanceSheetRule[] {
   const rules: BalanceSheetRule[] = []
   let n = 0
   const visit = (entry: DefaultBalanceSheetConfigEntry, parentId: string | null, parentSection: string | null) => {
@@ -70,7 +70,7 @@ export function defaultIncomeStatementRules(variant: Variant, worksAsGoods = fal
 }
 
 /** Rules as createDefaultIncomeStatementConfig stores the given entries. */
-export function incomeStatementRulesFrom(entries: DefaultIncomeStatementConfigEntry[], variant: Variant): IncomeStatementRule[] {
+function incomeStatementRulesFrom(entries: DefaultIncomeStatementConfigEntry[], variant: Variant): IncomeStatementRule[] {
   const rules: IncomeStatementRule[] = []
   let n = 0
   const visit = (entry: DefaultIncomeStatementConfigEntry, parentId: string | null, parentSection: string | null) => {

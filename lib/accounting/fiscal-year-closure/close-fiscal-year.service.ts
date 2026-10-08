@@ -92,7 +92,7 @@ export async function closeFiscalYear(
             fiscalYearId,
             journalId: journal.id,
             date: fiscalYear.endDate,
-            description: `Clôture de l'exercice ${fiscalYear.year} : détermination du résultat`,
+            description: `Clôture de l'exercice ${fiscalYear.year} : détermination du résultat`,
             reference: closingReference(fiscalYear.year),
             lines: closing.lines,
             lineDescription: (line) =>
@@ -205,7 +205,7 @@ export async function closeFiscalYear(
     logger.error('Error closing fiscal year:', error)
     return {
       success: false,
-      errors: ["Erreur interne lors de la clôture : rien n'a été modifié. Réessayez ou contactez votre administrateur."],
+      errors: ["Erreur interne lors de la clôture : rien n'a été modifié. Réessayez ou contactez votre administrateur."],
     }
   }
 }

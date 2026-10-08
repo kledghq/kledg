@@ -10,7 +10,8 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
-import { addIsoDays, calendarDayOf, todayUtc } from '@/lib/utils/date'
+import { addIsoDays, calendarDayOf } from '@/lib/utils/date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { parseCents } from '@/lib/utils/money'
 import { parsePayrollTaxData } from '@/lib/payroll-tax/schemas'
 import { computeDeadlines, missingVatRegime, type DeadlineApproval, type DeadlineCompany, type DeadlineFiscalYear } from './engine'
@@ -171,7 +172,7 @@ export interface DeadlinesWidgetData {
 
 export async function loadDeadlinesWidget(companyId: string, now?: Date): Promise<DeadlinesWidgetData> {
   const context = await loadDeadlineContext(companyId)
-  const today = day(todayUtc(now))
+  const today = todayParis(now)
   const computed = computeDeadlines({
     ...context,
     from: addIsoDays(today, -WIDGET_OVERDUE_DAYS),
@@ -208,7 +209,7 @@ export interface DeadlinesView {
 
 export async function loadDeadlinesView(companyId: string, query: DeadlinesQuery, now?: Date): Promise<DeadlinesView> {
   const context = await loadDeadlineContext(companyId)
-  const today = day(todayUtc(now))
+  const today = todayParis(now)
   const years = context.fiscalYears
   const fiscalYear =
     (query.fiscalYearId ? years.find((fy) => fy.id === query.fiscalYearId) : undefined) ??

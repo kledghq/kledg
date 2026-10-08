@@ -399,7 +399,7 @@ function ExpenseRow({ expense, note, onNote, busy, canConfirm, onConfirm, onEdit
               question ? 'border-warning text-warning border border-dashed' : classified ? 'bg-muted' : 'text-muted-foreground border border-dashed',
             )}
           >
-            {question ? `${label} ?` : label}
+            {question ? `${label} ?` : label}
           </span>
           <div className={cn('mt-1.5 text-xs', question ? 'text-warning' : 'text-muted-foreground')}>
             {blocked ? expense.blockedReason : category?.notePrompt && !question ? category.notePrompt : s.reason}

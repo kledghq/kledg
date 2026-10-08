@@ -14,7 +14,7 @@ import { DOCUMENT_IDS, type DocumentId } from '@/lib/approval/pack'
 import { DOCUMENT_FORMATS } from '@/lib/approval/schemas'
 import { userGroupAccess } from '@/lib/management-fees/access'
 
-const DocumentQuery = z.object({ format: z.enum(DOCUMENT_FORMATS, { error: 'Format attendu : pdf ou md' }).optional().default('pdf') })
+const DocumentQuery = z.object({ format: z.enum(DOCUMENT_FORMATS, { error: 'Format attendu : pdf ou md' }).optional().default('pdf') })
 
 export const GET = companyRoute(
   { company: fromParam('id'), permission: { reports: ['export'] }, query: DocumentQuery },

@@ -247,7 +247,7 @@ export function ShareholdersManagement({
         ? `${shareholder.person.firstName} ${shareholder.person.name}`
         : shareholder.name || shareholder.companyShareholder?.name || 'cet actionnaire'
     const ok = await confirm({
-      title: `Supprimer ${shareholderName} des actionnaires ?`,
+      title: `Supprimer ${shareholderName} des actionnaires ?`,
       description: 'Les parts détenues seront retirées de la répartition du capital.',
       confirmLabel: 'Supprimer',
     })

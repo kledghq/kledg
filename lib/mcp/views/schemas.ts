@@ -32,11 +32,11 @@ export const CHART_COLORS = [
   'flow-current-account',
   'flow-trade',
 ] as const
-export const chartColor = z.enum(CHART_COLORS)
+const chartColor = z.enum(CHART_COLORS)
 export type ChartColor = z.infer<typeof chartColor>
 
 /** A link to a page of Kledg, opened by the host (ui/open-link), never fetched by the view. */
-export const viewLink = z.object({
+const viewLink = z.object({
   label,
   url: z.string().max(2000).regex(/^https?:\/\/[^\s]+$/),
 })
@@ -52,13 +52,13 @@ const base = {
 }
 
 /** How a cell is written: euros, a day (yyyy-mm-dd), a month (yyyy-mm), a percentage or plain text. */
-export const cellFormat = z.enum(['text', 'euros', 'date', 'month', 'percent', 'number'])
+const cellFormat = z.enum(['text', 'euros', 'date', 'month', 'percent', 'number'])
 
 // ---------------------------------------------------------------- statement
 
 const values = z.array(amount.nullable()).max(6)
 
-export const statementRow = z.object({
+const statementRow = z.object({
   label,
   /** Account number or form code, shown before the label. */
   code: z.string().max(40).nullable().optional(),
@@ -128,7 +128,7 @@ const sankeyChart = z.object({
   legend: z.array(z.object({ label, color: chartColor })).max(12),
 })
 
-export const chartView = z.object({
+const chartView = z.object({
   view: z.literal('chart'),
   ...base,
   chart: z.discriminatedUnion('kind', [lineChart, sankeyChart]),
@@ -143,7 +143,7 @@ export const chartView = z.object({
 const toolName = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/)
 const toolArguments = z.record(z.string(), z.unknown())
 
-export const viewAction = z.discriminatedUnion('kind', [
+const viewAction = z.discriminatedUnion('kind', [
   /**
    * Calls a tool of this server through the host (tools/call): the server
    * checks the connection, the company and the role, and a high-impact tool
@@ -171,7 +171,7 @@ export const viewAction = z.discriminatedUnion('kind', [
 
 const entityId = z.string().min(1).max(100)
 
-export const reconciliationMatch = z.object({
+const reconciliationMatch = z.object({
   kind: z.enum(['entry', 'rule']),
   /** The existing entry and its matching bank line (entry), null for a rule. */
   entryId: entityId.nullable(),
@@ -184,7 +184,7 @@ export const reconciliationMatch = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
-export const actionsView = z.object({
+const actionsView = z.object({
   view: z.literal('actions'),
   ...base,
   /** Execution mode of the connection's full control, null without full control. */
@@ -229,7 +229,7 @@ export const actionsView = z.object({
 
 // ----------------------------------------------------------------- document
 
-export const documentView = z.object({
+const documentView = z.object({
   view: z.literal('document'),
   ...base,
   kind: z.enum(['invoice', 'credit_note', 'expense_report']),
@@ -250,7 +250,7 @@ export const documentView = z.object({
 
 // --------------------------------------------------------------- organigram
 
-export const organigramView = z.object({
+const organigramView = z.object({
   view: z.literal('organigram'),
   ...base,
   nodes: z

@@ -15,7 +15,7 @@
 
 import type { ApprovalDetails } from './schemas'
 
-export const ERASED_PERSON = 'Personne effacée'
+const ERASED_PERSON = 'Personne effacée'
 
 const normalize = (value: string) => value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
 
@@ -53,7 +53,3 @@ export function pseudonymiseApprovalDetails(details: ApprovalDetails, person: Se
   return { details: next, changed }
 }
 
-/** Whether the details name the person anywhere. */
-export function approvalNamesPerson(details: ApprovalDetails, person: Set<string>): boolean {
-  return pseudonymiseApprovalDetails(details, person).changed
-}

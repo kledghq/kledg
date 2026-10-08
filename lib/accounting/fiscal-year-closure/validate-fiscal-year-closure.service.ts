@@ -78,7 +78,7 @@ export async function validateFiscalYearClosure(
   })
   if (closing > 0) {
     errors.push(
-      `L'exercice contient déjà ${plural(closing, 'écriture')} du journal de clôture (${CLOSING_JOURNAL.code}) : ${pluralWord(closing, 'supprimez-la', 'supprimez-les')} avant de clôturer.`
+      `L'exercice contient déjà ${plural(closing, 'écriture')} du journal de clôture (${CLOSING_JOURNAL.code})\u00a0: ${pluralWord(closing, 'supprimez-la', 'supprimez-les')} avant de clôturer.`
     )
   }
 
@@ -94,7 +94,7 @@ export async function validateFiscalYearClosure(
   `
   if (unbalanced.length > 0) {
     errors.push(
-      `${pluralWord(unbalanced.length, 'Écriture déséquilibrée', 'Écritures déséquilibrées')} : ${unbalanced
+      `${pluralWord(unbalanced.length, 'Écriture déséquilibrée', 'Écritures déséquilibrées')}\u00a0: ${unbalanced
         .map((u) => `n° ${u.entryNumber} (écart ${formatAmount((parseCents(u.difference) ?? 0))} €)`)
         .join(', ')}.`
     )
@@ -112,7 +112,7 @@ export async function validateFiscalYearClosure(
     })
     if (openings > 0) {
       errors.push(
-        `L'exercice ${next.year} contient déjà ${plural(openings, 'écriture')} d'à-nouveaux (journal ${OPENING_JOURNAL.code}) : ${pluralWord(openings, 'supprimez-la', 'supprimez-les')} pour que la clôture reporte les soldes.`
+        `L'exercice ${next.year} contient déjà ${plural(openings, 'écriture')} d'à-nouveaux (journal ${OPENING_JOURNAL.code})\u00a0: ${pluralWord(openings, 'supprimez-la', 'supprimez-les')} pour que la clôture reporte les soldes.`
       )
     }
   }
@@ -130,7 +130,7 @@ export async function validateFiscalYearClosure(
   `
   for (const s of special) {
     warnings.push(
-      `Le compte ${s.code} (classe 8) a un solde de ${formatAmount((parseCents(s.balance) ?? 0))} € : il n'est pas reporté sur l'exercice suivant.`
+      `Le compte ${s.code} (classe 8) a un solde de ${formatAmount((parseCents(s.balance) ?? 0))} €\u00a0: il n'est pas reporté sur l'exercice suivant.`
     )
   }
 

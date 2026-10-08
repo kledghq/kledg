@@ -324,10 +324,6 @@ export function getWidget(id: string): WidgetDefinition | undefined {
   return BY_ID.get(id)
 }
 
-export function isWidgetId(id: string): id is WidgetId {
-  return BY_ID.has(id)
-}
-
 /** What a user needs to see the widget: the permission of its source. */
 export function widgetPermission(widget: WidgetDefinition): Permission {
   return SOURCE_PERMISSIONS[widget.source]

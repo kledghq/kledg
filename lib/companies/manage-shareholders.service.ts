@@ -31,7 +31,7 @@ import {
   parseSharePercentage,
 } from './shareholder-values'
 
-export const SHAREHOLDER_NOT_FOUND_MESSAGE = 'Actionnaire introuvable'
+const SHAREHOLDER_NOT_FOUND_MESSAGE = 'Actionnaire introuvable'
 const UNKNOWN_PERSON_MESSAGE = "La personne spécifiée n'existe pas"
 const UNKNOWN_COMPANY_MESSAGE = "La société actionnaire spécifiée n'existe pas"
 export const SHAREHOLDER_COMPANY_FORBIDDEN_MESSAGE =

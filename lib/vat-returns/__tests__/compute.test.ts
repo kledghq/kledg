@@ -158,7 +158,9 @@ describe('CA3 of a month with several rates (notice 3310-CA3-SD, lines A1, 08, 9
   it('takes the chart’s own code for an account named by its root (445510 for 44551)', () => {
     expect(resolveRootCode('44551', ['445510', '44551000'])).toBe('445510')
     expect(resolveRootCode('44567', ['44567'])).toBe('44567')
-    expect(resolveRootCode('658', ['6588', '65800'])).toBe('6588')
+    // The root padded with zeros is the general account of the root, before a detailed one (lib/accounting/root-account.ts)
+    expect(resolveRootCode('658', ['6588', '65800'])).toBe('65800')
+    expect(resolveRootCode('658', ['6588', '6581'])).toBe('6581')
     expect(resolveRootCode('758', [])).toBe('758')
   })
 })

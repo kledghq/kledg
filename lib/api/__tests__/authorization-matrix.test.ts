@@ -1590,25 +1590,26 @@ describe.skipIf(!available)('authorization matrix', () => {
   describe('reconciled entry dates', () => {
     beforeAll(reseed)
     it('only re-dates draft entries of the company, in an open fiscal year', async () => {
-      const { updateEntryDatesFromReconciledTransactions } = await import(
-        '@/lib/services/banking/update-entry-dates-from-transactions.service'
-      )
+      const { followMovedTransactions } = await import('@/lib/banking/store-synced-transactions.service')
       // A: draft entry reconciled; B: validated entry reconciled
       await prisma.bankTransaction.update({ where: { id: ids.aTransaction }, data: { reconciled: true, reconciledWith: ids.aEntry } })
       await prisma.bankTransaction.update({ where: { id: ids.bTransaction }, data: { reconciled: true, reconciledWith: ids.bValidated } })
+      const move = (id: string, from: string, to: string) => [{ id, from: new Date(from), to: new Date(to) }]
 
-      await updateEntryDatesFromReconciledTransactions({ companyId: ids.bCompany })
+      // Another company's id passed with B's scope moves nothing, B's validated entry neither
+      await prisma.$transaction((tx) => followMovedTransactions(tx, ids.bCompany, move(ids.aTransaction, '2026-03-01T00:00:00Z', '2026-03-05T00:00:00Z')))
+      await prisma.$transaction((tx) => followMovedTransactions(tx, ids.bCompany, move(ids.bTransaction, '2026-03-02T00:00:00Z', '2026-03-05T00:00:00Z')))
       expect((await prisma.accountingEntry.findUnique({ where: { id: ids.aEntry } }))?.date.toISOString()).toBe('2026-03-01T00:00:00.000Z')
       expect((await prisma.accountingEntry.findUnique({ where: { id: ids.bValidated } }))?.date.toISOString()).toBe('2026-03-02T00:00:00.000Z')
 
-      const { entriesUpdated } = await updateEntryDatesFromReconciledTransactions({ companyId: ids.aCompany })
-      expect(entriesUpdated).toBe(1)
+      const moved = await prisma.$transaction((tx) => followMovedTransactions(tx, ids.aCompany, move(ids.aTransaction, '2026-03-01T00:00:00Z', '2026-03-05T00:00:00Z')))
+      expect(moved).toBe(1)
       expect((await prisma.accountingEntry.findUnique({ where: { id: ids.aEntry } }))?.date.toISOString()).toBe('2026-03-05T00:00:00.000Z')
 
       // Set the date first: once the year is closed the database refuses any change.
       await prisma.accountingEntry.update({ where: { id: ids.aEntry }, data: { date: new Date('2026-03-01T00:00:00Z') } })
       await prisma.fiscalYear.update({ where: { id: ids.aFy }, data: { isClosed: true } })
-      expect((await updateEntryDatesFromReconciledTransactions({ companyId: ids.aCompany })).entriesUpdated).toBe(0)
+      expect(await prisma.$transaction((tx) => followMovedTransactions(tx, ids.aCompany, move(ids.aTransaction, '2026-03-01T00:00:00Z', '2026-03-05T00:00:00Z')))).toBe(0)
     })
   })
 

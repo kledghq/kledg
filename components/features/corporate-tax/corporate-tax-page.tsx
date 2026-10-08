@@ -637,7 +637,7 @@ function FilingCard({ companyId, view, canWrite, onSaved }: { companyId: string;
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`Retirer le dépôt de l’exercice ${fy.year} ?`}
+        title={`Retirer le dépôt de l’exercice ${fy.year} ?`}
         description="Kledg oublie la date et les montants déclarés. La déclaration reste déposée sur impots.gouv.fr."
         confirmLabel="Retirer"
         loading={saving}

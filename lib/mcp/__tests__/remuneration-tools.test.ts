@@ -91,7 +91,7 @@ const VIEW = {
   bases: [{ basis: 'current', label: 'Exercice 2026 à ce jour', fiscalYear: FY, resultBeforeTaxCents: 10_000_000, directorPayBookedCents: 0, resultBeforePayCents: 10_000_000, daysElapsed: 278, daysInYear: 365 }],
   basis: 'current',
   shareholders: [],
-  statusReason: 'SASU : le président est assimilé salarié.',
+  statusReason: 'SASU : le président est assimilé salarié.',
   reducedRateEligible: true,
   defaults: INPUTS,
   inputs: INPUTS,

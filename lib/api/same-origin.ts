@@ -12,13 +12,13 @@ import { getTrustedOrigins } from '@/lib/config'
 export function assertSameOrigin(request: NextRequest): void {
   const site = request.headers.get('sec-fetch-site')
   if (site && site !== 'same-origin' && site !== 'none') {
-    throw new ForbiddenError('Requête refusée : elle ne vient pas de cette instance.')
+    throw new ForbiddenError('Requête refusée : elle ne vient pas de cette instance.')
   }
   const origin = request.headers.get('origin')
   if (origin) {
     const allowed = new Set([request.nextUrl.origin, ...getTrustedOrigins()])
     if (!allowed.has(origin)) {
-      throw new ForbiddenError('Requête refusée : elle ne vient pas de cette instance.')
+      throw new ForbiddenError('Requête refusée : elle ne vient pas de cette instance.')
     }
   }
 }

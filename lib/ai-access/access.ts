@@ -7,7 +7,7 @@
 import { z } from 'zod'
 
 /** Upper bound of an explicit list (a user rarely has more than a few companies). */
-export const MAX_GRANTED_COMPANIES = 500
+const MAX_GRANTED_COMPANIES = 500
 
 export const CompanyAccessSchema = z
   .object({
@@ -61,7 +61,7 @@ export const WRITE_SCOPE = 'kledg:write'
 export const ADMIN_SCOPE = 'kledg:admin'
 
 /** Every Kledg scope of the MCP resource, from the narrowest. */
-export const KLEDG_SCOPES = [READ_SCOPE, WRITE_SCOPE, ADMIN_SCOPE] as const
+const KLEDG_SCOPES = [READ_SCOPE, WRITE_SCOPE, ADMIN_SCOPE] as const
 
 /**
  * What an assistant or an API key may do: read only, read and propose draft
@@ -83,7 +83,7 @@ export const ACCESS_LEVEL_DESCRIPTIONS: Record<AccessLevel, string> = {
   read: 'Consulter les sociétés, comptes, écritures, états et transactions.',
   write: "Consulter, et préparer des brouillons que vous vérifierez vous-même dans Kledg (écritures, notes de frais, budget, provisions, données de l'approbation des comptes)\u00a0: rien n'est validé ni comptabilisé.",
   admin:
-    "L'assistant pourra agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice..., dans la limite de vos droits sur les sociétés choisies. Réservez ce choix à un assistant en qui vous avez toute confiance.",
+    "L'assistant pourra agir comme vous\u00a0: valider des écritures, rapprocher, importer, clôturer un exercice..., dans la limite de vos droits sur les sociétés choisies. Réservez ce choix à un assistant en qui vous avez toute confiance.",
 }
 
 /** Kledg scopes granted by each level (each level implies the narrower ones). */
@@ -144,7 +144,7 @@ export function defaultLevel(requested: readonly string[]): AccessLevel {
  * created before levels existed their effective level (read and draft
  * entries) explicitly.
  */
-export const API_KEY_PERMISSION_RESOURCE = 'kledg'
+const API_KEY_PERMISSION_RESOURCE = 'kledg'
 
 export function apiKeyPermissionsFor(level: AccessLevel): Record<string, string[]> {
   return { [API_KEY_PERMISSION_RESOURCE]: LEVEL_SCOPES[level].map((scope) => scope.slice('kledg:'.length)) }

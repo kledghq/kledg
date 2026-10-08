@@ -498,7 +498,7 @@ export function StatementImportDialog({
           <DialogTitle>Importer un relevé bancaire</DialogTitle>
           <DialogDescription>
             Pour toute banque sans synchronisation automatique&nbsp;: exportez vos opérations depuis votre espace bancaire en CSV, Excel,
-            OFX/QFX ou camt.053, puis déposez le fichier ici. Le format, l’encodage et les colonnes sont détectés automatiquement ;
+            OFX/QFX ou camt.053, puis déposez le fichier ici. Le format, l’encodage et les colonnes sont détectés automatiquement&nbsp;;
             vous vérifiez l’aperçu avant d’importer.
           </DialogDescription>
         </DialogHeader>
@@ -580,7 +580,7 @@ export function StatementImportDialog({
                 <p>
                   Formats acceptés&nbsp;: CSV (séparateur point-virgule, virgule ou tabulation, UTF-8 ou Windows-1252), Excel .xlsx, OFX/QFX et
                   ISO 20022 camt.053. Les modèles d’export de BNP Paribas, Société Générale, Crédit Agricole, Banque Populaire, Caisse
-                  d’Epargne, Crédit Mutuel, CIC, La Banque Postale, BoursoBank, Shine, Qonto et Revolut Business sont reconnus ; pour les
+                  d’Epargne, Crédit Mutuel, CIC, La Banque Postale, BoursoBank, Shine, Qonto et Revolut Business sont reconnus&nbsp;; pour les
                   autres banques, les colonnes Date, Libellé, Montant ou Débit/Crédit sont repérées par leur nom.
                 </p>
                 <p>
@@ -913,7 +913,7 @@ export function StatementImportDialog({
                   <p className="mb-1 text-xs text-muted-foreground">
                     {preview.summary.total > preview.rows.length
                       ? `Aperçu des ${preview.rows.length} premières opérations sur ${preview.summary.total}\u00a0:`
-                      : 'Aperçu :'}
+                      : 'Aperçu\u00a0:'}
                   </p>
                   <Table>
                     <TableHeader>

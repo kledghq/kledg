@@ -18,7 +18,8 @@ import { z } from 'zod'
 import type { FiscalYear } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { addIsoDays, calendarDayOf, todayUtc } from '@/lib/utils/date'
+import { addIsoDays, calendarDayOf } from '@/lib/utils/date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { parseCents } from '@/lib/utils/money'
 import { ledgerCashByMonth } from '@/lib/dashboard/ledger-cash'
 import { loadThirdPartyLines, loadTiersDirectory } from '@/lib/reports/third-parties/get-third-party-reports.service'
@@ -49,9 +50,9 @@ import { alertOf, type CashForecastAlert } from './alert'
 import type { CashForecastSettings } from './settings'
 
 /** Complete months of bank lines the recent pace averages. */
-export const TREND_MONTHS = 3
+const TREND_MONTHS = 3
 /** Flows returned at most (a company with thousands of open invoices keeps the largest). */
-export const MAX_FLOWS = 2_000
+const MAX_FLOWS = 2_000
 /** Fiscal years whose budget may cover the horizon (twelve months touch two or three). */
 const MAX_BUDGET_YEARS = 3
 
@@ -215,7 +216,7 @@ function cfeAmount(context: CompanyContext, deadline: TrackedDeadline): number |
 }
 
 /** How far back late tax deadlines are looked for (a year of the calendar). */
-export const LATE_TAX_LOOKBACK_DAYS = 366
+const LATE_TAX_LOOKBACK_DAYS = 366
 /** VAT returns computed at most for late deadlines without a recorded amount (each builds a return). */
 const MAX_LATE_VAT_RETURNS = 3
 
@@ -342,7 +343,7 @@ function bound(items: CashFlowItem[]): { items: CashFlowItem[]; truncated: numbe
 }
 
 export async function getCashForecast(companyId: string, query: CashForecastQuery = {}, now?: Date): Promise<CashForecastView> {
-  const today = day(todayUtc(now))
+  const today = todayParis(now)
   const settings = (await getCashForecastSettings(companyId)).settings
   const horizonMonths = query.horizon ?? settings.horizonMonths
   const granularity = query.granularity ?? 'month'

@@ -1,7 +1,7 @@
 /**
  * Payment terms and due dates of the aged balance (balance âgée). Pure
- * module without imports: the settings form, the reports and their tests
- * share it.
+ * module (only the pure day helpers of lib/utils/date.ts): the settings
+ * form, the reports and their tests share it.
  *
  * Code de commerce art. L441-10, I:
  * - al. 1: unless agreed otherwise, payment is due on the thirtieth day
@@ -18,6 +18,8 @@
  * (10 January + 45 days = 24 February, due 28 February), the shorter one,
  * so a due date is never later than the law allows under either reading.
  */
+
+import { addIsoDays, lastDayOfMonth } from '@/lib/utils/date'
 
 export interface PaymentTerms {
   /** Days after the invoice date. */
@@ -67,17 +69,14 @@ function parts(iso: string): [number, number, number] {
   return [Number(m[1]), Number(m[2]), Number(m[3])]
 }
 
-function iso(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
-
 /** Due date (yyyy-mm-dd) of an invoice dated `invoiceDay` under `terms`, capped by L441-10. */
 export function dueDateOf(invoiceDay: string, terms: PaymentTerms): string {
   const { days, endOfMonth } = capPaymentTerms(terms)
-  const [y, m, d] = parts(invoiceDay)
-  const due = new Date(Date.UTC(y, m - 1, d + days))
-  if (!endOfMonth) return iso(due)
-  return iso(new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth() + 1, 0)))
+  parts(invoiceDay) // RangeError for a day that is not yyyy-mm-dd
+  const due = addIsoDays(invoiceDay, days)
+  if (!endOfMonth) return due
+  const [y, m] = parts(due)
+  return `${due.slice(0, 7)}-${String(lastDayOfMonth(y, m)).padStart(2, '0')}`
 }
 
 /** Days from `from` to `to` (yyyy-mm-dd): positive when `to` is later. */

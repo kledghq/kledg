@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 /** "#1C7F55", "1c7f55" or " #1c7f55 " to "#1c7f55"; null when it is not a 6 digit hex colour. */
-export function normalizeHex(text: string): string | null {
+function normalizeHex(text: string): string | null {
   const value = text.trim()
   const withHash = value.startsWith('#') ? value : `#${value}`
   return HEX_COLOR.test(withHash) ? withHash.toLowerCase() : null

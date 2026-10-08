@@ -144,7 +144,7 @@ const SYNONYMS: Record<ColumnRole, string[]> = {
 }
 
 /** Maps header names to roles: exact synonyms first, then "starts with a synonym". */
-export function mapHeaders(headers: string[]): ColumnMapping {
+function mapHeaders(headers: string[]): ColumnMapping {
   const normalized = headers.map((h) => normalizeHeader(h ?? ''))
   const mapping: ColumnMapping = {}
   const used = new Set<number>()
@@ -176,7 +176,7 @@ function hasAmount(mapping: ColumnMapping): boolean {
   return mapping.amount !== undefined || mapping.debit !== undefined || mapping.credit !== undefined
 }
 
-export function isComplete(mapping: ColumnMapping): boolean {
+function isComplete(mapping: ColumnMapping): boolean {
   return mapping.date !== undefined && hasAmount(mapping)
 }
 
@@ -202,7 +202,7 @@ export function splitCsv(text: string, forced?: string): { delimiter: string; ro
   return { delimiter: best, rows: data.map((row) => row.map((cell) => cell ?? '')) }
 }
 
-export function cellText(cell: Cell): string {
+function cellText(cell: Cell): string {
   if (cell === null || cell === undefined) return ''
   if (cell instanceof Date) return parseCalendarDate(cell) ?? ''
   return String(cell).trim()
@@ -214,7 +214,7 @@ const HEADER_SCAN_ROWS = 40
  * First row whose cells name a date column and an amount column. Returns -1
  * when the file has no recognizable header.
  */
-export function findHeaderRow(rows: Cell[][]): number {
+function findHeaderRow(rows: Cell[][]): number {
   const limit = Math.min(rows.length, HEADER_SCAN_ROWS)
   for (let i = 0; i < limit; i++) {
     const headers = rows[i].map(cellText)
@@ -292,7 +292,7 @@ const NOT_BOOKED = /pending|processing|en attente|en cours|a venir|prevu|decline
 const FOOTER = /^(solde|total|sous total|nouveau solde|ancien solde|balance|montant total)\b/
 
 /** Label and details in one line, without repeating a part the other already contains. */
-export function joinLabels(label: string, details: string): string {
+function joinLabels(label: string, details: string): string {
   const a = label.replace(/\s+/g, ' ').trim()
   const b = details.replace(/\s+/g, ' ').trim()
   if (!a || b.toUpperCase().includes(a.toUpperCase())) return b
@@ -358,10 +358,10 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
   }
 
   if (mapping.date === undefined) {
-    errors.push({ line: 0, message: 'Colonne de date introuvable : choisissez-la dans la correspondance des colonnes.' })
+    errors.push({ line: 0, message: 'Colonne de date introuvable : choisissez-la dans la correspondance des colonnes.' })
   }
   if (!hasAmount(mapping)) {
-    errors.push({ line: 0, message: 'Colonne de montant introuvable : choisissez Montant, ou Débit et Crédit.' })
+    errors.push({ line: 0, message: 'Colonne de montant introuvable : choisissez Montant, ou Débit et Crédit.' })
   }
   if (errors.length > 0) return { transactions: [], errors, warnings, detection }
 
@@ -386,14 +386,14 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
 
     if (cellText(dateCell) === '') {
       if (rawAmounts.every((a) => a === '') || FOOTER.test(normalizeHeader(row.map(cellText).join(' ')))) return
-      errors.push({ line, message: `Ligne ${line} : date manquante.` })
+      errors.push({ line, message: `Ligne ${line} : date manquante.` })
       return
     }
 
     const bookingDate = dateCell instanceof Date ? parseCalendarDate(dateCell) : parseCalendarDate(cellText(dateCell), dateFormat)
     if (!bookingDate) {
       if (FOOTER.test(normalizeHeader(cellText(dateCell)))) return
-      errors.push({ line, message: `Ligne ${line} : date « ${cellText(dateCell)} » illisible (format attendu ${dateFormat}).` })
+      errors.push({ line, message: `Ligne ${line} : date « ${cellText(dateCell)} » illisible (format attendu ${dateFormat}).` })
       return
     }
     const valueCell = get(row, 'valueDate')
@@ -406,7 +406,7 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
     if (mapping.amount !== undefined && cellText(get(row, 'amount')) !== '') {
       amountCents = amountOf(get(row, 'amount'))
       if (amountCents === null) {
-        errors.push({ line, message: `Ligne ${line} : montant « ${cellText(get(row, 'amount'))} » illisible.` })
+        errors.push({ line, message: `Ligne ${line} : montant « ${cellText(get(row, 'amount'))} » illisible.` })
         return
       }
     } else {
@@ -415,15 +415,15 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
       const debit = debitText === '' ? 0 : amountOf(get(row, 'debit'))
       const credit = creditText === '' ? 0 : amountOf(get(row, 'credit'))
       if (debit === null || credit === null) {
-        errors.push({ line, message: `Ligne ${line} : montant « ${debit === null ? debitText : creditText} » illisible.` })
+        errors.push({ line, message: `Ligne ${line} : montant « ${debit === null ? debitText : creditText} » illisible.` })
         return
       }
       if (debit !== 0 && credit !== 0) {
-        errors.push({ line, message: `Ligne ${line} : débit et crédit renseignés sur la même ligne.` })
+        errors.push({ line, message: `Ligne ${line} : débit et crédit renseignés sur la même ligne.` })
         return
       }
       if (debitText === '' && creditText === '') {
-        errors.push({ line, message: `Ligne ${line} : montant manquant.` })
+        errors.push({ line, message: `Ligne ${line} : montant manquant.` })
         return
       }
       amountCents = debit !== 0 ? -Math.abs(debit) : Math.abs(credit)

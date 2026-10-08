@@ -26,6 +26,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { calendarDay } from '@/lib/api/zod-fields'
+import { normalizeBankSide } from '@/lib/banking/side'
 import { detectSupplier, indexTiers, type DetectedSupplier } from '@/lib/receipts/detect-supplier'
 import { calendarDayOf, endOfDay, isoDateToUtc } from '@/lib/utils/date'
 import { centsToDecimal, parseCents, toCents } from '@/lib/utils/money'
@@ -148,7 +149,7 @@ export async function listMissingReceipts(companyId: string, query: ParsedQuery)
     thresholdCents: query.minAmount,
     transactions: rows.map((t) => {
       const cents = Math.abs(parseCents(t.amount) ?? 0)
-      const side = /^d/i.test(t.side) ? 'debit' : 'credit'
+      const side = normalizeBankSide(t.side)
       return {
         id: t.id,
         date: calendarDayOf(t.date) as string,

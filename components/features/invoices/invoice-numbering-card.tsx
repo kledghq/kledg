@@ -212,7 +212,7 @@ export function InvoiceNumberingCard({ companyId, today = new Date() }: { compan
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Chiffres de la séquence" htmlFor="numbering-padding" hint="Complétée par des zéros ; au-delà, le numéro s’allonge.">
+                <Field label="Chiffres de la séquence" htmlFor="numbering-padding" hint="Complétée par des zéros ; au-delà, le numéro s’allonge.">
                   <Input
                     id="numbering-padding"
                     type="number"

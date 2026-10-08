@@ -194,7 +194,7 @@ export default function CompanyMembersPage() {
 
   async function handleRemove(member: Member) {
     const ok = await confirm({
-      title: `Retirer ${member.name ?? member.email} ?`,
+      title: `Retirer ${member.name ?? member.email}\u00a0?`,
       description:
         "Cette personne n'aura plus accès à la société. Son compte utilisateur est conservé et vous pourrez l'ajouter à nouveau.",
       confirmLabel: 'Retirer',

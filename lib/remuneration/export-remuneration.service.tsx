@@ -26,7 +26,7 @@ export type RemunerationExportQuery = z.infer<typeof RemunerationExportQuerySche
 
 const percent = (bp: number) => `${(bp / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} %`
 
-export function remunerationCsv(view: RemunerationView, companyName: string): string {
+function remunerationCsv(view: RemunerationView, companyName: string): string {
   const sim = view.simulation
   const inputs = view.inputs
   const fy = view.fiscalYear

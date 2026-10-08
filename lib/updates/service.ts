@@ -32,7 +32,7 @@ import { UPDATE_WORKFLOW } from './workflow-template'
 export const CHANNELS = ['releases', 'main', 'off'] as const
 export type Channel = (typeof CHANNELS)[number]
 
-export function isChannel(value: unknown): value is Channel {
+function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value)
 }
 
@@ -119,7 +119,7 @@ export async function getWorkflow(conn: ActiveConnection): Promise<WorkflowInfo>
 }
 
 /** Adds (or upgrades) the update workflow on the default branch. Needs the Workflows permission. */
-export async function installWorkflow(conn: ActiveConnection, existingSha: string | null): Promise<void> {
+async function installWorkflow(conn: ActiveConnection, existingSha: string | null): Promise<void> {
   try {
     await githubRequest(contentsPath(conn.repository, WORKFLOW_PATH), {
       token: conn.token,
@@ -134,7 +134,7 @@ export async function installWorkflow(conn: ActiveConnection, existingSha: strin
   } catch (error) {
     if (error instanceof GitHubError && (error.githubCode === 'forbidden' || error.githubCode === 'not_found')) {
       throw new ValidationError(
-        "Impossible d'ajouter le workflow de mise à jour à votre dépôt : le jeton doit avoir la permission Workflows (lecture et écriture).",
+        "Impossible d'ajouter le workflow de mise à jour à votre dépôt : le jeton doit avoir la permission Workflows (lecture et écriture).",
       )
     }
     throw error
@@ -280,7 +280,7 @@ export async function findUpdatePull(conn: ActiveConnection): Promise<UpdatePull
 }
 
 /** The preview of a commit, from the GitHub deployments the host creates (Vercel, Railway, Render). */
-export async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePull['preview']> {
+async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePull['preview']> {
   if (!/^[0-9a-f]{40}$/i.test(sha)) return null
   try {
     const { data: deployments } = await githubRequest<Array<{ id: number }>>(
@@ -370,7 +370,7 @@ export async function mergeUpstream(conn: ActiveConnection): Promise<InstallResu
     allow: [409],
   })
   if (status === 409) {
-    throw new ConflictError('Votre fork contient des modifications en conflit avec Kledg : synchronisez-le sur GitHub (Sync fork).')
+    throw new ConflictError('Votre fork contient des modifications en conflit avec Kledg : synchronisez-le sur GitHub (Sync fork).')
   }
   const { data } = await githubRequest<{ commit?: { sha?: string } }>(repoPath(conn.repository, 'branches', conn.defaultBranch), {
     token: conn.token,

@@ -85,7 +85,7 @@ export function assertEntryWritableInFiscalYear(
   if (!fiscalYear) throw new NotFoundError('Exercice introuvable pour cette écriture')
   if (isFiscalYearClosed(fiscalYear)) {
     throw new ConflictError(
-      `L'exercice ${fiscalYear.year} est clôturé : aucune écriture ne peut y être ${ACTION_LABELS[action]}.`,
+      `L'exercice ${fiscalYear.year} est clôturé : aucune écriture ne peut y être ${ACTION_LABELS[action]}.`,
     )
   }
   const day = calendarDayOf(date)
@@ -103,7 +103,7 @@ export function assertEntryWritableInFiscalYear(
 }
 
 /** Refusal of an entry dated in a closed period: where to book it instead (PCG art. 1031-4). */
-export function closedPeriodMessage(lockedThrough: CalendarDay): string {
+function closedPeriodMessage(lockedThrough: CalendarDay): string {
   return `La période est clôturée jusqu'au ${formatIsoDateFr(lockedThrough)} (PCG art. 1031-4) : datez l'écriture du ${formatIsoDateFr(addIsoDays(lockedThrough, 1))} au plus tôt et indiquez sa date réelle en date de pièce.`
 }
 

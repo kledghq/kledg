@@ -51,7 +51,7 @@ export function companiesDoc(report: GroupCompaniesReport): ExportDoc {
 }
 
 /** An indicator value as a cell: amounts in cents, ratios in percent, delays in days. */
-export function indicatorCell(kind: 'amount' | 'total' | 'percent' | 'days', value: number | null): Row[number] {
+function indicatorCell(kind: 'amount' | 'total' | 'percent' | 'days', value: number | null): Row[number] {
   if (value === null) return null
   if (kind === 'percent') return `${(Math.round(value * 1000) / 10).toFixed(1).replace('.', ',')} %`
   if (kind === 'days') return `${value} j`
@@ -285,7 +285,7 @@ export function taxDoc(report: GroupTaxReport): ExportDoc {
       m.name,
       m.interestBp === null ? 'Société mère' : percentCell(m.interestBp),
       m.member ? 'Oui' : 'Non',
-      m.checks.map((c) => `${c.label} : ${CHECK_LABELS[c.status]}`).join(' ; '),
+      m.checks.map((c) => `${c.label}\u00a0: ${CHECK_LABELS[c.status]}`).join('\u00a0; '),
     ]),
     amountColumns: [],
   }

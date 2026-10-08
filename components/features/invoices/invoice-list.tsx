@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Amount, DateDisplay, EmptyState, LoadMore, PageHeader, StatusBadge } from '@/components/shared'
+import { Amount, DateDisplay, EmptyState, LoadMore, PageHeader, SegmentedControl, StatusBadge } from '@/components/shared'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
 import { responseError, useCursorList } from '@/hooks/use-cursor-list'
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_TONES, type InvoiceStatus } from '@/lib/invoices/status'
@@ -84,7 +83,7 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
       toast.success(
         `${plural(imported, 'facture importée', 'factures importées')}, ${plural(result.tiers.created, 'tiers créé', 'tiers créés')}` +
           (result.refused.length ? ` ; ${plural(result.refused.length, 'facture écartée', 'factures écartées')} (${result.refused[0].reference} : ${result.refused[0].reason})` : '') +
-          (result.removedDrafts ? ` ; ${plural(result.removedDrafts, 'brouillon supprimé dans Qonto retiré', 'brouillons supprimés dans Qonto retirés')}` : ''),
+          (result.removedDrafts ? ` ; ${plural(result.removedDrafts, 'brouillon supprimé dans Qonto retiré', 'brouillons supprimés dans Qonto retirés')}` : ''),
       )
       list.reload()
     } catch (e) {
@@ -143,13 +142,12 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
                 className="pl-8"
               />
             </div>
-            <ToggleGroup type="single" variant="outline" size="sm" value={status} onValueChange={(v) => v && setStatus(v as StatusFilter)} aria-label="Statut">
-              {(Object.keys(STATUS_FILTERS) as StatusFilter[]).map((value) => (
-                <ToggleGroupItem key={value} value={value}>
-                  {STATUS_FILTERS[value]}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            <SegmentedControl
+              label="Statut"
+              value={status}
+              onValueChange={setStatus}
+              options={(Object.keys(STATUS_FILTERS) as StatusFilter[]).map((value) => ({ value, label: STATUS_FILTERS[value] }))}
+            />
           </div>
 
           {list.error ? (

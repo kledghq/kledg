@@ -163,9 +163,9 @@ function rows<C extends string>(form: readonly FormEntryDef<C>[], columns: reado
   })
 }
 
-export const COLUMNS_2054: readonly AssetColumn[] = ['opening', 'revaluation', 'increase', 'transferOut', 'disposal', 'closing', 'origin']
-export const COLUMNS_DEPRECIATION: readonly DepreciationColumn[] = ['opening', 'allowance', 'decrease', 'closing']
-export const COLUMNS_2033C: readonly SimplifiedAssetColumn[] = ['opening', 'increase', 'decrease', 'closing']
+const COLUMNS_2054: readonly AssetColumn[] = ['opening', 'revaluation', 'increase', 'transferOut', 'disposal', 'closing', 'origin']
+const COLUMNS_DEPRECIATION: readonly DepreciationColumn[] = ['opening', 'allowance', 'decrease', 'closing']
+const COLUMNS_2033C: readonly SimplifiedAssetColumn[] = ['opening', 'increase', 'decrease', 'closing']
 
 /**
  * Rows of 2054-SD. The original value of revalued items (cadre B, column 4)

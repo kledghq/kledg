@@ -177,7 +177,7 @@ export function manualAdjustments(lines: readonly ManualLine[]): { adjustments: 
       amountCents: line.amountCents,
       form: { simplified: line.kind === 'reintegration' ? '330' : '350', normal: line.kind === 'reintegration' ? 'WQ' : 'XG' },
       source: null,
-      hint: 'Ligne ajoutée à la main. Portez-la sur la ligne du formulaire qui lui correspond ; à défaut, sur les lignes « divers ».',
+      hint: 'Ligne ajoutée à la main. Portez-la sur la ligne du formulaire qui lui correspond ; à défaut, sur les lignes « divers ».',
     })
   }
   return { adjustments, credits }

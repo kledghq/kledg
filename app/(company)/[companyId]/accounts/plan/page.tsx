@@ -57,6 +57,7 @@ import {
 import { AccountCombobox } from '@/components/features/accounting/account-combobox'
 import { PageHeader, StatusBadge } from '@/components/shared'
 import { docsUrl } from '@/lib/docs-links'
+import { ACCOUNT_CODE_MESSAGE, ACCOUNT_CODE_PATTERN } from '@/lib/accounting/account-code'
 
 interface Account {
   id: string
@@ -72,7 +73,7 @@ interface AccountNode extends Account {
 }
 
 const accountSchema = z.object({
-  code: z.string().min(2, 'Le code doit contenir au moins 2 chiffres').regex(/^\d{2,8}$/, 'Le code doit contenir entre 2 et 8 chiffres'),
+  code: z.string().regex(ACCOUNT_CODE_PATTERN, ACCOUNT_CODE_MESSAGE),
   label: z.string().min(1, 'Le libellé est requis'),
   parentId: z.string().min(1, 'Le compte parent est requis'),
 })
@@ -335,8 +336,8 @@ export default function ChartOfAccountsPage() {
         return
       }
 
-      // Vérifier que le code est valide (2-8 chiffres)
-      if (!/^\d{2,8}$/.test(watchedCode)) {
+      // The one account number format (lib/accounting/account-code.ts)
+      if (!ACCOUNT_CODE_PATTERN.test(watchedCode)) {
         setCodeExists(false)
         return
       }
@@ -639,7 +640,7 @@ export default function ChartOfAccountsPage() {
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Supprimer les comptes inconnus au PCG ?</AlertDialogTitle>
+                    <AlertDialogTitle>Supprimer les comptes inconnus au PCG&nbsp;?</AlertDialogTitle>
                     <AlertDialogDescription>
                       Les comptes qui ne font pas partie du PCG et qui n&apos;ont aucune écriture seront
                       supprimés définitivement. Les comptes qui ont des écritures sont conservés.

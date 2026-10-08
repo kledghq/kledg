@@ -13,7 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DateDisplay, EmptyState, PageHeader, formatDisplayDate } from '@/components/shared'
+import { DateDisplay, EmptyState, PageHeader, formatAmount, formatDisplayDate } from '@/components/shared'
+import { fromCents } from '@/lib/utils/money'
 import { useCompanyAccess } from '@/components/features/companies/company-access'
 import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { useMediaQuery } from '@/hooks/ui/use-media-query'
@@ -100,7 +101,7 @@ function recordedLine(deadline: TrackedDeadline): string | null {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-const formatAmountFr = (cents: number) => `${(cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0€`
+const formatAmountFr = (cents: number) => formatAmount(fromCents(cents))
 
 function DeadlineItem({
   deadline,

@@ -1,8 +1,9 @@
 /**
  * Detection of recurring payments (abonnements) in a company's bank lines
  * (docs/abonnements.md). Pure and deterministic: the same lines and the same
- * day always give the same subscriptions, in the same order. No imports, so
- * the page can share its types and labels.
+ * day always give the same subscriptions, in the same order. Only the pure
+ * day helpers of lib/utils/date.ts are imported, so the page can share its
+ * types and labels.
  *
  * A subscription is a series of debits to the same counterparty that falls
  * due at a regular cadence (weekly, monthly, quarterly, yearly) for an
@@ -41,7 +42,9 @@
  *    or label (`recurringChargeOfText`).
  */
 
-export const SUBSCRIPTION_CADENCES = ['weekly', 'monthly', 'quarterly', 'yearly'] as const
+import { lastDayOfMonth, toIsoDateUtc } from '@/lib/utils/date'
+
+const SUBSCRIPTION_CADENCES = ['weekly', 'monthly', 'quarterly', 'yearly'] as const
 export type SubscriptionCadence = (typeof SUBSCRIPTION_CADENCES)[number]
 
 export const CADENCE_LABELS: Record<SubscriptionCadence, string> = {
@@ -239,12 +242,10 @@ function dayNumber(day: string): number {
 }
 
 function dayOfNumber(n: number): string {
-  return new Date(n * 86_400_000).toISOString().slice(0, 10)
+  return toIsoDateUtc(new Date(n * 86_400_000))
 }
 
-function daysInMonth(year: number, monthIndex0: number): number {
-  return new Date(Date.UTC(year, monthIndex0 + 1, 0)).getUTCDate()
-}
+const daysInMonth = (year: number, monthIndex0: number): number => lastDayOfMonth(year, monthIndex0 + 1)
 
 function isValidDay(day: string): boolean {
   const match = ISO_DAY.exec(day)

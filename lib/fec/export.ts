@@ -72,7 +72,7 @@ export interface FecLedgerEntry {
 
 function cents(value: Amount): number {
   const parsed = parseCents(value.toString())
-  if (parsed === null) throw new ValidationError(`Montant invalide dans le grand livre : ${value.toString()}`)
+  if (parsed === null) throw new ValidationError(`Montant invalide dans le grand livre : ${value.toString()}`)
   return parsed
 }
 
@@ -253,7 +253,7 @@ export async function exportFec(companyId: string, fiscalYearId: string): Promis
   if (!fiscalYear) throw new NotFoundError('Exercice introuvable')
   const siren = normalizeSiren(company.siren)
   if (!siren) {
-    throw new ValidationError('Le SIREN de la société (9 chiffres) est requis pour nommer le FEC : renseignez-le dans les paramètres.')
+    throw new ValidationError('Le SIREN de la société (9 chiffres) est requis pour nommer le FEC : renseignez-le dans les paramètres.')
   }
   const closingDay = calendarDayOf(fiscalYear.endDate)
   if (!closingDay) throw new ValidationError("Date de clôture de l'exercice invalide")

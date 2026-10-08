@@ -127,7 +127,7 @@ export const emptyExpenseLine = (kind: 'EXPENSE' | 'MILEAGE', date: string): Exp
 })
 
 /** The lines as the amounts module reads them (invalid fields count as empty). */
-export function lineInputsOf(lines: readonly ExpenseFormLine[]): LineInput[] {
+function lineInputsOf(lines: readonly ExpenseFormLine[]): LineInput[] {
   return lines.map((line) => ({
     kind: line.kind,
     date: line.date,

@@ -235,16 +235,16 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
   } else if (regime) {
     reportSources = [SOURCES.L232_1, SOURCES.L230_1, SOURCES.L123_16_2]
     if (category === null) {
-      reportReason = 'Indiquez la catégorie de la société : les micro et petites entreprises commerciales sont dispensées du rapport de gestion.'
+      reportReason = 'Indiquez la catégorie de la société : les micro et petites entreprises commerciales sont dispensées du rapport de gestion.'
     } else if ((category === 'micro' || category === 'small') && !details.excludedEntity && !context.company.isHolding) {
       reportRequired = false
-      reportReason = `${SIZE_LABELS[category]} : la société est dispensée du rapport de gestion.`
+      reportReason = `${SIZE_LABELS[category]} : la société est dispensée du rapport de gestion.`
     } else {
       reportRequired = true
       reportReason =
         category === 'micro' || category === 'small'
           ? 'La dispense ne s’applique pas aux sociétés dont l’activité consiste à gérer des titres de participations ou des valeurs mobilières, ni aux entités de l’article L. 123-16-2.'
-          : `${SIZE_LABELS[category]} : le rapport de gestion est obligatoire.`
+          : `${SIZE_LABELS[category]} : le rapport de gestion est obligatoire.`
     }
   }
   const reportProduced = reportRequired === true || details.managementReport.produce
@@ -282,7 +282,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
     : regime.sixMonthDeadline
       ? `Six mois après la clôture, sauf prolongation accordée par ordonnance du président du tribunal de commerce saisi avant l’échéance.`
       : regime.form === 'SAS'
-        ? 'Le Code de commerce ne fixe pas de délai pour une SAS pluripersonnelle : celui des statuts s’applique, six mois le plus souvent.'
+        ? 'Le Code de commerce ne fixe pas de délai pour une SAS pluripersonnelle : celui des statuts s’applique, six mois le plus souvent.'
         : 'Au moins une fois par an, dans les conditions des statuts (C. civ. art. 1856).'
 
   // Documents and what each misses.
@@ -309,11 +309,11 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
   if (regime?.majority === 'statutes' && regime.form === 'SAS' && !details.statutoryRule) missingDecision.push('Règle de majorité des statuts')
   if (regime && mode !== 'sole') {
     for (const r of resolutions) {
-      if (r.outcome.adopted === null && r.outcome.quorumMet !== false) missingDecision.push(`Résultat du vote : ${r.title.toLowerCase()}`)
+      if (r.outcome.adopted === null && r.outcome.quorumMet !== false) missingDecision.push(`Résultat du vote : ${r.title.toLowerCase()}`)
     }
   }
-  if (plan.errors.length > 0 && resultCents !== 0) missingDecision.push(`Affectation du résultat : ${plan.errors.join(' ')}`)
-  if (resultCents === 0) missingDecision.push("Résultat de l'exercice : aucun résultat dans les écritures validées (comptes 6, 7, 120 et 129 soldés)")
+  if (plan.errors.length > 0 && resultCents !== 0) missingDecision.push(`Affectation du résultat : ${plan.errors.join(' ')}`)
+  if (resultCents === 0) missingDecision.push("Résultat de l'exercice : aucun résultat dans les écritures validées (comptes 6, 7, 120 et 129 soldés)")
   if (priorDividendsRequired && details.priorDividends == null) missingDecision.push('Dividendes des trois exercices précédents (CGI art. 243 bis)')
   if (regime?.regulatedAgreements && details.regulatedAgreements == null) missingDecision.push('Conventions réglementées conclues ou non au cours de l’exercice')
 
@@ -338,7 +338,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
     if (!details.managementReport.research) missingReport.push('Activités de recherche et de développement (écrivez « Aucune » s’il n’y en a pas)')
   }
   if (!details.signatureCity) missingReport.push('Ville de signature')
-  if (plan.errors.length > 0 && resultCents !== 0) missingReport.push(`Affectation du résultat : ${plan.errors.join(' ')}`)
+  if (plan.errors.length > 0 && resultCents !== 0) missingReport.push(`Affectation du résultat : ${plan.errors.join(' ')}`)
   if (priorDividendsRequired && details.priorDividends == null) missingReport.push('Dividendes des trois exercices précédents (CGI art. 243 bis)')
 
   const choices = regime ? confidentialityChoices(category, details, context) : []
@@ -365,7 +365,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
         id: 'management-report',
         title: regime.form === 'SCI' ? 'Rapport écrit de la gérance' : 'Rapport de gestion',
         required: reportRequired === true,
-        reason: reportRequired === true ? reportReason : 'Établi à votre demande : la société en est dispensée.',
+        reason: reportRequired === true ? reportReason : 'Établi à votre demande : la société en est dispensée.',
         sources: reportSources,
         missing: missingReport,
       })
@@ -375,7 +375,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
       title: decisionTitle(regime, mode as DecisionMode),
       required: true,
       reason: regime.sole
-        ? `L’associé unique approuve les comptes et décide de l’affectation du résultat ; la décision est consignée au registre. ${regime.register.text}`
+        ? `L’associé unique approuve les comptes et décide de l’affectation du résultat ; la décision est consignée au registre. ${regime.register.text}`
         : `Les associés approuvent les comptes et décident de l’affectation du résultat. ${regime.register.text}`,
       sources: uniqueSources([...regime.sources, ...regime.register.sources]),
       missing: missingDecision,
@@ -388,7 +388,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
         reason:
           regime.attendanceSheet === 'required'
             ? 'Une feuille de présence est tenue à chaque assemblée d’actionnaires.'
-            : 'Elle établit le quorum et la majorité ; utile même quand la loi ne l’impose pas.',
+            : 'Elle établit le quorum et la majorité ; utile même quand la loi ne l’impose pas.',
         sources: regime.attendanceSheet === 'required' ? [SOURCES.R225_95] : [],
         missing: missingAttendance,
       })
@@ -422,70 +422,70 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
     items.push({
       text:
         chosen === 'full'
-          ? 'Comptes annuels (bilan, compte de résultat et, si elle est établie, annexe), accompagnés de la déclaration de confidentialité : ils ne seront pas rendus publics.'
+          ? 'Comptes annuels (bilan, compte de résultat et, si elle est établie, annexe), accompagnés de la déclaration de confidentialité : ils ne seront pas rendus publics.'
           : category === 'micro'
-            ? 'Comptes annuels : bilan et compte de résultat (une micro-entreprise peut ne pas établir d’annexe).'
-            : 'Comptes annuels : bilan, compte de résultat et annexe.',
+            ? 'Comptes annuels : bilan et compte de résultat (une micro-entreprise peut ne pas établir d’annexe).'
+            : 'Comptes annuels : bilan, compte de résultat et annexe.',
       sources: [regime.filing.sources[0], ...(category === 'micro' ? [SOURCES.L123_16_1] : [])],
     })
     items.push({ text: "Proposition d'affectation du résultat et décision d'affectation votée (procès-verbal ou décision de l'associé unique, ou un extrait).", sources: regime.filing.sources })
     if (details.hasAuditor) items.push({ text: 'Rapport du commissaire aux comptes sur les comptes annuels.', sources: regime.filing.sources })
     if (chosen !== 'none') items.push({ text: chosen === 'simplified' ? 'Déclaration de publication simplifiée.' : 'Déclaration de confidentialité.', sources: [SOURCES.L232_25, SOURCES.R123_111_1] })
     items.push({
-      text: "En cas de refus d'approbation : une copie de la délibération, dans le même délai.",
+      text: "En cas de refus d'approbation : une copie de la délibération, dans le même délai.",
       sources: regime.filing.sources,
     })
     notes.push(
       online
-        ? `Délai : deux mois après l'approbation pour un dépôt en ligne${filing ? `, soit le ${longDate(filing)} au plus tard` : ''}.`
-        : `Délai : un mois après l'approbation (deux mois en cas de dépôt en ligne)${filing ? `, soit le ${longDate(filing)} au plus tard` : ''}.`,
-      "Dépôt sur le guichet unique des formalités des entreprises (formalites.entreprises.gouv.fr). Des frais de greffe s'appliquent : vérifiez le montant au paiement.",
-      "Le rapport de gestion n'est pas déposé : il est tenu à la disposition de toute personne qui en fait la demande.",
+        ? `Délai : deux mois après l'approbation pour un dépôt en ligne${filing ? `, soit le ${longDate(filing)} au plus tard` : ''}.`
+        : `Délai : un mois après l'approbation (deux mois en cas de dépôt en ligne)${filing ? `, soit le ${longDate(filing)} au plus tard` : ''}.`,
+      "Dépôt sur le guichet unique des formalités des entreprises (formalites.entreprises.gouv.fr). Des frais de greffe s'appliquent : vérifiez le montant au paiement.",
+      "Le rapport de gestion n'est pas déposé : il est tenu à la disposition de toute personne qui en fait la demande.",
       "Un défaut de dépôt est puni de l'amende des contraventions de la cinquième classe (C. com. art. R. 247-3) et peut donner lieu à une injonction sous astreinte (art. L. 123-5-1).",
     )
     if (regime.filingWorthApproval) notes.push(regime.filingWorthApproval.condition)
   } else if (regime) {
     notes.push(
-      "Une société civile ne dépose pas ses comptes au greffe : le procès-verbal et le rapport de la gérance sont conservés au registre de la société. Une société civile qui dépasse les seuils lui imposant un commissaire aux comptes peut avoir d'autres obligations : vérifiez avec votre conseil.",
+      "Une société civile ne dépose pas ses comptes au greffe : le procès-verbal et le rapport de la gérance sont conservés au registre de la société. Une société civile qui dépasse les seuils lui imposant un commissaire aux comptes peut avoir d'autres obligations : vérifiez avec votre conseil.",
     )
   }
 
   // Warnings.
-  if (!context.fiscalYear.isClosed) warnings.push("L'exercice n'est pas clôturé : le résultat peut encore changer. Clôturez-le avant de faire approuver les comptes.")
+  if (!context.fiscalYear.isClosed) warnings.push("L'exercice n'est pas clôturé : le résultat peut encore changer. Clôturez-le avant de faire approuver les comptes.")
   if (context.draftEntries > 0) warnings.push(
       context.draftEntries > 1
         ? `${context.draftEntries} écritures en brouillon sur l'exercice ne sont pas comptées dans le résultat.`
         : "1 écriture en brouillon sur l'exercice n'est pas comptée dans le résultat.",
     )
   if (regime && (context.company.legalType === 'EURL' || context.company.legalType === 'SASU') && holderCount > 1) {
-    warnings.push(`La société est une ${context.company.legalType} mais ${holderCount} associés sont enregistrés : vérifiez la forme juridique ou la liste des associés.`)
+    warnings.push(`La société est une ${context.company.legalType} mais ${holderCount} associés sont enregistrés : vérifiez la forme juridique ou la liste des associés.`)
   }
   if (regime?.sole && context.company.legalType !== 'EURL' && context.company.legalType !== 'SASU') {
-    warnings.push(`Un seul associé est enregistré : les règles de l'associé unique (${regime.form}) s'appliquent.`)
+    warnings.push(`Un seul associé est enregistré : les règles de l'associé unique (${regime.form}) s'appliquent.`)
   }
   if (approvalDeadline && meetingDate && meetingDate > approvalDeadline) {
     warnings.push(
-      `La date de la décision (${longDate(meetingDate)}) dépasse le délai de six mois (${longDate(approvalDeadline)}) : demandez une prolongation au président du tribunal de commerce avant l'échéance.`,
+      `La date de la décision (${longDate(meetingDate)}) dépasse le délai de six mois (${longDate(approvalDeadline)}) : demandez une prolongation au président du tribunal de commerce avant l'échéance.`,
     )
   }
   if (convocation && details.meeting.convocationDate && details.meeting.convocationDate > convocation) {
-    warnings.push(`La convocation du ${longDate(details.meeting.convocationDate)} arrive moins de ${regime?.convocation?.minDays} jours avant l'assemblée : envoyez-la au plus tard le ${longDate(convocation)}.`)
+    warnings.push(`La convocation du ${longDate(details.meeting.convocationDate)} arrive moins de ${regime?.convocation?.minDays} jours avant l'assemblée : envoyez-la au plus tard le ${longDate(convocation)}.`)
   }
   if (regime?.form === 'SARL' && holders.some((h) => h.status === 'remote')) {
-    warnings.push("Dans une SARL, les associés qui participent à distance ne sont pas comptés pour l'approbation des comptes (C. com. art. L. 223-27) : ne comptez pas leurs voix sur cette résolution.")
+    warnings.push("Dans une SARL, les associés qui participent à distance ne sont pas comptés pour l'approbation des comptes (C. com. art. L. 223-27) : ne comptez pas leurs voix sur cette résolution.")
   }
   if (meetingDate && meetingDate <= context.fiscalYear.endDate) warnings.push("La date de la décision doit être postérieure à la clôture de l'exercice.")
   if (details.filedOn && details.approvedOn && details.filedOn < details.approvedOn) warnings.push("La date de dépôt précède la date d'approbation.")
   if (filing && !details.filedOn && context.today > filing) warnings.push(`Le délai de dépôt au greffe est dépassé depuis le ${longDate(filing)}.`)
   if (approvalDeadline && !details.approvedOn && context.today > approvalDeadline) warnings.push(`Le délai d'approbation est dépassé depuis le ${longDate(approvalDeadline)}.`)
   const approval = resolutions.find((r) => r.id === 'approval')
-  if (approval?.outcome.adopted === false) warnings.push("Les comptes ne sont pas approuvés : la délibération de refus est à déposer au greffe dans le même délai.")
+  if (approval?.outcome.adopted === false) warnings.push("Les comptes ne sont pas approuvés : la délibération de refus est à déposer au greffe dans le même délai.")
   if (reportProduced && details.hasAuditor && regime?.form !== 'SCI') {
-    warnings.push("Le rapport de gestion d'une société dont les comptes sont certifiés indique les délais de paiement des fournisseurs et des clients (C. com. art. L. 441-14 et D. 441-6) : ajoutez ce tableau, Kledg ne le génère pas encore.")
+    warnings.push("Le rapport de gestion d'une société dont les comptes sont certifiés indique les délais de paiement des fournisseurs et des clients (C. com. art. L. 441-14 et D. 441-6) : ajoutez ce tableau, Kledg ne le génère pas encore.")
   }
   if (regime?.form === 'SA') warnings.push("Une SA établit aussi le rapport sur le gouvernement d'entreprise (C. com. art. L. 225-37), que Kledg ne génère pas.")
   if (category && proposal.category !== category) {
-    warnings.push(`Les chiffres de Kledg suggèrent la catégorie ${SIZE_LABELS[proposal.category].toLowerCase()} : vérifiez la catégorie retenue (deux exercices consécutifs).`)
+    warnings.push(`Les chiffres de Kledg suggèrent la catégorie ${SIZE_LABELS[proposal.category].toLowerCase()} : vérifiez la catégorie retenue (deux exercices consécutifs).`)
   }
 
   return {

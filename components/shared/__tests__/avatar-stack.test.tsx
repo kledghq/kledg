@@ -46,7 +46,7 @@ describe('AvatarStack', () => {
     expect(items).toHaveLength(4)
     expect(items.slice(0, 3).map((a) => a.getAttribute('aria-label'))).toEqual([`A Un, 30${NBSP}%`, `B Deux, 25${NBSP}%`, `C Trois, 20${NBSP}%`])
     expect(items[3]).toHaveTextContent('+2')
-    expect(items[3]).toHaveAttribute('aria-label', `2 autres associés${NBSP}: D Quatre, 15${NBSP}% ; E Cinq, 10${NBSP}%`)
+    expect(items[3]).toHaveAttribute('aria-label', `2 autres associés${NBSP}: D Quatre, 15${NBSP}%${NBSP}; E Cinq, 10${NBSP}%`)
   })
 
   it('renders nothing without a shareholder to show', () => {

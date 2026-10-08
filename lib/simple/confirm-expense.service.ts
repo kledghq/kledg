@@ -46,6 +46,7 @@
 
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { ConflictError, ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
@@ -63,7 +64,8 @@ import {
 } from '@/lib/reconciliation/service'
 import { bankLineOf, checkEntryDate } from '@/lib/reconciliation/validation'
 import { prepareRuleEntry } from '@/lib/transactions/rule-executor'
-import { createRule, updateRule, type RuleInput } from '@/lib/transactions/manage-rules.service'
+import { createRule, updateRuleInTx, type RuleInput } from '@/lib/transactions/manage-rules.service'
+import type { Prisma } from '@prisma/client'
 import { counterpartyKey } from '@/lib/subscriptions/detect'
 import { createFixedAssetInTx } from '@/lib/fixed-assets/create-fixed-asset.service'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
@@ -144,7 +146,6 @@ export const MESSAGES = {
     side === 'debit'
       ? `« ${label} » est une entrée d’argent, et cette opération une sortie : choisissez une catégorie de dépense.`
       : `« ${label} » est une dépense, et cette opération une entrée d’argent : choisissez une recette, ou le remboursement de cette dépense.`,
-  journalMissing: "Le journal de banque (BQ) n'existe pas : demandez à votre comptable de le créer dans Journaux.",
 } as const
 
 interface Prepared {
@@ -252,8 +253,7 @@ async function prepareCategory(
   }
   const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
   if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
-  const journal = await prisma.journal.findFirst({ where: { companyId, code: 'BQ' }, select: { id: true } })
-  if (!journal) throw new ValidationError(MESSAGES.journalMissing)
+  const journal = await journalByCode(prisma, companyId, 'BQ', { create: { label: 'Banque' } })
 
   const name = displayNameOf(counterpartyOf(transaction), transaction.label)
   const description = transaction.label?.trim() || name
@@ -324,8 +324,7 @@ async function prepareInvoice(companyId: string, transaction: Awaited<ReturnType
   }
   const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
   if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
-  const journal = await prisma.journal.findFirst({ where: { companyId, code: 'BQ' }, select: { id: true } })
-  if (!journal) throw new ValidationError(MESSAGES.journalMissing)
+  const journal = await journalByCode(prisma, companyId, 'BQ', { create: { label: 'Banque' } })
 
   const description = transaction.label?.trim() || displayNameOf(counterpartyOf(transaction), transaction.label)
   const lineDescription = `Facture n° ${invoice.number}, ${invoice.customerName}`
@@ -431,6 +430,8 @@ const sameLines = (a: RuleInput['entryLines'], b: Array<{ accountCode: string; v
  * After a confirmation: when the last LEARN_AFTER choices for the
  * counterparty are this category, create the rule (or update the one simple
  * mode created for it). Failures are logged, never undo the confirmation.
+ * One transaction under an advisory lock per counterparty: two confirmations
+ * of the same counterparty at once create one rule, the second one sees it.
  */
 async function learnRule(
   companyId: string,
@@ -439,7 +440,28 @@ async function learnRule(
   transaction: Awaited<ReturnType<typeof loadTransaction>>,
   learnable: NonNullable<Prepared['learnable']>,
 ): Promise<ConfirmResult['learnedRule']> {
-  const latest = await prisma.simpleModeEntry.findMany({
+  const rule = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:simple-learn:${companyId}:${key}`}))`
+    return learnRuleInTx(tx, companyId, originId, key, transaction, learnable)
+  })
+  if (!rule) return null
+  await writeAuditLog('info', `Simple mode ${rule.created ? 'created' : 'updated'} a transaction rule: ${rule.name}`, {
+    action: rule.created ? 'SIMPLE_MODE_RULE_CREATED' : 'SIMPLE_MODE_RULE_UPDATED',
+    companyId,
+    metadata: { ruleId: rule.id, categoryId: learnable.category.id, counterpartyKey: key },
+  })
+  return rule
+}
+
+async function learnRuleInTx(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  originId: string,
+  key: string,
+  transaction: Awaited<ReturnType<typeof loadTransaction>>,
+  learnable: NonNullable<Prepared['learnable']>,
+): Promise<ConfirmResult['learnedRule']> {
+  const latest = await tx.simpleModeEntry.findMany({
     where: { companyId, counterpartyKey: key },
     select: { categoryId: true, learnedRuleId: true },
     orderBy: { createdAt: 'desc' },
@@ -466,23 +488,18 @@ async function learnRule(
 
   const previousRuleId = latest.find((row) => row.learnedRuleId)?.learnedRuleId ?? null
   const previous = previousRuleId
-    ? await prisma.transactionRule.findFirst({ where: { id: previousRuleId, companyId }, include: { entryLines: { orderBy: { order: 'asc' } } } })
+    ? await tx.transactionRule.findFirst({ where: { id: previousRuleId, companyId }, include: { entryLines: { orderBy: { order: 'asc' } } } })
     : null
   let rule: { id: string; name: string; created: boolean }
   if (previous) {
     if (sameLines(entryLines, previous.entryLines)) return null
-    const updated = await updateRule(companyId, previous.id, { ...input, name: previous.name, enabled: previous.enabled, priority: previous.priority })
+    const updated = await updateRuleInTx(tx, companyId, previous.id, { ...input, name: previous.name, enabled: previous.enabled, priority: previous.priority })
     rule = { id: updated.id, name: updated.name, created: false }
   } else {
-    const created = await createRule(companyId, input)
+    const created = await createRule(companyId, input, tx)
     rule = { id: created.id, name: created.name, created: true }
   }
-  await prisma.simpleModeEntry.update({ where: { id: originId }, data: { learnedRuleId: rule.id } })
-  await writeAuditLog('info', `Simple mode ${rule.created ? 'created' : 'updated'} a transaction rule: ${rule.name}`, {
-    action: rule.created ? 'SIMPLE_MODE_RULE_CREATED' : 'SIMPLE_MODE_RULE_UPDATED',
-    companyId,
-    metadata: { ruleId: rule.id, categoryId: learnable.category.id, counterpartyKey: key },
-  })
+  await tx.simpleModeEntry.update({ where: { id: originId }, data: { learnedRuleId: rule.id } })
   return rule
 }
 
@@ -502,6 +519,21 @@ function choice(input: ConfirmExpenseInput, suggestion: Suggestion | null): Choi
   if (!suggestion || (!suggestion.categoryId && !suggestion.ruleId)) throw new ValidationError(MESSAGES.nothingToConfirm)
   if (suggestion.ruleId) return { categoryId: suggestion.categoryId, ruleId: suggestion.ruleId, invoiceId: null, answers: {} }
   return { categoryId: suggestion.categoryId, ruleId: null, invoiceId: null, answers: { ...suggestion.answers, ...(input.answers ?? {}) } }
+}
+
+/**
+ * Records a validated payment on its invoice once the entry is committed.
+ * The entry stands whatever happens here: an unexpected failure is logged
+ * and the payment can be recorded from the invoice page, instead of
+ * answering 500 for an entry that exists (a retry would answer 409).
+ */
+async function recordPaymentAfterCommit(companyId: string, entryId: string, transactionId: string) {
+  try {
+    return (await recordValidatedInvoicePayments(companyId, [entryId]))[0]
+  } catch (error) {
+    logger.error('Simple mode could not record a payment on its invoice', { companyId, transactionId, entryId, error })
+    return undefined
+  }
 }
 
 /** Confirms one transaction of the company (see the module header). */
@@ -588,13 +620,17 @@ export async function confirmExpense(companyId: string, transactionId: string, i
         select: { id: true },
       })
       originId = origin.id
+      // The rule's usage counts with the entry it created, in the same transaction
+      if (prepared.ruleId) {
+        await db.transactionRule.updateMany({ where: { id: prepared.ruleId, companyId }, data: { usageCount: { increment: 1 }, lastUsedAt: new Date() } })
+      }
     },
   })
 
   // A validated payment is recorded on its invoice now; a draft one when the accountant validates it
   let invoice: ConfirmResult['invoice'] = null
   if (prepared.invoice) {
-    const recorded = entry.status === 'validated' ? (await recordValidatedInvoicePayments(companyId, [entry.id]))[0] : undefined
+    const recorded = entry.status === 'validated' ? await recordPaymentAfterCommit(companyId, entry.id, transactionId) : undefined
     invoice = {
       ...prepared.invoice,
       recorded: recorded?.recorded ?? false,
@@ -602,10 +638,6 @@ export async function confirmExpense(companyId: string, transactionId: string, i
       remainingCents: recorded?.remainingCents ?? null,
       pending: recorded ? recorded.pending : 'Le paiement sera enregistré sur la facture quand votre comptable aura validé l’écriture.',
     }
-  }
-
-  if (prepared.ruleId) {
-    await prisma.transactionRule.updateMany({ where: { id: prepared.ruleId, companyId }, data: { usageCount: { increment: 1 }, lastUsedAt: new Date() } })
   }
 
   let learnedRule: ConfirmResult['learnedRule'] = null
@@ -651,6 +683,8 @@ export async function confirmExpense(companyId: string, transactionId: string, i
     invoice,
   }
 }
+
+const BULK_UNEXPECTED = 'Une erreur inattendue a empêché la confirmation : réessayez pour cette ligne.'
 
 export interface ConfirmAllResult {
   confirmed: ConfirmResult[]
@@ -703,8 +737,12 @@ export async function confirmHighConfidenceExpenses(companyId: string, transacti
         ),
       )
     } catch (error) {
+      // One transaction each: an unexpected failure is reported for its line, the lines confirmed before stay listed
       if (error instanceof ValidationError || error instanceof ConflictError) skipped.push({ transactionId: id, reason: error.message })
-      else throw error
+      else {
+        logger.error('Simple mode bulk confirmation failed for a transaction', { companyId, transactionId: id, error })
+        skipped.push({ transactionId: id, reason: BULK_UNEXPECTED })
+      }
     }
   }
   return { confirmed, skipped }

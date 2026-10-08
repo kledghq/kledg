@@ -57,7 +57,7 @@ function companyHeader({ context, details, pack }: Input): string[] {
   return [
     c.name,
     `${regime.formLabel} au capital de ${eur(c.shareCapitalCents ?? 0)}`,
-    `Siège social : ${c.address ?? ''}`,
+    `Siège social : ${c.address ?? ''}`,
     `${c.siren.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')} RCS ${details.rcsCity ?? ''}`,
   ]
 }
@@ -93,14 +93,14 @@ function allocationParagraphs(plan: AllocationPlan, input: Input, subject: strin
   const blocks: Block[] = []
   const balances = context.balances
   if (plan.resultCents > 0) {
-    blocks.push({ kind: 'paragraph', text: decides(`d'affecter le bénéfice de l'exercice, qui s'élève à ${eur(plan.resultCents)}, de la manière suivante :`) })
+    blocks.push({ kind: 'paragraph', text: decides(`d'affecter le bénéfice de l'exercice, qui s'élève à ${eur(plan.resultCents)}, de la manière suivante :`) })
     const items: string[] = []
-    if (plan.legalReserveCents > 0) items.push(`à la réserve légale : ${eur(plan.legalReserveCents)}`)
-    if (plan.otherReservesCents > 0) items.push(`aux autres réserves : ${eur(plan.otherReservesCents)}`)
+    if (plan.legalReserveCents > 0) items.push(`à la réserve légale : ${eur(plan.legalReserveCents)}`)
+    if (plan.otherReservesCents > 0) items.push(`aux autres réserves : ${eur(plan.otherReservesCents)}`)
     const to = regime.sole ? "à l'associé unique" : `aux ${regime.holderWord.plural}`
-    if (plan.dividendsCents > 0) items.push(`${regime.form === 'SCI' ? to : `${to}, à titre de dividendes`} : ${eur(plan.dividendsCents)}`)
-    if (plan.priorLossesClearedCents > 0) items.push(`à l'apurement du report à nouveau débiteur : ${eur(plan.priorLossesClearedCents)}`)
-    if (plan.retainedEarningsCents > 0) items.push(`au compte report à nouveau : ${eur(plan.retainedEarningsCents)}`)
+    if (plan.dividendsCents > 0) items.push(`${regime.form === 'SCI' ? to : `${to}, à titre de dividendes`} : ${eur(plan.dividendsCents)}`)
+    if (plan.priorLossesClearedCents > 0) items.push(`à l'apurement du report à nouveau débiteur : ${eur(plan.priorLossesClearedCents)}`)
+    if (plan.retainedEarningsCents > 0) items.push(`au compte report à nouveau : ${eur(plan.retainedEarningsCents)}`)
     blocks.push({ kind: 'list', items })
     if (plan.retainedEarningsCents < 0) {
       blocks.push({ kind: 'paragraph', text: `Les dividendes sont prélevés, à hauteur de ${eur(-plan.retainedEarningsCents)}, sur le compte report à nouveau antérieur.` })
@@ -131,11 +131,11 @@ function allocationParagraphs(plan: AllocationPlan, input: Input, subject: strin
     } else {
       blocks.push({
         kind: 'paragraph',
-        text: `Conformément à l'article 243 bis du Code général des impôts, ${notes('que les dividendes distribués au titre des trois exercices précédents ont été les suivants :')}`,
+        text: `Conformément à l'article 243 bis du Code général des impôts, ${notes('que les dividendes distribués au titre des trois exercices précédents ont été les suivants :')}`,
       })
       blocks.push({
         kind: 'list',
-        items: [...details.priorDividends].sort((a, b) => b.year - a.year).map((d) => `exercice ${d.year} : ${d.amountCents > 0 ? eur(d.amountCents) : 'aucun dividende'}`),
+        items: [...details.priorDividends].sort((a, b) => b.year - a.year).map((d) => `exercice ${d.year} : ${d.amountCents > 0 ? eur(d.amountCents) : 'aucun dividende'}`),
       })
     }
   }
@@ -215,7 +215,7 @@ function resolutionsSection(input: Input, withOutcome: boolean): Block[] {
   const word = regime.sole ? 'décision' : 'résolution'
   const blocks: Block[] = []
   pack.resolutions.forEach((r, i) => {
-    blocks.push({ kind: 'heading', text: `${ORDINALS[i] ?? `${i + 1}e`} ${word} : ${r.title.toLowerCase()}` })
+    blocks.push({ kind: 'heading', text: `${ORDINALS[i] ?? `${i + 1}e`} ${word} : ${r.title.toLowerCase()}` })
     blocks.push(...resolutionBlocks(r.id, input, subject))
     if (withOutcome && r.outcome.wording && !regime.sole) blocks.push({ kind: 'paragraph', text: r.outcome.wording })
   })
@@ -307,12 +307,12 @@ function decisionDocument(input: Input): GeneratedDocument {
     blocks.push({
       kind: 'paragraph',
       text: quorum
-        ? `Les actionnaires présents ou représentés possèdent ${count(pack.presentVotes)} actions sur les ${count(pack.totalVotes)} actions ayant le droit de vote : le quorum est atteint et l'assemblée peut valablement délibérer.`
-        : `Les actionnaires présents ou représentés ne possèdent que ${count(pack.presentVotes)} actions sur les ${count(pack.totalVotes)} actions ayant le droit de vote : le quorum n'est pas atteint.`,
+        ? `Les actionnaires présents ou représentés possèdent ${count(pack.presentVotes)} actions sur les ${count(pack.totalVotes)} actions ayant le droit de vote : le quorum est atteint et l'assemblée peut valablement délibérer.`
+        : `Les actionnaires présents ou représentés ne possèdent que ${count(pack.presentVotes)} actions sur les ${count(pack.totalVotes)} actions ayant le droit de vote : le quorum n'est pas atteint.`,
     })
   }
   if (pack.decisionMode === 'meeting') {
-    blocks.push({ kind: 'paragraph', text: "Le président de séance rappelle l'ordre du jour :" })
+    blocks.push({ kind: 'paragraph', text: "Le président de séance rappelle l'ordre du jour :" })
     blocks.push({ kind: 'list', items: agenda(pack, details) })
     const docs = ['les comptes annuels']
     if (pack.managementReport.produced) docs.push(regime.form === 'SCI' ? 'le rapport écrit de la gérance' : 'le rapport de gestion')
@@ -320,7 +320,7 @@ function decisionDocument(input: Input): GeneratedDocument {
     docs.push('le texte des projets de résolutions')
     blocks.push({
       kind: 'paragraph',
-      text: `Le président de séance met à la disposition de l'assemblée ${joinFr(docs)}. Il rappelle que ces documents ont été adressés aux ${holderPlural} et tenus à leur disposition dans les conditions prévues par la loi et les statuts. Puis la discussion est ouverte ; personne ne demandant plus la parole, il met successivement aux voix les résolutions suivantes.`,
+      text: `Le président de séance met à la disposition de l'assemblée ${joinFr(docs)}. Il rappelle que ces documents ont été adressés aux ${holderPlural} et tenus à leur disposition dans les conditions prévues par la loi et les statuts. Puis la discussion est ouverte ; personne ne demandant plus la parole, il met successivement aux voix les résolutions suivantes.`,
     })
   }
   blocks.push(...resolutionsSection(input, true))
@@ -356,7 +356,7 @@ function convocationDocument(input: Input): GeneratedDocument {
   const date = details.meeting.date as string
   const officers = officerList(details, regime)
   const blocks: Block[] = []
-  blocks.push({ kind: 'paragraph', text: `Destinataires : ${pack.holders.map((h) => h.name).join(', ')}.` })
+  blocks.push({ kind: 'paragraph', text: `Destinataires : ${pack.holders.map((h) => h.name).join(', ')}.` })
   blocks.push({ kind: 'paragraph', text: 'Madame, Monsieur,' })
   const enclosed = [`les comptes annuels de ${endLabel(context)}`]
   if (pack.managementReport.produced) enclosed.push(regime.form === 'SCI' ? 'le rapport écrit de la gérance' : 'le rapport de gestion')
@@ -370,7 +370,7 @@ function convocationDocument(input: Input): GeneratedDocument {
   } else {
     blocks.push({
       kind: 'paragraph',
-      text: `Nous avons l'honneur de vous convoquer à l'assemblée ${regime.form === 'SAS' ? 'des associés' : 'générale ordinaire annuelle'} de la société, qui se tiendra le ${longDate(date)} à ${details.meeting.time}, ${atPlace(details.meeting.place as string)}, à l'effet de délibérer sur l'ordre du jour suivant :`,
+      text: `Nous avons l'honneur de vous convoquer à l'assemblée ${regime.form === 'SAS' ? 'des associés' : 'générale ordinaire annuelle'} de la société, qui se tiendra le ${longDate(date)} à ${details.meeting.time}, ${atPlace(details.meeting.place as string)}, à l'effet de délibérer sur l'ordre du jour suivant :`,
     })
     blocks.push({ kind: 'list', items: agenda(pack, details) })
   }
@@ -385,7 +385,7 @@ function convocationDocument(input: Input): GeneratedDocument {
   blocks.push({ kind: 'signatures', place: details.signatureCity, date: details.meeting.convocationDate ? longDate(details.meeting.convocationDate) : null, signers: officers })
   blocks.push({ kind: 'heading', text: 'Projets de résolutions' })
   blocks.push(...resolutionsSection(input, false))
-  blocks.push({ kind: 'note', text: `Envoi : ${regime.convocation?.how ?? ''}` })
+  blocks.push({ kind: 'note', text: `Envoi : ${regime.convocation?.how ?? ''}` })
   return {
     header: companyHeader(input),
     title: pack.decisionMode === 'written' ? 'Consultation écrite des associés' : "Convocation à l'assemblée générale ordinaire annuelle",
@@ -498,7 +498,7 @@ function confidentialityDocument(input: Input): GeneratedDocument {
       text: `Je soussigné(e) ${officer.name}, ${officer.role} de la société ${context.company.name}, déclare que la société répond, pour ${endLabel(context)}, à la définition ${definition}, ${exclusions.join(' et ')}.`,
     },
     { kind: 'paragraph', text: `En conséquence, conformément à l'article L. 232-25 du Code de commerce, je demande ${request}.` },
-    { kind: 'note', text: "Les comptes restent communiqués aux autorités judiciaires, aux autorités administratives et à la Banque de France. Le guichet unique propose le modèle de déclaration fixé par arrêté (C. com. art. R. 123-111-1) : ce document en reprend les éléments." },
+    { kind: 'note', text: "Les comptes restent communiqués aux autorités judiciaires, aux autorités administratives et à la Banque de France. Le guichet unique propose le modèle de déclaration fixé par arrêté (C. com. art. R. 123-111-1) : ce document en reprend les éléments." },
     { kind: 'signatures', place: details.signatureCity, date: longDate(signDate), signers: [officer] },
   ]
   return {
@@ -517,7 +517,7 @@ function filingChecklistDocument(input: Input): GeneratedDocument {
   if (pack.deadlines.filing) {
     blocks.push({
       kind: 'paragraph',
-      text: `Date limite de dépôt : ${longDate(pack.deadlines.filing)}${pack.deadlines.filingBasis === 'deadline' ? ", comptée depuis la date limite d'approbation tant que la date d'approbation n'est pas enregistrée" : ''}.`,
+      text: `Date limite de dépôt : ${longDate(pack.deadlines.filing)}${pack.deadlines.filingBasis === 'deadline' ? ", comptée depuis la date limite d'approbation tant que la date d'approbation n'est pas enregistrée" : ''}.`,
     })
   }
   blocks.push({ kind: 'heading', text: 'Pièces à déposer' }, { kind: 'checklist', items: pack.publication.items.map((i) => `${i.text} (${i.sources.map((s) => s.label).join(', ')})`) })

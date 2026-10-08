@@ -21,7 +21,7 @@
 
 import { z } from 'zod'
 import { LEGAL_TYPES } from './legal-forms'
-import { addIsoDays, formatIsoDateFr } from '@/lib/utils/date'
+import { addIsoDays, formatIsoDateFr, lastDayOfMonth } from '@/lib/utils/date'
 
 /** VAT regimes offered at creation (Company.vatRegime). */
 export const VAT_REGIMES = ['normal', 'simplified', 'franchise'] as const
@@ -31,7 +31,7 @@ export type VatRegime = (typeof VAT_REGIMES)[number]
 export const CORPORATE_TAX_REGIMES = ['simplified', 'normal'] as const
 export type CorporateTaxRegime = (typeof CORPORATE_TAX_REGIMES)[number]
 
-export const FIRST_FISCAL_YEAR_MAX_MONTHS = 24
+const FIRST_FISCAL_YEAR_MAX_MONTHS = 24
 export const MAX_SHAREHOLDERS = 20
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -53,15 +53,23 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => (v ? v : undefined))
 
-/** Day after `iso` plus `months` months, minus one day: the end of a period of `months` months starting on `iso`. */
+/**
+ * End of a period of `months` months starting on `iso`: the day before the
+ * same day `months` months later. When that month has no such day (a year
+ * starting on 29/02, or on the 31st), the anniversary is the first day of
+ * the next month, so the period ends on the last day of that month:
+ * 29/02/2024 + 12 months ends on 28/02/2025, 31/01/2024 + 1 month on
+ * 29/02/2024.
+ */
 export function periodEnd(iso: string, months: number): string {
   const [y, m, d] = iso.split('-').map(Number)
-  // First day of the month after the period, then back to the same day of month minus one.
-  const target = new Date(Date.UTC(y, m - 1 + months, 1))
-  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
-  const sameDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(d, lastDay)))
-  sameDay.setUTCDate(sameDay.getUTCDate() - 1)
-  return sameDay.toISOString().slice(0, 10)
+  const index = y * 12 + (m - 1) + months
+  const year = Math.floor(index / 12)
+  const month = (index % 12) + 1
+  const last = lastDayOfMonth(year, month)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (d > last) return `${year}-${pad(month)}-${pad(last)}`
+  return addIsoDays(`${year}-${pad(month)}-${pad(d)}`, -1)
 }
 
 /** Whole months covered by a period (13 for 01/01/2026 to 31/01/2027), rounding a started month up. */
@@ -104,7 +112,7 @@ export function checkFirstFiscalYear(input: {
   if (input.isFirst) {
     if (endDate > periodEnd(startDate, FIRST_FISCAL_YEAR_MAX_MONTHS)) {
       errors.push(
-        `Le premier exercice ne peut pas dépasser ${FIRST_FISCAL_YEAR_MAX_MONTHS} mois (usage admis par les greffes) : choisissez une clôture au plus tard le ${formatIsoDateFr(periodEnd(startDate, FIRST_FISCAL_YEAR_MAX_MONTHS))}.`,
+        `Le premier exercice ne peut pas dépasser ${FIRST_FISCAL_YEAR_MAX_MONTHS} mois (usage admis par les greffes) : choisissez une clôture au plus tard le ${formatIsoDateFr(periodEnd(startDate, FIRST_FISCAL_YEAR_MAX_MONTHS))}.`,
       )
     } else if (input.subjectToCorporateTax && endDate > `${Number(startDate.slice(0, 4)) + 1}-12-31`) {
       warnings.push(
@@ -113,7 +121,7 @@ export function checkFirstFiscalYear(input: {
     }
     if (months < 12 && errors.length === 0) {
       warnings.push(
-        `Premier exercice court (${months} mois) : c'est possible, il n'existe pas de durée minimale. La société établira ses premiers comptes annuels plus tôt.`,
+        `Premier exercice court (${months} mois) : c'est possible, il n'existe pas de durée minimale. La société établira ses premiers comptes annuels plus tôt.`,
       )
     }
     if (input.foundationDate && isRealIsoDate(input.foundationDate) && startDate < input.foundationDate) {
@@ -127,7 +135,7 @@ export function checkFirstFiscalYear(input: {
   return { errors, warnings, months }
 }
 
-export const ShareholderInputSchema = z
+const ShareholderInputSchema = z
   .object({
     type: z.enum(['PHYSICAL', 'LEGAL']),
     /** Physical person only. */

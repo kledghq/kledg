@@ -175,13 +175,17 @@ describe('Service de Validation Comptable', () => {
       expect(validateAccountCode('601')).toBe(true)
       expect(validateAccountCode('701')).toBe(true)
       expect(validateAccountCode('101')).toBe(true)
+      // Charts imported from a FEC: longer or alphanumeric numbers (lib/accounting/account-code.ts)
+      expect(validateAccountCode('625680000')).toBe(true)
+      expect(validateAccountCode('401DUPONT')).toBe(true)
     })
 
     it('devrait rejeter un code invalide', () => {
       expect(validateAccountCode('')).toBe(false)
       expect(validateAccountCode('1')).toBe(false) // Trop court
-      expect(validateAccountCode('123456789')).toBe(false) // Trop long
-      expect(validateAccountCode('ABC')).toBe(false) // Contient des lettres
+      expect(validateAccountCode('1'.repeat(21))).toBe(false) // Trop long (20 caractères au plus)
+      expect(validateAccountCode('ABC')).toBe(false) // Ne commence pas par le chiffre de la classe
+      expect(validateAccountCode('401abc')).toBe(false) // Minuscules
       expect(validateAccountCode('21-1')).toBe(false) // Contient des caractères spéciaux
     })
   })

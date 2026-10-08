@@ -221,8 +221,8 @@ describe.skipIf(!available)('FEC round trip (PostgreSQL)', () => {
     const result = await fecImport.importFEC({ companyId: target.id, bytes: fixture('unbalanced-2024.txt') })
     expect(result.success).toBe(false)
     expect(result.entriesCreated).toBe(0)
-    expect(result.refused).toEqual([{ entry: 'VT n° 2', line: 14, reason: 'écriture non équilibrée : débit 1234567,89, crédit 1234567,88' }])
-    expect(result.errors[0]).toBe("1 écriture refusée : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.")
+    expect(result.refused).toEqual([{ entry: 'VT n° 2', line: 14, reason: 'écriture non équilibrée : débit 1234567,89, crédit 1234567,88' }])
+    expect(result.errors[0]).toBe("1 écriture refusée : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.")
     expect(await counts(target.id)).toEqual({ entries: 0, lines: 0, accounts: 0, journals: 0, fiscalYears: 0 })
   })
 

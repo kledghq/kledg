@@ -195,6 +195,21 @@ describe.skipIf(!available)('deadline routes', () => {
     expect(data.deadlines.map((d) => d.id)).toContain('approbation:2025-12-31')
   })
 
+  it.each(['Pacific/Kiritimati', 'America/Los_Angeles', 'UTC'])('counts today as the day in France with TZ=%s (KLEDG-R3-QUAL-16)', async (zone) => {
+    const original = process.env.TZ
+    process.env.TZ = zone
+    try {
+      const { loadDeadlinesWidget, loadDeadlinesView } = await import('../load-deadlines.service')
+      // 22:30 UTC on 15 May is 00:30 on 16 May in Paris
+      const now = new Date('2026-05-15T22:30:00Z')
+      expect((await loadDeadlinesWidget(ids.company, now)).today).toBe('2026-05-16')
+      expect((await loadDeadlinesView(ids.company, {}, now)).today).toBe('2026-05-16')
+    } finally {
+      if (original === undefined) delete process.env.TZ
+      else process.env.TZ = original
+    }
+  })
+
   it('reads the turnover of each calendar year from the validated entries (quarterly CA3 threshold from 2027)', async () => {
     const { loadDeadlineContext } = await import('../load-deadlines.service')
     const journal = await prisma.journal.create({ data: { companyId: ids.other, code: 'VE', label: 'Ventes' } })

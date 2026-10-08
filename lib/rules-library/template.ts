@@ -18,6 +18,7 @@
  */
 
 import { z } from 'zod'
+import { accountCode } from '@/lib/api/zod-fields'
 
 export const RULE_TEMPLATE_CATEGORIES = [
   { id: 'frais-bancaires', label: 'Frais bancaires' },
@@ -71,9 +72,9 @@ export type VatTreatment = (typeof VAT_TREATMENTS)[number]
 /** Treatments that are not the plain 20 % deduction: the template cites its legal source. */
 export const SPECIAL_VAT_TREATMENTS: readonly VatTreatment[] = ['reduced', 'detected', 'self-assessed', 'partial', 'not-deductible', 'none']
 
-const pcgCode = z.string().regex(/^\d{2,8}$/, 'Code de compte PCG attendu')
+const pcgCode = accountCode('Code de compte PCG attendu')
 
-export const TemplateConditionSchema = z.object({
+const TemplateConditionSchema = z.object({
   conditionType: z.enum(['label', 'counterparty', 'reference', 'side', 'operationType', 'amount']),
   operator: z.enum(['equals', 'contains', 'startsWith', 'regex', 'gt', 'gte', 'lt', 'lte', 'between']),
   value: z.string().min(1).max(300),
@@ -82,7 +83,7 @@ export const TemplateConditionSchema = z.object({
   display: z.string().min(5).max(200).optional(),
 })
 
-export const TemplateLineSchema = z.object({
+const TemplateLineSchema = z.object({
   accountCode: pcgCode,
   lineType: z.enum(['debit', 'credit']),
   amountType: z.enum(['full', 'percentage', 'remaining']),
@@ -95,7 +96,7 @@ export const TemplateLineSchema = z.object({
   vatAccount2Code: pcgCode.optional(),
 })
 
-export const TemplateSourceSchema = z.object({
+const TemplateSourceSchema = z.object({
   label: z.string().min(3).max(200),
   url: z.string().url().startsWith('https://'),
 })

@@ -154,7 +154,7 @@ export default function IncomeStatementConfigPage() {
     if (!companyId) return
 
     const ok = await confirm({
-      title: 'Réinitialiser la configuration du compte de résultat ?',
+      title: 'Réinitialiser la configuration du compte de résultat ?',
       description:
         'Les lignes et les comptes de la variante ' + (variant === 'complete' ? 'complète' : 'simplifiée') + " reviennent au modèle du PCG. Vos personnalisations de cette variante sont perdues.",
       confirmLabel: 'Réinitialiser',

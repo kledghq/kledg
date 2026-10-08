@@ -52,8 +52,8 @@ export function parseCSV(content: string): Record<string, string>[] {
     const lines = [...new Set(result.errors.map((e) => (typeof e.row === 'number' ? e.row + 2 : null)))].filter((l) => l !== null)
     throw new ValidationError(
       lines.length
-        ? `Fichier CSV illisible, lignes à corriger : ${lines.slice(0, 10).join(', ')}${lines.length > 10 ? '...' : ''}`
-        : 'Fichier CSV illisible : vérifiez le séparateur et les guillemets.',
+        ? `Fichier CSV illisible, lignes à corriger : ${lines.slice(0, 10).join(', ')}${lines.length > 10 ? '...' : ''}`
+        : 'Fichier CSV illisible : vérifiez le séparateur et les guillemets.',
     )
   }
 
@@ -162,7 +162,7 @@ export async function importCSV(
           credit: importAmountCents(l[defaultMapping.creditColumn]),
         }))
         if (amounts.some((a) => a.debit === null || a.credit === null)) {
-          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
+          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
           continue
         }
         const fiscalYearId = await accounts.fiscalYearId(entryDate)
@@ -231,7 +231,7 @@ export async function importCSV(
 
     result.success = result.errors.length === 0
   } catch (error) {
-    result.errors.push(`Import interrompu : ${handleError(error).message}`)
+    result.errors.push(`Import interrompu : ${handleError(error).message}`)
     result.success = false
   }
 

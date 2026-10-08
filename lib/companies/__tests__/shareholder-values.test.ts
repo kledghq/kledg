@@ -46,7 +46,7 @@ describe('assertTotalPercentage', () => {
 
   it('refuses a total above 100 % with the total in French notation', () => {
     expect(() => assertTotalPercentage([decimal('60.00'), decimal('40.00')], 1)).toThrow(
-      'Le total des pourcentages ne peut pas dépasser 100 %. Total actuel : 100,01 %',
+      'Le total des pourcentages ne peut pas dépasser 100 %. Total actuel : 100,01 %',
     )
   })
 })

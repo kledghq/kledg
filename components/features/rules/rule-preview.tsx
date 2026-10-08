@@ -23,8 +23,8 @@ import {
 } from './rule-form'
 
 /** Transactions the preview matches the conditions against. */
-export const PREVIEW_DAYS = 90
-export const PREVIEW_LIMIT = 2000
+const PREVIEW_DAYS = 90
+const PREVIEW_LIMIT = 2000
 /** Pause after the last edit before the preview matches or simulates again. */
 export const PREVIEW_DEBOUNCE_MS = 400
 const EXAMPLES = 3

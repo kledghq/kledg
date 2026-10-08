@@ -13,6 +13,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { companyGuard, type CompanyGuard, type McpAccess } from '@/lib/mcp/company-access'
 import { getTrialBalance } from '@/lib/reports/trial-balance/get-trial-balance.service'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
@@ -122,7 +123,7 @@ const fiscalYearId = z
   .string()
   .optional()
   .describe('Fiscal year id, from list_fiscal_years. Defaults to the current fiscal year.')
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
 
 export function registerKledgTools(server: McpServer, access: McpAccess) {
   const { user, canWrite } = access
@@ -863,9 +864,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         // becomes the generic message, the detail only in the log.
         assertEntryWritableInFiscalYear(fiscalYear, date, 'create')
 
-        const journal = await prisma.journal.findFirst({
-          where: { companyId: args.companyId, code: args.journalCode },
-        })
+        const journal = await journalByCode(prisma, args.companyId, args.journalCode)
         if (!journal) return fail(`Journal ${args.journalCode} introuvable. Utilisez list_journals.`)
 
         const codes = [...new Set(args.lines.map((l) => l.accountCode))]
@@ -875,7 +874,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         })
         const byCode = new Map(accounts.map((a) => [a.code, a.id]))
         const missing = codes.filter((c) => !byCode.has(c))
-        if (missing.length) return fail(`Comptes introuvables : ${missing.join(', ')}. Utilisez search_accounts.`)
+        if (missing.length) return fail(`Comptes introuvables : ${missing.join(', ')}. Utilisez search_accounts.`)
 
         const entry = await createAccountingEntry({
           companyId: args.companyId,
@@ -903,7 +902,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           changes: { entryCreated: entry.id, status: 'draft' },
           reviewUrl: kledgPageUrl(args.companyId, 'entries'),
           message:
-            'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
+            'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
         })
       }),
   )

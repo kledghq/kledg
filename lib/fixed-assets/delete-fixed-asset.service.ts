@@ -79,7 +79,7 @@ export async function deleteFixedAssetInTx(tx: Prisma.TransactionClient, company
   const { booked, drafts } = await depreciationEntriesOf(tx, companyId, fixedAssetId)
   if (booked.length > 0) {
     throw new ConflictError(
-      `Cette immobilisation a ${bookedDepreciationSummary(booked)}. Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`
+      `Cette immobilisation a ${bookedDepreciationSummary(booked)}. Une écriture validée ne peut pas être supprimée\u00a0: contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`
     )
   }
   if (drafts.length > 0) {

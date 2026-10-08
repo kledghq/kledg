@@ -114,7 +114,7 @@ describe.skipIf(!available)('fiscal year routes', () => {
     expect((await json(await post({ startDate: '2025-07-01', endDate: '2026-06-30' }))).error).toBe("year: L'année est requise")
     expect((await json(await post({ year: 2026, startDate: '2025-07-01' }))).error).toBe('endDate: La date de fin est requise')
     expect((await json(await post({ year: 2026, startDate: '01/07/2025', endDate: '2026-06-30' }))).error).toBe(
-      'Date de début invalide : utilisez le format AAAA-MM-JJ.',
+      'Date de début invalide : utilisez le format AAAA-MM-JJ.',
     )
     expect((await json(await post({ year: 2026, startDate: '2026-06-30', endDate: '2025-07-01' }))).error).toBe(
       'La date de début doit précéder la date de fin.',
@@ -148,7 +148,7 @@ describe.skipIf(!available)('fiscal year routes', () => {
     await prisma.fiscalYear.update({ where: { id: ids.fy }, data: { isClosed: true } })
     const closed = await patch({ startDate: '2024-07-01', endDate: '2025-06-30' })
     expect(closed.status).toBe(409)
-    expect((await json(closed)).error).toBe("L'exercice 2025 est clôturé : ses dates ne peuvent plus être modifiées.")
+    expect((await json(closed)).error).toBe("L'exercice 2025 est clôturé : ses dates ne peuvent plus être modifiées.")
   })
 
   it('deletes an empty open fiscal year (204), never a closed one or one of another company', async () => {

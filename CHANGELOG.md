@@ -61,6 +61,21 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Mode simple : une vente taxée d'une société partiellement exonérée (coefficient de déduction, organisme de formation) porte de nouveau sa TVA collectée au 44571 ; seule la franchise en base ne collecte pas de TVA.
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
 - Page Informations : afficher les établissements d'une société qui n'en a pas encore n'en crée plus un « Siège social » sans SIRET (ce qui échouait pour une deuxième société) ; ajoutez l'établissement principal avec son SIRET. Lire les membres d'une société n'écrit plus rien.
+- Import FEC : le rapprochement automatique qui suit l'import lie une seule transaction par écriture bancaire (deux paiements identiques ne sont plus rapprochés avec la même écriture) ; un échec est signalé dans les avertissements de l'import.
+- Rapprochement automatique : les erreurs sont signalées au lieu d'annoncer « 0 transaction rapprochée », une transaction rapprochée entre-temps n'est jamais écrasée, et sans période seuls les exercices ouverts sont analysés (5 000 écritures au plus par passage, les plus anciennes d'abord).
+- Synchronisation bancaire : seules les écritures brouillon dont la transaction a changé de date la suivent ; une date choisie à la main dans le rapprochement n'est plus remplacée à chaque synchronisation.
+- Une page en lecture (rapprochement bancaire, plan de comptes, prochain numéro d'écriture) ne crée plus d'exercice sans plan de comptes ; un exercice créé pour une saisie reçoit son plan comptable.
+- Le compte d'une racine (401, 44566, 6226...) est choisi selon la même règle par les factures, les notes de frais, la liquidation de TVA, l'impôt sur les sociétés et le mode simple (compte exact, puis racine complétée de zéros, puis plus petit sous-compte).
+- Tableau de bord et tableau des amortissements : l'exercice en cours est trouvé le dernier jour de l'exercice.
+- Échéances, prévision de trésorerie et résumé de validation du mode simple : « aujourd'hui » est le jour en France, même entre minuit et deux heures.
+- Validation des écritures en nombre : le numéro définitif suivant est lu par une requête indexée au lieu de relire toutes les écritures validées de l'exercice.
+- Le sens des transactions bancaires n'a plus qu'une écriture (débit ou crédit), contrôlée par la base ; les valeurs anciennes sont normalisées par la migration `20261125090000_bank_transaction_side`.
+- Premier exercice commençant un 29 février : sa fin est calculée sans perdre un jour.
+- Taxe sur les salaires : les montants saisis et leur calcul sont enregistrés ensemble ; mode simple : la confirmation en nombre signale une erreur inattendue ligne par ligne et une règle apprise n'est créée qu'une fois.
+- Journaux : le code d'un journal est lu sans tenir compte des majuscules partout (`create_draft_entry` avec « bq » trouve BQ) ; un journal standard manquant (VE, AC, OD, BQ) est recréé quand Kledg y comptabilise.
+- Numéros de compte : un seul format partout (chiffre de la classe puis jusqu'à 19 chiffres ou lettres majuscules), comme les plans de comptes importés d'un FEC.
+- Réponses inattendues de Qonto, Ponto ou Revolut et mises en page d'états illisibles : un message clair au lieu de montants ou de lignes manquants.
+- Textes de l'interface : espace insécable devant « : », « ; », « ? » et « ! », et plus de tiret cadratin dans le PDF du compte de résultat ; les filtres de statut des factures, du lettrage et des tiers deviennent un sélecteur segmenté.
 
 ## [0.3.1] - 2026-10-05
 

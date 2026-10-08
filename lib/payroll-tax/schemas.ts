@@ -41,14 +41,14 @@ export type PayrollTaxInput = z.input<typeof PayrollTaxDataSchema>
  * (lib/deadlines), which reads no books: liability, frequency of the
  * relevés and amount of the year. Refreshed at every save and on the page.
  */
-export const PayrollTaxComputedSchema = z.object({
+const PayrollTaxComputedSchema = z.object({
   liable: z.boolean(),
   frequency: z.enum(['monthly', 'quarterly', 'annual']),
   dueCents: z.number().int().min(0),
 })
 export type PayrollTaxComputed = z.infer<typeof PayrollTaxComputedSchema>
 
-export const StoredPayrollTaxSchema = PayrollTaxDataSchema.extend({ computed: PayrollTaxComputedSchema.nullable().default(null) })
+const StoredPayrollTaxSchema = PayrollTaxDataSchema.extend({ computed: PayrollTaxComputedSchema.nullable().default(null) })
 export type PayrollTaxData = z.infer<typeof PayrollTaxDataSchema>
 
 export function parsePayrollTaxData(json: unknown): PayrollTaxData & { computed: PayrollTaxComputed | null } {

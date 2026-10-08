@@ -31,7 +31,7 @@ export const RESOLUTION_IDS = ['approval', 'agreements', 'allocation', 'powers']
 export type ResolutionId = (typeof RESOLUTION_IDS)[number]
 
 export const DECISION_MODES = ['meeting', 'written', 'sole'] as const
-export const ATTENDANCE_STATUSES = ['present', 'represented', 'remote', 'absent'] as const
+const ATTENDANCE_STATUSES = ['present', 'represented', 'remote', 'absent'] as const
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number]
 export const CONFIDENTIALITY_OPTIONS = ['none', 'full', 'income_statement', 'simplified'] as const
 export type ConfidentialityOption = (typeof CONFIDENTIALITY_OPTIONS)[number]

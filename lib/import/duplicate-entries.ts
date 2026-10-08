@@ -25,7 +25,7 @@ export interface ImportedEntry {
 }
 
 /** Comparison key of an entry: journal, day, texts and the sorted lines. */
-export function entryFingerprint(entry: ImportedEntry): string {
+function entryFingerprint(entry: ImportedEntry): string {
   const lines = entry.lines.map((l) => `${l.accountId}:${l.debitCents}:${l.creditCents}`).sort()
   return JSON.stringify([entry.journalId, calendarDayOf(entry.date), entry.description ?? '', entry.reference ?? '', lines])
 }

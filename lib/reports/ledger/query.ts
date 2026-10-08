@@ -11,6 +11,6 @@ export function parseCalendarDay(value: string | null, name: string): Date | und
   if (!value) return undefined
   if (isIsoDate(value)) return isoDateToUtc(value)
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) throw new ValidationError(`${name} invalide : ${value}`)
+  if (Number.isNaN(date.getTime())) throw new ValidationError(`${name} invalide : ${value}`)
   return normalizeDate(date)
 }

@@ -49,7 +49,7 @@ function menuLabel(app: AssistantApp): string {
  * field; any other assistant gets the request copied only. The tab is opened
  * first, inside the click, so no popup blocker stops it.
  */
-export async function launchAssistant(app: AssistantApp, prompt: string): Promise<void> {
+async function launchAssistant(app: AssistantApp, prompt: string): Promise<void> {
   const info = ASSISTANT_APPS[app]
   if (info.url) window.open(info.url(prompt), '_blank', 'noopener,noreferrer')
   const copied = await copy(prompt)

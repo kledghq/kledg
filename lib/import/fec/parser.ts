@@ -82,11 +82,11 @@ export function parseFecFile(content: string, columnMapping?: FECColumnMapping):
 
   const separatorChar = headerRow.includes('\t') ? '\t' : headerRow.includes('|') ? '|' : headerRow.includes(';') ? ';' : null
   if (!separatorChar) {
-    throw new ValidationError("Fichier FEC illisible : l'en-tête doit séparer les zones par une tabulation ou « | » (art. A47 A-1 du LPF)")
+    throw new ValidationError("Fichier FEC illisible : l'en-tête doit séparer les zones par une tabulation ou « | » (art. A47 A-1 du LPF)")
   }
   const separator = separatorChar === '\t' ? 'tab' : separatorChar === '|' ? 'pipe' : 'semicolon'
   const warnings: string[] = []
-  if (separator === 'semicolon') warnings.push('Séparateur « ; » : le format officiel impose la tabulation ou « | ». Fichier lu quand même.')
+  if (separator === 'semicolon') warnings.push('Séparateur « ; » : le format officiel impose la tabulation ou « | ». Fichier lu quand même.')
 
   const header = headerRow.split(separatorChar).map(unquote)
   // Column of each FEC field: the user's mapping, else the header name (any case)
@@ -111,7 +111,7 @@ export function parseFecFile(content: string, columnMapping?: FECColumnMapping):
   const required = ['JournalCode', 'EcritureNum', 'EcritureDate', 'CompteNum', ...(withSense ? [] : ['Debit', 'Credit'])]
   const missing = required.filter((f) => !columnOf.has(f))
   if (missing.length > 0) {
-    throw new ValidationError(`Fichier FEC incomplet : zones absentes de l'en-tête : ${missing.join(', ')}`)
+    throw new ValidationError(`Fichier FEC incomplet : zones absentes de l'en-tête : ${missing.join(', ')}`)
   }
 
   const lines: ParsedFecLine[] = []
@@ -124,7 +124,7 @@ export function parseFecFile(content: string, columnMapping?: FECColumnMapping):
     if (values.length !== header.length) {
       errors.push({
         line: lineNumber,
-        message: `${values.length} zones au lieu de ${header.length} (séparateur dans un libellé ?)`,
+        message: `${values.length} zones au lieu de ${header.length} (séparateur dans un libellé ?)`,
       })
       continue
     }

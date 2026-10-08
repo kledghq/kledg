@@ -96,7 +96,7 @@ export default function RulesPage() {
 
   const handleDelete = async (rule: TransactionRule) => {
     const ok = await confirm({
-      title: `Supprimer la règle « ${rule.name} » ?`,
+      title: `Supprimer la règle « ${rule.name} » ?`,
       description:
         'Les transactions ne seront plus reconnues par cette règle. Les écritures déjà créées avec elle sont conservées.',
       confirmLabel: 'Supprimer la règle',

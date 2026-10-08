@@ -23,8 +23,8 @@ import { kindOfAccount, type ThirdPartyKind, type TiersDirectory } from './third
 export const FLOW_TOP = 8
 
 export const NO_AUXILIARY_CODE = '(sans compte auxiliaire)'
-export const NO_AUXILIARY_NAME = 'Sans compte auxiliaire'
-export const OTHERS_CODE = '(autres)'
+const NO_AUXILIARY_NAME = 'Sans compte auxiliaire'
+const OTHERS_CODE = '(autres)'
 
 export interface FlowEntryLine {
   accountCode: string

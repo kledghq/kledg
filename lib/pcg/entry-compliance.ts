@@ -4,6 +4,8 @@
  * imports it on the request path of the app's routes.
  */
 
+import { sumCents, toCents } from '@/lib/utils/money'
+
 /**
  * Vérifie la conformité d'une écriture comptable
  */
@@ -18,10 +20,11 @@ export function checkEntryCompliance(entry: {
   const violations: Array<{ ruleId: string; message: string; severity: 'error' | 'warning' }> = []
   
   // Vérifier l'équilibre (Art. 112-2)
-  const totalDebit = entry.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0)
-  const totalCredit = entry.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0)
-  
-  if (Math.abs(totalDebit - totalCredit) > 0.01) {
+  // In cents (lib/utils/money.ts): a one cent imbalance is an imbalance
+  const totalDebit = sumCents(entry.lines.map((line) => toCents(line.debit || 0) ?? 0))
+  const totalCredit = sumCents(entry.lines.map((line) => toCents(line.credit || 0) ?? 0))
+
+  if (totalDebit !== totalCredit) {
     violations.push({
       ruleId: '112-2',
       message: 'L\'écriture n\'est pas équilibrée (débit ≠ crédit)',

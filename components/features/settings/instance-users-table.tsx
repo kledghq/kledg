@@ -63,7 +63,7 @@ export function InstanceUsersTable({ users, currentUserId, canManage }: Props) {
   const toggleAdmin = async (user: InstanceUser) => {
     const promote = user.role !== 'admin'
     const ok = await confirm({
-      title: promote ? `Nommer ${user.email} administrateur de l'instance ?` : `Retirer le rôle administrateur à ${user.email} ?`,
+      title: promote ? `Nommer ${user.email} administrateur de l'instance\u00a0?` : `Retirer le rôle administrateur à ${user.email}\u00a0?`,
       description: promote
         ? "Il pourra créer et gérer les comptes, toutes les sociétés et les mises à jour de l'instance."
         : "Il gardera l'accès aux sociétés dont il est membre, avec ses rôles dans chacune.",
@@ -84,7 +84,7 @@ export function InstanceUsersTable({ users, currentUserId, canManage }: Props) {
       return
     }
     const ok = await confirm({
-      title: `Bloquer ${user.email} ?`,
+      title: `Bloquer ${user.email}\u00a0?`,
       description:
         "Ses sessions sont fermées\u00a0: il ne peut plus se connecter et ses clés API sont refusées jusqu'à ce que vous le débloquiez. Ses données sont conservées.",
       confirmLabel: 'Bloquer',
@@ -95,7 +95,7 @@ export function InstanceUsersTable({ users, currentUserId, canManage }: Props) {
 
   const remove = async (user: InstanceUser) => {
     const ok = await confirm({
-      title: `Supprimer le compte ${user.email} ?`,
+      title: `Supprimer le compte ${user.email}\u00a0?`,
       description:
         'Le compte, ses sessions et ses clés API sont supprimés définitivement. Les sociétés et leur comptabilité sont conservées\u00a0: il perd seulement leur accès.',
       confirmLabel: 'Supprimer',

@@ -745,7 +745,7 @@ export default function FiscalYearsPage() {
       <ConfirmDeleteDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title={`Supprimer l'exercice ${fiscalYearToDelete?.year ?? ''} ?`}
+        title={`Supprimer l'exercice ${fiscalYearToDelete?.year ?? ''}\u00a0?`}
         description="L'exercice sera supprimé définitivement. Un exercice qui contient des écritures ne peut pas être supprimé."
         loading={isDeleting}
         onConfirm={() => handleDeleteFiscalYear()}

@@ -98,7 +98,7 @@ interface RoleCheckRow {
 }
 
 /** The query `verifyAppRole` runs: who the connection is and whether the policies apply to it. */
-export const ROLE_CHECK_SQL = `SELECT current_user AS role, r.rolsuper, r.rolbypassrls,
+const ROLE_CHECK_SQL = `SELECT current_user AS role, r.rolsuper, r.rolbypassrls,
   pg_has_role(current_user, c.relowner, 'USAGE') AS owns,
   kledg_rls_enforced() AS enforced
 FROM pg_roles r, pg_class c

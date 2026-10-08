@@ -92,11 +92,11 @@ export async function syncCompanyIntegrations(
         outcome.integrationsSynced++
         outcome.totalItemsSynced += result.itemsSynced
       } else {
-        outcome.errors.push(`${label} : ${result.errors.join(', ')}`)
+        outcome.errors.push(`${label} : ${result.errors.join(', ')}`)
       }
     } catch (error) {
       // Keep going: the other banks still sync; the reason is French, the detail is logged
-      outcome.errors.push(`${label} : ${errorReason(error)}`)
+      outcome.errors.push(`${label} : ${errorReason(error)}`)
     }
   }
   outcome.success = outcome.errors.length === 0

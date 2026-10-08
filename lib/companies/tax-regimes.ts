@@ -83,7 +83,7 @@ export async function getCorporateTaxRegime(
 }
 
 
-export const REGIME_NOT_FOUND_MESSAGE = 'Régime fiscal non trouvé'
+const REGIME_NOT_FOUND_MESSAGE = 'Régime fiscal non trouvé'
 const ESTABLISHMENT_NOT_FOUND_MESSAGE = "Établissement non trouvé ou n'appartient pas à cette société"
 const EXEMPTION_TYPE_MESSAGE = "L'exonération de TVA ne peut être appliquée qu'aux régimes de TVA"
 const EXEMPTION_REASON_MESSAGE = "La raison de l'exonération de TVA est requise lorsque isVatExempt est true"

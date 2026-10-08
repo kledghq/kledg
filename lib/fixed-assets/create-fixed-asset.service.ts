@@ -44,7 +44,7 @@ export interface CreateFixedAssetInput {
   isFullyPaid?: boolean | null
 }
 
-const MISSING_FIELDS = "Champs obligatoires manquants : libellé, date et valeur d'acquisition, compte d'immobilisation."
+const MISSING_FIELDS = "Champs obligatoires manquants : libellé, date et valeur d'acquisition, compte d'immobilisation."
 
 type Db = Prisma.TransactionClient | typeof prisma
 
@@ -67,7 +67,7 @@ export async function createFixedAssetInTx(db: Db, companyId: string, input: Cre
 
   const method = input.depreciationMethod || 'linear'
   if (method !== 'linear' && method !== 'declining' && method !== 'none') {
-    throw new ValidationError("Mode d'amortissement invalide : linear, declining ou none.")
+    throw new ValidationError("Mode d'amortissement invalide : linear, declining ou none.")
   }
   const depreciable = method !== 'none'
   const rate = depreciable ? decimalNumber(input.depreciationRate, "Taux d'amortissement") : null
@@ -116,7 +116,7 @@ export async function createFixedAssetInTx(db: Db, companyId: string, input: Cre
       expenseAccountId,
       isFullyPaid: input.isFullyPaid || false,
     }, db)
-    if (!validation.valid) throw new ValidationError(`Validation PCG échouée : ${validation.errors.join(', ')}`)
+    if (!validation.valid) throw new ValidationError(`Validation PCG échouée : ${validation.errors.join(', ')}`)
     warnings = validation.warnings
     if (warnings.length > 0) {
       logger.warn(`PCG Warnings for fixed asset creation: ${warnings.map((w) => w.message).join('; ')}`, { companyId, label })

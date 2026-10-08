@@ -5,9 +5,7 @@
  * "2026-03-05T23:10:00+01:00") is dropped: the day written by the bank wins.
  */
 
-import { DATE_FORMAT_VALUES, type CalendarDate, type DateFormat } from './types'
-
-export const DATE_FORMATS: readonly DateFormat[] = DATE_FORMAT_VALUES
+import type { CalendarDate, DateFormat } from './types'
 
 function isValidDay(y: number, m: number, d: number): boolean {
   if (y < 1900 || y > 2200 || m < 1 || m > 12 || d < 1) return false

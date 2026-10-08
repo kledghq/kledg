@@ -74,7 +74,7 @@ describe.skipIf(!available)('statement layout operations', () => {
       await expect(validateAccountCodes(ids.company, ['512000', '411000'])).resolves.toBeUndefined()
       await expect(validateAccountCodes(ids.company, ['512000', '401000', '6'], 'exact')).rejects.toMatchObject({
         name: 'ValidationError',
-        message: 'Comptes inconnus : 401000, 6. Créez-les dans le plan comptable de la société ou corrigez les numéros.',
+        message: 'Comptes inconnus : 401000, 6. Créez-les dans le plan comptable de la société ou corrigez les numéros.',
       })
       // 401000 exists, but in another company's chart.
       await expect(validateAccountCodes(ids.other, ['401000'])).resolves.toBeUndefined()
@@ -84,7 +84,7 @@ describe.skipIf(!available)('statement layout operations', () => {
       await expect(validateAccountCodes(ids.company, ['7', '64'], 'starts_with')).resolves.toBeUndefined()
       await expect(validateAccountCodes(ids.company, ['512', '41'], 'starts_with', true)).resolves.toBeUndefined()
       await expect(validateAccountCodes(ids.company, ['512', '40', '6'], 'starts_with', true)).rejects.toThrow(
-        'Préfixes de comptes inconnus : 40, 6. Aucun compte de la société ne commence par ces préfixes.',
+        'Préfixes de comptes inconnus : 40, 6. Aucun compte de la société ne commence par ces préfixes.',
       )
     })
 

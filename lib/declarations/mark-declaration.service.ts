@@ -33,7 +33,7 @@ import { declarationKindOf, type LockedField, type TrackedDeadline } from './sta
 /** "cfe:2026", "is-acompte:2026-12-31:2", "tva-ca3:2026-T3": rule, colon, key. */
 export const DEADLINE_ID_PATTERN = /^[a-z0-9-]+:[0-9A-Za-z:-]+$/
 
-export const DeadlineIdField = z
+const DeadlineIdField = z
   .string({ error: 'L’échéance est requise' })
   .trim()
   .max(100, 'Échéance inconnue')

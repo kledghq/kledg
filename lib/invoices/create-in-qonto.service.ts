@@ -102,7 +102,7 @@ export async function issueInvoice(companyId: string, input: CreateInvoiceInput,
 function refusalMessage(outcome: Extract<QontoCreateOutcome<unknown>, { kind: 'refused' }>, what: 'invoice' | 'client', name: string): string {
   const has = (text: string) => outcome.codes.some((c) => c.includes(text)) || outcome.pointers.some((p) => p.includes(text))
   if (outcome.status === 401 || outcome.status === 403) {
-    return `${QONTO_REFUSED_PREFIX} : la clé API enregistrée n’a pas ce droit (erreur ${outcome.status}). Kledg numérote vos factures en attendant ; vérifiez la clé API dans Qonto (Intégrations et partenariats), puis réactivez « Créer les factures dans Qonto » dans Informations.`
+    return `${QONTO_REFUSED_PREFIX} : la clé API enregistrée n’a pas ce droit (erreur ${outcome.status}). Kledg numérote vos factures en attendant ; vérifiez la clé API dans Qonto (Intégrations et partenariats), puis réactivez « Créer les factures dans Qonto » dans Informations.`
   }
   if (outcome.status === 429) return 'Qonto limite le nombre de requêtes : réessayez dans quelques minutes.'
   if (what === 'client') return `Qonto a refusé de créer le client « ${name} » (erreur ${outcome.status}) : vérifiez son adresse, son SIREN et son numéro de TVA, puis réessayez.`
@@ -388,7 +388,7 @@ export async function createInvoiceInQonto(companyId: string, input: CreateInvoi
   if (input.number) throw new ValidationError('Qonto donne le numéro de la facture : laissez le numéro vide, ou choisissez « Enregistrer une facture déjà émise ».')
   const capability = await qontoInvoicingCapability(companyId)
   if (!capability.connected) throw new ValidationError(QONTO_NOT_CONNECTED_MESSAGE)
-  if (capability.refusal) throw new ValidationError(capability.refusal.startsWith(QONTO_REFUSED_PREFIX) ? capability.refusal : `${QONTO_REFUSED_PREFIX} : ${capability.refusal}`)
+  if (capability.refusal) throw new ValidationError(capability.refusal.startsWith(QONTO_REFUSED_PREFIX) ? capability.refusal : `${QONTO_REFUSED_PREFIX} : ${capability.refusal}`)
   await limitBankCalls(companyId)
   const qonto = await qontoFor(companyId)
   const target = await prerequisites(companyId, qonto, input.tiersId)

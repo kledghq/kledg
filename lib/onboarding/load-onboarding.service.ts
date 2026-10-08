@@ -19,7 +19,7 @@ const SUGGESTION_SAMPLE = 500
 
 /** Body of POST /api/companies/[id]/onboarding. */
 export const OnboardingActionSchema = z.object({
-  action: z.enum(['dismiss', 'reopen'], { error: 'Action inconnue : dismiss ou reopen' }),
+  action: z.enum(['dismiss', 'reopen'], { error: 'Action inconnue : dismiss ou reopen' }),
 })
 export type OnboardingAction = z.infer<typeof OnboardingActionSchema>['action']
 
@@ -82,7 +82,7 @@ async function countAiConnections(companyId: string, userIds: string[], now: Dat
   return assistants.size + keys.filter((k) => reaches(byKey.get(k.id))).length
 }
 
-export async function loadOnboardingFacts(companyId: string, now: Date = new Date()): Promise<OnboardingFacts & { entries: number }> {
+async function loadOnboardingFacts(companyId: string, now: Date = new Date()): Promise<OnboardingFacts & { entries: number }> {
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { foundationDate: true } })
   const fiscalYears = await prisma.fiscalYear.findMany({
     where: { companyId },

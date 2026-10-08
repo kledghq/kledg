@@ -8,6 +8,14 @@ import { z } from 'zod'
 import { calendarDayOf } from '@/lib/utils/date'
 import { amountTooLargeMessage, MAX_AMOUNT_CENTS } from '@/lib/utils/money'
 import { ValidationError } from '@/lib/accounting/errors'
+import { ACCOUNT_CODE_MESSAGE, ACCOUNT_CODE_PATTERN } from '@/lib/accounting/account-code'
+
+/** An account number in the one format of lib/accounting/account-code.ts. */
+export const accountCode = (message: string = ACCOUNT_CODE_MESSAGE) => z.string().trim().regex(ACCOUNT_CODE_PATTERN, message)
+
+/** An account number of a class or root (`'6'`, `'7'`), in the same format. */
+export const accountCodeOfClass = (prefix: string, message: string) =>
+  accountCode(message).refine((code) => code.startsWith(prefix), message)
 
 /** Default zod messages in French (schemas may still set their own): passed to every parse of request input. */
 export const FRENCH_ERRORS = z.locales.fr().localeError

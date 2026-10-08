@@ -8,7 +8,8 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { getFiscalYearForDate, getOrCreateActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
+import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
+import { ensureActiveFiscalYear } from '@/lib/accounting/active-fiscal-year.service'
 
 export interface JournalAccounts {
   /** The fiscal year holding the date, else the open one (the entry is then refused with the date's reason). */
@@ -22,7 +23,7 @@ export function journalAccounts(companyId: string, counters: { accountsCreated: 
   return {
     async fiscalYearId(date) {
       const fiscalYear = await getFiscalYearForDate(companyId, date)
-      return fiscalYear?.id ?? (await getOrCreateActiveFiscalYear(companyId)).id
+      return fiscalYear?.id ?? (await ensureActiveFiscalYear(companyId)).id
     },
     async accountId(fiscalYearId, code) {
       if (!code) return ''

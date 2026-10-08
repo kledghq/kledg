@@ -5,6 +5,7 @@
 
 import type { Prisma } from '@prisma/client'
 import { createEntryInTx } from '../services/entry-lifecycle.service'
+import { journalByCode } from '../journal-by-code'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { addUtcDays, lastDayOfMonth, utcDate } from '@/lib/utils/date'
 import type { ClosingAccountBalance, ClosingLine } from './closing-entries'
@@ -55,11 +56,7 @@ export async function loadYearBalances(
 
 /** Gets or creates a journal of the company by code. */
 export async function ensureJournal(tx: Tx, companyId: string, journal: { code: string; label: string }) {
-  return tx.journal.upsert({
-    where: { companyId_code: { companyId, code: journal.code } },
-    update: {},
-    create: { companyId, code: journal.code, label: journal.label },
-  })
+  return journalByCode(tx, companyId, journal.code, { create: { label: journal.label } })
 }
 
 /**

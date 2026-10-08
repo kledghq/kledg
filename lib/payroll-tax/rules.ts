@@ -43,16 +43,16 @@ export const PAYROLL_TAX_YEARS: Record<number, PayrollTaxYearRules> = {
 }
 
 /** Rates in hundredths of a percent: 4,25 % on everything, 4,25 % more above the lower threshold, 9,35 % more above the upper one. */
-export const RATE_BASE = 425
-export const RATE_FIRST = 425
-export const RATE_SECOND = 935
-export const FRANCHISE_CENTS = 120_000
-export const DECOTE_LIMIT_CENTS = 204_000
-export const MONTHLY_ABOVE_CENTS = 1_000_000
-export const QUARTERLY_FROM_CENTS = 400_000
+const RATE_BASE = 425
+const RATE_FIRST = 425
+const RATE_SECOND = 935
+const FRANCHISE_CENTS = 120_000
+const DECOTE_LIMIT_CENTS = 204_000
+const MONTHLY_ABOVE_CENTS = 1_000_000
+const QUARTERLY_FROM_CENTS = 400_000
 
 /** Cents to the nearest euro, in cents (half up; amounts are never negative). */
-export const roundEuro = (cents: number) => Math.floor((cents + 50) / 100) * 100
+const roundEuro = (cents: number) => Math.floor((cents + 50) / 100) * 100
 
 /** cents x rate (hundredths of a percent) / 10 000, exact then rounded to the euro. */
 function taxOf(cents: number, rateHundredths: number): number {

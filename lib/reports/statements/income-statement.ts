@@ -57,7 +57,7 @@ const minus = (code: string): Operand => ({ code, sign: -1 })
  * 2033-B style simplified model: 270 = 232 - 264, GV = 280 - 294,
  * GW = 270 + GH - GI + GV, HI = 290 - 300, 310 = produits - charges.
  */
-export const RESULT_FORMULAS: Record<string, Operand[]> = {
+const RESULT_FORMULAS: Record<string, Operand[]> = {
   GG: [plus('FR'), minus('GF')],
   GV: [plus('GP'), minus('GU'), plus('280'), minus('294')],
   GW: [plus('GG'), plus('270'), plus('GH'), minus('GI'), plus('GV')],
@@ -209,7 +209,7 @@ export function buildIncomeStatement(input: BuildIncomeStatementInput): IncomeSt
   const unmappedAccounts = allocation.unmapped.map(toAccountBalance)
   if (unmappedAccounts.length > 0) {
     warnings.push(
-      `${plural(unmappedAccounts.length, 'compte')} ${pluralWord(unmappedAccounts.length, "n'est rattaché", 'ne sont rattachés')} à aucune ligne du compte de résultat : ${unmappedAccounts
+      `${plural(unmappedAccounts.length, 'compte')} ${pluralWord(unmappedAccounts.length, "n'est rattaché", 'ne sont rattachés')} à aucune ligne du compte de résultat : ${unmappedAccounts
         .map((a) => a.code)
         .join(', ')}. Rattachez-les à une ligne ou rétablissez la configuration par défaut (bouton Configuration).`
     )
@@ -218,7 +218,7 @@ export function buildIncomeStatement(input: BuildIncomeStatementInput): IncomeSt
     warnings.push(
       `Le compte ${a.code} correspond à plusieurs lignes (${a.lineIds
         .map((id) => byId.get(id)?.lineLabel ?? id)
-        .join(', ')}) : il n'est compté que dans la première.`
+        .join(', ')}) : il n'est compté que dans la première.`
     )
   }
 

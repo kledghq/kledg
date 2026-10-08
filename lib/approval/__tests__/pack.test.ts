@@ -76,7 +76,7 @@ describe('officer titles and decision type in the documents', () => {
     expect(md).toContain('Jeanne Martin, associé unique de la société, détenant la totalité des 1 000 parts sociales')
     expect(md).toContain('arrêtés par la gérance')
     expect(md).toContain("consignée au registre des décisions de l'associé unique")
-    expect(md).toContain("à l'associé unique, à titre de dividendes : 20 000,00 €")
+    expect(md).toContain("à l'associé unique, à titre de dividendes : 20 000,00 €")
     expect(md).not.toMatch(/mise aux voix|assemblée/)
   })
 
@@ -104,7 +104,7 @@ describe('officer titles and decision type in the documents', () => {
     const md = markdownOf('SA', 'decision')
     expect(md).toContain("sur convocation du conseil d'administration")
     expect(md).toContain('les actionnaires de la société se sont réunis')
-    expect(md).toContain("Les actionnaires présents ou représentés possèdent 1 000 actions sur les 1 000 actions ayant le droit de vote : le quorum est atteint")
+    expect(md).toContain("Les actionnaires présents ou représentés possèdent 1 000 actions sur les 1 000 actions ayant le droit de vote : le quorum est atteint")
     expect(md).toContain('aux actionnaires, à titre de dividendes')
     expect(md).toContain("arrêtés par le conseil d'administration")
   })
@@ -132,17 +132,17 @@ describe('officer titles and decision type in the documents', () => {
 describe('result and allocation (L232-10, CGI 243 bis and 223 quater)', () => {
   it('sets aside the legal reserve computed by Kledg and recalls the dividends of the three previous years', () => {
     const md = markdownOf('SARL', 'decision')
-    expect(md).toContain('à la réserve légale : 1 000,00 €')
-    expect(md).toContain('au compte report à nouveau : 29 000,00 €')
+    expect(md).toContain('à la réserve légale : 1 000,00 €')
+    expect(md).toContain('au compte report à nouveau : 29 000,00 €')
     expect(md).toContain("Conformément à l'article 243 bis du Code général des impôts, l'assemblée générale prend acte que les dividendes distribués")
-    expect(md).toContain('exercice 2023 : 1 500,00 €')
+    expect(md).toContain('exercice 2023 : 1 500,00 €')
     expect(md).toContain("aucune dépense ni charge visée à l'article 39, 4 du Code général des impôts")
   })
 
   it('says when the legal reserve has reached a tenth of the capital', () => {
     const md = markdownOf('SARL', 'decision', {}, { balances: { resultCents: 5_000_000, legalReserveCents: 100_000, capitalCents: 1_000_000, retainedEarningsCents: 0, priorLossesCents: 0 } })
     expect(md).toContain('La réserve légale ayant atteint le dixième du capital social')
-    expect(md).not.toContain('à la réserve légale :')
+    expect(md).not.toContain('à la réserve légale :')
   })
 
   it('allocates a loss to the report à nouveau', () => {
@@ -176,7 +176,7 @@ describe('deadlines', () => {
   it('warns about a late decision, a late convocation and missed deadlines', () => {
     const late = buildApprovalPack(contextFor('SARL', { today: '2026-09-15' }), complete({ meeting: { date: '2026-07-10', convocationDate: '2026-07-01', place: 'au siège', time: '10 h' } }))
     expect(late.warnings.join(' ')).toMatch(/dépasse le délai de six mois \(30 juin 2026\)/)
-    expect(late.warnings.join(' ')).toMatch(/moins de 15 jours avant l'assemblée : envoyez-la au plus tard le 25 juin 2026/)
+    expect(late.warnings.join(' ')).toMatch(/moins de 15 jours avant l'assemblée\u00a0: envoyez-la au plus tard le 25 juin 2026/)
     expect(late.warnings.join(' ')).toMatch(/délai de dépôt au greffe est dépassé depuis le 31 juillet 2026/)
   })
 
@@ -267,10 +267,10 @@ describe('management report and confidentiality (L232-1 IV, L232-25)', () => {
 describe('filing checklist (L232-22, L232-23)', () => {
   it('lists the accounts, the allocation, the refusal case, the online channel and the sanction', () => {
     const md = markdownOf('SARL', 'filing-checklist', { approvedOn: '2026-06-15', filedOnline: true, hasAuditor: true })
-    expect(md).toContain('Date limite de dépôt : 15 août 2026.')
+    expect(md).toContain('Date limite de dépôt : 15 août 2026.')
     expect(md).toContain('- [ ] Rapport du commissaire aux comptes sur les comptes annuels.')
     expect(md).toContain("- [ ] Proposition d'affectation du résultat et décision d'affectation votée")
-    expect(md).toContain("- [ ] En cas de refus d'approbation : une copie de la délibération, dans le même délai.")
+    expect(md).toContain("- [ ] En cas de refus d'approbation : une copie de la délibération, dans le même délai.")
     expect(md).toContain('formalites.entreprises.gouv.fr')
     expect(md).toContain('R. 247-3')
     expect(md).toContain('C. com., art. L232-22')

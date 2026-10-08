@@ -18,6 +18,7 @@ import { validatePrudence } from '@/lib/pcg/principles/prudence'
 import { checkEntryCompliance } from '@/lib/pcg/entry-compliance'
 import { formatCentsFr, fromCents, parseCents, sumCents, toCents, type AmountInput } from '@/lib/utils/money'
 import { addUtcDays, endOfDay, todayUtc } from '@/lib/utils/date'
+import { isAccountCode } from '@/lib/accounting/account-code'
 
 /**
  * Validates that an entry is balanced (debit = credit), exactly.
@@ -57,21 +58,21 @@ export function validateEntryBalance(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     if (!line.accountId) {
-      errors.push(`Ligne ${i + 1} : compte obligatoire`)
+      errors.push(`Ligne ${i + 1} : compte obligatoire`)
     }
 
     const debit = parseCents(line.debit)
     const credit = parseCents(line.credit)
-    if (debit === null) errors.push(`Ligne ${i + 1} : montant au débit invalide (deux décimales au maximum)`)
-    if (credit === null) errors.push(`Ligne ${i + 1} : montant au crédit invalide (deux décimales au maximum)`)
+    if (debit === null) errors.push(`Ligne ${i + 1} : montant au débit invalide (deux décimales au maximum)`)
+    if (credit === null) errors.push(`Ligne ${i + 1} : montant au crédit invalide (deux décimales au maximum)`)
     if (debit === null || credit === null) continue
 
     // Negative amounts are allowed (e.g. overdraft), one side per line only.
     if (debit !== 0 && credit !== 0) {
-      errors.push(`Ligne ${i + 1} : une ligne ne peut pas être à la fois au débit et au crédit (non-compensation)`)
+      errors.push(`Ligne ${i + 1} : une ligne ne peut pas être à la fois au débit et au crédit (non-compensation)`)
     }
     if (debit === 0 && credit === 0) {
-      errors.push(`Ligne ${i + 1} : la ligne doit avoir un montant au débit ou au crédit`)
+      errors.push(`Ligne ${i + 1} : la ligne doit avoir un montant au débit ou au crédit`)
     }
     debits.push(debit)
     credits.push(credit)
@@ -83,7 +84,7 @@ export function validateEntryBalance(
 
   if (balanceCents !== BigInt(0)) {
     errors.push(
-      `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)}, écart ${formatCentsFr(balanceCents < BigInt(0) ? -balanceCents : balanceCents)}`
+      `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)}, écart ${formatCentsFr(balanceCents < BigInt(0) ? -balanceCents : balanceCents)}`
     )
   }
 
@@ -114,22 +115,21 @@ export function validateAmount(amount: unknown): boolean {
 }
 
 /**
- * Validates that an account code follows PCG format
- * Format: 2 to 8 digits
+ * Validates that an account code has the one account number format
+ * (lib/accounting/account-code.ts)
  * 
  * @param code - Account code to validate
  * @returns true if valid, false otherwise
  * 
  * @example
  * validateAccountCode('411') // true
- * validateAccountCode('12345678') // true
+ * validateAccountCode('40100000') // true
+ * validateAccountCode('401CLIENT') // true (FEC charts are alphanumeric)
  * validateAccountCode('1') // false (too short)
- * validateAccountCode('123456789') // false (too long)
- * validateAccountCode('abc') // false (not numeric)
+ * validateAccountCode('abc') // false (no class digit)
  */
 export function validateAccountCode(code: string): boolean {
-  if (!code || typeof code !== 'string') return false
-  return /^\d{2,8}$/.test(code)
+  return isAccountCode(code)
 }
 
 /**
@@ -219,7 +219,7 @@ export function getAccountNature(code: string): 'actif' | 'passif' | 'charge' | 
  * validateAccountUsage('account-123', '411') // true
  * validateAccountUsage('account-123', 'invalid') // false (invalid code format)
  */
-export function validateAccountUsage(accountId: string, accountCode?: string): boolean {
+function validateAccountUsage(accountId: string, accountCode?: string): boolean {
   if (!accountId) return false
 
   // If a code is provided, validate the format
@@ -287,15 +287,15 @@ export function validateAccountingEntry(entry: {
     const line = entry.lines[i]
 
     if (!validateAccountUsage(line.accountId)) {
-      errors.push(`Ligne ${i + 1} : compte invalide`)
+      errors.push(`Ligne ${i + 1} : compte invalide`)
     }
 
     if (!validateAmount(line.debit)) {
-      errors.push(`Ligne ${i + 1} : montant au débit invalide`)
+      errors.push(`Ligne ${i + 1} : montant au débit invalide`)
     }
 
     if (!validateAmount(line.credit)) {
-      errors.push(`Ligne ${i + 1} : montant au crédit invalide`)
+      errors.push(`Ligne ${i + 1} : montant au crédit invalide`)
     }
   }
 

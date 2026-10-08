@@ -16,9 +16,9 @@ import { CASH_FORECAST_COMPONENTS, DEFAULT_COMPONENTS, normalizeComponents, type
 /** Months the projection covers, from tomorrow. */
 export const CASH_FORECAST_HORIZONS = [3, 6, 12] as const
 export type CashForecastHorizon = (typeof CASH_FORECAST_HORIZONS)[number]
-export const DEFAULT_HORIZON: CashForecastHorizon = 6
+const DEFAULT_HORIZON: CashForecastHorizon = 6
 
-export const horizonField = z.union([z.literal(3), z.literal(6), z.literal(12)], { error: 'L’horizon est de 3, 6 ou 12 mois' })
+const horizonField = z.union([z.literal(3), z.literal(6), z.literal(12)], { error: 'L’horizon est de 3, 6 ou 12 mois' })
 
 export const CashForecastSettingsSchema = z.object({
   /**

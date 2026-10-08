@@ -50,7 +50,7 @@ const generateDepreciation = fullControlTool({
         debit: i.expenseAccount.code,
         credit: i.depreciationAccount.code,
       })),
-      warnings: fiscalYear.isClosed ? [`L'exercice ${fiscalYear.year} est clôturé : la génération sera refusée.`] : [],
+      warnings: fiscalYear.isClosed ? [`L'exercice ${fiscalYear.year} est clôturé : la génération sera refusée.`] : [],
     }
   },
   async execute({ companyId, fiscalYearId }) {
@@ -129,7 +129,7 @@ function euroPlan(plan: AllocationPlan) {
 function cents(value: string | number | undefined, field: string): number {
   if (value === undefined) return 0
   const parsed = parseCents(value)
-  if (parsed === null || parsed < 0) throw new ValidationError(`${field} : montant invalide`)
+  if (parsed === null || parsed < 0) throw new ValidationError(`${field} : montant invalide`)
   return parsed
 }
 

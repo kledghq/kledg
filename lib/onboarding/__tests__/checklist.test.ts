@@ -61,7 +61,7 @@ describe('buildChecklist', () => {
     const suggestions = [{ label: 'OVH SAS', count: 8, transactionId: 'tx-1' }]
     expect(step({ ...fresh, ruleSuggestions: suggestions }, 'rule')).toMatchObject({
       done: false,
-      detail: 'Libellés fréquents : OVH SAS (8 fois)',
+      detail: 'Libellés fréquents : OVH SAS (8 fois)',
       action: { label: 'Créer la règle « OVH SAS »', href: '/atelier-lumen/rules/new?fromTransaction=tx-1' },
     })
     expect(step({ ...fresh, rules: 2, ruleSuggestions: suggestions }, 'rule')).toMatchObject({ done: true, detail: '2 règles' })

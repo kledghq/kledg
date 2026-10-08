@@ -5,13 +5,9 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { normalizeDate, utcDate, addUtcDays, todayUtc } from '@/lib/utils/date'
 import { calendarDayOf } from '@/lib/utils/date'
+import { ConflictError } from '@/lib/accounting/errors'
 import { fiscalYearContaining } from './entry-guards'
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate()
-}
 
 /**
  * Gets the active (non-closed) fiscal year for a company
@@ -52,108 +48,13 @@ export async function getFiscalYearForDate(
   return fiscalYear ? { id: fiscalYear.id, year: fiscalYear.year } : null
 }
 
-/**
- * Gets or creates the active fiscal year for a company
- * If no active fiscal year exists, creates one based on the current date
- * and the company's closing day/month settings
- */
-export async function getOrCreateActiveFiscalYear(companyId: string) {
-  // Try to get existing active fiscal year
-  let fiscalYear = await getActiveFiscalYear(companyId)
-
-  if (fiscalYear) {
-    return fiscalYear
-  }
-
-  // No active fiscal year exists, create one
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: {
-      closingDay: true,
-      closingMonth: true,
-      foundationDate: true,
-    },
-  })
-
-  if (!company) {
-    throw new Error(`Company ${companyId} not found`)
-  }
-
-  const now = new Date()
-  const currentYear = now.getUTCFullYear()
-  const closingMonth = company.closingMonth || 12
-  const closingDay = company.closingDay || 31
-
-  // Fiscal year dates are calendar days at midnight UTC (see lib/utils/date).
-  // The fiscal year ends on the closing day of the closing month (clamped to
-  // the length of that month) and starts the day after the previous closing.
-  const closingDateIn = (year: number) =>
-    utcDate(year, closingMonth, Math.min(closingDay, daysInMonth(year, closingMonth)))
-  const today = todayUtc(now)
-  let year: number
-  let endDate: Date
-  if (today <= closingDateIn(currentYear)) {
-    year = currentYear
-    endDate = closingDateIn(currentYear)
-  } else {
-    year = currentYear + 1
-    endDate = closingDateIn(currentYear + 1)
-  }
-  const startDate = addUtcDays(closingDateIn(year - 1), 1)
-
-  // Check if a fiscal year for this year already exists (might be closed)
-  const existingFiscalYear = await prisma.fiscalYear.findUnique({
-    where: {
-      companyId_year: {
-        companyId,
-        year,
-      },
-    },
-  })
-
-  if (existingFiscalYear) {
-    // If it exists but is closed, we need to create the next one
-    if (existingFiscalYear.isClosed) {
-      const nextYear = year + 1
-      const nextStartDate = addUtcDays(existingFiscalYear.endDate, 1)
-      const nextEndDate = closingDateIn(nextYear)
-
-      fiscalYear = await prisma.fiscalYear.create({
-        data: {
-          companyId,
-          year: nextYear,
-          closingDay,
-          closingMonth,
-          startDate: normalizeDate(nextStartDate),
-          endDate: normalizeDate(nextEndDate),
-          isClosed: false,
-        },
-      })
-    } else {
-      fiscalYear = existingFiscalYear
-    }
-  } else {
-    // Create new fiscal year with normalized dates
-    fiscalYear = await prisma.fiscalYear.create({
-      data: {
-        companyId,
-        year,
-        closingDay,
-        closingMonth,
-        startDate: normalizeDate(startDate),
-        endDate: normalizeDate(endDate),
-        isClosed: false,
-      },
-    })
-  }
-
-  return fiscalYear
-}
+/** No open fiscal year: reads answer an empty state, this message where one is needed. */
+export const NO_OPEN_FISCAL_YEAR = 'Aucun exercice ouvert : créez l’exercice dans Paramètres, Exercices.'
 
 /**
- * Gets the fiscal year that should be used for a given date
- * If the date falls within an existing fiscal year, returns that one
- * Otherwise, returns the active fiscal year
+ * Gets the fiscal year that should be used for a given date: the one
+ * containing it, else the active (open) fiscal year. Never creates one
+ * (a read must not change state): 409 when the company has no open year.
  */
 export async function getFiscalYearForEntry(
   companyId: string,
@@ -166,8 +67,9 @@ export async function getFiscalYearForEntry(
     return fiscalYearForDate
   }
 
-  // If no fiscal year contains this date, get or create the active one
-  const activeFiscalYear = await getOrCreateActiveFiscalYear(companyId)
+  // If no fiscal year contains this date, the active one
+  const activeFiscalYear = await getActiveFiscalYear(companyId)
+  if (!activeFiscalYear) throw new ConflictError(NO_OPEN_FISCAL_YEAR)
 
   return {
     id: activeFiscalYear.id,

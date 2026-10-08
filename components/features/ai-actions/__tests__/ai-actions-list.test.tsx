@@ -81,7 +81,7 @@ describe('AiActionsList', () => {
     await user.click(submit)
 
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Action approuvée : l'assistant peut maintenant l'exécuter."),
+      expect(toast.success).toHaveBeenCalledWith("Action approuvée\u00a0: l'assistant peut maintenant l'exécuter."),
     )
     expect(postCalls()).toEqual([
       [
@@ -105,7 +105,7 @@ describe('AiActionsList', () => {
     expect(within(dialog).getByText('Refuser cette action ?')).toBeInTheDocument()
     await user.type(within(dialog).getByLabelText(/Mot de passe/), 'pw')
     await user.click(within(dialog).getByRole('button', { name: 'Refuser' }))
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Action refusée : elle ne sera pas exécutée.'))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Action refusée\u00a0: elle ne sera pas exécutée.'))
     expect(JSON.parse(String(postCalls()[0]![1]?.body))).toEqual({ decision: 'reject', password: 'pw' })
   })
 

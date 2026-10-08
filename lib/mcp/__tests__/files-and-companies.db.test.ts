@@ -333,7 +333,7 @@ describe.skipIf(!available)('MCP tools for files and the company lifecycle', () 
     it('refuses a viewer the exports (reports:export) and the full control tools, and lets it read documents', async () => {
       const viewer = await apiKey('admin', { user: VIEWER })
       const exported = await call(viewer, 'export_report', { companyId: ids.aCompany, report: 'journal_excel' })
-      expect(exported.text).toMatch(/^Action non autorisée : votre rôle \(Lecture seule\)/)
+      expect(exported.text).toMatch(/^Action non autorisée\u00a0: votre rôle \(Lecture seule\)/)
       for (const tool of ['archive_company', 'restore_company']) {
         const result = await call(viewer, tool, { companyId: ids.aCompany })
         expect(result.ok, tool).toBe(false)

@@ -29,7 +29,7 @@ describe('validateBalanceSheetStructure (PCG art. 821-1)', () => {
       ),
     )
     expect(result.valid).toBe(false)
-    expect(result.errors).toEqual(["Le bilan n'est pas équilibré : écart de 9,50 € (Actif : 1 000,00 €, Passif : 990,50 €)"])
+    expect(result.errors).toEqual(["Le bilan n'est pas équilibré : écart de 9,50 € (Actif : 1 000,00 €, Passif : 990,50 €)"])
   })
 
   it('compares the totals in cents (regression: a one cent gap passed or failed depending on float noise)', () => {
@@ -41,8 +41,8 @@ describe('validateBalanceSheetStructure (PCG art. 821-1)', () => {
     // 0.1 + 0.2 is 0.30000000000000004 in floating point: the same 30 cents.
     expect(validateBalanceSheetStructure(posts(0.1 + 0.2, 0.3)).errors).toEqual([])
     // 0.03 - 0.02 is 0.009999999999999998, which the 0.01 tolerance let through.
-    expect(validateBalanceSheetStructure(posts(0.03, 0.02)).errors).toEqual(["Le bilan n'est pas équilibré : écart de 0,01 € (Actif : 0,03 €, Passif : 0,02 €)"])
-    expect(validateBalanceSheetStructure(posts(0.31, 0.3)).errors).toEqual(["Le bilan n'est pas équilibré : écart de 0,01 € (Actif : 0,31 €, Passif : 0,30 €)"])
+    expect(validateBalanceSheetStructure(posts(0.03, 0.02)).errors).toEqual(["Le bilan n'est pas équilibré : écart de 0,01 € (Actif : 0,03 €, Passif : 0,02 €)"])
+    expect(validateBalanceSheetStructure(posts(0.31, 0.3)).errors).toEqual(["Le bilan n'est pas équilibré : écart de 0,01 € (Actif : 0,31 €, Passif : 0,30 €)"])
   })
 
   it('makes the missing mandatory posts errors (art. 821-1 III, IV on both sides, I on the passif)', () => {
@@ -63,7 +63,7 @@ describe('validateBalanceSheetStructure (PCG art. 821-1)', () => {
       'Poste "Autres fonds propres" manquant (Art. 821-1 II)',
       'Poste "Provisions" manquant (Art. 821-1 III)',
       'Poste "Écarts de conversion - Passif" manquant (Art. 821-1 V)',
-      'Vérifier IR3 : Les postes vides pendant 2 exercices consécutifs peuvent être omis (Art. 811-3)',
+      'Vérifier IR3 : Les postes vides pendant 2 exercices consécutifs peuvent être omis (Art. 811-3)',
     ])
   })
 
@@ -77,8 +77,8 @@ describe('validateBalanceSheetStructure (PCG art. 821-1)', () => {
     expect(result.errors).toEqual(['Poste "Capital" manquant dans les capitaux propres'])
     expect(result.warnings).toEqual(
       expect.arrayContaining([
-        'Immobilisations incorporelles : valeur nette négative (à vérifier)',
-        'Immobilisations corporelles : valeur nette négative (à vérifier)',
+        'Immobilisations incorporelles : valeur nette négative (à vérifier)',
+        'Immobilisations corporelles : valeur nette négative (à vérifier)',
         'Poste "Stocks et en-cours" manquant dans l\'actif circulant',
         'Poste "Créances" manquant dans l\'actif circulant',
         'Poste "Réserves" manquant dans les capitaux propres',
@@ -107,7 +107,7 @@ describe('validateIncomeStatementStructure (PCG art. 821-2)', () => {
       'Poste "Charges exceptionnelles" manquant (Art. 821-2 VIII)',
       'Poste "Participation des salariés" manquant (Art. 821-2 IX)',
       'Poste "Impôts sur les bénéfices" manquant (Art. 821-2 X)',
-      'Vérifier IR3 : Les montants négatifs doivent être présentés entre parenthèses ou précédés du signe moins (-)',
+      'Vérifier IR3 : Les montants négatifs doivent être présentés entre parenthèses ou précédés du signe moins (-)',
     ])
   })
 

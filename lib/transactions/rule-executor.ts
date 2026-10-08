@@ -12,6 +12,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { journalByCode } from '@/lib/accounting/journal-by-code';
 import type { TransactionRule } from '@prisma/client';
 import type { EntryLine } from './types';
 import {
@@ -168,12 +169,7 @@ export async function prepareRuleEntry(
   const { vatDeductionShareOn } = await import('@/lib/vat-deduction/coefficient');
   const vatRecoveryRatio: number | null = await vatDeductionShareOn(companyId, entryDate);
 
-  const journal = await prisma.journal.findFirst({
-    where: {
-      companyId,
-      code: rule.journalCode || 'BQ',
-    },
-  });
+  const journal = await journalByCode(prisma, companyId, rule.journalCode || 'BQ');
 
   if (!journal) {
     return fail(`Journal ${rule.journalCode || 'BQ'} introuvable.`);

@@ -63,7 +63,7 @@ export function AvatarStack({ holders, max = 3, size = 'md', className }: { hold
   const sorted = [...holders].sort((a, b) => b.percentBp - a.percentBp)
   const shown = sorted.slice(0, max)
   const rest = sorted.slice(max)
-  const restLabel = rest.length > 0 ? `${rest.length} autre${rest.length > 1 ? 's' : ''} associé${rest.length > 1 ? 's' : ''}\u00a0: ${rest.map(holderLabel).join(' ; ')}` : ''
+  const restLabel = rest.length > 0 ? `${rest.length} autre${rest.length > 1 ? 's' : ''} associé${rest.length > 1 ? 's' : ''}\u00a0: ${rest.map(holderLabel).join(' ; ')}` : ''
   return (
     <span role="group" aria-label="Associés de la holding" data-slot="avatar-stack" className={cn('flex shrink-0 items-center', OVERLAP[size], className)}>
       {shown.map((h, i) => (

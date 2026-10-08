@@ -22,7 +22,7 @@ describe.each([
     subject: 'Réinitialisation de votre mot de passe Kledg',
     title: 'Réinitialiser votre mot de passe',
     button: 'Choisir un nouveau mot de passe',
-    text: `Réinitialisez votre mot de passe Kledg (lien valable une heure) : ${URL}`,
+    text: `Réinitialisez votre mot de passe Kledg (lien valable une heure) : ${URL}`,
   },
   {
     name: 'verifyEmailEmail',
@@ -30,7 +30,7 @@ describe.each([
     subject: 'Confirmez votre adresse email Kledg',
     title: 'Confirmer votre adresse email',
     button: "Confirmer l'adresse",
-    text: `Confirmez votre adresse email Kledg : ${URL}`,
+    text: `Confirmez votre adresse email Kledg : ${URL}`,
   },
   {
     name: 'welcomeEmail',
@@ -38,7 +38,7 @@ describe.each([
     subject: 'Votre accès à Kledg',
     title: 'Bienvenue sur Kledg',
     button: 'Choisir mon mot de passe',
-    text: `Un accès Kledg vous a été ouvert. Choisissez votre mot de passe : ${URL}`,
+    text: `Un accès Kledg vous a été ouvert. Choisissez votre mot de passe : ${URL}`,
   },
   {
     name: 'changeEmailVerificationEmail',
@@ -46,7 +46,7 @@ describe.each([
     subject: 'Confirmez votre nouvelle adresse email Kledg',
     title: 'Confirmer votre nouvelle adresse',
     button: 'Confirmer la nouvelle adresse',
-    text: `Confirmez votre nouvelle adresse email Kledg : ${URL}`,
+    text: `Confirmez votre nouvelle adresse email Kledg : ${URL}`,
   },
 ])('$name', ({ build, subject, title, button, text }) => {
   const message = build('marie@example.fr', URL)
@@ -76,7 +76,7 @@ describe('emailChangeNoticeEmail', () => {
     expect(message.html).toContain('vers <strong>marie.durand@example.fr</strong> a été demandé')
     expect(message.html).toContain(`<a href="${profile}"`)
     expect(message.text).toBe(
-      `Un changement de l'adresse de votre compte Kledg vers marie.durand@example.fr a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profile}`,
+      `Un changement de l'adresse de votre compte Kledg vers marie.durand@example.fr a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profile}`,
     )
   })
 

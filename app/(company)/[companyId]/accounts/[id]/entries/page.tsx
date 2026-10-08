@@ -390,7 +390,7 @@ export default function AccountEntriesPage() {
         <CardHeader>
           <CardTitle>Écritures</CardTitle>
           <CardDescription>
-            Le solde est le cumul débit moins crédit&nbsp;: positif, il est débiteur ; négatif, il est créditeur.
+            Le solde est le cumul débit moins crédit&nbsp;: positif, il est débiteur&nbsp;; négatif, il est créditeur.
           </CardDescription>
         </CardHeader>
         <CardContent aria-busy={loading || undefined}>
@@ -498,7 +498,7 @@ export default function AccountEntriesPage() {
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title={`Supprimer le compte ${account.code} ?`}
+        title={`Supprimer le compte ${account.code} ?`}
         description={
           <>
             Le compte {account.code} {account.label} et ses sous-comptes sont retirés du plan de comptes. Un compte qui

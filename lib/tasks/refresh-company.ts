@@ -9,7 +9,6 @@ import { pickRule } from '@/lib/transactions/rule-matcher'
 
 export interface RefreshCompanyResult {
   bankSync: { success: boolean; message: string; accountsSynced: number }
-  entryDatesSync: { success: boolean; message: string; entriesUpdated: number }
   rulesExecution: {
     success: boolean
     message: string
@@ -26,8 +25,7 @@ export interface RefreshCompanyResult {
 
 const MAX_REPORTED_FAILURES = 10
 
-const ENTRY_DATES_FAILED = "les dates des écritures rapprochées n'ont pas pu être alignées. Réessayez dans quelques minutes."
-const RULE_FAILED = "Impossible d'appliquer la règle : une erreur inattendue est survenue."
+const RULE_FAILED = "Impossible d'appliquer la règle : une erreur inattendue est survenue."
 const RULES_FAILED = 'une erreur inattendue a interrompu les règles. Réessayez dans quelques minutes.'
 
 /**
@@ -67,7 +65,6 @@ export async function refreshCompany(
 
   const results: RefreshCompanyResult = {
     bankSync: { success: false, message: '', accountsSynced: 0 },
-    entryDatesSync: { success: false, message: '', entriesUpdated: 0 },
     rulesExecution: {
       success: false,
       message: '',
@@ -128,35 +125,12 @@ export async function refreshCompany(
     logger.error(`Bank sync failed for company ${companyId}:`, error)
     results.bankSync = {
       success: false,
-      message: `Erreur lors de la synchronisation : ${errorReason(error)}`,
+      message: `Erreur lors de la synchronisation : ${errorReason(error)}`,
       accountsSynced: 0,
     }
   }
 
-  // Step 2: Align reconciled entry dates on transactions
-  try {
-    const { updateEntryDatesFromReconciledTransactions } = await import(
-      '@/lib/services/banking/update-entry-dates-from-transactions.service'
-    )
-    const { entriesUpdated } = await updateEntryDatesFromReconciledTransactions({ companyId })
-    results.entryDatesSync = {
-      success: true,
-      message:
-        entriesUpdated > 0
-          ? `${plural(entriesUpdated, 'écriture mise', 'écritures mises')} à jour`
-          : 'Aucune écriture à mettre à jour',
-      entriesUpdated,
-    }
-  } catch (error) {
-    logger.error('Error updating entry dates from transactions:', error)
-    results.entryDatesSync = {
-      success: false,
-      message: `Erreur lors de la mise à jour des dates d'écriture : ${userMessage(error, ENTRY_DATES_FAILED)}`,
-      entriesUpdated: 0,
-    }
-  }
-
-  // Step 3: apply the rules marked "Créer automatiquement l'écriture" to the
+  // Step 2: apply the rules marked "Créer automatiquement l'écriture" to the
   // unreconciled transactions of the active fiscal year. The other rules stay
   // suggestions in the Rapprochement queue (lib/transactions/rule-matcher.ts).
   try {
@@ -230,7 +204,7 @@ export async function refreshCompany(
     logger.error(`Rules execution failed for company ${companyId}:`, error)
     results.rulesExecution = {
       success: false,
-      message: `Erreur lors de l'exécution des règles : ${userMessage(error, RULES_FAILED)}`,
+      message: `Erreur lors de l'exécution des règles : ${userMessage(error, RULES_FAILED)}`,
       transactionsProcessed: 0,
       transactionsFailed: 0,
       transactionsSkipped: 0,

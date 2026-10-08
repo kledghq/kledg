@@ -27,7 +27,7 @@ function configOf(mode: ForecastMode) {
 }
 
 /** The curve in words, for screen readers (the table below gives every figure). */
-export function chartSummary(projection: Projection, mode: ForecastMode): string {
+function chartSummary(projection: Projection, mode: ForecastMode): string {
   const last = projection.periods.at(-1)
   const parts = [
     mode === 'simple'

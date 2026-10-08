@@ -149,7 +149,7 @@ describe.skipIf(!available)('addMemberToCompany', () => {
     await expect(addMemberToCompany({ companyId, email: '   ', role: 'viewer' })).rejects.toThrow(new ValidationError("L'email est requis"))
     await expect(
       addMemberToCompany({ companyId, email: 'a@example.fr', role: 'owner' as unknown as 'viewer' }),
-    ).rejects.toThrow(new ValidationError('Rôle invalide. Valeurs acceptées : companyAdmin, accountant, viewer'))
+    ).rejects.toThrow(new ValidationError('Rôle invalide. Valeurs acceptées : companyAdmin, accountant, viewer'))
     await expect(addMemberToCompany({ companyId: 'missing', email: 'a@example.fr', role: 'viewer' })).rejects.toThrow(
       new NotFoundError('Société introuvable'),
     )

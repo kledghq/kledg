@@ -2,8 +2,10 @@
  * Fiscal years against PostgreSQL (skipped without the test database server):
  *
  * - lib/accounting/fiscal-year-utils.ts: the active year, the year holding a
- *   date (calendar days, legacy bounds stored at 23:00 UTC), and the year
- *   created from the company's closing day when none is open;
+ *   date (calendar days, legacy bounds stored at 23:00 UTC);
+ * - lib/accounting/active-fiscal-year.service.ts: the year a write creates
+ *   from the company's closing day when none is open (through
+ *   createFiscalYear, with its chart), never on a read;
  * - lib/accounting/fiscal-year-closure/lock.ts: a closed fiscal year never
  *   changes (PCG art. 1031-4; validated entries definitive, art. 1031-3), in
  *   the service helpers and in the database triggers;
@@ -24,6 +26,7 @@ const available = await testDatabaseAvailable()
 
 let prisma: typeof import('@/lib/prisma').prisma
 let utils: typeof import('@/lib/accounting/fiscal-year-utils')
+let ensure: typeof import('@/lib/accounting/active-fiscal-year.service')
 let lock: typeof import('@/lib/accounting/fiscal-year-closure/lock')
 let validateFiscalYearClosure: typeof import('@/lib/accounting/fiscal-year-closure/validate-fiscal-year-closure.service').validateFiscalYearClosure
 let lifecycle: typeof import('@/lib/accounting/services/entry-lifecycle.service')
@@ -50,6 +53,7 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
     await prepareTestDatabase('cov_fiscal_years')
     ;({ prisma } = await import('@/lib/prisma'))
     utils = await import('@/lib/accounting/fiscal-year-utils')
+    ensure = await import('@/lib/accounting/active-fiscal-year.service')
     lock = await import('@/lib/accounting/fiscal-year-closure/lock')
     ;({ validateFiscalYearClosure } = await import('@/lib/accounting/fiscal-year-closure/validate-fiscal-year-closure.service'))
     lifecycle = await import('@/lib/accounting/services/entry-lifecycle.service')
@@ -100,7 +104,7 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       vi.setSystemTime(new Date('2026-03-10T12:00:00Z'))
       const companyId = await company('juin', { closingDay: 30, closingMonth: 6 })
 
-      const created = await utils.getOrCreateActiveFiscalYear(companyId)
+      const created = await ensure.ensureActiveFiscalYear(companyId)
 
       // Closing on 30/06: on 10/03/2026 the year runs from 01/07/2025 to 30/06/2026
       expect([created.year, created.startDate.toISOString(), created.endDate.toISOString(), created.isClosed]).toEqual([
@@ -110,7 +114,7 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
         false,
       ])
       // Called again: the same year, not a second one
-      expect((await utils.getOrCreateActiveFiscalYear(companyId)).id).toBe(created.id)
+      expect((await ensure.ensureActiveFiscalYear(companyId)).id).toBe(created.id)
       expect(await prisma.fiscalYear.count({ where: { companyId } })).toBe(1)
     })
 
@@ -119,7 +123,7 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       vi.setSystemTime(new Date('2026-03-10T12:00:00Z'))
       const companyId = await company('fevrier', { closingDay: 31, closingMonth: 2 })
 
-      const created = await utils.getOrCreateActiveFiscalYear(companyId)
+      const created = await ensure.ensureActiveFiscalYear(companyId)
 
       // 28/02/2026 has passed: 01/03/2026 to 28/02/2027
       expect([created.year, created.startDate.toISOString(), created.endDate.toISOString()]).toEqual([
@@ -136,7 +140,7 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       const fy2026 = await fiscalYear(companyId, 2026, '2026-01-01', '2026-12-31')
       await close(fy2026)
 
-      const created = await utils.getOrCreateActiveFiscalYear(companyId)
+      const created = await ensure.ensureActiveFiscalYear(companyId)
 
       expect([created.year, created.startDate.toISOString(), created.endDate.toISOString()]).toEqual([
         2027,
@@ -145,8 +149,40 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       ])
     })
 
-    it('throws for an unknown company', async () => {
-      await expect(utils.getOrCreateActiveFiscalYear('missing')).rejects.toThrow('Company missing not found')
+    it('creates the year through createFiscalYear: its PCG chart is seeded', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-03-10T12:00:00Z'))
+      const companyId = await company()
+      const created = await ensure.ensureActiveFiscalYear(companyId)
+      expect(await prisma.account.count({ where: { companyId, fiscalYearId: created.id, code: '512' } })).toBe(1)
+    })
+
+    it('answers a typed French 404 for an unknown company', async () => {
+      await expect(ensure.ensureActiveFiscalYear('missing')).rejects.toMatchObject({ statusCode: 404, message: 'Société introuvable' })
+    })
+
+    it('finds the current year by calendar day, its last day included (KLEDG-R3-QUAL-15)', async () => {
+      const companyId = await company()
+      const fy2026 = await fiscalYear(companyId, 2026, '2026-01-01', '2026-12-31')
+      await fiscalYear(companyId, 2027, '2027-01-01', '2027-12-31')
+      const { resolveDashboardFiscalYear } = await import('@/lib/reports/dashboard')
+      const { calculateDepreciationTable } = await import('@/lib/reports/depreciation.service')
+      const lastDay = new Date('2026-12-31T10:00:00Z')
+      expect((await resolveDashboardFiscalYear(companyId, null, lastDay))?.id).toBe(fy2026)
+      expect((await calculateDepreciationTable(companyId, undefined, lastDay)).fiscalYear?.id).toBe(fy2026)
+      // 23:30 UTC on 31/12 is already 1 January in France
+      expect((await resolveDashboardFiscalYear(companyId, null, new Date('2026-12-31T23:30:00Z')))?.year).toBe(2027)
+    })
+
+    it('never creates a year on a read (KLEDG-R3-QUAL-06)', async () => {
+      const companyId = await company()
+      const { getReconciliationOverview } = await import('@/lib/banking/get-reconciliation-overview.service')
+      const { listAccounts } = await import('@/lib/accounting/manage-accounts.service')
+      expect(await listAccounts(companyId)).toEqual([])
+      const overview = await getReconciliationOverview(companyId, {})
+      expect(overview.ledgerAccounts).toEqual([])
+      await expect(utils.getFiscalYearForEntry(companyId, day('2026-05-01'))).rejects.toMatchObject({ statusCode: 409 })
+      expect(await prisma.fiscalYear.count({ where: { companyId } })).toBe(0)
     })
   })
 
@@ -180,7 +216,7 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       await expect(lock.assertFiscalYearOpen(ids.fy2025)).resolves.toBeUndefined()
       await expect(lock.assertFiscalYearOpen(ids.fy2024)).rejects.toMatchObject({
         statusCode: 409,
-        message: "L'exercice 2024 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert.",
+        message: "L'exercice 2024 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert.",
       })
     })
 
@@ -284,8 +320,8 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       expect(result.canClose).toBe(false)
       expect(result.errors).toEqual([
         '1 écriture en brouillon doit être validée ou supprimée avant la clôture.',
-        "L'exercice contient déjà 1 écriture du journal de clôture (CL) : supprimez-la avant de clôturer.",
-        "L'exercice 2026 contient déjà 1 écriture d'à-nouveaux (journal AN) : supprimez-la pour que la clôture reporte les soldes.",
+        "L'exercice contient déjà 1 écriture du journal de clôture (CL) : supprimez-la avant de clôturer.",
+        "L'exercice 2026 contient déjà 1 écriture d'à-nouveaux (journal AN) : supprimez-la pour que la clôture reporte les soldes.",
       ])
     })
 
@@ -319,8 +355,8 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
 
       expect(result.canClose).toBe(true)
       expect(result.warnings).toEqual([
-        "Le compte 801000 (classe 8) a un solde de 1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
-        "Le compte 802000 (classe 8) a un solde de -1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
+        "Le compte 801000 (classe 8) a un solde de 1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
+        "Le compte 802000 (classe 8) a un solde de -1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
       ])
     })
 

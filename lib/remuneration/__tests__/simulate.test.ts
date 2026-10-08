@@ -327,7 +327,7 @@ describe('inputs, sources and plain words', () => {
     expect(RemunerationInputsSchema.safeParse(SASU).success).toBe(true)
     const wrong = RemunerationInputsSchema.safeParse({ ...SASU, shareBp: 12_000, householdParts: 1.3 })
     expect(wrong.success).toBe(false)
-    expect(wrong.error?.issues.map((i) => i.message)).toEqual(['Part du capital invalide\u00a0: entre 0 et 100 %', 'Les parts vont par quarts (1 ; 1,25 ; 1,5...)'])
+    expect(wrong.error?.issues.map((i) => i.message)).toEqual(['Part du capital invalide\u00a0: entre 0 et 100 %', 'Les parts vont par quarts (1 ; 1,25 ; 1,5...)'])
   })
 
   it('cites the TNS texts for a gérant, the URSSAF rates for a président', () => {

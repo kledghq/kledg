@@ -46,20 +46,20 @@ import type { McpCaller } from '@/lib/mcp/company-access'
 import { canonicalJson } from './canonical-json'
 
 /** Time the user has to approve, and the assistant to execute once approved. */
-export const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
+const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
 
 /** Decided, executed or expired actions are kept 30 days (shown as history), then purged. */
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
-export const PENDING_ACTION_MESSAGES = {
-  unknown: "Action introuvable : appelez de nouveau l'outil sans actionId pour préparer une nouvelle action.",
+const PENDING_ACTION_MESSAGES = {
+  unknown: "Action introuvable : appelez de nouveau l'outil sans actionId pour préparer une nouvelle action.",
   pending:
-    "Cette action attend encore l'accord de l'utilisateur : demandez-lui d'ouvrir le lien d'approbation dans Kledg, puis rappelez l'outil avec le même actionId.",
-  rejected: "L'utilisateur a refusé cette action dans Kledg : elle ne sera pas exécutée.",
+    "Cette action attend encore l'accord de l'utilisateur : demandez-lui d'ouvrir le lien d'approbation dans Kledg, puis rappelez l'outil avec le même actionId.",
+  rejected: "L'utilisateur a refusé cette action dans Kledg : elle ne sera pas exécutée.",
   done: "Cette action a déjà été exécutée. Pour la refaire, préparez une nouvelle action.",
-  expired: 'Cette action a expiré (30 minutes) : préparez une nouvelle action et faites-la approuver de nouveau.',
+  expired: 'Cette action a expiré (30 minutes) : préparez une nouvelle action et faites-la approuver de nouveau.',
   mismatch:
-    "Les arguments ne correspondent pas à l'action approuvée (outil, société ou paramètres différents) : rappelez l'outil avec exactement les arguments de l'aperçu.",
+    "Les arguments ne correspondent pas à l'action approuvée (outil, société ou paramètres différents) : rappelez l'outil avec exactement les arguments de l'aperçu.",
 } as const
 
 export interface ActionBinding {
@@ -72,13 +72,13 @@ export interface ActionBinding {
   args: unknown
 }
 
-export function callerKey(caller: McpCaller): string {
+function callerKey(caller: McpCaller): string {
   return caller.kind === 'oauth' ? `oauth:${caller.clientId}` : `apiKey:${caller.apiKeyId}`
 }
 
 export { canonicalJson }
 
-export function argsHash(args: unknown): string {
+function argsHash(args: unknown): string {
   return createHash('sha256').update(canonicalJson(args)).digest('hex')
 }
 
@@ -163,7 +163,7 @@ export async function finishAction(actionId: string, ok: boolean): Promise<void>
 }
 
 /** Shown instead of a company name for an action outside any company (create_company). */
-export const NO_COMPANY_LABEL = 'Nouvelle société'
+const NO_COMPANY_LABEL = 'Nouvelle société'
 
 export interface PendingActionView {
   id: string
@@ -218,7 +218,7 @@ export async function decideAction(
   const row = await prisma.mcpPendingAction.findFirst({ where: { id: actionId, userId } })
   if (!row) throw new NotFoundError('Action introuvable')
   if (row.status !== 'pending') throw new ConflictError('Cette action a déjà été traitée.')
-  if (row.expiresAt <= now) throw new ConflictError("Cette action a expiré : demandez à l'assistant de la préparer de nouveau.")
+  if (row.expiresAt <= now) throw new ConflictError("Cette action a expiré : demandez à l'assistant de la préparer de nouveau.")
   const status = decision === 'approve' ? 'approved' : 'rejected'
   const updated = await prisma.mcpPendingAction.updateMany({
     where: { id: row.id, userId, status: 'pending', expiresAt: { gt: now } },

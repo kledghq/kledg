@@ -13,18 +13,18 @@ import { parseOfx } from './ofx'
 import { parseTabular, splitCsv, type Cell } from './tabular'
 import type { ParseResult, StatementFormat, TabularOptions } from './types'
 
-export function detectFormat(bytes: Uint8Array, text?: string): StatementFormat {
+function detectFormat(bytes: Uint8Array, text?: string): StatementFormat {
   if (isZip(bytes)) return 'xlsx'
   const head = (text ?? '').slice(0, 4096).replace(/^﻿/, '').trimStart()
   if (/^OFXHEADER/i.test(head) || /<OFX>/i.test(head)) return 'ofx'
   if (head.startsWith('<')) {
     if (/camt\.053|BkToCstmrStmt/.test(head)) return 'camt053'
     if (/camt\.05[24]|BkToCstmrAcctRpt|BkToCstmrDbtCdtNtfctn/.test(head)) {
-      throw new ValidationError('Fichier camt.052 ou camt.054 non pris en charge : exportez le relevé au format camt.053.')
+      throw new ValidationError('Fichier camt.052 ou camt.054 non pris en charge : exportez le relevé au format camt.053.')
     }
     if (/<OFX/i.test(text ?? '')) return 'ofx'
     if (/BkToCstmrStmt/.test(text ?? '')) return 'camt053'
-    throw new ValidationError('Fichier XML non reconnu : seuls les relevés camt.053 et OFX sont pris en charge.')
+    throw new ValidationError('Fichier XML non reconnu : seuls les relevés camt.053 et OFX sont pris en charge.')
   }
   return 'csv'
 }
@@ -33,13 +33,13 @@ function rejectBinary(bytes: Uint8Array): void {
   const head = String.fromCharCode(...bytes.subarray(0, 8))
   if (head.startsWith('%PDF')) {
     throw new ValidationError(
-      'Les relevés PDF ne sont pas pris en charge : exportez vos opérations en CSV, OFX ou camt.053 depuis votre espace bancaire.',
+      'Les relevés PDF ne sont pas pris en charge : exportez vos opérations en CSV, OFX ou camt.053 depuis votre espace bancaire.',
     )
   }
   if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
-    throw new ValidationError('Les fichiers Excel 97-2003 (.xls) ne sont pas pris en charge : enregistrez-le en .xlsx ou en CSV.')
+    throw new ValidationError('Les fichiers Excel 97-2003 (.xls) ne sont pas pris en charge : enregistrez-le en .xlsx ou en CSV.')
   }
-  throw new ValidationError('Fichier illisible : formats acceptés CSV, Excel (.xlsx), OFX/QFX et camt.053 (XML).')
+  throw new ValidationError('Fichier illisible : formats acceptés CSV, Excel (.xlsx), OFX/QFX et camt.053 (XML).')
 }
 
 /** Last row a statement sheet may use (a year of a busy account is a few thousand lines). */

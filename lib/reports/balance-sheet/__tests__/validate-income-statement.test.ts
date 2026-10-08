@@ -56,7 +56,7 @@ describe('validateBalanceSheetAgainstIncomeStatement', () => {
       incomeStatementResult: 1000,
       matches: false,
       difference: 100.1,
-      errors: ['Le résultat du bilan (1 100,10 €) ne correspond pas au résultat du compte de résultat (1 000,00 €). Écart : 100,10 €'],
+      errors: ['Le résultat du bilan (1 100,10 €) ne correspond pas au résultat du compte de résultat (1 000,00 €). Écart : 100,10 €'],
       warnings: ['Compte 471000 non rattaché', 'Compte 791000 non rattaché'],
     })
   })
@@ -72,7 +72,7 @@ describe('validateBalanceSheetAgainstIncomeStatement', () => {
       balanceSheetResult: 0,
       matches: false,
       difference: 250,
-      errors: ['Le résultat du bilan (0,00 €) ne correspond pas au résultat du compte de résultat (-250,00 €). Écart : 250,00 €'],
+      errors: ['Le résultat du bilan (0,00 €) ne correspond pas au résultat du compte de résultat (-250,00 €). Écart : 250,00 €'],
     })
   })
 })

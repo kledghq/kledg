@@ -24,15 +24,15 @@
  * points of a percent (500 = 5 %), as lib/group reads them.
  */
 
-export const NORMAL_RATE_BP = 2_500
-export const REDUCED_RATE_BP = 1_500
+const NORMAL_RATE_BP = 2_500
+const REDUCED_RATE_BP = 1_500
 export const REDUCED_RATE_PROFIT_CEILING_CENTS = 4_250_000
 export const REDUCED_RATE_TURNOVER_CEILING_CENTS = 1_000_000_000
 export const SOCIAL_CONTRIBUTION_RATE_BP = 330
 export const SOCIAL_CONTRIBUTION_ALLOWANCE_CENTS = 76_300_000
 export const SOCIAL_CONTRIBUTION_TURNOVER_CENTS = 763_000_000
-export const DEFICIT_CAP_BASE_CENTS = 100_000_000
-export const DEFICIT_CAP_EXCESS_SHARE_BP = 5_000
+const DEFICIT_CAP_BASE_CENTS = 100_000_000
+const DEFICIT_CAP_EXCESS_SHARE_BP = 5_000
 export const ACOMPTE_EXEMPTION_CENTS = 300_000
 export const PARENT_SUBSIDIARY_MIN_STAKE_BP = 500
 export const PARENT_QUOTE_PART_BP = 500
@@ -53,11 +53,6 @@ export function durationOf(start: string, end: string): FiscalYearDuration {
   const [ey, em, ed] = end.split('-').map(Number)
   const whole = sd === 1 && ed === lastDayOfMonth(ey, em)
   return { months: whole ? (ey - sy) * 12 + (em - sm) + 1 : null, days }
-}
-
-/** Whether the duration is exactly twelve months (nothing to prorate). */
-export function isTwelveMonths(duration: FiscalYearDuration): boolean {
-  return duration.months === 12
 }
 
 /** a x b / c rounded half away from zero, exact for any amount of the Decimal(15, 2) columns. */

@@ -51,7 +51,7 @@ async function requestHeaders(): Promise<Headers | undefined> {
 }
 
 /** The session token of a signed session cookie (`<token>.<signature>`), or undefined. */
-export function sessionTokenOf(headers: Headers): string | undefined {
+function sessionTokenOf(headers: Headers): string | undefined {
   const value = getSessionCookie(headers)
   if (!value) return undefined
   let decoded: string

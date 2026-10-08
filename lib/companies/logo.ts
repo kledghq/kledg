@@ -8,12 +8,12 @@
 import { ValidationError } from '@/lib/accounting/errors'
 
 /** Largest accepted data: URL (about 1.5 MB of image). */
-export const MAX_LOGO_DATA_URL_LENGTH = 2 * 1024 * 1024
+const MAX_LOGO_DATA_URL_LENGTH = 2 * 1024 * 1024
 
 const DATA_URL = /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
 /** Hosts allowed for https logo URLs: LOGO_ALLOWED_HOSTS, comma separated (empty by default). */
-export function allowedLogoHosts(): string[] {
+function allowedLogoHosts(): string[] {
   return (process.env.LOGO_ALLOWED_HOSTS ?? '')
     .split(',')
     .map((h) => h.trim().toLowerCase())
@@ -30,13 +30,13 @@ export function logoError(value: string): string | null {
   try {
     url = new URL(value)
   } catch {
-    return 'Logo invalide : importez une image ou indiquez une adresse https.'
+    return 'Logo invalide : importez une image ou indiquez une adresse https.'
   }
   if (url.protocol !== 'https:' || url.username || url.password || url.port) {
-    return 'Logo invalide : seules les adresses https sont acceptées.'
+    return 'Logo invalide : seules les adresses https sont acceptées.'
   }
   if (!allowedLogoHosts().includes(url.hostname.toLowerCase())) {
-    return "Logo refusé : importez l'image plutôt que d'indiquer une adresse externe."
+    return "Logo refusé : importez l'image plutôt que d'indiquer une adresse externe."
   }
   return null
 }

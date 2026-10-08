@@ -193,7 +193,7 @@ export default function ConnectBankPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Votre banque n&apos;est pas dans la liste ?</CardTitle>
+          <CardTitle>Votre banque n&apos;est pas dans la liste&nbsp;?</CardTitle>
           <CardDescription>
             BoursoBank, Shine ou toute autre banque&nbsp;: ajoutez le compte, puis importez ses relevés (CAMT.053, OFX, CSV ou
             Excel) exportés depuis l&apos;espace en ligne de la banque.

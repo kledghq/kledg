@@ -21,7 +21,7 @@ export interface SelectionSummary extends SelectionCheck {
 }
 
 /** The selected lines that still exist (a reload may have removed some), in list order. */
-export function selectedLines<T extends SelectionLine>(lines: readonly T[], selected: ReadonlySet<string>): T[] {
+function selectedLines<T extends SelectionLine>(lines: readonly T[], selected: ReadonlySet<string>): T[] {
   return lines.filter((line) => selected.has(line.id))
 }
 

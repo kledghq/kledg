@@ -7,8 +7,8 @@
  * 3 days before, then shows the account as stale since the expiry date.
  */
 
-export const CONSENT_WARNING_DAYS = 14
-export const CONSENT_URGENT_DAYS = 3
+const CONSENT_WARNING_DAYS = 14
+const CONSENT_URGENT_DAYS = 3
 
 export type ConsentLevel = 'none' | 'ok' | 'soon' | 'urgent' | 'expired'
 

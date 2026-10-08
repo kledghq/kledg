@@ -556,8 +556,8 @@ export function CompaniesList({
               <ConfirmDialog
                 open={archiveDialogOpen}
                 onOpenChange={setArchiveDialogOpen}
-                title={`Archiver « ${editingCompany?.name ?? ''} » ?`}
-                description="La société passe en lecture seule et disparaît des listes. Ses écritures, exercices et pièces sont conservés ; un administrateur de l'instance peut la restaurer à tout moment depuis cette page."
+                title={`Archiver « ${editingCompany?.name ?? ''} » ?`}
+                description="La société passe en lecture seule et disparaît des listes. Ses écritures, exercices et pièces sont conservés ; un administrateur de l'instance peut la restaurer à tout moment depuis cette page."
                 confirmLabel="Archiver"
                 tone="default"
                 loading={isArchiving}
@@ -578,7 +578,7 @@ export function CompaniesList({
                     }
                   }
                 }}
-                title={`Supprimer « ${editingCompany?.name ?? ''} » ?`}
+                title={`Supprimer « ${editingCompany?.name ?? ''} » ?`}
                 description="Seule une société sans écriture validée ni exercice clôturé peut être supprimée : ses données (comptes, brouillons, relevés, pièces) seront effacées définitivement. Une société qui a des écritures validées doit conserver ses livres 10 ans : archivez-la plutôt."
                 confirmLabel="Supprimer définitivement"
                 loading={isDeleting}
@@ -692,7 +692,7 @@ export function CompaniesList({
             Sociétés archivées
           </h2>
           <p className="text-muted-foreground text-xs">
-            En lecture seule, masquées des listes. Leurs livres sont conservés ; restaurez une société pour la modifier
+            En lecture seule, masquées des listes. Leurs livres sont conservés&nbsp;; restaurez une société pour la modifier
             de nouveau.
           </p>
           <ul className="bg-card divide-y rounded-lg border">

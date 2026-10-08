@@ -28,7 +28,7 @@ const ORIGIN = { books: 'Comptes', group: 'Filiales', manual: 'Saisi', total: 'T
 const SEVERITY = { blocking: 'À corriger', warning: 'À vérifier', info: 'Information', ok: 'OK' } as const
 const amount = (cents: number | null) => (cents === null ? '' : centsToFecAmount(cents))
 
-export function corporateTaxCsv(view: CorporateTaxView, companyName: string): string {
+function corporateTaxCsv(view: CorporateTaxView, companyName: string): string {
   const c = view.computation
   const fy = view.fiscalYear
   const rows: Array<Array<string | number | null>> = [
