@@ -1,6 +1,6 @@
 # Membres et invitations
 
-Le guide d'utilisation (rôles expliqués, inviter un membre, renvoyer ou annuler une invitation, accepter) est sur le site : [Les membres et les invitations](https://www.kledg.com/fr/docs/les-membres-et-les-invitations). Cette page décrit le fonctionnement technique : routes, règles des invitations, acceptation, politique de l'instance.
+Le guide d'utilisation (rôles expliqués, inviter un membre, renvoyer ou annuler une invitation, accepter, retirer un membre ou quitter une société) est sur le site : [Les membres et les invitations](https://www.kledg.com/fr/docs/les-membres-et-les-invitations). Cette page décrit le fonctionnement technique : routes, règles des invitations, acceptation, politique de l'instance.
 
 Une société a des membres, chacun avec un rôle (`lib/permissions.ts`) :
 **Administrateur** (`companyAdmin`), **Comptable** (`accountant`) ou
