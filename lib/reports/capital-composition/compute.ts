@@ -24,7 +24,7 @@
 import { centsToDecimal, formatCentsFr } from '@/lib/utils/money'
 
 /** Share threshold of forms 2033-F and 2059-F, in hundredths of a percent. */
-export const DECLARATION_THRESHOLD = 1_000
+const DECLARATION_THRESHOLD = 1_000
 
 const SHARE_WORDS: Record<string, { singular: string; plural: string }> = {
   parts: { singular: 'part sociale', plural: 'parts sociales' },

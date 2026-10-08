@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { dayWindow, matchProbableDuplicates, signedCents, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { dayWindow, matchProbableDuplicates, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { signedBankCents as signedCents } from '@/lib/banking/side'
 
 const line = (amountCents: number, day: string, valueDay: string | null = null) => ({ amountCents, day, valueDay })
 const existing = (id: string, amountCents: number, day: string, valueDay: string | null = null): ExistingLine => ({ id, amountCents, day, valueDay })

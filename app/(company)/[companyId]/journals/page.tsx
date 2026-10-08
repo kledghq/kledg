@@ -445,7 +445,7 @@ export default function JournalsPage() {
       <ConfirmDeleteDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title={`Supprimer le journal ${journalToDelete?.code ?? ''} ?`}
+        title={`Supprimer le journal ${journalToDelete?.code ?? ''}\u00a0?`}
         description={
           journalToDelete && (
             <>

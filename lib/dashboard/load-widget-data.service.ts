@@ -32,7 +32,7 @@ import { computeFiscalYearIndicators } from '@/lib/reports/financial-indicators/
 import type { FinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 
 /** Sources served by GET /api/dashboard/widgets (the checklist has its own route). */
-export const SERVED_SOURCES = WIDGET_SOURCES.filter((s): s is Exclude<WidgetSource, 'onboarding'> => s !== 'onboarding')
+const SERVED_SOURCES = WIDGET_SOURCES.filter((s): s is Exclude<WidgetSource, 'onboarding'> => s !== 'onboarding')
 export type ServedSource = (typeof SERVED_SOURCES)[number]
 
 /** ?companyId=&source=&fiscalYearId= ; a fiscal year of another company falls back to the active one. */

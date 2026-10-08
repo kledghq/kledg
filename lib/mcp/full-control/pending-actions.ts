@@ -24,7 +24,12 @@
  *    only if the action is approved, of this user and connection, for this
  *    tool, company and arguments, and not expired. The approved action is
  *    claimed with a conditional update before it runs: it executes once,
- *    even when two calls race.
+ *    even when two calls race. Once claimed, it runs only if the data it
+ *    acts on did not change since it was prepared (`fingerprint`,
+ *    fingerprint.ts, checked again inside the service's transaction):
+ *    approving an action approves what the user saw. When the data changed,
+ *    the claim is released (releaseAction): nothing ran, and the action
+ *    stays approved for the data the user saw only.
  *
  * Why the assistant executes after approval rather than Kledg executing on
  * approval: execution stays inside the MCP authorization path (scope of the
@@ -41,22 +46,23 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { getAppUrl } from '@/lib/config'
 import type { McpCaller } from '@/lib/mcp/company-access'
+import { canonicalJson } from './canonical-json'
 
 /** Time the user has to approve, and the assistant to execute once approved. */
-export const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
+const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
 
 /** Decided, executed or expired actions are kept 30 days (shown as history), then purged. */
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
-export const PENDING_ACTION_MESSAGES = {
-  unknown: "Action introuvable : appelez de nouveau l'outil sans actionId pour préparer une nouvelle action.",
+const PENDING_ACTION_MESSAGES = {
+  unknown: "Action introuvable : appelez de nouveau l'outil sans actionId pour préparer une nouvelle action.",
   pending:
-    "Cette action attend encore l'accord de l'utilisateur : demandez-lui d'ouvrir le lien d'approbation dans Kledg, puis rappelez l'outil avec le même actionId.",
-  rejected: "L'utilisateur a refusé cette action dans Kledg : elle ne sera pas exécutée.",
+    "Cette action attend encore l'accord de l'utilisateur : demandez-lui d'ouvrir le lien d'approbation dans Kledg, puis rappelez l'outil avec le même actionId.",
+  rejected: "L'utilisateur a refusé cette action dans Kledg : elle ne sera pas exécutée.",
   done: "Cette action a déjà été exécutée. Pour la refaire, préparez une nouvelle action.",
-  expired: 'Cette action a expiré (30 minutes) : préparez une nouvelle action et faites-la approuver de nouveau.',
+  expired: 'Cette action a expiré (30 minutes) : préparez une nouvelle action et faites-la approuver de nouveau.',
   mismatch:
-    "Les arguments ne correspondent pas à l'action approuvée (outil, société ou paramètres différents) : rappelez l'outil avec exactement les arguments de l'aperçu.",
+    "Les arguments ne correspondent pas à l'action approuvée (outil, société ou paramètres différents) : rappelez l'outil avec exactement les arguments de l'aperçu.",
 } as const
 
 export interface ActionBinding {
@@ -69,23 +75,13 @@ export interface ActionBinding {
   args: unknown
 }
 
-export function callerKey(caller: McpCaller): string {
+function callerKey(caller: McpCaller): string {
   return caller.kind === 'oauth' ? `oauth:${caller.clientId}` : `apiKey:${caller.apiKeyId}`
 }
 
-/** JSON with object keys sorted at every level, so equal arguments always hash the same. */
-export function canonicalJson(value: unknown): string {
-  if (value === undefined) return 'null'
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (value instanceof Date) return JSON.stringify(value.toISOString())
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
-}
+export { canonicalJson }
 
-export function argsHash(args: unknown): string {
+function argsHash(args: unknown): string {
   return createHash('sha256').update(canonicalJson(args)).digest('hex')
 }
 
@@ -97,11 +93,16 @@ export function approvalUrl(id: string): string {
 /** JSON as the assistant receives it (Decimal, Date and other toJSON values serialized the same way). */
 const toJson = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue
 
-/** Records a pending action and returns its id, approval URL and expiry. */
+/**
+ * Records a pending action and returns its id, approval URL and expiry.
+ * `fingerprint` is the state the user approves (fingerprint.ts), checked
+ * again before the execution.
+ */
 export async function createPendingAction(
   binding: ActionBinding,
   preview: unknown,
   callerName: string | null,
+  fingerprint: string,
   now: Date = new Date(),
 ): Promise<{ id: string; approvalUrl: string; expiresAt: Date }> {
   const id = `act_${randomBytes(24).toString('base64url')}`
@@ -118,6 +119,7 @@ export async function createPendingAction(
       args: toJson(binding.args),
       argsHash: argsHash(binding.args),
       preview: toJson(preview ?? null),
+      fingerprint,
       expiresAt,
     },
   })
@@ -128,9 +130,14 @@ export async function createPendingAction(
  * Claims an approved action for execution, or throws: ValidationError when
  * it is unknown, of another user or connection (reported alike) or for
  * other arguments; ConflictError when it is still pending, refused, already
- * executed or expired.
+ * executed or expired. Returns the fingerprint of the approved state (null
+ * for an action prepared before fingerprints, refused by the caller).
  */
-export async function claimApprovedAction(actionId: string, binding: ActionBinding, now: Date = new Date()): Promise<void> {
+export async function claimApprovedAction(
+  actionId: string,
+  binding: ActionBinding,
+  now: Date = new Date(),
+): Promise<{ fingerprint: string | null }> {
   const row = await prisma.mcpPendingAction.findUnique({ where: { id: actionId } })
   if (!row || row.userId !== binding.userId || row.caller !== callerKey(binding.caller)) {
     throw new ValidationError(PENDING_ACTION_MESSAGES.unknown)
@@ -147,6 +154,17 @@ export async function claimApprovedAction(actionId: string, binding: ActionBindi
     data: { status: 'executing' },
   })
   if (claimed.count === 0) throw new ConflictError(PENDING_ACTION_MESSAGES.done)
+  return { fingerprint: row.fingerprint }
+}
+
+/**
+ * Gives back a claimed action that did not run because its data changed
+ * since the approval (KLEDG-R3-MCP-01): it stays approved and unused, and
+ * executes only once the data is again the one the user approved (the
+ * fingerprint is compared on every claim).
+ */
+export async function releaseAction(actionId: string): Promise<void> {
+  await prisma.mcpPendingAction.updateMany({ where: { id: actionId, status: 'executing' }, data: { status: 'approved' } })
 }
 
 /** Records how a claimed action ended. */
@@ -158,7 +176,7 @@ export async function finishAction(actionId: string, ok: boolean): Promise<void>
 }
 
 /** Shown instead of a company name for an action outside any company (create_company). */
-export const NO_COMPANY_LABEL = 'Nouvelle société'
+const NO_COMPANY_LABEL = 'Nouvelle société'
 
 export interface PendingActionView {
   id: string
@@ -213,7 +231,7 @@ export async function decideAction(
   const row = await prisma.mcpPendingAction.findFirst({ where: { id: actionId, userId } })
   if (!row) throw new NotFoundError('Action introuvable')
   if (row.status !== 'pending') throw new ConflictError('Cette action a déjà été traitée.')
-  if (row.expiresAt <= now) throw new ConflictError("Cette action a expiré : demandez à l'assistant de la préparer de nouveau.")
+  if (row.expiresAt <= now) throw new ConflictError("Cette action a expiré : demandez à l'assistant de la préparer de nouveau.")
   const status = decision === 'approve' ? 'approved' : 'rejected'
   const updated = await prisma.mcpPendingAction.updateMany({
     where: { id: row.id, userId, status: 'pending', expiresAt: { gt: now } },

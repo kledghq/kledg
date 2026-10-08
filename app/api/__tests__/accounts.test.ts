@@ -30,8 +30,9 @@ vi.mock('@/lib/companies/slug', () => ({
 }))
 
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({
-  getOrCreateActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }),
+  getActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }),
 }))
+vi.mock('@/lib/accounting/active-fiscal-year.service', () => ({ ensureActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }) }))
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLog: vi.fn().mockResolvedValue(undefined),

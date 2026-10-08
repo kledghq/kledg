@@ -44,7 +44,7 @@ export interface GroupShareholder {
 }
 
 /** Shareholders of the holding listed at most (the stack shows three and "+N"). */
-export const MAX_SUMMARY_SHAREHOLDERS = 20
+const MAX_SUMMARY_SHAREHOLDERS = 20
 
 export async function getGroupSummary(holdingId: string, access: GroupAccess): Promise<GroupSummary> {
   const [holding, shareholders, perimeter] = await Promise.all([

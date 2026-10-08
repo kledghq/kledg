@@ -22,7 +22,7 @@ import { toCents } from '@/lib/utils/money'
 import { computeEliminations, type BalancePair, type IntragroupObservation } from './combine'
 import { periodRef, resolveHoldingFiscalYear, type GroupViewQuery, type PeriodRef } from './get-group-view.service'
 import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink } from './members'
-import { readIfAllowed, type UnreachableSubsidiary } from './perimeter'
+import { GROUP_BANK_READ, readIfAllowed, type UnreachableSubsidiary } from './perimeter'
 import { matchFiscalYear, readBalanceObservations } from './read-member'
 
 export interface GroupBankAccount {
@@ -103,7 +103,8 @@ export async function getGroupTreasury(holdingId: string, query: GroupViewQuery,
     ])
     const cash = year ? await ledgerCashByMonth({ companyId: ref.id, fiscalYearId: year.id, months: window.months }) : null
     return { accounts, year, cash }
-  })
+    // Bank accounts and balances need banking:read in each company, like its Comptes bancaires page (KLEDG-R3-AUTHZ-08).
+  }, GROUP_BANK_READ)
   const refs = read.members.map((m) => m.ref)
   // Current accounts and loans, in each company's own scope again, now that the group is known.
   const observations: IntragroupObservation[] = []
@@ -111,7 +112,7 @@ export async function getGroupTreasury(holdingId: string, query: GroupViewQuery,
     if (!m.value.year) continue
     const year = m.value.year
     // The same check again: the access may have changed since the first read.
-    const result = await readIfAllowed(access, m.ref.id, () => readBalanceObservations(m.ref.id, year.id, refs))
+    const result = await readIfAllowed(access, m.ref.id, () => readBalanceObservations(m.ref.id, year.id, refs), GROUP_BANK_READ)
     if (result.ok) observations.push(...result.value.filter((o) => CURRENT_ACCOUNT_CATEGORIES.has(o.category)))
   }
 

@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import { CREDIT_NOTE_SERIES, DEFAULT_NUMBERING, MAX_SEQUENCE, NUMBERING_MODES, RESETS, SEPARATORS, YEAR_FORMATS, numberingProblems, type InvoiceNumberingSettings } from './format'
 
-const prefix = (label: string) => z.string({ error: `${label} invalide` }).trim().max(20, `${label} : 20 caractères au plus`)
+const prefix = (label: string) => z.string({ error: `${label} invalide` }).trim().max(20, `${label} : 20 caractères au plus`)
 
 export const InvoiceNumberingSettingsSchema = z
   .object({

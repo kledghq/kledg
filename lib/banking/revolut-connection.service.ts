@@ -61,7 +61,7 @@ function sameHash(a: string, b: string): boolean {
 }
 
 /** Integration id carried by a state value (`<integrationId>.<random>`). */
-export function integrationIdFromState(state: string | null | undefined): string | null {
+function integrationIdFromState(state: string | null | undefined): string | null {
   if (!state) return null
   const [id, nonce] = state.split('.')
   return id && nonce && /^[a-z0-9]{10,40}$/i.test(id) ? id : null
@@ -132,7 +132,7 @@ export async function setupRevolut(
     const updated = await prisma.integration.update({
       where: { id: existing.id },
       data: {
-        credentials: mergeSealed('REVOLUT', existing.credentials, plain, encryptionKey) as Prisma.InputJsonValue,
+        credentials: mergeSealed('REVOLUT', existing.credentials, plain, encryptionKey, companyId) as Prisma.InputJsonValue,
         credentialsEncrypted: true,
         status: 'pending',
         metadata: {},
@@ -147,7 +147,7 @@ export async function setupRevolut(
       type: 'BANKING',
       name: NAME,
       status: 'pending',
-      credentials: mergeSealed('REVOLUT', {}, plain, encryptionKey) as Prisma.InputJsonValue,
+      credentials: mergeSealed('REVOLUT', {}, plain, encryptionKey, companyId) as Prisma.InputJsonValue,
       credentialsEncrypted: true,
       featureConfigs: {
         create: [
@@ -203,7 +203,7 @@ const INVALID_STATE = "Lien d'autorisation Revolut invalide ou expiré. Recommen
  * state. Throws 403 when the state does not match this user's pending
  * consent. Returns the integration id once the refresh token is stored.
  */
-export async function completeRevolutAuthorization(input: {
+async function completeRevolutAuthorization(input: {
   companyId: string
   userId: string
   code: string
@@ -238,7 +238,7 @@ export async function completeRevolutAuthorization(input: {
   // Used once: clear it before calling Revolut
   await prisma.integration.update({ where: { id: integration.id }, data: { metadata: {} } })
 
-  const credentials = openCredentials('REVOLUT', integration.credentials, integration.credentialsEncrypted, input.encryptionKey)
+  const credentials = openCredentials('REVOLUT', integration.credentials, integration.credentialsEncrypted, input.encryptionKey, input.companyId)
   const setup = setupView(integration)
   if (!setup.clientId || typeof credentials.privateKey !== 'string') throw new ValidationError(INVALID_STATE)
 
@@ -262,6 +262,7 @@ export async function completeRevolutAuthorization(input: {
         integration.credentials,
         { refreshToken: tokens.refresh_token, authorizedAt: now.toISOString() },
         input.encryptionKey,
+        input.companyId,
       ) as Prisma.InputJsonValue,
       credentialsEncrypted: true,
     },

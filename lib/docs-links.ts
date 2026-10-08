@@ -5,7 +5,7 @@ import { DOCS_URL } from '@/lib/config'
  * repository). Screens link here from their header ("Aide") and from inline
  * help on accounting terms, so beginners can learn the concept in place.
  */
-export const DOCS_PAGES = {
+const DOCS_PAGES = {
   firstSteps: 'premiers-pas',
   doubleEntry: 'la-partie-double',
   chartOfAccounts: 'le-plan-comptable',

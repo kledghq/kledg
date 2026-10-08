@@ -71,7 +71,7 @@ export class QontoProvider implements BankProvider {
 
   constructor(credentials: QontoCredentials) {
     if (!credentials.login || !credentials.secretKey) {
-      throw new ValidationError("Les identifiants Qonto sont incomplets : saisissez l'identifiant et la clé secrète.")
+      throw new ValidationError("Les identifiants Qonto sont incomplets : saisissez l'identifiant et la clé secrète.")
     }
     this.client = new QontoClient(credentials.login, credentials.secretKey)
   }

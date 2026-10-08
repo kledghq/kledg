@@ -42,13 +42,14 @@
  * all at once ("Tout confirmer").
  */
 
-import { findCategory, refundOf, type Question, type SimpleCategory } from './categories'
+import { findCategory, refundOf, SUPPLIER_VAT, type Question, type SimpleCategory } from './categories'
+import { supplierVatAnswerOf } from './foreign-suppliers'
 import { matchInvoice, significantWords, type OpenInvoice } from './match-invoice'
 import { announcesRefund, bankText, KEYWORDS, matchDictionary, PAYEES } from './payees'
 import { questionApplies, type Answers, type Side } from './posting'
 
-export type Confidence = 'high' | 'medium' | 'low'
-export type SuggestionSource = 'invoice' | 'rule' | 'history' | 'payee' | 'keyword' | 'owner' | 'customer' | 'bank' | 'none'
+type Confidence = 'high' | 'medium' | 'low'
+type SuggestionSource = 'invoice' | 'rule' | 'history' | 'payee' | 'keyword' | 'owner' | 'customer' | 'bank' | 'none'
 
 export interface EngineTransaction {
   side: Side
@@ -109,7 +110,7 @@ export interface EngineContext {
 }
 
 /** The open invoice a credit pays, as proposed. */
-export interface InvoiceSuggestion {
+interface InvoiceSuggestion {
   invoiceId: string
   number: string
   customerName: string
@@ -141,8 +142,8 @@ export interface Suggestion {
   bulkConfirmable: boolean
 }
 
-export const HIGH_CONFIDENCE = 0.85
-export const MEDIUM_CONFIDENCE = 0.55
+const HIGH_CONFIDENCE = 0.85
+const MEDIUM_CONFIDENCE = 0.55
 
 const SCORES = { rule: 0.95, historyRepeated: 0.92, historyOnce: 0.8, payeeHigh: 0.88, payeeMedium: 0.7, keywordHigh: 0.86, keywordMedium: 0.6, owner: 0.75, customer: 0.7, refund: 0.7, bank: 0.56 } as const
 
@@ -153,7 +154,7 @@ const HISTORY_DEPTH = 6
  * Qonto transaction categories that name one category of the catalogue.
  * Others (other_expense, online_service, refund, sales...) say too little.
  */
-export const BANK_CATEGORIES: Readonly<Record<string, { debit?: string; credit?: string }>> = {
+const BANK_CATEGORIES: Readonly<Record<string, { debit?: string; credit?: string }>> = {
   restaurant_and_bar: { debit: 'repas-affaires' },
   transport: { debit: 'deplacements' },
   hotel_and_lodging: { debit: 'hotel' },
@@ -374,7 +375,9 @@ function finish(candidate: Candidate | null, tx: EngineTransaction, askMealGuest
   let pendingQuestion: Question | null = null
   const question = category.question
   if (question && questionApplies(category, tx.amountCents, tx.bankVatCents)) {
-    const known = question.reusable ? candidate.answers?.[question.id] : undefined
+    // An earlier answer for the counterparty, else what the rules library knows of a foreign supplier
+    const known =
+      (question.reusable ? candidate.answers?.[question.id] : undefined) ?? (question.id === SUPPLIER_VAT.id ? supplierVatAnswerOf(tx) : undefined)
     if (known && question.answers.some((a) => a.id === known)) answers[question.id] = known
     else if (question.defaultAnswerId && !(askMealGuests && question.id === 'meal-guests')) answers[question.id] = question.defaultAnswerId
     else pendingQuestion = question

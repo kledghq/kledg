@@ -57,7 +57,7 @@ export function RemunerationPDF({ view, companyName, generatedOn }: { view: Remu
           ['Part du bénéfice distribuable versée', percent(inputs.distributionBp)],
           ['Parts du foyer fiscal', inputs.householdParts.toLocaleString('fr-FR')],
           ['Autres revenus imposables du foyer', money(inputs.otherIncomeCents)],
-          ['Capital social, réserve légale, pertes antérieures', `${money(inputs.capitalCents)} ; ${money(inputs.legalReserveCents)} ; ${money(inputs.priorLossesCents)}`],
+          ['Capital social, réserve légale, pertes antérieures', `${money(inputs.capitalCents)} ; ${money(inputs.legalReserveCents)} ; ${money(inputs.priorLossesCents)}`],
         ].map(([label, value]) => (
           <View key={label} style={styles.row} wrap={false}>
             <Text style={styles.label}>{label}</Text>

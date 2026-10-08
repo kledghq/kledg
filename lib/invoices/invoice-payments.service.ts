@@ -30,6 +30,7 @@
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
 import { AccountingError, ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { assertEntryWritableInFiscalYear, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
 import { createEntryInTx, deleteDraftEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
@@ -40,6 +41,7 @@ import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { accountByRoot } from './ledger-accounts'
 import { INVOICE_NOT_FOUND, lockInvoice } from './manage-invoices.service'
 import { VAT_ACCOUNT_ROOTS } from './post-invoice.service'
+import { checkApprovedState } from '@/lib/approved-state/guard'
 
 type Db = Prisma.TransactionClient | typeof prisma
 
@@ -204,7 +206,12 @@ async function letterIfCovered(companyId: string, invoiceId: string, now?: Date)
     }
   }
   try {
-    const group = await letterLines(companyId, { accountId: tiersLine.accountId, lineIds: [tiersLine.id, ...paymentLines.map((l) => l.id)] }, { now, source: 'invoice' })
+    const group = await letterLines(
+      companyId,
+      { accountId: tiersLine.accountId, lineIds: [tiersLine.id, ...paymentLines.map((l) => l.id)] },
+      // An approved MCP action letters the invoice as the user saw it (KLEDG-R3-MCP-01)
+      { now, source: 'invoice', inTx: (tx) => checkApprovedState(tx, { kind: 'invoice', companyId, id: invoiceId }) },
+    )
     return { paidCents, remainingCents: 0, lettered: true, letteringCode: group.code, letteringPending: null }
   } catch (error) {
     if (error instanceof AccountingError) return { paidCents, remainingCents: 0, lettered: false, letteringCode: null, letteringPending: error.message }
@@ -301,8 +308,7 @@ async function createVatTransfer(
 ): Promise<string> {
   const fiscalYear = await tx.fiscalYear.findFirst({ where: { id: paymentEntry.fiscalYearId, companyId }, select: GUARDED_FISCAL_YEAR_SELECT })
   assertEntryWritableInFiscalYear(fiscalYear, paymentEntry.date, 'create')
-  const journal = await tx.journal.findFirst({ where: { companyId, code: 'OD' }, select: { id: true } })
-  if (!journal) throw new ValidationError('Le journal OD n’existe pas : créez-le pour constater la TVA exigible à l’encaissement.')
+  const journal = await ensureJournal(tx, companyId, { code: 'OD', label: 'Opérations diverses' })
   const pending = await accountByRoot(tx, companyId, fiscalYear!, VAT_ACCOUNT_ROOTS.collectedPending.root, VAT_ACCOUNT_ROOTS.collectedPending.label)
   const collected = await accountByRoot(tx, companyId, fiscalYear!, VAT_ACCOUNT_ROOTS.collected.root, VAT_ACCOUNT_ROOTS.collected.label)
   const amount = centsToDecimal(Math.abs(shareCents))

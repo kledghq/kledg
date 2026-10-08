@@ -1,6 +1,6 @@
 # Catégories simples et dépenses à vérifier
 
-Le guide d'utilisation (vérifier ses dépenses et ses recettes, questions, immobilisations, validation par le comptable, expliqués pas à pas) est sur le site : [Les catégories simples](https://www.kledg.com/fr/docs/les-categories-simples). Cette page décrit le fonctionnement technique : catalogue et règles comptables avec leurs sources, moteur de proposition, écritures produites, API, droits et outils MCP.
+Le guide d'utilisation (vérifier ses dépenses et ses recettes, questions, immobilisations, validation par le comptable, expliqués pas à pas) est sur le site : [Les catégories simples](https://www.kledg.com/fr/docs/les-categories-simples). Cette page décrit le fonctionnement technique : catalogue et règles comptables avec leurs sources, moteur de proposition, écritures produites, API, droits et outils MCP.
 
 En mode simple, l'utilisateur confirme une **catégorie en langage courant** pour chaque transaction bancaire non rapprochée ; Kledg en déduit l'écriture complète. Le code est dans `lib/simple`.
 
@@ -9,7 +9,7 @@ En mode simple, l'utilisateur confirme une **catégorie en langage courant** pou
 `lib/simple/categories.ts` compte 72 catégories, regroupées pour la recherche : Locaux, Équipement, Achats et sous-traitance, Communication et logiciels, Déplacements et repas, Véhicule, Services et honoraires, Banque et finances, Personnel et dirigeant, Impôts et taxes, Mouvements d'argent, Recettes ; s'y ajoutent les **remboursements de dépenses** (voir [Recettes à vérifier](#recettes-à-vérifier)). Chacune donne :
 
 - le **compte du PCG 2026** (art. 932-1, liste des comptes) parmi ceux que Kledg crée dans chaque plan (comptes de quatre chiffres au plus, plus 44562, 44566 et 44571) ;
-- le **taux de TVA par défaut** (CGI art. 278 : 20 % ; art. 279 : 10 % pour la restauration et le transport de voyageurs ; art. 278-0 bis : 5,5 % pour les livres), remplacé par la TVA que la banque a lue sur le justificatif quand elle en donne une plausible (au plus 20 % de la base) ;
+- le **taux de TVA par défaut** (CGI art. 278 : 20 % ; art. 279 : 10 % pour la restauration et le transport de voyageurs ; art. 278-0 bis : 5,5 % pour les livres), remplacé par la TVA que la banque a lue sur le justificatif quand elle en donne une plausible (au plus 20 % de la base ; zéro seulement avec un taux de 0 %, `lib/banking/bank-vat.ts`, la règle des règles d'affectation aussi) ;
 - la **règle de récupération de la TVA**, celle des notes de frais (`lib/expense-reports/vat-recovery.ts`) ;
 - une phrase d'aide, des mots-clés de recherche et la **source** (article du PCG, article du CGI ou BOFiP).
 
@@ -18,14 +18,15 @@ Exemples :
 | Catégorie | Compte | TVA | Récupération |
 | --- | --- | --- | --- |
 | Téléphone et internet | 626 | 20 % | totale |
-| Logiciels et abonnements | 6511 (solutions informatiques, règlement ANC n° 2022-06) | 20 % | totale |
+| Logiciels et abonnements | 6511 (solutions informatiques, règlement ANC n° 2022-06) | 20 %, ou autoliquidée pour un fournisseur établi hors de France (voir la question) | totale |
 | Déplacements (train, avion, taxi, VTC) | 6251 | 10 % | aucune (CGI ann. II art. 206, IV, 2, 5°) |
 | Hôtel en déplacement | 6256 | 10 % | aucune (206, IV, 2, 2°) |
 | Repas d'affaires | 6257 ou 6256 | 10 % | totale (ancien art. 236, abrogé par le décret n° 2007-566) |
 | Carburant | 6061 | 20 % | 80 % pour une voiture de tourisme (CGI art. 298, 4, 1°, a), totale pour un utilitaire |
 | Location ou entretien d'un véhicule | 6135, 6155 | 20 % | aucune pour une voiture de tourisme (206, IV, 2, 6°) |
 | Cadeaux clients | 6234 | 20 % | jusqu'à 73 € TTC par bénéficiaire (206, IV, 2, 3° ; ann. IV art. 28-00 A) |
-| Assurances, frais bancaires, courrier | 616, 627, 626 | sans TVA | (CGI art. 261 C, 261, 4, 5°) |
+| Assurances, courrier | 616, 626 | sans TVA | (CGI art. 261 C, 261, 4, 5°) |
+| Frais bancaires, commissions de paiement | 627, 6278 | celle que la banque a lue sur la facture, sinon aucune | totale (exonérés sauf option de la banque, CGI art. 261 C, 1° et 260 B ; comme le modèle « Abonnement et frais Qonto ») |
 | Cotisations sociales du dirigeant | 646 | sans TVA | |
 | TVA payée aux impôts, impôt sur les sociétés | 4455, 444 | mouvement, une seule ligne | |
 | Ventes de prestations | 706 | 20 % collectée (44571), ou le taux de la facture | |
@@ -43,9 +44,10 @@ Quelques catégories ne peuvent pas être comptabilisées sans une précision. E
 | « C'est pour quel véhicule ? » | Carburant, Location ou leasing de véhicule, Entretien et réparation du véhicule | Voiture de tourisme ou utilitaire. |
 | « Votre bail ou votre quittance mentionne-t-il de la TVA ? » | Loyer des locaux | Avec ou sans TVA (CGI art. 261 D, 2° et 260, 2°). |
 | « Quelle TVA figure sur votre facture ? » | Ventes de prestations, de marchandises, de produits fabriqués | 20 % par défaut (CGI art. 278), 10 % (art. 279), 5,5 % (art. 278-0 bis), 2,1 % (art. 281 quater à 298 septies), sans TVA (exportations et livraisons intracommunautaires, art. 262 ter et 262, I ; services taxés chez le client, art. 259 et 283, 2 ; opérations exonérées, art. 261). La réponse par défaut laisse la vente confirmable d'un clic. |
+| « Votre facture mentionne-t-elle de la TVA française ? » | Logiciels et abonnements, Hébergement web et noms de domaine, Publicité et marketing | Oui (par défaut) : TVA française à 20 % comprise dans le prix. Non, fournisseur hors de France : le prix est hors taxe, la TVA de 20 % est autoliquidée, due au 4452 et déduite au 44566 dans la même écriture (CGI art. 259, 1° et 283, 2 ; BOI-TVA-DECLA-10-10-20), déclarée ligne A3 de la CA3 (AC de la CA12). Les fournisseurs que la bibliothèque de règles autoliquide (Microsoft, Adobe, Notion, GitHub, OpenAI, Anthropic, Canva, Google Ads, Meta, LinkedIn : `lib/simple/foreign-suppliers.ts`) sont répondus d'office, comme leur modèle. |
 | « Est-ce de l'argent que vous avez prêté à votre société ? » | Argent versé par un associé ou le dirigeant | Oui, un prêt : compte courant d'associé (455), rendu plus tard. Non, une augmentation de capital (1013, après la décision des associés, C. com. art. L223-32 et L225-127 à L225-129). Non, le paiement d'une vente : vente de prestations (706) avec sa TVA collectée. Aucune réponse par défaut : rien ne distingue les trois sur la ligne de la banque. |
 
-La réponse sur le véhicule, sur le loyer et sur le taux de TVA d'une vente est reprise pour la même contrepartie la fois suivante ; celle sur un achat durable et sur l'argent d'un associé est redemandée à chaque fois.
+La réponse sur le véhicule, sur le loyer, sur la TVA d'un fournisseur et sur le taux de TVA d'une vente est reprise pour la même contrepartie la fois suivante ; celle sur un achat durable et sur l'argent d'un associé est redemandée à chaque fois.
 
 ### Repas de l'exploitant
 

@@ -19,15 +19,20 @@
  *   never matched, and lines this provider stored itself never are either:
  *   two identical card payments on one day stay two operations;
  * - lines already stored whose status or date changed (Qonto pending to
- *   completed) are updated.
+ *   completed) are updated. When the date moved, a reconciled draft entry
+ *   still dated on the old transaction date follows it, in one statement
+ *   (`followMovedTransactions`); a draft dated otherwise was dated by the
+ *   user and keeps its date, validated entries and closed or locked periods
+ *   are never touched.
  */
 
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { ProviderTransaction } from '@/lib/banking/providers/types'
 import { IMPORT_ID_PREFIX } from '@/lib/banking/import/dedupe'
-import { dayWindow, matchProbableDuplicates, signedCents, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { dayWindow, matchProbableDuplicates, type ExistingLine } from '@/lib/banking/probable-duplicates'
 import { newTransactions, normalizeIban } from '@/lib/banking/sync-rules'
+import { normalizeBankSide, signedBankCents } from '@/lib/banking/side'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { addIsoDays, calendarDayOf, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
 
@@ -47,6 +52,8 @@ export interface StoreOutcome {
   matched: number
   /** Stored lines whose status or date was updated. */
   updated: number
+  /** Reconciled draft entries moved to the new date of their transaction. */
+  entriesRedated: number
 }
 
 /** Value dates sit a few days from booking dates: existing lines are loaded this far around the new ones. */
@@ -75,7 +82,7 @@ function transactionRow(bankAccountId: string, tx: ProviderTransaction): Prisma.
     date: tx.date,
     label: tx.label || null,
     reference: tx.reference || null,
-    side: tx.side,
+    side: normalizeBankSide(tx.side),
     note: tx.note || null,
     logoUrl: tx.logoUrl || null,
     counterpartyName: tx.counterpartyName || null,
@@ -126,10 +133,44 @@ async function otherSourceLines(db: Tx, account: SyncTarget, window: { first: st
     .filter((row) => row.bankAccountId !== account.id || isFileImport(row.externalTransactionId, row.providerData))
     .map((row) => ({
       id: row.id,
-      amountCents: signedCents(Math.abs(toCents(row.amount) ?? 0), row.side),
+      amountCents: signedBankCents(Math.abs(toCents(row.amount) ?? 0), row.side),
       day: toIsoDateUtc(row.date),
       valueDay: valueDayOf(row.providerData),
     }))
+}
+
+interface MovedTransaction {
+  id: string
+  from: Date
+  to: Date
+}
+
+/**
+ * Moves the reconciled draft entry of each moved transaction to the
+ * transaction's new date, in one statement. Only an entry still dated on
+ * the transaction's previous date follows (a date the user chose in the
+ * reconciliation dialog stays), only drafts (PCG art. 1031-3: a validated
+ * entry is definitive), only when the new date stays in the entry's open
+ * fiscal year and after its closed periods (PCG art. 1031-4). Returns the
+ * number of entries moved.
+ */
+export async function followMovedTransactions(db: Tx, companyId: string, moved: readonly MovedTransaction[]): Promise<number> {
+  if (moved.length === 0) return 0
+  return db.$executeRaw`
+    UPDATE "accounting_entries" AS e
+    SET "date" = m.to_date, "updatedAt" = now()
+    FROM unnest(${moved.map((m) => m.id)}::text[], ${moved.map((m) => m.from)}::timestamp[], ${moved.map((m) => m.to)}::timestamp[]) AS m(transaction_id, from_date, to_date),
+      "bank_transactions" t, "fiscal_years" f
+    WHERE t."id" = m.transaction_id
+      AND t."reconciled" = true
+      AND e."id" = t."reconciledWith"
+      AND e."companyId" = ${companyId}
+      AND e."status" = 'draft'
+      AND e."date" = m.from_date
+      AND f."id" = e."fiscalYearId"
+      AND f."isClosed" = false
+      AND m.to_date >= f."startDate" AND m.to_date <= f."endDate"
+      AND (f."periodLockedThrough" IS NULL OR m.to_date::date > f."periodLockedThrough"::date)`
 }
 
 export async function storeSyncedTransactions(account: SyncTarget, incoming: ProviderTransaction[]): Promise<StoreOutcome> {
@@ -140,7 +181,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       const [stored, recorded] = await Promise.all([
         db.bankTransaction.findMany({
           where: { bankAccountId: account.id, externalTransactionId: { in: ids } },
-          select: { externalTransactionId: true, status: true, date: true },
+          select: { id: true, externalTransactionId: true, status: true, date: true },
         }),
         db.bankTransactionMatch.findMany({
           where: { bankAccountId: account.id, externalTransactionId: { in: ids } },
@@ -152,7 +193,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       // Probable duplicates of another source: declined lines never are one
       const candidates = fresh.filter((t) => t.state !== 'rejected')
       const lines = candidates.map((t) => ({
-        amountCents: signedCents(centsOf(t.amount), t.side),
+        amountCents: signedBankCents(centsOf(t.amount), t.side),
         day: toIsoDateUtc(t.date),
         valueDay: t.valueDate ?? null,
       }))
@@ -181,6 +222,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       // Lines already stored whose status or date changed (Qonto pending to completed)
       const byId = new Map(stored.map((t) => [t.externalTransactionId, t]))
       let updated = 0
+      const moved: MovedTransaction[] = []
       for (const tx of incoming) {
         const row = byId.get(tx.externalId)
         if (!row) continue
@@ -190,8 +232,10 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
           data: { date: tx.date, status: tx.status ?? null, providerData: (tx.providerData || undefined) as Prisma.InputJsonValue | undefined },
         })
         updated++
+        if (row.date.getTime() !== tx.date.getTime()) moved.push({ id: row.id, from: row.date, to: tx.date })
       }
-      return { created, matched: matches.size, updated }
+      const entriesRedated = await followMovedTransactions(db, account.companyId, moved)
+      return { created, matched: matches.size, updated, entriesRedated }
     },
     { timeout: 60_000, maxWait: 15_000 },
   )

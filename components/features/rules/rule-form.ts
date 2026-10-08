@@ -10,6 +10,8 @@
  */
 
 import { logger } from '@/lib/logger'
+import { bankVatInEuros } from '@/lib/banking/bank-vat'
+import { toCents } from '@/lib/utils/money'
 
 export interface Account {
   id: string
@@ -101,7 +103,7 @@ export interface RuleFormState {
   entryLines: EntryLine[]
 }
 
-export function normalizeEntryLines(lines: EntryLineInput[]): EntryLine[] {
+function normalizeEntryLines(lines: EntryLineInput[]): EntryLine[] {
   return lines.map((l) => ({
     ...l,
     lineType: l.lineType === 'auto' ? 'debit' : l.lineType,
@@ -175,7 +177,7 @@ function codeLookup(accounts: Account[]) {
 }
 
 /** Entry lines as the API takes them (POST/PUT /api/transaction-rules and the simulate endpoint). */
-export function entryLinesPayload(lines: EntryLine[], accounts: Account[]) {
+function entryLinesPayload(lines: EntryLine[], accounts: Account[]) {
   const codeOf = codeLookup(accounts)
   return lines.map((l) => ({
     accountCode: codeOf(l.accountId) ?? '',
@@ -281,7 +283,7 @@ export const CONDITION_TYPES: Array<{ value: string; label: string }> = [
 /** Condition types compared with "equals" only, their value picked in a list. */
 export const LIST_CONDITION_TYPES = ['side', 'operationType', 'status', 'attachment']
 
-export const AMOUNT_OPERATORS = [
+const AMOUNT_OPERATORS = [
   { value: 'equals', label: 'Égal à' },
   { value: 'gt', label: 'Supérieur à' },
   { value: 'gte', label: 'Supérieur ou égal à' },
@@ -290,7 +292,7 @@ export const AMOUNT_OPERATORS = [
   { value: 'between', label: 'Entre' },
 ]
 
-export const TEXT_OPERATORS = [
+const TEXT_OPERATORS = [
   { value: 'equals', label: 'Égal à' },
   { value: 'contains', label: 'Contient' },
   { value: 'startsWith', label: 'Commence par' },
@@ -411,19 +413,12 @@ export interface PreviewTransaction {
 
 /**
  * VAT detected by the bank on a transaction, read as the rule executor
- * reads it (lib/transactions/rule-executor.ts): the stored columns first,
- * then the provider payload; a negative rate (Qonto's "non standard") is
- * ignored. Null when the bank detected nothing.
+ * reads it (lib/banking/bank-vat.ts, one rule for every module): the stored
+ * columns first, then the provider payload, only what can be trusted on the
+ * amount paid. Null when the bank detected nothing usable.
  */
 export function transactionVatOf(tx: PreviewTransaction): { vatRate: number | null; vatAmount: number | null } | null {
-  const providerData = (tx.providerData ?? null) as { vat_rate?: number; vat_amount?: number; vat_amount_cents?: number } | null
-  const rawRate = tx.vatRate != null ? Number(tx.vatRate) : (providerData?.vat_rate ?? null)
-  const vatRate = rawRate != null && Number.isFinite(rawRate) && rawRate >= 0 ? rawRate : null
-  const vatAmount =
-    tx.vatAmount != null
-      ? Number(tx.vatAmount)
-      : (providerData?.vat_amount ?? (providerData?.vat_amount_cents != null ? providerData.vat_amount_cents / 100 : null))
-  return vatRate != null || vatAmount != null ? { vatRate, vatAmount } : null
+  return bankVatInEuros(tx, Math.abs(toCents(tx.amount) ?? 0))
 }
 
 /** Parses a JSON array passed in the URL by "Créer une règle à partir de cette transaction". */

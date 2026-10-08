@@ -1,6 +1,6 @@
 # Approbation des comptes et dépôt au greffe
 
-Le guide d'utilisation (à quoi sert l'approbation, étapes, règles expliquées) est sur le site : [Approuver les comptes et les déposer au greffe](https://www.kledg.com/fr/docs/approuver-les-comptes). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (à quoi sert l'approbation, étapes, règles expliquées) est sur le site : [Approuver les comptes et les déposer au greffe](https://www.kledg.com/fr/docs/approuver-les-comptes). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Après la clôture, les associés approuvent les comptes de l'exercice et décident de l'affectation du résultat, puis la société dépose les comptes au greffe. Kledg prépare les documents de cette étape selon la forme juridique de la société, à partir des écritures, des informations de la société et de ses associés, et de ce que l'utilisateur renseigne. Code : `lib/approval` ; page Saisie, Approbation des comptes (`/approval`) ; routes `GET` et `PUT /api/companies/[id]/fiscal-years/[fiscalYearId]/approval`, `GET .../approval/documents/[document]?format=pdf|md` ; outils MCP `get_year_end_formalities` et, avec l'accès brouillons (droit `closing:execute`), `update_year_end_formalities`, qui renseigne les données (dates, catégorie de taille, mode de décision, votes, affectation proposée) sans jamais générer de document (voir [mcp.md](mcp.md)).
 

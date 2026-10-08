@@ -57,7 +57,7 @@ export async function listSessions(userId: string, currentId: string, now = new 
 /** Signs one other device out. The current session ends with "Se déconnecter". */
 export async function revokeSession(userId: string, currentId: string, sessionId: string): Promise<void> {
   if (sessionId === currentId) {
-    throw new ValidationError('Cette session est celle que vous utilisez : utilisez « Se déconnecter ».')
+    throw new ValidationError('Cette session est celle que vous utilisez : utilisez « Se déconnecter ».')
   }
   const { count } = await prisma.session.deleteMany({ where: { id: sessionId, userId } })
   if (count === 0) throw new NotFoundError('Session introuvable')

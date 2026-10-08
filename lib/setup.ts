@@ -26,7 +26,7 @@ export function getSetupAdminEmail(): string | null {
  * Vercel deploy button asks for SETUP_TOKEN (its `env` parameter lists
  * required variables); Docker and other hosts set it in their environment.
  */
-export function getSetupToken(): string | null {
+function getSetupToken(): string | null {
   return process.env.SETUP_TOKEN?.trim() || null;
 }
 
@@ -108,7 +108,7 @@ function hashSetupLinkToken(token: string): string {
 }
 
 /** Whether `given` is an unexpired emailed setup link (only its hash is stored). */
-export async function isValidSetupLink(given: string | null | undefined): Promise<boolean> {
+async function isValidSetupLink(given: string | null | undefined): Promise<boolean> {
   const token = given?.trim();
   if (!token || token.length > 200) return false;
   const row = await prisma.verification.findFirst({

@@ -3,13 +3,19 @@
  * nonce-based Content-Security-Policy for pages (proxy.ts).
  */
 
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { NextRequest } from 'next/server'
 import nextConfig from '@/next.config'
-import { proxy } from '@/proxy'
-import { buildContentSecurityPolicy } from '@/lib/security-headers'
+import { config as proxyConfig, proxy } from '@/proxy'
+import { buildContentSecurityPolicy, STATIC_FILE_CSP } from '@/lib/security-headers'
+
+// Next.js compiles the proxy matcher with this function at build time (not in its public typings)
+const { getMiddlewareMatchers } = createRequire(import.meta.url)('next/dist/build/analysis/get-page-static-info.js') as {
+  getMiddlewareMatchers: (matcher: unknown, nextConfig: Record<string, unknown>) => Array<{ regexp: string }>
+}
 
 type Rule = { source: string; headers: Array<{ key: string; value: string }> }
 
@@ -30,7 +36,8 @@ describe('static security headers', () => {
     const h = await headersFor('/companies')
     expect(h.get('x-frame-options')).toBe('DENY')
     expect(h.get('x-content-type-options')).toBe('nosniff')
-    expect(h.get('referrer-policy')).toBe('strict-origin-when-cross-origin')
+    // [KLEDG-R3-CLOUD-03] the origin only, same-origin navigations included: no company slug in a referrer.
+    expect(h.get('referrer-policy')).toBe('strict-origin')
     expect(h.get('strict-transport-security')).toMatch(/max-age=\d{8}/)
     expect(h.get('cross-origin-opener-policy')).toBe('same-origin')
     expect(h.get('permissions-policy')).toContain('camera=()')
@@ -65,6 +72,41 @@ describe('page Content-Security-Policy', () => {
     // Next reads the nonce from the request headers the proxy forwards.
     expect(first.headers.get('x-middleware-request-content-security-policy')).toBe(csp)
     expect(first.headers.get('x-middleware-request-x-nonce')).toBe(nonce)
+  })
+})
+
+describe('[KLEDG-R3-INPUT-04] every HTML page gets a CSP', () => {
+  const ROOT = path.resolve(__dirname, '../..')
+  const matchers = getMiddlewareMatchers(proxyConfig.matcher, {}).map((m) => new RegExp(m.regexp))
+  const proxied = (pathname: string) => matchers.some((re) => re.test(pathname))
+  const images = readdirSync(path.join(ROOT, 'public/icons')).map((f) => `/icons/${f}`)
+  const statics = ['/favicon.ico', '/icon.svg', '/apple-icon.png', '/logo.svg', '/_next/static/chunks/main.js', '/_next/image', ...images]
+
+  it('runs the proxy on every page, whatever its last segment ends with', () => {
+    for (const page of ['/', '/login', '/acme/invoices/x.png', '/acme/entries/a.svg', '/acme/x.jpg', '/acme/logo.svg', '/acme/icon.svg', '/favicon.icox', '/icons/../acme.png']) {
+      expect(proxied(page), page).toBe(true)
+    }
+  })
+
+  it('skips only the static files that exist, listed with their own strict CSP', async () => {
+    for (const file of [...statics, '/icons/missing.png']) {
+      expect(proxied(file), file).toBe(false)
+      // A file the proxy skips (or its HTML 404) still has a policy: no script, no framing
+      expect((await headersFor(file)).get('content-security-policy'), file).toBe(STATIC_FILE_CSP)
+    }
+    expect(STATIC_FILE_CSP).toContain("default-src 'none'")
+    expect(STATIC_FILE_CSP).not.toContain('script-src')
+    // Every image of public/ and every app icon is in the list (a new one must be added to the matcher and the headers)
+    const publicImages = readdirSync(path.join(ROOT, 'public'), { recursive: true, encoding: 'utf8' })
+      .filter((f) => /\.(svg|png|jpe?g|gif|webp|ico)$/.test(f))
+      .map((f) => `/${f.split(path.sep).join('/')}`)
+    const appIcons = readdirSync(path.join(ROOT, 'app')).filter((f) => /\.(svg|png|ico)$/.test(f)).map((f) => `/${f}`)
+    for (const file of [...publicImages, ...appIcons]) expect(statics, file).toContain(file)
+  })
+
+  it('gives a page ending in an image extension the nonce CSP', async () => {
+    const response = await proxy(new NextRequest('http://localhost/login/x.png'))
+    expect(response.headers.get('content-security-policy')).toContain("'nonce-")
   })
 })
 

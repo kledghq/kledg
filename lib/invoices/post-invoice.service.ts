@@ -22,6 +22,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { assertEntryWritableInFiscalYear, fiscalYearContaining, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
 import { createEntryInTx, deleteDraftEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
@@ -34,7 +35,7 @@ import { accountByRoot, accountsByCode } from './ledger-accounts'
 import { invoiceName, lockInvoice, INVOICE_NOT_FOUND } from './manage-invoices.service'
 import { assignSeriesNumber } from './numbering/series'
 import { planInvoiceEntry, vatAccountsNeeded, type PlanLine, type VatAccountKey } from './posting-plan'
-import { vatDeductionShareOn } from '@/lib/vat-deduction/coefficient'
+import { vatDeductionOn } from '@/lib/vat-deduction/coefficient'
 
 /** PCG roots of the VAT accounts (PCG art. 932-1; 44574 is a subdivision of 4457). */
 export const VAT_ACCOUNT_ROOTS: Record<VatAccountKey, { root: string; label: string }> = {
@@ -47,7 +48,7 @@ export const VAT_ACCOUNT_ROOTS: Record<VatAccountKey, { root: string; label: str
 /** Revenue account of a sale line without one: 706 for services, 707 for goods (PCG art. 932-1). */
 const DEFAULT_SALE_ACCOUNT = { SERVICES: '706', GOODS: '707' } as const
 
-const JOURNALS = { PURCHASE: 'AC', SALE: 'VE' } as const
+const JOURNALS = { PURCHASE: { code: 'AC', label: 'Achats' }, SALE: { code: 'VE', label: 'Ventes' } } as const
 
 const cents = (value: { toString(): string }) => parseCents(value) ?? 0
 
@@ -67,8 +68,8 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
   // provisional coefficient de déduction), read before the transaction; the
   // date is checked again under the lock.
   const header = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { direction: true, issueDate: true } })
-  const share = header?.direction === 'PURCHASE' ? await vatDeductionShareOn(companyId, header.issueDate) : null
-  const deductionPercent = share === null ? undefined : Math.round(share * 100)
+  // The coefficient is a whole percent: passed as is, never through share x 100.
+  const deductionPercent = header?.direction === 'PURCHASE' ? ((await vatDeductionOn(companyId, header.issueDate)).percent ?? undefined) : undefined
   const result = await prisma.$transaction(async (tx) => {
     const locked = await lockInvoice(tx, companyId, invoiceId)
     if (locked.entryId) throw new ConflictError(`${invoiceName(locked)} est déjà comptabilisée.`)
@@ -117,10 +118,8 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
       )
     }
 
-    const journal = await tx.journal.findFirst({ where: { companyId, code: JOURNALS[invoice.direction] }, select: { id: true } })
-    if (!journal) {
-      throw new ValidationError(`Le journal ${JOURNALS[invoice.direction]} n’existe pas : créez-le dans Journaux pour comptabiliser cette facture.`)
-    }
+    // A standard journal Kledg posts to: created when missing (lib/accounting/journal-by-code.ts)
+    const journal = await ensureJournal(tx, companyId, JOURNALS[invoice.direction])
 
     const kind = invoice.direction === 'SALE' ? 'CUSTOMER' : 'SUPPLIER'
     const tiersAccount = invoice.tiers.collectiveAccountCode

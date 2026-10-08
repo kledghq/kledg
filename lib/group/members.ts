@@ -14,6 +14,7 @@
 
 import { MAX_GROUP_SUBSIDIARIES } from '@/lib/management-fees/holding'
 import type { GroupAccess } from '@/lib/management-fees/access'
+import type { Permission } from '@/lib/rbac/authorize'
 import { plural } from '@/lib/utils/plural'
 import { readIfAllowed, resolveGroup, type GroupMemberRef, type UnreachableSubsidiary } from './perimeter'
 
@@ -32,13 +33,19 @@ export interface GroupMembers<T> {
 }
 
 /** Runs `read` in the scope of every company of the group the user may read. */
-export async function readGroupMembers<T>(holdingId: string, access: GroupAccess, read: (ref: GroupMemberRef) => Promise<T>): Promise<GroupMembers<T>> {
+export async function readGroupMembers<T>(
+  holdingId: string,
+  access: GroupAccess,
+  read: (ref: GroupMemberRef) => Promise<T>,
+  /** What the view needs besides the statements right, in every company (perimeter.ts). */
+  extra?: Permission,
+): Promise<GroupMembers<T>> {
   const perimeter = await resolveGroup(holdingId, access)
   const members: Array<MemberRead<T>> = []
   const unreachable = [...perimeter.unreachable]
   // One company after the other, each in its own scope: a handful of companies, not a list of rows.
   for (const ref of [perimeter.holding, ...perimeter.subsidiaries]) {
-    const result = await readIfAllowed(access, ref.id, () => read(ref))
+    const result = await readIfAllowed(access, ref.id, () => read(ref), extra)
     if (result.ok) members.push({ ref, value: result.value })
     else unreachable.push(result.unreachable)
   }

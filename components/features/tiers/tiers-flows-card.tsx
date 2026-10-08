@@ -85,7 +85,7 @@ function FlowTooltip({ active, payload, report }: { active?: boolean; payload?: 
   )
 }
 
-export function TiersFlowsChart({ report }: { report: TiersFlowsReport }) {
+function TiersFlowsChart({ report }: { report: TiersFlowsReport }) {
   const diagram = React.useMemo(() => tiersFlowDiagram(report, report.company.name), [report])
   const height = Math.max(240, Math.max(report.customers.shown.length, report.suppliers.shown.length) * 48)
   const label =
@@ -151,7 +151,7 @@ function SideTable({ side, title, tiersLabel }: { side: TiersFlowSide; title: st
   )
 }
 
-export function TiersFlowsText({ report }: { report: TiersFlowsReport }) {
+function TiersFlowsText({ report }: { report: TiersFlowsReport }) {
   return (
     <details className="text-sm">
       <summary className="text-link cursor-pointer">Lire les flux en texte</summary>

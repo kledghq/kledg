@@ -4,7 +4,9 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getAccountByCode, getAccountClass, isValidAccountCode } from '../pcg-utils'
+import { getAccountByCode, getAccountClass } from '../pcg-utils'
+import { isAccountCode } from '../account-code'
+import { validateAccountCode } from '../validator'
 
 describe('getAccountByCode', () => {
   it('finds the account of the chart with its parent', () => {
@@ -19,17 +21,22 @@ describe('getAccountByCode', () => {
   })
 })
 
-describe('isValidAccountCode', () => {
+describe('account number format (KLEDG-R3-QUAL-27, lib/accounting/account-code.ts)', () => {
   it.each([
     ['51', true],
     ['512', true],
     ['51200000', true],
+    // Longer and alphanumeric numbers of FEC charts, and 62568 padded by Kledg
+    ['625680000', true],
+    ['401DUPONT', true],
     ['5', false],
-    ['512000000', false],
-    ['512A', false],
+    ['512a', false],
+    ['0123', false],
     ['', false],
+    ['1'.repeat(21), false],
   ])('%s -> %s', (code, valid) => {
-    expect(isValidAccountCode(code)).toBe(valid)
+    expect(isAccountCode(code)).toBe(valid)
+    expect(validateAccountCode(code)).toBe(valid)
   })
 })
 

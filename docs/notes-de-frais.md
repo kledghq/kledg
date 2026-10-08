@@ -1,6 +1,6 @@
 # Notes de frais
 
-Le guide d'utilisation (bénéficiaires, saisie d'une note, TVA récupérable, indemnités kilométriques, repas de l'exploitant, validation, remboursement) est sur le site : [Les notes de frais](https://www.kledg.com/fr/docs/les-notes-de-frais). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (bénéficiaires, saisie d'une note, TVA récupérable, indemnités kilométriques, repas de l'exploitant, validation, remboursement) est sur le site : [Les notes de frais](https://www.kledg.com/fr/docs/les-notes-de-frais). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Les dépenses qu'un salarié, un dirigeant ou un associé avance pour la société, et ses trajets avec un véhicule personnel : saisie avec les justificatifs, TVA récupérable calculée ligne par ligne, indemnités kilométriques au barème officiel, validation, comptabilisation au crédit du compte de la personne et remboursement constaté par le lettrage. Code : `lib/expense-reports`, pages `/expense-reports`, outils MCP `list_expense_reports`, `get_expense_report`, `list_expense_claimants` et, avec l'accès brouillons, `create_draft_expense_report`.
 
@@ -35,6 +35,7 @@ Pages **Notes de frais** (`/expense-reports`, toutes les notes pour qui valide) 
 | Catégorie | Compte | TVA |
 | --- | --- | --- |
 | Transport (train, avion, taxi, VTC) | 6251 Voyages et déplacements | Jamais récupérable |
+| Péages et parking | 6251 Voyages et déplacements | Récupérable avec le reçu au nom de la société (BOI-TVA-DED-40-40, § 30 et § 330) |
 | Hébergement (hôtel) | 6256 Missions | Jamais récupérable |
 | Repas en déplacement | 6256 Missions | Récupérable |
 | Repas d'affaires et réceptions | 6257 Réceptions | Récupérable |
@@ -61,7 +62,9 @@ Règles appliquées dans cet ordre, la première qui s'applique décide (`lib/ex
 5. **Carburant** d'un véhicule de tourisme : 80 % de la TVA sur l'essence et le gazole (CGI art. 298, 4, 1°, a ; BOI-TVA-DED-30-30-40), arrondi au centime. Un véhicule utilitaire ouvre droit à 100 % : il relève d'une autre catégorie.
 6. Sinon, toute la TVA du justificatif.
 
-La TVA non récupérée fait partie de la charge de la ligne. L'éditeur affiche la règle appliquée sous chaque ligne.
+Puis, pour une société partiellement exonérée (déduction par coefficient, [organisme de formation](organisme-de-formation.md)), la TVA récupérable de la ligne est multipliée par le coefficient de déduction provisoire du jour de la dépense (CGI ann. II art. 205 et 206), arrondie au centime le plus proche, comme pour les factures d'achat, le mode simple et les règles d'affectation. Une société exonérée dont la déduction se fait par coefficient applique ce coefficient ; seule la franchise en base ne récupère rien.
+
+La TVA non récupérée fait partie de la charge de la ligne. L'éditeur affiche la règle appliquée sous chaque ligne (il prévisualise avec le coefficient de l'année ; l'enregistrement retient celui du jour de chaque ligne).
 
 ### Repas de l'exploitant (société à l'impôt sur le revenu)
 
@@ -126,6 +129,7 @@ Droit `expenses` (`lib/permissions.ts`) : `submit` pour tous les rôles, `valid
 
 - Un membre en lecture seule dépose ses propres notes : il ne voit que les siennes (« introuvable » pour celles des autres, sur les pages, l'API et le MCP). Un valideur voit toutes les notes de la société.
 - Valider demande un compte pour chaque ligne (la catégorie « Autre dépense » n'en a pas par défaut).
+- Séparation des tâches : l'auteur d'une note (l'utilisateur lié à son bénéficiaire) ne la valide pas tant qu'un autre membre de la société a le droit `expenses:validate` (administrateur ou comptable, compte non bloqué) : c'est lui qui la valide, sinon la validation est refusée (409). Seul valideur de la société (société d'une personne), l'auteur peut la valider, mais c'est enregistré : colonne `expense_reports.selfValidated`, champ `selfValidated` de la fiche (`GET /api/expense-reports/[id]`, `get_expense_report`), mention sur la fiche et `selfValidated: true` dans l'entrée `VALIDATE_EXPENSE_REPORT` du journal d'audit. La fiche d'une note soumise de son propre auteur valideur donne `ownValidation` (`refused` ou `sole-validator`). La règle est dans le service du workflow (`lib/expense-reports/self-validation.ts`) : page, API et outil MCP `manage_expense_report` la suivent. Rouvrir la note efface la mention.
 
 ## Comptabilisation
 

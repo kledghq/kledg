@@ -1,34 +1,12 @@
 /**
  * Automatic matching of a bank line with a bank transaction (FEC import and
- * auto-reconcile): exact cents, opposite sides, a window of one calendar day
- * on each side that does not move with the server timezone.
+ * auto-reconcile, one matcher since KLEDG-R3-QUAL-04/18): exact cents,
+ * opposite sides, one calendar day on each side that does not move with the
+ * server timezone, one transaction per entry.
  */
 
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  accountFindFirst: vi.fn(),
-  accountFindUnique: vi.fn(),
-  bankAccountFindMany: vi.fn(),
-  transactionFindMany: vi.fn(),
-  transactionUpdate: vi.fn(),
-  transactionUpdateMany: vi.fn(),
-}))
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
-    account: { findFirst: mocks.accountFindFirst, findUnique: mocks.accountFindUnique },
-    bankAccount: { findMany: mocks.bankAccountFindMany },
-    bankTransaction: {
-      findMany: mocks.transactionFindMany,
-      update: mocks.transactionUpdate,
-      updateMany: mocks.transactionUpdateMany,
-    },
-  },
-}))
-
-import { bankLineCents, reconciliationWindow, transactionMatchesBankLine } from '../bank-line-match'
-import { attemptBankReconciliation as reconcileFromImport } from '@/lib/import/fec/reconciliation'
-import { attemptBankReconciliation as reconcileFromService } from '@/lib/services/banking/reconciliation-service'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { bankLineCents, matchBankEntries, transactionMatchesBankLine, type CandidateTransaction } from '../bank-line-match'
 
 const ORIGINAL_TZ = process.env.TZ
 const ZONES = ['Pacific/Kiritimati', 'America/Los_Angeles', 'UTC']
@@ -63,51 +41,70 @@ describe('bankLineCents and transactionMatchesBankLine', () => {
   })
 })
 
-describe.each(ZONES)('reconciliation window with TZ=%s', (zone) => {
+const tx = (id: string, amount: string, side: 'debit' | 'credit', date: string, ledgerAccountCode: string | null = null): CandidateTransaction => ({
+  id,
+  amount,
+  side,
+  date: new Date(date),
+  ledgerAccountCode,
+})
+/** A payment of `amount` on 512000 (money out): 606 debit, 512 credit. */
+const payment = (id: string, amount: string, day: string, bank = '512000') => ({
+  id,
+  date: new Date(`${day}T00:00:00.000Z`),
+  lines: [
+    { accountCode: '606000', debit: amount, credit: '0' },
+    { accountCode: bank, debit: '0', credit: amount },
+  ],
+})
+
+describe.each(ZONES)('matchBankEntries with TZ=%s', (zone) => {
   beforeEach(() => {
     process.env.TZ = zone
-    for (const mock of Object.values(mocks)) mock.mockReset()
   })
 
-  it('spans the day before and the day after, at midnight UTC', () => {
-    const { gte, lte } = reconciliationWindow(new Date('2026-03-01T00:00:00.000Z'))
-    expect(gte.toISOString()).toBe('2026-02-28T00:00:00.000Z')
-    expect(lte.toISOString()).toBe('2026-03-02T00:00:00.000Z')
-    const leap = reconciliationWindow(new Date('2028-03-01T00:00:00.000Z'))
-    expect(leap.gte.toISOString()).toBe('2028-02-29T00:00:00.000Z')
+  it('links one transaction per entry when two identical transactions match (KLEDG-R3-QUAL-04)', () => {
+    // Two 50 EUR card payments on 1 and 2 March, one 50 EUR bank line on 1 March
+    const pairs = matchBankEntries([payment('entry-1', '50.00', '2026-03-01')], [tx('tx-2', '50.00', 'debit', '2026-03-02'), tx('tx-1', '50.00', 'debit', '2026-03-01')])
+    expect(pairs).toEqual([{ entryId: 'entry-1', transactionId: 'tx-1' }])
   })
 
-  it.each([
-    ['FEC import', reconcileFromImport],
-    ['auto-reconcile', reconcileFromService],
-  ])('%s searches the window and links the matching transaction', async (_name, reconcile) => {
-    const account = { id: 'acc-512', code: '512000' }
-    mocks.accountFindFirst.mockResolvedValue(account)
-    mocks.accountFindUnique.mockResolvedValue(account)
-    mocks.bankAccountFindMany.mockResolvedValue([{ id: 'bank-1' }])
-    mocks.transactionFindMany.mockResolvedValue([
-      { id: 'tx-wrong-amount', amount: '80.01', side: 'debit' },
-      { id: 'tx-ok', amount: '80.00', side: 'debit' },
+  it('pairs identical entries and transactions one to one', () => {
+    const pairs = matchBankEntries(
+      [payment('e-a', '50.00', '2026-03-01'), payment('e-b', '50.00', '2026-03-02')],
+      [tx('t-1', '50.00', 'debit', '2026-03-01'), tx('t-2', '50.00', 'debit', '2026-03-02'), tx('t-3', '50.00', 'debit', '2026-03-02')],
+    )
+    expect(pairs).toEqual([
+      { entryId: 'e-a', transactionId: 't-1' },
+      { entryId: 'e-b', transactionId: 't-2' },
     ])
-    mocks.transactionUpdate.mockResolvedValue({})
-    mocks.transactionUpdateMany.mockResolvedValue({ count: 1 })
+  })
 
-    await reconcile(
-      'company-1',
-      'entry-1',
-      [
-        { accountId: 'acc-512', debit: 0, credit: 80 },
-        { accountId: 'acc-606', debit: 80, credit: 0 },
+  it('stays within one calendar day (calendarDayOf of each date)', () => {
+    const entry = payment('e', '80.00', '2026-01-01')
+    expect(matchBankEntries([entry], [tx('late', '80.00', 'debit', '2026-01-02T10:30:00.000Z')])).toHaveLength(1)
+    expect(matchBankEntries([entry], [tx('before', '80.00', 'debit', '2025-12-31T00:00:00.000Z')])).toHaveLength(1)
+    expect(matchBankEntries([entry], [tx('far', '80.00', 'debit', '2026-01-03T00:00:00.000Z')])).toEqual([])
+    expect(matchBankEntries([entry], [tx('wrong-amount', '80.01', 'debit', '2026-01-01'), tx('wrong-side', '80.00', 'credit', '2026-01-01')])).toEqual([])
+  })
+
+  it('only uses the bank account mapped to the line account, or an unmapped one', () => {
+    const entry = payment('e', '10.00', '2026-02-01', '512100')
+    expect(matchBankEntries([entry], [tx('other', '10.00', 'debit', '2026-02-01', '512200')])).toEqual([])
+    expect(matchBankEntries([entry], [tx('mapped', '10.00', 'debit', '2026-02-01', '512100')])).toEqual([{ entryId: 'e', transactionId: 'mapped' }])
+    expect(matchBankEntries([entry], [tx('unmapped', '10.00', 'debit', '2026-02-01')])).toEqual([{ entryId: 'e', transactionId: 'unmapped' }])
+  })
+
+  it('ignores lines outside class 51 and tries every bank line of the entry', () => {
+    const entry = {
+      id: 'e',
+      date: new Date('2026-04-01T00:00:00.000Z'),
+      lines: [
+        { accountCode: '411000', debit: '0', credit: '30.00' },
+        { accountCode: '512000', debit: '10.00', credit: '0' },
+        { accountCode: '512100', debit: '20.00', credit: '0' },
       ],
-      new Date('2026-01-01T00:00:00.000Z'),
-    )
-
-    const where = mocks.transactionFindMany.mock.calls[0][0].where
-    expect(where.date.gte.toISOString()).toBe('2025-12-31T00:00:00.000Z')
-    expect(where.date.lte.toISOString()).toBe('2026-01-02T00:00:00.000Z')
-    const linked = [...mocks.transactionUpdate.mock.calls, ...mocks.transactionUpdateMany.mock.calls].map(
-      ([args]) => args.where.id,
-    )
-    expect(linked).toEqual(['tx-ok'])
+    }
+    expect(matchBankEntries([entry], [tx('t', '30.00', 'credit', '2026-04-01'), tx('t20', '20.00', 'credit', '2026-04-01')])).toEqual([{ entryId: 'e', transactionId: 't20' }])
   })
 })

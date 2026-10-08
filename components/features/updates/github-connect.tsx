@@ -107,6 +107,15 @@ function ConnectedCard({ connection, onChange }: { connection: ConnectionSummary
           </Alert>
         )}
 
+        {connection.tokenReachesOtherRepos && (
+          <Alert>
+            <AlertTriangle />
+            <AlertDescription>
+              Ce jeton donne aussi accès à d&apos;autres dépôts que {connection.owner}/{connection.repo}. Sur GitHub, dans « Repository access », choisissez « Only select repositories » puis ce seul dépôt, et reconnectez GitHub.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm" disabled={busy}>
@@ -116,7 +125,7 @@ function ConnectedCard({ connection, onChange }: { connection: ConnectionSummary
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Déconnecter GitHub ?</AlertDialogTitle>
+              <AlertDialogTitle>Déconnecter GitHub&nbsp;?</AlertDialogTitle>
               <AlertDialogDescription>
                 Kledg oublie le jeton. Les mises à jour restent possibles depuis GitHub. Supprimez aussi le jeton dans vos
                 réglages GitHub (Settings, Developer settings, Personal access tokens).
@@ -217,7 +226,7 @@ function ConnectForm({ detected, platform, onChange }: { detected: RepoRef | nul
           </li>
           <li>
             <p>
-              <span className="font-medium">4. Collez le jeton ci-dessous.</span> Il est vérifié puis chiffré ; il ne sera plus
+              <span className="font-medium">4. Collez le jeton ci-dessous.</span> Il est vérifié puis chiffré&nbsp;; il ne sera plus
               jamais affiché.
             </p>
           </li>

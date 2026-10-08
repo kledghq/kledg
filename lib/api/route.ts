@@ -213,7 +213,7 @@ type Handler = (request: Request, context?: RouteContext) => Promise<Response>
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /** Marks handlers built here, for the architecture test. */
-export const ROUTE_WRAPPER = Symbol.for('kledg.routeWrapper')
+const ROUTE_WRAPPER = Symbol.for('kledg.routeWrapper')
 
 function wrap(
   kind: string,
@@ -287,7 +287,7 @@ export function adminRoute<TBody = undefined, TQuery = undefined>(
 
 function forbidden(userRoles: string[]): ForbiddenError {
   const label = userRoles.map((r) => ROLE_LABELS[r] ?? r).join(', ')
-  return new ForbiddenError(`Action non autorisée : votre rôle (${label}) ne permet pas cette opération.`)
+  return new ForbiddenError(`Action non autorisée : votre rôle (${label}) ne permet pas cette opération.`)
 }
 
 /** A route acting on one company: resolves it, then checks the user's role permission there. */

@@ -24,7 +24,7 @@ import {
 export const LAYOUT_VERSION = 1
 
 /** More than the registry holds, so a saved layout is never cut; bounds what a request may send. */
-export const MAX_LAYOUT_ITEMS = 50
+const MAX_LAYOUT_ITEMS = 50
 
 const WidgetIdField = z.string().trim().min(1).max(64)
 
@@ -34,7 +34,7 @@ export const DashboardLayoutBody = z.object({
     .array(
       z.object({
         id: WidgetIdField,
-        size: z.enum(WIDGET_SIZES, { error: 'Taille de widget inconnue : S, M ou L' }).optional(),
+        size: z.enum(WIDGET_SIZES, { error: 'Taille de widget inconnue : S, M ou L' }).optional(),
       }),
     )
     .max(MAX_LAYOUT_ITEMS, { error: `Un tableau de bord compte au plus ${MAX_LAYOUT_ITEMS} widgets` }),

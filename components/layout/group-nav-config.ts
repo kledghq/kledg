@@ -126,7 +126,7 @@ export const simpleGroupNavGroups: NavGroup[] = [
 ]
 
 /** Group pages the Standard sidebar lists (URLs relative to /<holding>/group), in the expert order. */
-export const STANDARD_GROUP_NAV_URLS: ReadonlySet<string> = new Set(["/", "/structure", "/treasury", "/tax", "/tax/deadlines"])
+const STANDARD_GROUP_NAV_URLS: ReadonlySet<string> = new Set(["/", "/structure", "/treasury", "/tax", "/tax/deadlines"])
 
 export const standardGroupNavGroups: NavGroup[] = groupNavGroups
   .map((group) => ({ ...group, items: group.items.filter((item) => STANDARD_GROUP_NAV_URLS.has(item.url)) }))

@@ -27,7 +27,8 @@ import { ValidationError } from '@/lib/accounting/errors'
 type AnySchema = z.ZodType
 type Def = { type: string; shape?: Record<string, AnySchema>; innerType?: AnySchema; element?: AnySchema; options?: AnySchema[]; in?: AnySchema; defaultValue?: unknown }
 
-const defOf = (schema: AnySchema): Def => (schema as unknown as { _zod: { def: Def } })._zod.def
+/** The definition of a schema through zod's public `def` (zod 4), read as the fields this module uses. */
+const defOf = (schema: AnySchema): Def => schema.def as unknown as Def
 
 const CENTS_KEY = /^(.+)Cents$/
 /** Rates in basis points (`vatRateBp`): the assistant gives and reads percents (20 for 20 %). */
@@ -59,6 +60,17 @@ function percentField(schema: AnySchema): AnySchema {
   if (def.type === 'nullable') return percentField(def.innerType!).nullable()
   return z.number({ error: 'Taux invalide : un pourcentage est attendu' }).min(0).max(100).describe('In percent (20 for 20 %).')
 }
+
+/**
+ * A rate in percent sent by an assistant: 0 to 100, two decimals at most
+ * (12,34 % is 1 234 basis points; 12,345 % is refused, never rounded).
+ */
+export const percentInput = z
+  .number({ error: 'Taux invalide : un pourcentage est attendu' })
+  .finite()
+  .min(0)
+  .max(100)
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) <= 1e-6, 'Taux invalide : en pour cent avec deux décimales au plus.')
 
 /** Basis points of a rate in percent sent by an assistant (four decimals at most), or a French 400. */
 function basisPointsOf(percent: number, field: string): number {

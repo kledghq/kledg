@@ -45,7 +45,7 @@ export function chartSeriesVariable(series: ChartSeries): `--chart-${ChartSeries
 }
 
 /** The variable the server sets for a series in one theme (read by globals.css). */
-export function chartThemeVariable(series: ChartSeries, theme: ChartTheme): `--chart-${ChartSeries}-${ChartTheme}` {
+function chartThemeVariable(series: ChartSeries, theme: ChartTheme): `--chart-${ChartSeries}-${ChartTheme}` {
   return `--chart-${series}-${theme}`
 }
 

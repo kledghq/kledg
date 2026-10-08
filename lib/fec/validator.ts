@@ -87,11 +87,11 @@ export function validateFec(content: string, options: FecValidationOptions = {})
   if (options.fileName !== undefined) {
     const m = FEC_FILE_NAME.exec(options.fileName)
     if (!m) {
-      error(null, `Nom de fichier « ${options.fileName} » non conforme : attendu SirenFECAAAAMMJJ (ex. 123456789FEC20251231.txt)`)
+      error(null, `Nom de fichier « ${options.fileName} » non conforme : attendu SirenFECAAAAMMJJ (ex. 123456789FEC20251231.txt)`)
     } else if (!isFecDate(m[2])) {
-      error(null, `Nom de fichier : la date de clôture ${m[2]} n'est pas une date AAAAMMJJ valide`)
+      error(null, `Nom de fichier : la date de clôture ${m[2]} n'est pas une date AAAAMMJJ valide`)
     } else if (options.closingDate && m[2] !== options.closingDate) {
-      error(null, `Nom de fichier : la date ${m[2]} n'est pas la date de clôture de l'exercice (${options.closingDate})`)
+      error(null, `Nom de fichier : la date ${m[2]} n'est pas la date de clôture de l'exercice (${options.closingDate})`)
     }
   }
 
@@ -107,13 +107,13 @@ export function validateFec(content: string, options: FecValidationOptions = {})
   const separator = header.includes('\t') ? '\t' : header.includes('|') ? '|' : null
   stats.separator = separator === '\t' ? 'tab' : separator === '|' ? 'pipe' : null
   if (!separator) {
-    error(1, "Séparateur de zones absent : tabulation ou « | » obligatoire (art. A47 A-1)")
+    error(1, "Séparateur de zones absent : tabulation ou « | » obligatoire (art. A47 A-1)")
     return done()
   }
   const names = header.split(separator).map((n) => n.trim())
   const headerOk = names.length === FEC_FIELDS.length && FEC_FIELDS.every((f, i) => names[i] === f)
   if (!headerOk) {
-    error(1, `En-tête non conforme : attendu les 18 zones ${FEC_FIELDS.join(', ')} dans cet ordre, trouvé ${names.join(', ')}`)
+    error(1, `En-tête non conforme : attendu les 18 zones ${FEC_FIELDS.join(', ')} dans cet ordre, trouvé ${names.join(', ')}`)
     return done()
   }
   if (rows.length < 2) warn(null, 'Aucune écriture dans le fichier')
@@ -137,7 +137,7 @@ export function validateFec(content: string, options: FecValidationOptions = {})
     const lineNo = i + 1
     const values = rows[i].split(separator)
     if (values.length !== FEC_FIELDS.length) {
-      error(lineNo, `${values.length} zones au lieu de 18 (séparateur dans un libellé ?)`)
+      error(lineNo, `${values.length} zones au lieu de 18 (séparateur dans un libellé ?)`)
       continue
     }
     stats.records++
@@ -148,11 +148,11 @@ export function validateFec(content: string, options: FecValidationOptions = {})
     }
     for (const field of ['EcritureDate', 'PieceDate', 'ValidDate'] as const) {
       if (record[field] !== '' && !isFecDate(record[field])) {
-        error(lineNo, `${field} « ${record[field]} » : date attendue au format AAAAMMJJ`, field)
+        error(lineNo, `${field} « ${record[field]} » : date attendue au format AAAAMMJJ`, field)
       }
     }
     if (record.DateLet !== '' && !isFecDate(record.DateLet)) {
-      error(lineNo, `DateLet « ${record.DateLet} » : date attendue au format AAAAMMJJ`, 'DateLet')
+      error(lineNo, `DateLet « ${record.DateLet} » : date attendue au format AAAAMMJJ`, 'DateLet')
     }
     if (record.DateLet !== '' && record.EcritureLet === '') warn(lineNo, 'DateLet renseignée sans EcritureLet', 'DateLet')
     if (record.EcritureLet !== '' && record.DateLet === '') warn(lineNo, 'EcritureLet renseignée sans DateLet', 'EcritureLet')
@@ -168,7 +168,7 @@ export function validateFec(content: string, options: FecValidationOptions = {})
       if (!AMOUNT.test(value)) {
         error(
           lineNo,
-          `${field} « ${value} » : montant attendu en mode décimal, virgule comme séparateur décimal, sans séparateur de milliers`,
+          `${field} « ${value} » : montant attendu en mode décimal, virgule comme séparateur décimal, sans séparateur de milliers`,
           field,
         )
         continue
@@ -178,13 +178,13 @@ export function validateFec(content: string, options: FecValidationOptions = {})
     }
     if (record.Montantdevise !== '') {
       if (!AMOUNT.test(record.Montantdevise)) {
-        error(lineNo, `Montantdevise « ${record.Montantdevise} » : montant décimal à virgule attendu`, 'Montantdevise')
+        error(lineNo, `Montantdevise « ${record.Montantdevise} » : montant décimal à virgule attendu`, 'Montantdevise')
       }
       if (record.Idevise.trim() === '') warn(lineNo, 'Montantdevise renseigné sans Idevise', 'Idevise')
     }
     if (debit !== null && credit !== null) {
       if (debit !== BigInt(0) && credit !== BigInt(0)) {
-        error(lineNo, 'Débit et crédit renseignés sur la même ligne : une ligne est soit au débit, soit au crédit')
+        error(lineNo, 'Débit et crédit renseignés sur la même ligne : une ligne est soit au débit, soit au crédit')
       } else if (debit === BigInt(0) && credit === BigInt(0)) {
         warn(lineNo, 'Ligne sans montant (débit et crédit nuls)')
       }
@@ -223,21 +223,21 @@ export function validateFec(content: string, options: FecValidationOptions = {})
     if (entry.debit !== entry.credit) {
       error(
         entry.firstLine,
-        `${name} non équilibrée : débit ${centsToFecAmount(entry.debit)}, crédit ${centsToFecAmount(entry.credit)}`,
+        `${name} non équilibrée : débit ${centsToFecAmount(entry.debit)}, crédit ${centsToFecAmount(entry.credit)}`,
       )
     }
-    if (entry.lines < 2) error(entry.firstLine, `${name} : une seule ligne (partie double)`)
-    if (entry.dates.size > 1) error(entry.firstLine, `${name} : plusieurs dates d'écriture (${[...entry.dates].join(', ')})`)
+    if (entry.lines < 2) error(entry.firstLine, `${name} : une seule ligne (partie double)`)
+    if (entry.dates.size > 1) error(entry.firstLine, `${name} : plusieurs dates d'écriture (${[...entry.dates].join(', ')})`)
   }
   if (totalDebit !== totalCredit) {
-    error(null, `Fichier non équilibré : total débit ${stats.totalDebit}, total crédit ${stats.totalCredit}`)
+    error(null, `Fichier non équilibré : total débit ${stats.totalDebit}, total crédit ${stats.totalCredit}`)
   }
 
   // Opening entries (à-nouveaux) first (BOI-CF-IOR-60-40-20 § 100)
   const firstOther = order.findIndex((e) => !isOpeningJournal(e.journal))
   const lateOpening = firstOther >= 0 ? order.slice(firstOther).find((e) => isOpeningJournal(e.journal)) : undefined
   if (lateOpening) {
-    warn(lateOpening.firstLine, `Écriture d'à-nouveaux ${lateOpening.journal} n° ${lateOpening.number} après d'autres écritures : les à-nouveaux sont en principe les premières écritures`)
+    warn(lateOpening.firstLine, `Écriture d'à-nouveaux ${lateOpening.journal} n° ${lateOpening.number} après d'autres écritures : les à-nouveaux sont en principe les premières écritures`)
   }
 
   checkNumbering(order, stats, error, warn)
@@ -258,7 +258,7 @@ function checkNumbering(
   if (order.length === 0) return
   const sequences = order.map((e) => sequentialPartOf(e.number))
   if (sequences.some((s) => s === null)) {
-    warn(null, 'Numéros d\'écriture non numériques : la continuité de la numérotation n\'a pas pu être vérifiée')
+    warn(null, 'Numéros d\'écriture non numériques : la continuité de la numérotation n\'a pas pu être vérifiée')
     return
   }
   // Same sequence number in two journals ("1" and "1", or "VT-1" and "AC-1"): per-journal numbering
@@ -285,7 +285,7 @@ function checkNumbering(
     const seqs = [...new Set(list.map((x) => x.seq))].sort((a, b) => a - b)
     for (let k = 1; k < seqs.length; k++) {
       if (seqs[k] !== seqs[k - 1] + 1) {
-        error(null, `Numérotation${scope} non continue : rupture entre ${seqs[k - 1]} et ${seqs[k]}`)
+        error(null, `Numérotation${scope} non continue : rupture entre ${seqs[k - 1]} et ${seqs[k]}`)
       }
     }
     // Increasing in file order, opening entries aside (they may come first with a later number, BOFiP § 110)
@@ -293,7 +293,7 @@ function checkNumbering(
     for (const x of list) {
       if (x.opening) continue
       if (previous && x.seq < previous.seq) {
-        warn(x.line, `Numérotation${scope} non croissante : n° ${x.number} après n° ${previous.number}`)
+        warn(x.line, `Numérotation${scope} non croissante : n° ${x.number} après n° ${previous.number}`)
       }
       previous = x
     }

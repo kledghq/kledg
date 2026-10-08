@@ -321,7 +321,7 @@ describe.skipIf(!available)('chart of accounts and journal routes', () => {
       const tree = await del(root.id)
       expect(tree.status).toBe(409)
       expect((await json(tree)).error).toBe(
-        'Le compte enfant 40111 ne peut pas être supprimé : Le compte enfant 401111 ne peut pas être supprimé : Le compte contient des écritures',
+        'Le compte enfant 40111 ne peut pas être supprimé : Le compte enfant 401111 ne peut pas être supprimé : Le compte contient des écritures',
       )
 
       const pcgChild = await account('4012', 'Autres')

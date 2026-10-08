@@ -3,6 +3,7 @@ import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
+vi.mock('@/lib/rate-limit', () => ({ enforceRateLimit: vi.fn() }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/accounting/entry-guards', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/accounting/entry-guards')>()),
@@ -58,8 +59,8 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   unreconcile_transaction: true,
   run_rules: true,
   list_rules: false,
-  create_rule: false,
-  update_rule: false,
+  create_rule: true,
+  update_rule: true,
   delete_rule: true,
   list_bank_accounts: false,
   create_bank_account: false,
@@ -84,14 +85,15 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   manage_company_records: true,
   manage_statement_layout: true,
   manage_members: true,
+  manage_invitations: true,
   manage_bank_accounts: true,
   bulk_reconcile: true,
   delete_bank_transactions: true,
   duplicate_rule: false,
-  add_rule_from_template: false,
-  copy_rules_from_company: false,
-  sync_bank_data: false,
-  upload_receipt: false,
+  add_rule_from_template: true,
+  copy_rules_from_company: true,
+  sync_bank_data: true,
+  upload_receipt: true,
   manage_invoice: true,
   import_qonto_invoices: true,
   delete_tiers: true,
@@ -112,6 +114,9 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
 const INSTANCE_TOOLS = new Set(['create_company'])
 
 /** Draft-level tools (kledg:write) of lib/mcp/drafts, besides create_draft_entry. */
+/** Receipts photographed in the assistant (lib/mcp/full-control/receipts.ts, level write). */
+const RECEIPT_TOOLS = ['capture_receipt', 'stage_receipt', 'file_receipt']
+
 const DRAFT_TOOLS = [
   'save_vat_deduction_settings',
   'prepare_vat_coefficient_regularisation',
@@ -156,6 +161,16 @@ const DRAFT_TOOLS = [
 
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
 const caller = { kind: 'apiKey' as const, apiKeyId: 'k1' }
+
+describe('list_fiscal_years', () => {
+  // KLEDG-R3-MCP-12: the right of its routes (GET /api/companies/[id]/fiscal-years), entries:read.
+  it('checks entries:read, like its routes', () => {
+    const source = readFileSync(path.resolve(__dirname, '../tools.ts'), 'utf8')
+    const tool = source.slice(source.indexOf("'list_fiscal_years'"), source.indexOf('server.registerTool(', source.indexOf("'list_fiscal_years'")))
+    expect(tool).toContain("await guard.require(companyId, { entries: ['read'] })")
+    expect(tool).not.toContain("reports: ['read']")
+  })
+})
 
 describe('registerKledgTools', () => {
   it('registers read tools as read-only', () => {
@@ -225,12 +240,14 @@ describe('registerKledgTools', () => {
     const writer = fakeServer()
     registerKledgTools(writer as never, { user, canWrite: true, canAdmin: false, caller, executionMode: 'validation' })
     const added = [...writer.tools.keys()].filter((name) => !readOnly.tools.has(name)).sort()
-    expect(added).toEqual(['create_draft_entry', ...DRAFT_TOOLS].sort())
+    expect(added).toEqual(['create_draft_entry', ...DRAFT_TOOLS, ...RECEIPT_TOOLS].sort())
     for (const name of added) {
-      expect(writer.tools.get(name)?.annotations?.readOnlyHint, name).toBe(false)
+      // capture_receipt only opens the capture view
+      if (name !== 'capture_receipt') expect(writer.tools.get(name)?.annotations?.readOnlyHint, name).toBe(false)
       expect(writer.tools.get(name)?.description, name).toContain('kledg:write')
-      // Draft tools never follow the full control flow.
-      expect(writer.tools.get(name)?.inputSchema?.shape, name).not.toHaveProperty('actionId')
+      // Draft tools never follow the full control flow; file_receipt's attach waits for the user's approval in Kledg.
+      if (name === 'file_receipt') expect(writer.tools.get(name)?.inputSchema?.shape, name).toHaveProperty('actionId')
+      else expect(writer.tools.get(name)?.inputSchema?.shape, name).not.toHaveProperty('actionId')
     }
   })
 })
@@ -267,7 +284,7 @@ describe('create_draft_entry errors', () => {
   })
 
   it('keeps the French message of a typed refusal', async () => {
-    const closed = "L'exercice 2026 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées."
+    const closed = "L'exercice 2026 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées."
     vi.mocked(assertEntryWritableInFiscalYear).mockImplementation(() => {
       throw new ConflictError(closed)
     })
@@ -311,7 +328,9 @@ describe('full control tools', () => {
 
   it('checks full control first, in the single registration path', () => {
     const handler = define.slice(define.indexOf('server.registerTool('))
-    const guardAt = handler.indexOf('await guard.requireFullControl(companyId, tool.permission)')
+    const guardAt = handler.indexOf('await check(companyId, tool.permission)')
+    // check is guard.requireFullControl, or guard.require for the draft-level tools (level write)
+    expect(define).toContain("const check = (companyId: string, permission: Permission) => (writeLevel ? guard.require(companyId, permission) : guard.requireFullControl(companyId, permission))")
     expect(guardAt).toBeGreaterThan(0)
     for (const step of ['tool.preview(', 'tool.execute(', 'claimApprovedAction(', 'createPendingAction(']) {
       expect(handler.indexOf(step), step).toBeGreaterThan(guardAt)

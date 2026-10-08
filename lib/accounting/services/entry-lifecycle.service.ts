@@ -18,6 +18,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { ApprovedStateChangedError, checkApprovedState } from '@/lib/approved-state/guard'
 import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { syncFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/acquisition-entry'
 import { ConflictError, NotFoundError, ValidationError, handleError } from '../errors'
@@ -43,7 +44,7 @@ type Db = Prisma.TransactionClient
 
 /** Message for any attempt to change a validated entry. */
 export function immutableEntryMessage(entryNumber: string): string {
-  return `L'écriture n° ${entryNumber} est validée : elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation.`
+  return `L'écriture n° ${entryNumber} est validée\u00a0: elle ne peut plus être modifiée ni supprimée (PCG art. 1031-3). Passez une écriture de contre-passation.`
 }
 
 export interface EntryLineInput {
@@ -82,7 +83,7 @@ export function requireCents(value: AmountInput, field: string): number {
   const cents = parseCents(value)
   if (cents === null) {
     if (exceedsAmountColumn(value)) throw new ValidationError(`${field}\u00a0: ${amountTooLargeMessage()}`)
-    throw new ValidationError(`${field} : montant invalide (nombre décimal avec deux décimales au maximum)`)
+    throw new ValidationError(`${field}\u00a0: montant invalide (nombre décimal avec deux décimales au maximum)`)
   }
   return cents
 }
@@ -159,7 +160,7 @@ async function fiscalYearOfAccounts(
   }
   if (fiscalYearIds.length > 1) {
     throw new ValidationError(
-      `Tous les comptes d'une écriture doivent appartenir au même exercice fiscal. Comptes trouvés : ${accounts.map((a) => a.code).join(', ')}`,
+      `Tous les comptes d'une écriture doivent appartenir au même exercice fiscal. Comptes trouvés\u00a0: ${accounts.map((a) => a.code).join(', ')}`,
     )
   }
   const fiscalYearId = expectedFiscalYearId ?? fiscalYearIds[0]
@@ -382,11 +383,15 @@ export async function validateEntries(
     try {
       validated.push(
         await prisma.$transaction(async (db) => {
+          // An approved MCP action validates the draft as the user saw it (KLEDG-R3-MCP-01)
+          await checkApprovedState(db, { kind: 'entry', companyId, id })
           await validateEntryInTx(db, id, companyId)
           return getEntry(id, db)
         }, TX_OPTIONS),
       )
     } catch (error) {
+      // The approved data changed: the whole approved action stops here.
+      if (error instanceof ApprovedStateChangedError) throw error
       errors.push({ entryId: id, error: describeEntryError(error) })
     }
   }
@@ -489,7 +494,11 @@ export async function updateDraftEntry(
 
 /** Deletes a draft. A validated entry is refused (409): it can only be reversed. */
 export async function deleteDraftEntry(companyId: string, entryId: string): Promise<{ id: string; description: string | null; reference: string | null }> {
-  return prisma.$transaction(async (db) => deleteDraftEntryInTx(db, companyId, entryId), TX_OPTIONS)
+  return prisma.$transaction(async (db) => {
+    // An approved MCP action deletes the draft as the user saw it (KLEDG-R3-MCP-01)
+    await checkApprovedState(db, { kind: 'entry', companyId, id: entryId })
+    return deleteDraftEntryInTx(db, companyId, entryId)
+  }, TX_OPTIONS)
 }
 
 /** deleteDraftEntry inside the caller's transaction (an invoice unposted with its draft entry). */
@@ -539,7 +548,7 @@ export async function reverseEntry(
     })
     if (!original) throw new NotFoundError('Écriture introuvable')
     if (original.status !== 'validated') {
-      throw new ConflictError("Seule une écriture validée peut être contre-passée : un brouillon se modifie ou se supprime.")
+      throw new ConflictError("Seule une écriture validée peut être contre-passée\u00a0: un brouillon se modifie ou se supprime.")
     }
     if (original.reversedBy) {
       throw new ConflictError(
@@ -548,7 +557,7 @@ export async function reverseEntry(
     }
 
     const day = options.date ? calendarDayOf(options.date) : calendarDayOf(original.date)
-    if (!day) throw new ValidationError('Date de contre-passation invalide : utilisez le format AAAA-MM-JJ')
+    if (!day) throw new ValidationError('Date de contre-passation invalide\u00a0: utilisez le format AAAA-MM-JJ')
     const fiscalYears = await db.fiscalYear.findMany({ where: { companyId }, select: GUARDED_FISCAL_YEAR_SELECT })
     const target = fiscalYearContaining(fiscalYears, day)
     if (!target) throw new ValidationError(`Aucun exercice ne couvre le ${formatIsoDateFr(day)}.`)
@@ -564,7 +573,7 @@ export async function reverseEntry(
       const byCode = new Map(accounts.map((a) => [a.code, a.id]))
       const missing = codes.filter((c) => !byCode.has(c))
       if (missing.length) {
-        throw new ValidationError(`Comptes absents de l'exercice ${target.year} : ${missing.join(', ')}. Créez-les avant de contre-passer.`)
+        throw new ValidationError(`Comptes absents de l'exercice ${target.year}\u00a0: ${missing.join(', ')}. Créez-les avant de contre-passer.`)
       }
       accountIds = original.lines.map((l) => byCode.get(l.account.code)!)
     }
@@ -573,7 +582,7 @@ export async function reverseEntry(
       companyId,
       journalId: original.journalId,
       date: dayToDate(day),
-      description: `Contre-passation de l'écriture n° ${original.entryNumber}${original.description ? ` : ${original.description}` : ''}`,
+      description: `Contre-passation de l'écriture n° ${original.entryNumber}${original.description ? `\u00a0: ${original.description}` : ''}`,
       reference: original.reference ?? `Écriture n° ${original.entryNumber}`,
       status: 'validated',
       fiscalYearId: target.id,

@@ -16,7 +16,9 @@ RLS is rolled out behind `KLEDG_RLS`, while the policies always exist:
 | `enforce` | The application connects as a role that is not the owner and has no `BYPASSRLS` (`kledg_app`). Every statement runs in a transaction that first sets the request's context; the policies filter every row. A role that would bypass the policies, or policies not switched on, are refused at the first query. |
 
 Any other value stops the server at the first query: a typo must not
-silently turn the protection off.
+silently turn the protection off. An instance whose policy requires row level
+security (`requiresRowLevelSecurity`, [extension-points.md](extension-points.md))
+refuses to start, and to open the database, unless it is `enforce`.
 
 ## Threat model
 
@@ -40,10 +42,15 @@ What it does not protect against:
   (`isGlobalAdmin`); the database reads that status from `user.role`, never
   from the context.
 - **Existence through unique constraints.** A unique index (company SIREN or
-  slug, organization slug) still refuses a value another tenant holds. The
-  value is not readable, only its existence. The SIREN and slug checks go
-  through `kledg_company_identifier_taken`, which answers that boolean and
-  nothing else (`lib/companies/identifiers.ts`).
+  slug, establishment SIRET, organization slug) still refuses a value another
+  tenant holds. The value is not readable, only its existence. The SIREN,
+  SIRET and slug checks go through `kledg_company_identifier_taken`, which
+  answers that boolean and nothing else (`lib/companies/identifiers.ts`).
+  An instance whose customers share the database narrows the SIREN and SIRET
+  checks to the customer's own companies (`companyIdentifierScope`) and
+  gives slugs a random suffix (`randomCompanySlugSuffix`), so no answer
+  depends on another customer's companies
+  ([extension-points.md](extension-points.md#company-identifiers)).
 - **Subsidiaries of a holding.** The shareholder rows that make a company a
   subsidiary belong to the subsidiary. `kledg_group_subsidiary_ids` answers
   their company ids, and nothing else, for a holding the context reaches,
@@ -129,17 +136,24 @@ Each covered table has RLS enabled and four policies, `kledg_rls_select`,
 updates and deletes, `WITH CHECK` for inserts and updates, so a row can be
 neither read, created nor moved into a company outside the context.
 
+`lib/rls/__tests__/policy-coverage.db.test.ts` checks more than the presence
+of the four policies: every table with a `companyId` column belongs to a class
+of `lib/rls/tables.ts` (or is listed with its class in the test), and the
+`USING` and `WITH CHECK` expressions of every company scoped table are the
+canonical `companyId` rule, so a migration that recreates a table with a
+permissive policy (`USING (true)`) fails the suite.
+
 | Class | Tables | Rule |
 |---|---|---|
 | Company | `companies` (by `id`) | the company is reachable |
-| Company scoped | `addresses`, `establishments`, `shareholders`, `fiscal_years`, `accounts`, `journals`, `accounting_entries`, `bank_connections`, `transaction_rules`, `integrations`, `import_jobs`, `fixed_assets`, `fixed_asset_depreciations`, `tax_regime_history`, `attachments`, `balance_sheet_line_configs`, `income_statement_line_configs`, `company_onboarding`, `tiers`, `invoices`, `expense_claimants`, `expense_reports`, `expense_category_rules`, `budgets`, `management_fee_conventions`, `management_fee_billings`, `subscription_decisions`, `provisions`, `provision_assessments`, `investment_grants`, `investment_grant_transfers`, `accounts_approvals`, `accounting_methods`, `accounting_changes`, `annexe_notes`, `simple_mode_entries`, `vat_return_filings`, `corporate_tax_returns`, `remuneration_scenarios`, `local_taxes`, `declaration_statuses` | `companyId` is reachable |
+| Company scoped | `addresses`, `establishments`, `shareholders`, `fiscal_years`, `accounts`, `journals`, `accounting_entries`, `bank_connections`, `transaction_rules`, `integrations`, `import_jobs`, `fixed_assets`, `fixed_asset_depreciations`, `tax_regime_history`, `attachments`, `balance_sheet_line_configs`, `income_statement_line_configs`, `company_onboarding`, `tiers`, `invoices`, `expense_claimants`, `expense_reports`, `expense_category_rules`, `budgets`, `management_fee_conventions`, `management_fee_billings`, `subscription_decisions`, `provisions`, `provision_assessments`, `investment_grants`, `investment_grant_transfers`, `accounts_approvals`, `accounting_methods`, `accounting_changes`, `annexe_notes`, `simple_mode_entries`, `vat_return_filings`, `corporate_tax_returns`, `remuneration_scenarios`, `local_taxes`, `declaration_statuses`, `invoice_number_counters`, `vat_deduction_years`, `revenue_account_settings`, `training_reports`, `payroll_tax_years`, `company_invitations` | `companyId` is reachable |
 | Company scoped, denormalized | `entry_lines`, `bank_transactions` | `companyId` is reachable; the column is set by a trigger from the parent row (below) |
 | Through the parent | `bank_accounts` (connection), `bank_transaction_matches` (bank account), `transaction_rule_conditions`, `transaction_rule_entry_lines` (rule), `transaction_mappings` (connection), `integration_features`, `integration_resources`, `integration_sync_logs` (integration), `import_mappings` (import job), `balance_sheet_config_history`, `income_statement_config_history` (line config), `invoice_lines`, `invoice_vat_breakdowns`, `invoice_payments` (invoice), `expense_lines` (report), `budget_lines` (budget), `budget_line_amounts`, `budget_recurring_items` (line), `management_fee_subsidiaries` (convention) | `EXISTS` on the parent, which applies the parent's own policy |
 | Company and user | `dashboard_layouts`, `sidebar_preferences`, `mcp_confirmations`, `mcp_pending_actions` | the company is reachable and the row is the user's (or the context is unrestricted); a pending action without company (`create_company`, migration `20261111090000_mcp_actions_without_company`) is its user's only |
 | User | `ai_access_grants`, `user_preferences` | `userId` is the acting user, or the context is unrestricted |
 | Grant companies | `ai_access_grant_companies` | read and delete when the grant is visible (the user's own); insert and update also need the company reachable, so a user cannot grant an assistant a company they do not belong to |
 | Membership | `organization` (company reachable), `member` (own membership, or organization visible), `invitation` (organization visible) | reads as stated; writes only for an unrestricted context (instance administrators, system), except that a user may delete their own membership |
-| Optional company | `audit_logs` (company reachable; rows without company are instance events: any context writes them, only unrestricted contexts read them), `persons` (company reachable, or no company and a shareholder of a reachable company), `balance_sheet_config_templates`, `income_statement_config_templates` (company reachable, or public template) | as stated |
+| Optional company | `audit_logs` (company reachable; rows without company are instance events: any context writes them, only unrestricted contexts read them), `persons` (company reachable, or no company and a shareholder of a reachable company), `balance_sheet_config_templates`, `income_statement_config_templates` (company reachable, or a public template without company; only an unrestricted context writes a row without company: shared templates are Kledg's own, a company's template stays its own, KLEDG-R3-AUTHZ-01) | as stated |
 | Exempt | `user`, `session`, `auth_account`, `verification`, `apikey`, `jwks`, `oauthClient`, `oauthResource`, `oauthClientResource`, `oauthRefreshToken`, `oauthAccessToken`, `oauthConsent`, `oauthClientAssertion`, `rateLimit`, `update_connection`, `instance_versions`, `_prisma_migrations` | no tenant data; see below |
 
 An `INSERT ... RETURNING` must also pass the select policy: audit rows
@@ -242,7 +256,8 @@ transactions, and Better Auth (which goes through the same Prisma client).
 | MCP (`lib/mcp/auth.ts`) | the user of the API key or OAuth token, then narrowed to the connection's company grant for the tools |
 | Crons (`lib/banking/sync-banks.service.ts`) | `system`, reason `cron:bank-sync`, after the `CRON_SECRET` check: the integrations are listed unscoped, then each company's sync runs narrowed to that company and writes an audit row in it |
 | Automatic period closing (`lib/accounting/period-lock/auto-lock.service.ts`) | `system`, reason `cron:period-lock`, after the `CRON_SECRET` check: the companies are listed unscoped, then each company in monthly mode is locked narrowed to that company |
-| Secret rotation (`lib/crypto/reencrypt.ts`, at server start) | `system`, reason `secret-rotation`, only while an older auth secret is configured: the sealed credentials of every company (bank connections, integrations, GitHub token) are read and sealed again with the current key, under an advisory lock |
+| Secret rotation (`lib/crypto/reencrypt.ts`, at server start) | `system`, reason `secret-rotation`, only while an older auth secret is configured: the sealed credentials of every company (bank connections, integrations, GitHub token) are read and sealed again with the current key, under an advisory lock; also the count of values still in the legacy format (`countLegacySecrets`: at server start, on the Configuration page of instance administrators and in `pnpm secrets:reencrypt`), which reads the format only |
+| Invitation page (`lib/rbac/company-invitations.service.ts`) | `system`, reason `invitation-acceptance`: the invitee is not a member yet and may have no session, so the invitation is found by the SHA-256 of the token of its link (an unguessable secret), then, once the accepting account is established (signed in with the invited address, or created from the link), the membership is written (a `member` row, which only unrestricted contexts write) and the invitation closed. Nothing else is read |
 | Update history (`lib/updates/history.ts`, at server start) | `system`, reason `version-history`, only when the running version differs from the last recorded one: reads the instance's `UPDATES_MERGE` audit rows (no company, so only an unrestricted context reads them) to attribute the new version to the administrator who installed it, and writes the `instance_versions` row |
 | Company creation by a user (`lib/companies/create-company.service.ts`) | `system`, reason `company-creation`, only when the instance policy lets a user who is not an instance administrator create a company (`companyCreationRefusal`, [extension-points.md](extension-points.md#company-creation)): the company has no member yet, and its organization and the creator's membership are writes that only an unrestricted context may do. Kledg's default policy never takes this path |
 | Better Auth (`/api/auth/*`) | derived from the session cookie when there is one, else `anonymous`; its own tables are exempt |

@@ -4,7 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { roles } from '@/lib/permissions'
 import { ensureCompanyOrganization } from './ensure-company-organization.service'
+import { deleteDelegatedAccess } from '@/lib/account/revoke-delegated-access'
 import { isEmailEnabled } from '@/lib/email'
+import { sendAsWelcome } from '@/lib/email/welcome-context'
+import { withinRateLimit } from '@/lib/rate-limit'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 
 /** Roles a member can hold in a company (lib/permissions.ts defines what each one grants). */
@@ -36,10 +39,22 @@ export type AddMemberResult = {
   roles: string[]
 }
 
+/**
+ * Sends the "choose your password" welcome email (a reset link, welcome
+ * variant decided on the server), at most a few times a day per person
+ * (rule welcome-email): removing and adding someone again cannot flood
+ * their inbox. Returns whether it was sent.
+ */
+async function sendWelcome(userId: string, email: string): Promise<boolean> {
+  if (!(await withinRateLimit('welcome-email', userId))) return false
+  await sendAsWelcome(() => auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password?welcome=1' } }))
+  return true
+}
+
 function assertValidRole(role: string): asserts role is CompanyRoleName {
   if (!COMPANY_ROLES.includes(role as CompanyRoleName)) {
     throw new ValidationError(
-      `Rôle invalide. Valeurs acceptées : ${COMPANY_ROLES.join(', ')}`
+      `Rôle invalide. Valeurs acceptées : ${COMPANY_ROLES.join(', ')}`
     )
   }
 }
@@ -58,7 +73,7 @@ function generatePassword(): string {
  * and tokens, pending assistant actions and reset tokens are removed, and
  * the address counts as confirmed by the welcome link, as for a new account.
  */
-async function resetUnconfirmedAccount(userId: string, name: string, password: string): Promise<void> {
+export async function resetUnconfirmedAccount(userId: string, name: string, password: string): Promise<void> {
   const hashed = await hashPassword(password)
   await prisma.$transaction(async (tx) => {
     await tx.session.deleteMany({ where: { userId } })
@@ -67,13 +82,8 @@ async function resetUnconfirmedAccount(userId: string, name: string, password: s
     if (credential.count === 0) {
       await tx.authAccount.create({ data: { id: randomBytes(16).toString('hex'), accountId: userId, providerId: 'credential', userId, password: hashed } })
     }
-    await tx.apikey.deleteMany({ where: { referenceId: userId } })
-    await tx.oauthConsent.deleteMany({ where: { userId } })
-    await tx.oauthAccessToken.deleteMany({ where: { userId } })
-    await tx.oauthRefreshToken.deleteMany({ where: { userId } })
-    await tx.aiAccessGrant.deleteMany({ where: { userId } })
-    await tx.mcpPendingAction.deleteMany({ where: { userId } })
-    await tx.mcpConfirmation.deleteMany({ where: { userId } })
+    // Same list as a password reset or change (lib/account/revoke-delegated-access.ts).
+    await deleteDelegatedAccess(tx, userId)
     await tx.verification.deleteMany({ where: { value: userId } })
     await tx.user.update({ where: { id: userId }, data: { emailVerified: true, name } })
   })
@@ -108,8 +118,7 @@ export async function addMemberToCompany(
     await resetUnconfirmedAccount(user.id, input.name?.trim() || email.split('@')[0], password)
     resetUnconfirmedUser = true
     if (await isEmailEnabled()) {
-      await auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password?welcome=1' } })
-      welcomeEmailSent = true
+      welcomeEmailSent = await sendWelcome(user.id, email)
     } else {
       generatedPassword = password
     }
@@ -126,7 +135,8 @@ export async function addMemberToCompany(
       },
     })
     user = await prisma.user.findUnique({ where: { email } })
-    if (!user) throw new Error('Échec de la création de l\'utilisateur')
+    // Created then gone (deleted meanwhile): a French 409, never an untyped 500
+    if (!user) throw new ConflictError("Le compte de l'utilisateur n'a pas pu être créé\u00a0: réessayez.")
     await prisma.user.update({
       where: { id: user.id },
       data: { emailVerified: true },
@@ -135,10 +145,7 @@ export async function addMemberToCompany(
 
     if (await isEmailEnabled()) {
       // The user chooses their own password through an emailed link.
-      await auth.api.requestPasswordReset({
-        body: { email, redirectTo: '/reset-password?welcome=1' },
-      })
-      welcomeEmailSent = true
+      welcomeEmailSent = await sendWelcome(user.id, email)
     } else {
       generatedPassword = password
     }
@@ -157,7 +164,7 @@ export async function addMemberToCompany(
   // Validate each role is known.
   for (const r of roleList) {
     if (!(r in roles)) {
-      throw new ValidationError(`Rôle inconnu : ${r}`)
+      throw new ValidationError(`Rôle inconnu : ${r}`)
     }
   }
 

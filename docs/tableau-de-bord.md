@@ -1,6 +1,6 @@
 # Tableau de bord
 
-Le guide d'utilisation (ce que montre chaque widget, dispositions par défaut, personnalisation) est sur le site : [Le tableau de bord](https://www.kledg.com/fr/docs/le-tableau-de-bord). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (ce que montre chaque widget, dispositions par défaut, personnalisation) est sur le site : [Le tableau de bord](https://www.kledg.com/fr/docs/le-tableau-de-bord). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Le tableau de bord d'une société (`app/(company)/[companyId]/page.tsx`) est
 fait de widgets que chaque utilisateur choisit, range et dimensionne pour

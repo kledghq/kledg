@@ -1,6 +1,6 @@
 # Importer un relevé bancaire
 
-Le guide d'utilisation (exporter depuis sa banque, étapes de l'import, doublons expliqués, erreurs fréquentes) est sur le site : [Importer un relevé bancaire](https://www.kledg.com/fr/docs/importer-un-releve-bancaire). Cette page décrit le fonctionnement technique : formats et règles de lecture, modèles de banques, détection des doublons et limites.
+Le guide d'utilisation (exporter depuis sa banque, étapes de l'import, doublons expliqués, erreurs fréquentes) est sur le site : [Importer un relevé bancaire](https://www.kledg.com/fr/docs/importer-un-releve-bancaire). Cette page décrit le fonctionnement technique : formats et règles de lecture, modèles de banques, détection des doublons et limites.
 
 L'import sert aux banques sans synchronisation et de secours quand une synchronisation est interrompue. Fenêtre **Importer un relevé** des pages **Banque** et **Relevés bancaires** (un fichier déposé sur ces pages ouvre la fenêtre avec le fichier déjà analysé).
 

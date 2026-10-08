@@ -13,8 +13,14 @@
  *   (lib/invoices/invoice-payments.service.ts), so only 44571 is declared;
  * - 4452 "TVA due intracommunautaire": VAT the company self-assesses
  *   (autoliquidation, CGI art. 283, 2: services of a supplier not
- *   established in France; art. 256 bis: intra-Community acquisitions of
- *   goods). The deductible side is on 4456 in the same entry;
+ *   established in France, wherever it is established, CA3 line A3 and
+ *   CA12 line AC; art. 256 bis: intra-Community acquisitions of goods, CA3
+ *   line B2 and line 17, CA12 rate lines). The deductible side is on 4456
+ *   in the same entry. Its subaccount 44528 holds the VAT of purchases from
+ *   a taxable person not established in France for which the company is
+ *   liable under the second paragraph of CGI art. 283, 1 (CA3 line B4,
+ *   CA12 line AB, notices 2026): neither an intra-Community acquisition nor
+ *   a service of art. 283, 2, they never go to B2, A3 or line 17;
  * - 44562 "TVA sur immobilisations", 44566 "TVA sur autres biens et
  *   services": deductible VAT (CA3 lines 19 and 20, CA12 lines 23 and 20);
  * - 44563 "TVA transférée par d'autres entités": other VAT to deduct
@@ -68,14 +74,14 @@ import { REGULARISATION_REFERENCE_PREFIX } from '@/lib/vat-deduction/rules'
 export const DECLARED_RATES_BP = [2000, 1000, 550, 210] as const
 export type DeclaredRate = (typeof DECLARED_RATES_BP)[number]
 
-export interface VatEntryLine {
+interface VatEntryLine {
   code: string
   debitCents: number
   creditCents: number
 }
 
 /** An invoice line as the posting plan saw it. */
-export interface VatInvoiceLine {
+interface VatInvoiceLine {
   rateBp: number
   baseCents: number
   nature: 'GOODS' | 'SERVICES'
@@ -128,6 +134,8 @@ export interface VatMovements {
   autoliquidationGoods: RateBucket[]
   /** Self-assessed services of a supplier not established in France (CA3 A3, CA12 AC). */
   autoliquidationServices: RateBucket[]
+  /** Self-assessed purchases of CGI art. 283, 1, second paragraph, on 44528 (CA3 B4, CA12 AB). */
+  autoliquidationArt2831: RateBucket[]
   /** Collected or self-assessed VAT whose rate could not be read. */
   unidentified: UnidentifiedEntry[]
   /** Sales credit notes: base (CA3 B5) and VAT (CA3 21, CA12 25), as positive amounts. */
@@ -162,11 +170,14 @@ export const SETTLEMENT_REFERENCE_PREFIX = 'TVA-'
 const starts = (code: string, ...roots: string[]) => roots.some((root) => code.startsWith(root))
 
 export const isCollectedCode = (code: string) => code.startsWith('4457') && !starts(code, '44574', '44578')
-export const isPendingCode = (code: string) => code.startsWith('44574')
+const isPendingCode = (code: string) => code.startsWith('44574')
 export const isAutoliquidationCode = (code: string) => code.startsWith('4452')
+/** Subaccount of 4452 for the VAT due under CGI art. 283, 1, second paragraph (CA3 B4, CA12 AB). */
+const ART_283_1_ACCOUNT = '44528'
+const isArt2831Code = (code: string) => code.startsWith(ART_283_1_ACCOUNT)
 export const isDeductibleFixedAssetsCode = (code: string) => code.startsWith('44562')
 export const isDeductibleOtherCode = (code: string) => code.startsWith('44566') || code === '4456'
-export const isTransferredCode = (code: string) => code.startsWith('44563')
+const isTransferredCode = (code: string) => code.startsWith('44563')
 export const isCreditCarriedCode = (code: string) => code.startsWith('44567')
 export const isAcompteCode = (code: string) => code.startsWith('44581')
 export const isToPayCode = (code: string) => code.startsWith('4455')
@@ -190,7 +201,7 @@ export function isSettlementEntry(entry: Pick<VatEntry, 'reference' | 'lines'>):
 }
 
 /** Round half up of a x b / c on non-negative integers (BigInt, exact). */
-export function mulDiv(a: number, b: number, c: number): number {
+function mulDiv(a: number, b: number, c: number): number {
   if (c === 0) return 0
   const n = BigInt(a) * BigInt(b) * BigInt(2) + BigInt(c)
   return Number(n / (BigInt(c) * BigInt(2)))
@@ -238,7 +249,7 @@ export function splitInvoiceVat(invoice: VatInvoiceSource, servicesPending: bool
 }
 
 /** Base and VAT per rate of `vatCents` moved from 44574 to 44571 for these invoices, in proportion to their pending VAT. */
-export function splitTransferredVat(invoices: VatInvoiceSource[], vatCents: number): RateBucket[] | null {
+function splitTransferredVat(invoices: VatInvoiceSource[], vatCents: number): RateBucket[] | null {
   const pending = invoices.flatMap((inv) => splitInvoiceVat(inv, true)).filter((r) => r.pendingVatCents > 0)
   const total = pending.reduce((s, r) => s + r.pendingVatCents, 0)
   if (total === 0 || vatCents <= 0 || vatCents > total) return null
@@ -299,11 +310,12 @@ function collectedSplit(entry: VatEntry, vatCents: number, revenueCents: number)
 }
 
 /** An empty set of movements. */
-export function emptyMovements(): VatMovements {
+function emptyMovements(): VatMovements {
   return {
     collected: [],
     autoliquidationGoods: [],
     autoliquidationServices: [],
+    autoliquidationArt2831: [],
     unidentified: [],
     salesCreditNotes: { baseCents: 0, vatCents: 0 },
     autoliquidationReversalCents: 0,
@@ -350,7 +362,18 @@ export function classifyEntries(entries: VatEntry[]): VatMovements {
       if (sales > 0) m.nonTaxedSalesCents += sales
     }
 
-    if (autoliquidated > 0) {
+    const art2831 = -net(lines, isArt2831Code)
+    if (autoliquidated > 0 && art2831 === autoliquidated) {
+      // A purchase of art. 283, 1 (44528): goods and services alike on B4 (CA3) or AB (CA12)
+      const baseLines = lines.filter((l) => l.code.startsWith('6') || l.code.startsWith('2'))
+      const base = baseLines.reduce((s, l) => s + l.debitCents - l.creditCents, 0)
+      const rate = inferRate(autoliquidated, base, Math.max(1, baseLines.length))
+      if (rate && base > 0) addTo(m.autoliquidationArt2831, [{ rateBp: rate, baseCents: base, vatCents: autoliquidated }])
+      else m.unidentified.push({ id: entry.id, number: entry.number, date: entry.date, vatCents: autoliquidated, baseCents: Math.max(base, 0), kind: 'autoliquidation' })
+    } else if (autoliquidated > 0 && art2831 !== 0) {
+      // Art. 283, 1 and other self-assessed VAT in one entry: the split by line is not known
+      m.unidentified.push({ id: entry.id, number: entry.number, date: entry.date, vatCents: autoliquidated, baseCents: 0, kind: 'autoliquidation' })
+    } else if (autoliquidated > 0) {
       const baseLines = lines.filter((l) => l.code.startsWith('6') || l.code.startsWith('2'))
       const goods = baseLines.filter((l) => isGoodsPurchase(l.code)).reduce((s, l) => s + l.debitCents - l.creditCents, 0)
       const services = baseLines.filter((l) => !isGoodsPurchase(l.code)).reduce((s, l) => s + l.debitCents - l.creditCents, 0)

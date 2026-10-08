@@ -491,7 +491,7 @@ export function TransactionsDataTable({
       <ConfirmDeleteDialog
         open={showBulkDeleteDialog}
         onOpenChange={setShowBulkDeleteDialog}
-        title={`Supprimer ${plural(selected.length, "transaction")} ?`}
+        title={`Supprimer ${plural(selected.length, "transaction")} ?`}
         description="Les transactions sélectionnées sont supprimées de Kledg, sans retour en arrière. Les écritures déjà passées restent en place."
         loading={bulkAction === "delete"}
         onConfirm={() => runBulk("delete", selected)}

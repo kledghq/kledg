@@ -62,9 +62,9 @@ import {
 } from '@/lib/corporate-tax/rules'
 import { formatCentsFr } from '@/lib/utils/money'
 
-export const INTEGRATION_SOURCES = {
+const INTEGRATION_SOURCES = {
   cgi223A: { label: 'CGI, art. 223 A (société mère, détention de 95 % au moins, exercices, option pour cinq exercices)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042340402/' },
-  cgi223: { label: 'CGI, art. 223 A à 223 U (régime des groupes de sociétés\u00a0: résultat d’ensemble, art. 223 B ; déficits, art. 223 C et 223 I ; cessions entre sociétés du groupe, art. 223 F)', url: 'https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006069577/LEGISCTA000006162535/' },
+  cgi223: { label: 'CGI, art. 223 A à 223 U (régime des groupes de sociétés\u00a0: résultat d’ensemble, art. 223 B\u00a0; déficits, art. 223 C et 223 I\u00a0; cessions entre sociétés du groupe, art. 223 F)', url: 'https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006069577/LEGISCTA000006162535/' },
   cgi216: { label: 'CGI, art. 216, I (quote-part de frais et charges de 1 % pour les dividendes entre sociétés d’un groupe)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048831340' },
   cgi209: { label: 'CGI, art. 209, I (imputation des déficits\u00a0: 1 000 000 € majorés de 50 %)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042909650/' },
   cgi219: { label: 'CGI, art. 219, I, b (taux réduit de 15 %\u00a0: chiffre d’affaires du groupe, conditions appréciées chez la société mère)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000046868562' },
@@ -77,15 +77,15 @@ export const INTEGRATION_SOURCES = {
 
 export type IntegrationSourceKey = keyof typeof INTEGRATION_SOURCES
 
-export const INTEGRATION_NOTICE =
+const INTEGRATION_NOTICE =
   'Simulation indicative de l’intégration fiscale pour un exercice, à faire vérifier par votre expert-comptable\u00a0: Kledg n’exerce pas l’option et ne dépose rien. Les retraitements que les livres ne montrent pas sont listés et ne comptent que si vous saisissez leur montant.'
 
 /** Quote-part de frais et charges on dividends between members of an integrated group (art. 216, I). */
-export const GROUP_QUOTE_PART_BP = 100
+const GROUP_QUOTE_PART_BP = 100
 /** Dividends between members outside the régime mère-fille: deducted at 99 % (art. 223 B). */
-export const NON_PARENT_DEDUCTION_BP = 9_900
+const NON_PARENT_DEDUCTION_BP = 9_900
 /** Holding giving access to the group (art. 223 A). */
-export const INTEGRATION_MIN_BP = 9_500
+const INTEGRATION_MIN_BP = 9_500
 
 export interface IntegrationCompanyInput {
   id: string
@@ -137,7 +137,7 @@ export interface IntegrationCheck {
   source: IntegrationSourceKey
 }
 
-export interface IntegrationMembership {
+interface IntegrationMembership {
   companyId: string
   name: string
   role: 'holding' | 'subsidiary'
@@ -152,12 +152,12 @@ export type ManualNeutralisationId = 'provisions' | 'asset_sales' | 'waivers' | 
 export const MANUAL_NEUTRALISATIONS: Array<{ id: ManualNeutralisationId; label: string; hint: string; source: IntegrationSourceKey }> = [
   { id: 'provisions', label: 'Provisions sur une autre société du groupe', hint: 'Dotations sur les titres, prêts ou créances d’un membre\u00a0: réintégrées (montant positif), reprises déduites (négatif).', source: 'cgi223' },
   { id: 'asset_sales', label: 'Cessions d’immobilisations entre sociétés du groupe', hint: 'La plus-value est déduite (montant négatif), la moins-value réintégrée (positif), jusqu’à la sortie du bien du groupe (art. 223 F).', source: 'cgi223' },
-  { id: 'waivers', label: 'Abandons de créances et subventions entre sociétés du groupe', hint: 'Neutralisés\u00a0: la charge de l’une et le produit de l’autre ; saisissez l’écart éventuel.', source: 'cgi223' },
+  { id: 'waivers', label: 'Abandons de créances et subventions entre sociétés du groupe', hint: 'Neutralisés\u00a0: la charge de l’une et le produit de l’autre\u00a0; saisissez l’écart éventuel.', source: 'cgi223' },
   { id: 'financial_charges', label: 'Limitation des charges financières au niveau du groupe', hint: 'Plafond des charges financières nettes apprécié pour le groupe (art. 223 B bis)\u00a0: réintégration éventuelle.', source: 'cgi223' },
   { id: 'other', label: 'Autres retraitements', hint: 'Tout autre retraitement que votre expert-comptable retient.', source: 'cgi223' },
 ]
 
-export interface IntegrationAdjustment {
+interface IntegrationAdjustment {
   id: string
   label: string
   /** Signed: positive adds to the résultat d'ensemble. */
@@ -168,7 +168,7 @@ export interface IntegrationAdjustment {
   source: IntegrationSourceKey
 }
 
-export interface IntegrationTax {
+interface IntegrationTax {
   taxableProfitCents: number
   reducedRate: { applied: boolean; eligible: boolean | null; baseCents: number; taxCents: number }
   normalRate: { baseCents: number; taxCents: number }
@@ -201,38 +201,72 @@ export interface IntegrationSimulation {
   sources: Array<{ id: IntegrationSourceKey; label: string; url: string }>
 }
 
+/** An exact fraction (BigInt numerator and denominator, denominator > 0). */
+interface Ratio {
+  n: bigint
+  d: bigint
+}
+
+const gcd = (a: bigint, b: bigint): bigint => {
+  let x = a < BigInt(0) ? -a : a
+  let y = b
+  while (y !== BigInt(0)) [x, y] = [y, x % y]
+  return x === BigInt(0) ? BigInt(1) : x
+}
+const ratio = (n: bigint, d: bigint): Ratio => {
+  const g = gcd(n, d)
+  return { n: n / g, d: d / g }
+}
+const ZERO_RATIO: Ratio = { n: BigInt(0), d: BigInt(1) }
+const ONE_RATIO: Ratio = { n: BigInt(1), d: BigInt(1) }
+const addRatio = (a: Ratio, b: Ratio): Ratio => ratio(a.n * b.d + b.n * a.d, a.d * b.d)
+const mulRatio = (a: Ratio, b: Ratio): Ratio => ratio(a.n * b.n, a.d * b.d)
+const sameRatio = (a: Ratio, b: Ratio): boolean => a.n * b.d === b.n * a.d
+const minOne = (a: Ratio): Ratio => (a.n > a.d ? ONE_RATIO : a)
+/** The fraction in basis points, rounded down: 94,9968 % is 9 499, never 9 500. */
+const floorBp = (a: Ratio): number => Number((a.n * BigInt(10_000)) / a.d)
+/** At least 95 %, compared exactly: n / d >= 9 500 / 10 000. */
+const reachesThreshold = (a: Ratio): boolean => a.n * BigInt(10_000) >= BigInt(INTEGRATION_MIN_BP) * a.d
+
 /**
  * The parent's holding in each company through the members only (art. 223
  * A): the members are the companies held at 95 % at least that way, so the
- * two are found together, step after step until nothing changes. Exact
- * fractions, rounded to the basis point for the threshold.
+ * two are found together, step after step until nothing changes. An
+ * indirect holding is the product of the successive rates (BOI-IS-GPE-10-20-10
+ * § 140, "en multipliant entre eux les taux de détention successifs"), so
+ * 99,86 % x 95,13 % = 94,996818 %: below "95 % au moins" (§ 130). Exact
+ * fractions (BigInt), compared exactly with the threshold; the basis points
+ * returned are rounded down, so a holding shown at 95 % is one.
  */
 export function integrationInterests(parentId: string, companyIds: readonly string[], holdings: ReadonlyArray<{ holderId: string; companyId: string; bp: number }>): Map<string, number> {
-  const direct = new Map<string, Map<string, number>>()
+  const direct = new Map<string, Map<string, Ratio>>()
   for (const h of holdings) {
     if (h.bp <= 0 || h.holderId === h.companyId) continue
-    const row = direct.get(h.companyId) ?? new Map<string, number>()
-    row.set(h.holderId, (row.get(h.holderId) ?? 0) + h.bp / 10_000)
+    const row = direct.get(h.companyId) ?? new Map<string, Ratio>()
+    row.set(h.holderId, addRatio(row.get(h.holderId) ?? ZERO_RATIO, ratio(BigInt(Math.round(h.bp)), BigInt(10_000))))
     direct.set(h.companyId, row)
   }
   let members = new Set<string>([parentId])
-  let interest = new Map<string, number>([[parentId, 1]])
+  let interest = new Map<string, Ratio>([[parentId, ONE_RATIO]])
   for (let step = 0; step < 20; step++) {
-    const next = new Map<string, number>([[parentId, 1]])
+    const next = new Map<string, Ratio>([[parentId, ONE_RATIO]])
     for (const id of companyIds) {
       if (id === parentId) continue
-      let total = 0
-      for (const [holder, fraction] of direct.get(id) ?? []) if (members.has(holder)) total += fraction * (interest.get(holder) ?? 0)
-      next.set(id, Math.min(total, 1))
+      let total = ZERO_RATIO
+      for (const [holder, fraction] of direct.get(id) ?? []) if (members.has(holder)) total = addRatio(total, mulRatio(fraction, interest.get(holder) ?? ZERO_RATIO))
+      next.set(id, minOne(total))
     }
-    const nextMembers = new Set([parentId, ...companyIds.filter((id) => id !== parentId && Math.round((next.get(id) ?? 0) * 10_000) >= INTEGRATION_MIN_BP)])
-    const stable = nextMembers.size === members.size && [...nextMembers].every((id) => members.has(id)) && [...next].every(([id, v]) => Math.abs((interest.get(id) ?? 0) - v) < 1e-9)
+    const nextMembers = new Set([parentId, ...companyIds.filter((id) => id !== parentId && reachesThreshold(next.get(id) ?? ZERO_RATIO))])
+    const stable =
+      nextMembers.size === members.size &&
+      [...nextMembers].every((id) => members.has(id)) &&
+      [...next].every(([id, v]) => sameRatio(interest.get(id) ?? ZERO_RATIO, v))
     members = nextMembers
     interest = next
     if (stable) break
   }
   const result = new Map<string, number>()
-  for (const [id, v] of interest) if (id !== parentId) result.set(id, Math.round(v * 10_000))
+  for (const [id, v] of interest) if (id !== parentId) result.set(id, floorBp(v))
   return result
 }
 
@@ -306,7 +340,7 @@ export function simulateTaxIntegration(input: IntegrationInput): IntegrationSimu
       id: 'option',
       label: 'Option notifiée par la holding avec l’accord de chaque filiale',
       status: 'check',
-      detail: 'Au plus tard à la date limite de dépôt de la déclaration de résultat de l’exercice qui précède le premier exercice du groupe ; l’option vaut pour cinq exercices.',
+      detail: 'Au plus tard à la date limite de dépôt de la déclaration de résultat de l’exercice qui précède le premier exercice du groupe\u00a0; l’option vaut pour cinq exercices.',
       source: 'cgi223A',
     },
   ]

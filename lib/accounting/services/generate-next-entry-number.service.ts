@@ -16,9 +16,11 @@
  * transaction-scoped advisory lock per fiscal year, so concurrent validations
  * never collide nor skip a number.
  *
- * Drafts created by Kledg carry a provisional number "BR-<random>". Drafts
- * created by bank reconciliation still use generateNextEntryNumber (a number
- * unique among the fiscal year's entries); validation renumbers them too.
+ * Drafts carry a provisional number "BR-<random>". The next definitive
+ * number reads the largest sequence number of the validated entries with
+ * one indexed query (kledg_entry_sequence, the SQL twin of sequentialPartOf,
+ * migration 20261125100000_entry_number_sequence), not every entry of the
+ * year: bulk validation stays linear.
  */
 
 import { randomBytes } from 'crypto'
@@ -60,17 +62,7 @@ export function sequentialPartOf(entryNumber: string): number | null {
   return parseInt(digits, 10)
 }
 
-/** Largest sequence number among entry numbers (0 when there is none). */
-export function maxSequentialPart(entryNumbers: Iterable<string>): number {
-  let max = 0
-  for (const entryNumber of entryNumbers) {
-    const n = sequentialPartOf(entryNumber)
-    if (n !== null && n > max) max = n
-  }
-  return max
-}
-
-type EntryReader = Pick<Prisma.TransactionClient, 'accountingEntry'>
+type EntryReader = Pick<Prisma.TransactionClient, '$queryRaw'>
 
 /**
  * Serializes numbering in a fiscal year until the end of the transaction.
@@ -85,32 +77,15 @@ export async function lockEntryNumbering(
 }
 
 /**
- * Next definitive number of a fiscal year: one more than the largest number of
- * its validated entries. Call under lockEntryNumbering.
+ * Next definitive number of a fiscal year: one more than the largest
+ * sequence number of its validated entries (index
+ * accounting_entries_validated_sequence_idx). Call under lockEntryNumbering
+ * when the number is assigned.
  */
 export async function nextDefinitiveEntryNumber(fiscalYearId: string, db: EntryReader = prisma): Promise<string> {
-  const validated = await db.accountingEntry.findMany({
-    where: { fiscalYearId, status: 'validated' },
-    select: { entryNumber: true },
-  })
-  return String(maxSequentialPart(validated.map((e) => e.entryNumber)) + 1)
-}
-
-/**
- * Next number not used by any entry of the fiscal year, drafts included
- * (provisional numbers aside). Used by bank reconciliation for its drafts;
- * entries created through createAccountingEntry use provisional numbers and
- * all entries get their definitive number at validation.
- */
-export async function generateNextEntryNumber(
-  companyId: string,
-  fiscalYearId: string,
-  /** Pass the transaction client to number an entry created inside a transaction. */
-  client: EntryReader = prisma,
-): Promise<string> {
-  const entries = await client.accountingEntry.findMany({
-    where: { companyId, fiscalYearId },
-    select: { entryNumber: true },
-  })
-  return String(maxSequentialPart(entries.map((e) => e.entryNumber)) + 1)
+  const [row] = await db.$queryRaw<Array<{ max: bigint | null }>>`
+    SELECT max(kledg_entry_sequence("entryNumber")) AS max
+    FROM "accounting_entries"
+    WHERE "fiscalYearId" = ${fiscalYearId} AND "status" = 'validated'`
+  return String(Number(row?.max ?? 0) + 1)
 }

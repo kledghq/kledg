@@ -136,6 +136,15 @@ export function fromCents(cents: number): number {
   return cents / 100
 }
 
+/**
+ * A share (0 to 1) as a whole percent, for display: 0.6 gives 60. The share
+ * of a coefficient de déduction is a whole percent divided by 100, which a
+ * float does not always give back exactly (0.29 * 100 is 28.999...).
+ */
+export function wholePercentOf(share: number): number {
+  return Math.round(share * 100)
+}
+
 /*
  * Amounts typed by French users: "1 234,56", "1234,56", "1234.56",
  * "1.234,56", "1,234.56", with any kind of space as thousands separator
@@ -149,7 +158,7 @@ export type AmountParseResult = { ok: true; cents: number | null } | { ok: false
 const SEPARATOR_SPACES = /[\s    ']/g
 
 export const AMOUNT_ERRORS = {
-  invalid: 'Montant invalide (exemple : 1 234,56)',
+  invalid: 'Montant invalide (exemple : 1 234,56)',
   decimals: 'Deux décimales au maximum',
   tooLarge: 'Montant trop élevé',
   negative: 'Le montant doit être positif',

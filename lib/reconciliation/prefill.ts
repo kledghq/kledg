@@ -15,6 +15,7 @@ import type { EnrichedTransaction } from '@/lib/transactions/types'
 import { toCents } from '@/lib/utils/money'
 import { formatIsoDateFr, toIsoDateUtc } from '@/lib/utils/date'
 import { transactionOfCompany } from '@/lib/api/resources'
+import { normalizeBankSide } from '@/lib/banking/side'
 import {
   bankLineOf,
   checkVat,
@@ -54,7 +55,7 @@ export function enrichTransaction(transaction: Transaction): EnrichedTransaction
 const KNOWN_VAT_RATES = [20, 13, 10, 8.5, 5.5, 2.1, 1.75, 1.05, 0.9]
 
 /** VAT rate implied by lines (deductible or collected VAT over the tax-free base), snapped to a legal rate. */
-export function vatRateOf(lines: Array<{ accountCode: string; debitCents: number; creditCents: number }>): number | null {
+function vatRateOf(lines: Array<{ accountCode: string; debitCents: number; creditCents: number }>): number | null {
   const { vatCents, baseCents } = checkVat(lines.map((l) => ({ ...l, accountId: l.accountCode })))
   if (vatCents === 0 || baseCents === 0) return null
   const rate = (vatCents * 100) / baseCents
@@ -67,7 +68,7 @@ export function vatRateOf(lines: Array<{ accountCode: string; debitCents: number
  * keeping their proportions; rounding goes to the largest line. BigInt keeps
  * the products exact for any Decimal(15, 2) amount.
  */
-export function scaleNets(nets: number[], target: number): number[] {
+function scaleNets(nets: number[], target: number): number[] {
   const total = nets.reduce((s, n) => s + n, 0)
   if (total === 0) return nets.map(() => 0)
   const ZERO = BigInt(0)
@@ -170,7 +171,7 @@ async function fromHistory(companyId: string, transaction: Transaction): Promise
     select: { id: true, date: true, reconciledWith: true },
   })
 
-  const side: BankSide = transaction.side.toLowerCase().startsWith('d') ? 'debit' : 'credit'
+  const side: BankSide = normalizeBankSide(transaction.side)
   const bank = bankLineOf({ amountCents: toCents(transaction.amount) ?? 0, side })
   // Counterparts carry the opposite of the bank line
   const target = bank.creditCents - bank.debitCents

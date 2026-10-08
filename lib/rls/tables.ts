@@ -72,6 +72,14 @@ export const COMPANY_TABLES: readonly string[] = [
   'remuneration_scenarios',
   'local_taxes',
   'declaration_statuses',
+  'invoice_number_counters',
+  'vat_deduction_years',
+  'revenue_account_settings',
+  'training_reports',
+  'payroll_tax_years',
+  'company_invitations',
+  'receipt_files',
+  'staged_receipts',
 ]
 
 /** Child tables reachable through their parent (EXISTS policies): table -> [parent, foreign key]. */

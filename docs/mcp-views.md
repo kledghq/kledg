@@ -46,7 +46,13 @@ Kledg implements the **MCP Apps** extension of the Model Context Protocol
    `ui/notifications/host-context-changed` (theme); it sends
    `ui/notifications/size-changed` when its height changes, answers
    `ui/resource-teardown` and `ping`. Messages are accepted only from
-   `window.parent` (the host, or the sandbox proxy of a web host).
+   `window.parent` (the host, or the sandbox proxy of a web host). The
+   host's origin is learnt from its answer to `ui/initialize`: only that
+   request is posted with `targetOrigin` `'*'`; every later message goes to
+   the host's origin only, and messages from another origin are ignored. An
+   opaque origin (`null`, a sandboxed host) cannot be a `targetOrigin`:
+   messages then still go to `'*'`, and only messages from that opaque
+   origin are accepted.
 5. **Actions.** Buttons use the host bridge only: `tools/call` (a tool of
    this server, proxied by the host to `/api/mcp` with the connection's own
    credentials), `ui/message` (a message to the assistant as the user),
@@ -74,6 +80,7 @@ Data-driven, one per shape (`lib/mcp/views/html`):
 | `actions` | columns, items with cells, entry lines, buttons; optional bulk action and refresh | `list_entries` (drafts: validate, delete), `list_bank_transactions` (reconcile with the unique match, else propose an entry or mark reconciled without entry), `list_missing_receipts` |
 | `document` | parties, facts, tables, totals, status | `get_invoice`, `get_expense_report` |
 | `organigram` | nodes by level, holders, officers, holdings with percentages | `get_group_structure` |
+| `receipt-capture` | the capture form (camera or file, amount, date, merchant), the matched or candidate transactions, the expense report proposal, the dry run to confirm or approve, the filed receipt | `capture_receipt`, `stage_receipt`, `file_receipt` ([justificatifs-photo.md](justificatifs-photo.md)) |
 
 The cash forecast tool (branch `cash-forecast`) is not on `main` yet. When
 it lands, wire it with `_meta: viewMeta('chart')` and a builder returning a
@@ -93,6 +100,22 @@ non-breaking spaces (`1 234,56 €`), dates `dd/mm/yyyy`. Tables have
 `caption` and `th` scopes; charts are `role="img"` with an `aria-label`
 summary and a "Voir les données" table; the Sankey is laid out at the view's real width, with the first column's labels on the left of their nodes, the last column's on the right and a middle node's above the flows, one slot per label so labels never overlap the flows or each other, and long names cut with an ellipsis (full text in the tooltip); the organigramme also writes each
 holder in words and lists the holdings in a table.
+
+## Receipt capture
+
+The `receipt-capture` template ([justificatifs-photo.md](justificatifs-photo.md))
+is the only one that sends data the user picked: the photo. It has two file
+inputs ("Prendre une photo" with `capture="environment"`, "Choisir un
+fichier"), reads the file with `FileReader`, and redraws a photo that is too
+large or not JPEG or PNG (an iPhone's HEIC) through `createImageBitmap` and
+a canvas into a JPEG of 2000 pixels at most under 5 MB: no URL is ever built
+(no `data:` or `blob:` image, the CSP stays the same). The bytes leave the
+view only as the base64 argument of `stage_receipt` through `tools/call`,
+to the host's origin once the handshake told it. Every result of the three
+tools is this view again, drawn with `api.show`; "Rattacher" starts with the
+dry run (automatic mode) or the pending action to approve in Kledg
+(validation mode, and always on a draft-level connection), like the
+actionable list.
 
 ## Rapprocher (unique match)
 
@@ -148,9 +171,19 @@ shows what the server returned.
   calls again with the `actionId`. In automatic mode the view sends
   `dryRun: true` first and executes only on "Confirmer". A direct write
   (`reconcile_transaction`, "Rapprocher" or "Pointer sans écriture") needs
-  a second click.
+  a second click, counted only from 600 ms after the question is shown (the
+  second half of a double click is ignored) and within 10 seconds (a later
+  click asks again); every button is disabled while a call runs.
   Tool buttons appear only when the connection has full control
   (`executionMode` in the data, null otherwise).
+- A message button ("Proposer une écriture", "Retrouver la pièce") sends
+  its request to the assistant as the user's words (`ui/message`): every
+  value read from the books (bank label, counterparty, supplier name) is
+  quoted as data with `quote()` of `lib/ai-assist/prompts.ts` (between « »,
+  without quotes, line breaks or control characters, 120 characters at
+  most) and ids go through its `id()`, so a label sent by a third party
+  cannot add an instruction. A test fails if a request interpolates book
+  text otherwise.
 - The data keeps the tool's access rules: builders read nothing the tool
   could not read (the N-1 statement goes through the same company guard as
   N), hidden subsidiaries stay unnamed.

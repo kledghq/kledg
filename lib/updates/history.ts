@@ -23,6 +23,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma, databaseUrl } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { ValidationError } from '@/lib/accounting/errors'
 import { withSystemContext } from '@/lib/rls/context'
 import { UPSTREAM } from './github'
 import { HISTORY_PAGE_SIZE } from './history-query'
@@ -210,6 +211,11 @@ export async function listVersionHistory(
   options: { cursor?: string; limit?: number; env?: Env } = {},
 ): Promise<VersionHistoryPage> {
   const limit = Math.min(Math.max(options.limit ?? HISTORY_PAGE_SIZE, 1), HISTORY_PAGE_SIZE)
+  // A cursor that is not a version row is refused, like the lists of
+  // invoices and expense reports (KLEDG-R3-AUTHZ-02), instead of an empty page.
+  if (options.cursor && !(await prisma.instanceVersion.findUnique({ where: { id: options.cursor }, select: { id: true } }))) {
+    throw new ValidationError('Curseur invalide\u00a0: rechargez la liste.')
+  }
   const rows = await prisma.instanceVersion.findMany({
     orderBy: [{ firstSeenAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,

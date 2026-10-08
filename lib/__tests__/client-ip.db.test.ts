@@ -25,7 +25,7 @@ await vi.hoisted(async () => {
 })
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
-import { resolveClientIp } from '@/lib/client-ip'
+import { CLIENT_IP_UNKNOWN, clientIpOrUnknown, rateLimitIpSubject, resolveClientIp } from '@/lib/client-ip'
 
 const available = await testDatabaseAvailable()
 
@@ -51,6 +51,28 @@ describe('resolveClientIp', () => {
 
   it('uses the single header named by RATE_LIMIT_IP_HEADER', () => {
     expect(resolveClientIp(h({ 'cf-connecting-ip': '198.51.100.7', 'x-real-ip': '6.6.6.6' }), { RATE_LIMIT_IP_HEADER: 'CF-Connecting-IP' })).toBe('198.51.100.7')
+  })
+})
+
+describe('rate limit subject of an address (KLEDG-R3-CLOUD-07)', () => {
+  it('counts IPv6 addresses per /64 prefix, whatever their notation', () => {
+    expect(rateLimitIpSubject('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:db8:1:2::/64')
+    expect(rateLimitIpSubject('2001:0db8:0001:0002::1')).toBe('2001:db8:1:2::/64')
+    expect(rateLimitIpSubject('2001:DB8:1:2::ffff')).toBe('2001:db8:1:2::/64')
+    expect(rateLimitIpSubject('2001:db8::1')).toBe('2001:db8:0:0::/64')
+    expect(rateLimitIpSubject('::1')).toBe('0:0:0:0::/64')
+    expect(rateLimitIpSubject('2001:db8:1:3::1')).not.toBe(rateLimitIpSubject('2001:db8:1:2::1'))
+  })
+
+  it('keeps IPv4 addresses whole, IPv4-mapped ones included', () => {
+    expect(rateLimitIpSubject('203.0.113.9')).toBe('203.0.113.9')
+    expect(rateLimitIpSubject('::ffff:203.0.113.9')).toBe('203.0.113.9')
+    expect(rateLimitIpSubject('::ffff:cb00:7109')).toBe('203.0.113.9')
+  })
+
+  it('is what clientIpOrUnknown answers', () => {
+    expect(clientIpOrUnknown(h({ 'x-vercel-forwarded-for': '2001:db8:1:2::42' }), { VERCEL: '1' })).toBe('2001:db8:1:2::/64')
+    expect(clientIpOrUnknown(h({}), { VERCEL: '1' })).toBe(CLIENT_IP_UNKNOWN)
   })
 })
 

@@ -11,10 +11,12 @@
  * All amounts are integer cents: totals are exact, never float sums.
  */
 
+import { vatIncludedInCents, vatOnBaseCents } from '@/lib/invoices/amounts'
 import { formatCentsFr } from '@/lib/utils/money'
 import { formatIsoDateFr, isIsoDate } from '@/lib/utils/date'
+import type { BankSide } from '@/lib/banking/side'
 
-export type BankSide = 'debit' | 'credit'
+export type { BankSide }
 
 export interface ReconciliationLine {
   accountId: string
@@ -61,7 +63,7 @@ export interface ReconciliationValidation {
 
 export const MESSAGES = {
   journal: 'Choisissez un journal.',
-  date: 'Date invalide : saisissez-la au format jj/mm/aaaa.',
+  date: 'Date invalide : saisissez-la au format jj/mm/aaaa.',
   noLines: 'Ajoutez au moins une ligne de contrepartie.',
   account: 'Choisissez un compte.',
   amountMissing: 'Saisissez un débit ou un crédit.',
@@ -87,26 +89,19 @@ export const isBankAccountCode = (code: string) => code.startsWith('51')
 
 /**
  * Splits an amount including VAT (TTC) into base and VAT at `ratePercent`
- * (20, 10, 5.5...): base = TTC / (1 + rate) rounded to the cent, VAT = TTC - base,
- * so the two always add up to the TTC amount.
+ * (20, 10, 5.5...): VAT = TTC x rate / (1 + rate) rounded half away from
+ * zero, base = TTC - VAT, so the two always add up to the TTC amount. The
+ * same rule as simple mode and the expense reports (vatIncludedInCents,
+ * lib/invoices/amounts.ts); a negative TTC gives the opposite split.
  */
 export function splitInclusiveAmount(ttcCents: number, ratePercent: number): { baseCents: number; vatCents: number } {
-  const basisPoints = BigInt(Math.round(ratePercent * 100))
-  const TEN_THOUSAND = BigInt(10000)
-  const TWO = BigInt(2)
-  const ttc = BigInt(ttcCents)
-  const denominator = TEN_THOUSAND + basisPoints
-  // Round half up: (2 * ttc * 10000 + denominator) / (2 * denominator)
-  const base = (TWO * ttc * TEN_THOUSAND + denominator) / (TWO * denominator)
-  return { baseCents: Number(base), vatCents: ttcCents - Number(base) }
+  const vatCents = vatIncludedInCents(ttcCents, Math.round(ratePercent * 100))
+  return { baseCents: ttcCents - vatCents, vatCents }
 }
 
-/** VAT due at `ratePercent` on a tax-free amount, rounded to the cent (half up). */
+/** VAT due at `ratePercent` on a tax-free amount, rounded to the cent half away from zero (vatOnBaseCents). */
 export function vatOnBase(baseCents: number, ratePercent: number): number {
-  const basisPoints = BigInt(Math.round(ratePercent * 100))
-  const TWO = BigInt(2)
-  const TEN_THOUSAND = BigInt(10000)
-  return Number((TWO * BigInt(baseCents) * basisPoints + TEN_THOUSAND) / (TWO * TEN_THOUSAND))
+  return vatOnBaseCents(baseCents, Math.round(ratePercent * 100))
 }
 
 /** The locked bank line: money in debits the bank account, money out credits it. */
@@ -131,13 +126,13 @@ export function checkEntryDate(
   const fiscalYear = fiscalYearForDate(fiscalYears, date)
   if (!fiscalYear) {
     return {
-      error: `Aucun exercice comptable ne couvre le ${formatIsoDateFr(date)} : créez l'exercice avant de rapprocher.`,
+      error: `Aucun exercice comptable ne couvre le ${formatIsoDateFr(date)} : créez l'exercice avant de rapprocher.`,
       fiscalYear: null,
     }
   }
   if (fiscalYear.isClosed) {
     return {
-      error: `L'exercice ${fiscalYear.year} est clôturé : choisissez une date dans un exercice ouvert.`,
+      error: `L'exercice ${fiscalYear.year} est clôturé : choisissez une date dans un exercice ouvert.`,
       fiscalYear: null,
     }
   }
@@ -184,7 +179,7 @@ export function validateReconciliation(
   if (differenceCents !== 0 && draft.lines.length > 0) {
     errors.push({
       path: 'lines',
-      message: `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)} (écart ${formatCentsFr(Math.abs(differenceCents))}).`,
+      message: `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)} (écart ${formatCentsFr(Math.abs(differenceCents))}).`,
     })
   }
 
@@ -246,7 +241,7 @@ export function checkVat(lines: ReconciliationLine[]): { errors: Issue[]; vatCen
     } else if (vatCents * 100 > baseCents * MAX_VAT_RATE_PERCENT + vatLines * 100) {
       errors.push({
         path: 'lines',
-        message: `La TVA (${formatCentsFr(vatCents)}) dépasse ${MAX_VAT_RATE_PERCENT} % de la base hors taxe (${formatCentsFr(baseCents)}) : vérifiez le montant de TVA.`,
+        message: `La TVA (${formatCentsFr(vatCents)}) dépasse ${MAX_VAT_RATE_PERCENT} % de la base hors taxe (${formatCentsFr(baseCents)}) : vérifiez le montant de TVA.`,
       })
     }
   }

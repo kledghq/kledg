@@ -17,7 +17,7 @@
 
 import type { DefaultIncomeStatementConfigEntry } from './default-pcg-config-complete-2026'
 
-export const WORKS_ACCOUNTS = ['704', '7094'] as const
+const WORKS_ACCOUNTS = ['704', '7094'] as const
 
 /** Sectors whose works supply the materials (construction, building trades). */
 const WORKS_AS_GOODS_SECTORS = new Set(['construction'])

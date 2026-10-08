@@ -18,25 +18,26 @@ import { assertAllOwned, findOwned, transactionOfCompany } from '@/lib/api/resou
 import { createEntryInTx, validateEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
 import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { writeAuditLog } from '@/lib/audit'
+import { normalizeBankSide } from '@/lib/banking/side'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { bankLineOf, validateReconciliation, type BankSide, type FiscalYearPeriod } from './validation'
 
 export const MESSAGES = {
-  alreadyReconciled: 'Cette transaction est déjà rapprochée : rechargez la liste pour voir son écriture.',
+  alreadyReconciled: 'Cette transaction est déjà rapprochée\u00a0: rechargez la liste pour voir son écriture.',
   notReconciled: "Cette transaction n'est pas rapprochée.",
   transactionNotFound: 'Transaction introuvable',
   accountNotFound: 'Compte introuvable',
   journalNotFound: 'Journal introuvable',
   entryNotFound: 'Écriture introuvable',
+  entryAlreadyLinked:
+    "Cette écriture est déjà rapprochée avec une autre transaction\u00a0: rechargez la liste, ou annulez d'abord l'autre rapprochement.",
 } as const
 
 type Client = Prisma.TransactionClient | typeof prisma
 
-/** Bank providers store the direction as "debit"/"credit" (some older imports as "Débit"/"Crédit"). */
-export function normalizeSide(side: string): BankSide {
-  return /^d/i.test(side) ? 'debit' : 'credit'
-}
+/** The side of a stored transaction (lib/banking/side.ts, the one normalisation). */
+export const normalizeSide: (side: string) => BankSide = normalizeBankSide
 
 export async function loadTransaction(companyId: string, transactionId: string) {
   return findOwned(
@@ -84,7 +85,7 @@ export async function resolveBankLedgerAccount(companyId: string, fiscalYearId: 
 }
 
 export const bankAccountMissingMessage = (year: number) =>
-  `Aucun compte bancaire 512 dans l'exercice ${year} : créez-le ou choisissez le compte bancaire par défaut dans les informations de la société.`
+  `Aucun compte bancaire 512 dans l'exercice ${year}\u00a0: créez-le ou choisissez le compte bancaire par défaut dans les informations de la société.`
 
 export interface GeneratedLine {
   accountId: string
@@ -279,7 +280,7 @@ export async function reconcileWithNewEntry(companyId: string, transactionId: st
   const outsideYear = accounts.filter((a) => a.fiscalYearId !== fiscalYear.id).map((a) => a.code)
   if (outsideYear.length > 0) {
     throw new ValidationError(
-      `Compte${outsideYear.length > 1 ? 's' : ''} ${outsideYear.join(', ')} hors de l'exercice ${fiscalYear.year} : choisissez les comptes de l'exercice de la date.`,
+      `Compte${outsideYear.length > 1 ? 's' : ''} ${outsideYear.join(', ')} hors de l'exercice ${fiscalYear.year}\u00a0: choisissez les comptes de l'exercice de la date.`,
     )
   }
 
@@ -323,7 +324,10 @@ export const reconcileWithExistingEntrySchema = z.object({
 
 /**
  * Marks a transaction reconciled with an existing entry of the company, or
- * with no entry at all (pointage). 409 when it is already reconciled.
+ * with no entry at all (pointage). 409 when it is already reconciled, and
+ * when the entry is already linked to another transaction (one entry
+ * justifies one bank movement): the entry row is locked first, so two
+ * requests linking the same entry to two transactions cannot both pass.
  */
 export async function reconcileWithExistingEntry(companyId: string, transactionId: string, entryId: string | null) {
   await loadTransaction(companyId, transactionId)
@@ -333,11 +337,18 @@ export async function reconcileWithExistingEntry(companyId: string, transactionI
       MESSAGES.entryNotFound,
     )
   }
-  const claimed = await prisma.$executeRaw`
-    UPDATE "bank_transactions"
-    SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = ${entryId}, "updatedAt" = NOW()
-    WHERE "id" = ${transactionId} AND "reconciled" = false`
-  if (claimed === 0) throw new ConflictError(MESSAGES.alreadyReconciled)
+  await prisma.$transaction(async (db) => {
+    if (entryId) {
+      await db.$queryRaw`SELECT "id" FROM "accounting_entries" WHERE "id" = ${entryId} AND "companyId" = ${companyId} FOR UPDATE`
+      const linked = await db.bankTransaction.count({ where: { reconciledWith: entryId, reconciled: true, id: { not: transactionId } } })
+      if (linked > 0) throw new ConflictError(MESSAGES.entryAlreadyLinked)
+    }
+    const claimed = await db.$executeRaw`
+      UPDATE "bank_transactions"
+      SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = ${entryId}, "updatedAt" = NOW()
+      WHERE "id" = ${transactionId} AND "reconciled" = false`
+    if (claimed === 0) throw new ConflictError(MESSAGES.alreadyReconciled)
+  })
   return prisma.bankTransaction.findUniqueOrThrow({
     where: { id: transactionId },
     select: { id: true, reconciled: true, reconciledAt: true, reconciledWith: true },
@@ -378,12 +389,12 @@ export async function unreconcileTransaction(companyId: string, transactionId: s
         if (entry && entry.sourceBankTransactionId === transactionId) {
           if (entry.status !== 'draft') {
             throw new ConflictError(
-              `L'écriture n° ${entry.entryNumber} est validée : le rapprochement ne peut pas être annulé. Passez une écriture de contrepassation.`,
+              `L'écriture n° ${entry.entryNumber} est validée\u00a0: le rapprochement ne peut pas être annulé. Passez une écriture de contrepassation.`,
             )
           }
           if (entry.fiscalYear.isClosed) {
             throw new ConflictError(
-              `L'écriture n° ${entry.entryNumber} appartient à l'exercice ${entry.fiscalYear.year}, clôturé : le rapprochement ne peut pas être annulé.`,
+              `L'écriture n° ${entry.entryNumber} appartient à l'exercice ${entry.fiscalYear.year}, clôturé\u00a0: le rapprochement ne peut pas être annulé.`,
             )
           }
           // A fixed asset created with the entry (simple mode) goes with it, or the undo is refused

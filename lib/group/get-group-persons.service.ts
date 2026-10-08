@@ -81,6 +81,9 @@ export function personKey(person: { email: string | null; firstName: string; nam
   return email ? `person:${email}` : `person:${normalizeName(`${person.firstName} ${person.usualName || person.name}`)}`
 }
 
+/** An outside shareholder company the user may not read (KLEDG-R3-AUTHZ-08). */
+export const OUTSIDE_COMPANY_LABEL = 'Société actionnaire'
+
 const fullName = (p: { firstName: string; name: string; usualName: string | null }) => `${p.firstName} ${p.usualName || p.name}`.trim()
 
 /** What the cap tables of the companies read say, with internal keys: shared by Associés et dirigeants and the structure diagram. */
@@ -160,7 +163,8 @@ export async function collectGroupHolders(holdingId: string, access: GroupAccess
         holder = draft(companyKey(row.companyShareholderId), { kind: 'company', name: null, photo: null, groupCompanyId: null, hidden: true })
       } else if (row.companyShareholderId) {
         outside.add(row.companyShareholderId)
-        holder = draft(companyKey(row.companyShareholderId), { kind: 'company', name: row.name, photo: null, groupCompanyId: null, hidden: false })
+        // Never named from the row's stored name: only from the company itself, when the user may (below).
+        holder = draft(companyKey(row.companyShareholderId), { kind: 'company', name: null, photo: null, groupCompanyId: null, hidden: false })
       } else {
         const siren = row.siret?.replace(/\s/g, '').slice(0, 9)
         holder = draft(`other:${siren || normalizeName(row.name ?? '')}`, { kind: 'other', name: row.name || 'Actionnaire sans nom', photo: null, groupCompanyId: null, hidden: false })
@@ -177,13 +181,15 @@ export async function collectGroupHolders(holdingId: string, access: GroupAccess
     }
   }
 
-  // Companies outside the group: named when the user reads them, else left as recorded on the row.
+  // Companies outside the group: named when the user reads them (or is a member there, whose name is
+  // theirs to see), else "Société actionnaire": never from the name stored on the shareholder row,
+  // a snapshot of a company the user may not read (KLEDG-R3-AUTHZ-08).
   for (const id of outside) {
     const result = await readIfAllowed(access, id, () => prisma.company.findUnique({ where: { id }, select: { name: true } }))
     const holder = drafts.get(companyKey(id))
     if (!holder) continue
     const name = result.ok ? (result.value?.name ?? null) : result.unreachable.name
-    holder.name = name ?? holder.name ?? 'Société actionnaire'
+    holder.name = name ?? OUTSIDE_COMPANY_LABEL
   }
   return { read, readable, subsidiaries, drafts, edges }
 }

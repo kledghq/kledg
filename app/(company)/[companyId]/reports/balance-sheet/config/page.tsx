@@ -158,7 +158,7 @@ export default function BalanceSheetConfigPage() {
     if (!companyId) return
 
     const ok = await confirm({
-      title: 'Réinitialiser la configuration du bilan ?',
+      title: 'Réinitialiser la configuration du bilan ?',
       description:
         'Les lignes et les comptes de la variante ' + (variant === 'complete' ? 'complète' : 'simplifiée') + " reviennent au modèle du PCG. Vos personnalisations de cette variante sont perdues.",
       confirmLabel: 'Réinitialiser',

@@ -2,7 +2,7 @@
 
 La documentation de Kledg est répartie en deux endroits :
 
-- **Les guides d'utilisation** sont sur le site : [www.kledg.com/fr/docs](https://www.kledg.com/fr/docs). Ils s'adressent au dirigeant et à l'expert-comptable : à quoi sert chaque fonctionnalité, les étapes dans l'interface, les règles de droit expliquées, les limites à connaître. Leur source est dans le dépôt du site (`content/docs/fr`).
+- **Les guides d'utilisation** sont sur le site : [www.kledg.com/fr/docs](https://www.kledg.com/fr/docs). Ils s'adressent au dirigeant et à l'expert-comptable : à quoi sert chaque fonctionnalité, les étapes dans l'interface, les règles de droit expliquées, les limites à connaître. Leur source est dans le dépôt du site (`content/docs/fr`).
 - **La documentation technique** est ici, dans `docs/` : architecture, conventions, sécurité, configuration, auto-hébergement, serveur MCP, et pour chaque fonctionnalité son fonctionnement technique (code, API, règles de calcul, droits, limites d'implémentation). Chaque page de fonctionnalité commence par un lien vers son guide.
 
 ## Technique
@@ -23,12 +23,14 @@ La documentation de Kledg est répartie en deux endroits :
 
 Chaque page renvoie à son guide sur le site.
 
+- [Membres et invitations](membres-et-invitations.md) : rôles, invitations par email des administrateurs de la société, acceptation, politique de l'instance
 - [Connexions bancaires](connexions-bancaires.md) : Qonto, Revolut Business, Ponto, synchronisation planifiée
 - [Importer un relevé bancaire](importer-un-releve-bancaire.md) : formats, détection, empreintes et doublons
 - [Règles d'affectation](regles-d-affectation.md) : application des règles, écritures créées
 - [Bibliothèque de règles](bibliotheque-de-regles.md) : modèles de règles, suggestions, copie depuis une autre société ; format d'un modèle et contribution
 - [Lettrage et tiers](lettrage-et-tiers.md) : lettrage, balance auxiliaire, balance âgée, justificatifs manquants
 - [Factures et tiers](factures-et-tiers.md) : tiers, factures, comptabilisation, TVA sur les encaissements, règlements, import Qonto
+- [Justificatifs photographiés](justificatifs-photo.md) : photo d'un ticket ou d'une facture dans Claude, ChatGPT ou sur la page Justificatifs, rapprochement, stockage, limites et sécurité
 - [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, comptabilisation
 - [Mode simple](mode-simple.md) : affichage simple, standard ou expert, navigation
 - [Modes d'affichage et menu personnalisé](modes-et-menu.md) : mode Standard, entrées et groupes du menu masqués

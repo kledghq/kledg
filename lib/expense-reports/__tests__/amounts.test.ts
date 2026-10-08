@@ -119,3 +119,28 @@ describe('expense report status', () => {
     expect(expenseReportStatus({ status: 'VALIDATED', posted: true, lettered: true })).toBe('reimbursed')
   })
 })
+
+// R3 QUAL-07: a partly exempt company recovers the share of its coefficient
+// de déduction (CGI ann. II art. 205 and 206), as purchase invoices do.
+describe('coefficient de déduction', () => {
+  it('coefficient 40 %: 120 € TTC of supplies at 20 % recovers 8 € of the 20 €, the rest is charge', () => {
+    const line = expense({ category: 'SUPPLIES', amountInclTaxCents: 12_000, vatRateBp: 2000, deductionPercent: 40 })
+    expect(computeLine(line, company)).toMatchObject({ vatCents: 2_000, recoverableVatCents: 800, expenseCents: 11_200, reason: 'coefficient' })
+    // Half up on the cent, as lib/invoices/posting-plan.ts: 1 001 x 45 % = 450,45 gives 450
+    expect(computeLine(expense({ category: 'SUPPLIES', amountInclTaxCents: 6_006, vatRateBp: 2000, vatCents: 1_001, deductionPercent: 45 }), company).recoverableVatCents).toBe(450)
+    const report = computeReport([line, expense({ category: 'SUPPLIES', amountInclTaxCents: 6_000, vatRateBp: 2000, deductionPercent: 40 })], company)
+    expect(report).toMatchObject({ totalInclTaxCents: 18_000, recoverableVatCents: 1_200, totalExpenseCents: 16_800 })
+  })
+
+  it('applies after the exclusions: passenger transport stays at 0, fuel at 80 % then the coefficient', () => {
+    expect(computeLine(expense({ category: 'TRANSPORT', deductionPercent: 40 }), company)).toMatchObject({ recoverableVatCents: 0, reason: 'passenger-transport' })
+    // Fuel 120 € TTC: 20 € of VAT, 16 € at 80 %, 6,40 € at 40 %
+    expect(computeLine(expense({ category: 'FUEL', amountInclTaxCents: 12_000, vatRateBp: 2000, deductionPercent: 40 }), company).recoverableVatCents).toBe(640)
+  })
+
+  it('a coefficient of 100 % or none changes nothing; the franchise of the day recovers nothing', () => {
+    expect(computeLine(expense({ deductionPercent: 100 }), company)).toMatchObject({ recoverableVatCents: 1_000, reason: 'full' })
+    expect(computeLine(expense({ deductionPercent: null }), company)).toMatchObject({ recoverableVatCents: 1_000, reason: 'full' })
+    expect(computeLine(expense({ franchise: true }), company)).toMatchObject({ recoverableVatCents: 0, reason: 'franchise' })
+  })
+})

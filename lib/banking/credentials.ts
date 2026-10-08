@@ -5,7 +5,7 @@
  */
 
 import { getEncryptionKey } from '@/lib/crypto/encryption-key'
-import { decrypt, encrypt } from '@/lib/integrations/encryption'
+import { decrypt, encrypt, integrationContext } from '@/lib/integrations/encryption'
 
 /**
  * The instance key that seals bank credentials. Missing configuration is a
@@ -29,16 +29,21 @@ function secretFields(provider: string): readonly string[] {
   return SECRET_FIELDS[provider] ?? ['secretKey']
 }
 
-/** Encrypts the secret fields of plain credentials. Empty secrets are left out. */
+/**
+ * Encrypts the secret fields of plain credentials. Empty secrets are left
+ * out. Each value is bound to its company, provider and field
+ * (integrationContext): copied elsewhere, it no longer opens.
+ */
 export function sealCredentials(
   provider: string,
   plain: Record<string, unknown>,
   encryptionKey: string,
+  companyId: string,
 ): Record<string, unknown> {
   const sealed: Record<string, unknown> = { ...plain }
   for (const field of secretFields(provider)) {
     const value = plain[field]
-    if (typeof value === 'string' && value.length > 0) sealed[field] = encrypt(value, encryptionKey)
+    if (typeof value === 'string' && value.length > 0) sealed[field] = encrypt(value, encryptionKey, integrationContext(companyId, provider, field))
     else delete sealed[field]
   }
   return sealed
@@ -53,12 +58,13 @@ export function openCredentials(
   stored: unknown,
   encrypted: boolean,
   encryptionKey: string,
+  companyId: string,
 ): Record<string, unknown> {
   const data = stored && typeof stored === 'object' ? { ...(stored as Record<string, unknown>) } : {}
   if (!encrypted) return data
   for (const field of secretFields(provider)) {
     const value = data[field]
-    if (typeof value === 'string' && value.length > 0) data[field] = decrypt(value, encryptionKey)
+    if (typeof value === 'string' && value.length > 0) data[field] = decrypt(value, encryptionKey, integrationContext(companyId, provider, field))
   }
   return data
 }
@@ -72,6 +78,7 @@ export function mergeSealed(
   stored: unknown,
   update: Record<string, unknown>,
   encryptionKey: string,
+  companyId: string,
 ): Record<string, unknown> {
   const base = stored && typeof stored === 'object' ? { ...(stored as Record<string, unknown>) } : {}
   const secrets = new Set(secretFields(provider))
@@ -81,7 +88,7 @@ export function mergeSealed(
       delete base[key]
       continue
     }
-    base[key] = secrets.has(key) && typeof value === 'string' ? encrypt(value, encryptionKey) : value
+    base[key] = secrets.has(key) && typeof value === 'string' ? encrypt(value, encryptionKey, integrationContext(companyId, provider, key)) : value
   }
   return base
 }

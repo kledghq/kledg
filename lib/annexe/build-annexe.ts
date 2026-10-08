@@ -125,7 +125,7 @@ export function annexeListOf(category: SizeCategory, corporateTaxRegime: string 
   return 'full'
 }
 
-export const LIST_LABELS: Record<AnnexeList, { label: string; source: string }> = {
+const LIST_LABELS: Record<AnnexeList, { label: string; source: string }> = {
   micro: { label: 'Micro-entreprise : informations à la suite du bilan, annexe facultative', source: 'C. com. art. L123-16-1, PCG art. 811-7' },
   simplified: { label: 'Petite entreprise au régime réel simplifié : annexe simplifiée', source: 'C. com. art. L123-25, PCG art. 811-8' },
   small: { label: 'Petite entreprise : annexe simplifiée', source: 'C. com. art. L123-16, PCG art. 811-9' },
@@ -324,7 +324,7 @@ export function buildAnnexe(data: AnnexeData, details: AnnexeDetails): Annexe {
       data.changes.length === 0
         ? [p("Aucun changement de réglementation ou de méthode comptable, aucun changement d'estimation et aucune correction d'erreur n'a été enregistré pour l'exercice.")]
         : data.changes.flatMap((c) => [
-            { kind: 'heading' as const, text: `${CHANGE_KIND_LABELS[c.kind]} : ${c.label}` },
+            { kind: 'heading' as const, text: `${CHANGE_KIND_LABELS[c.kind]} : ${c.label}` },
             p(c.description),
             {
               kind: 'list' as const,
@@ -469,7 +469,7 @@ export function buildAnnexe(data: AnnexeData, details: AnnexeDetails): Annexe {
               maybe(r.dividendsCents),
             ]),
           ),
-          p('Filiale : plus de 50 % du capital détenu (C. com. art. L233-1) ; participation : de 10 à 50 % (art. L233-2).'),
+          p('Filiale : plus de 50 % du capital détenu (C. com. art. L233-1) ; participation : de 10 à 50 % (art. L233-2).'),
         ],
       })
     }
@@ -488,7 +488,7 @@ export function buildAnnexe(data: AnnexeData, details: AnnexeDetails): Annexe {
       source: 'PCG art. 832-9',
       blocks: [
         table(['Créances', 'Montant brut'], [...receivables.map((r) => [r.label, eur(r.cents)]), ['Total', eur(receivablesTotal)]]),
-        ...(m ? [p(`Échéance à un an au plus : ${eur(receivablesTotal - m.overOneYearCents)} ; à plus d'un an : ${eur(m.overOneYearCents)}.`)] : []),
+        ...(m ? [p(`Échéance à un an au plus : ${eur(receivablesTotal - m.overOneYearCents)} ; à plus d'un an : ${eur(m.overOneYearCents)}.`)] : []),
       ],
     })
   }
@@ -532,7 +532,7 @@ export function buildAnnexe(data: AnnexeData, details: AnnexeDetails): Annexe {
       blocks: [
         table(['Dettes', 'Montant'], [...debts.map((r) => [r.label, eur(r.cents)]), ['Total', eur(debtsTotal)]]),
         ...(m
-          ? [p(`Échéance à un an au plus : ${eur(debtsTotal - m.overOneYearCents)} ; à plus d'un an et cinq ans au plus : ${eur(m.overOneYearCents - m.overFiveYearsCents)} ; à plus de cinq ans : ${eur(m.overFiveYearsCents)}.`)]
+          ? [p(`Échéance à un an au plus : ${eur(debtsTotal - m.overOneYearCents)} ; à plus d'un an et cinq ans au plus : ${eur(m.overOneYearCents - m.overFiveYearsCents)} ; à plus de cinq ans : ${eur(m.overFiveYearsCents)}.`)]
           : []),
       ],
     })

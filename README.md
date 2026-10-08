@@ -49,15 +49,17 @@ Le guide complet est dans [docs/self-hosting.md](docs/self-hosting.md).
 
 | Domaine | Ce que fait Kledg |
 | --- | --- |
-| Sociétés | Multi-sociétés, informations et établissements, membres et rôles (administrateur, comptable, lecture seule), clés API |
-| Comptabilité | Plan comptable PCG 2026, journaux, exercices (ouverture, clôture, à-nouveaux), écritures avec contrôles PCG |
-| Banque | Import de relevés, synchronisation Qonto et Revolut Business en direct, autres banques via Ponto (optionnelles), règles d'affectation automatiques, rapprochement |
-| Immobilisations | Fiche immobilisation, plan d'amortissement linéaire, tableau des amortissements |
-| États | Bilan, compte de résultat, balance, grand livre, journal, exports PDF et Excel |
+| Sociétés | Multi-sociétés, informations et établissements, membres et rôles (administrateur, comptable, lecture seule), modes d'affichage Simple, Standard et Expert, menu personnalisable |
+| Comptabilité | Plan comptable PCG 2026, journaux, exercices (ouverture, clôture des périodes et de l'exercice, à-nouveaux), écritures avec contrôles PCG, lettrage |
+| Banque | Import de relevés, synchronisation Qonto et Revolut Business en direct, autres banques via Ponto, règles d'affectation et leur bibliothèque, rapprochement, justificatifs (fournisseur reconnu, lien vers ses factures), prévision de trésorerie avec seuil d'alerte |
+| Factures et tiers | Clients et fournisseurs, factures d'achat et de vente, numérotation continue, création dans Qonto, import des factures Qonto, notes de frais, frais de gestion d'une holding |
+| Déclarations | TVA (CA3 et CA12), impôt sur les sociétés, CFE et CVAE, coefficient de déduction de TVA, taxe sur les salaires, bilan pédagogique et financier, calendrier des échéances ; Kledg prépare, vous déposez |
+| Clôture | Immobilisations et amortissements, provisions, dépréciations, subventions, annexe et tableaux 2054, 2055 et 2033-C, approbation des comptes |
+| États | Bilan, compte de résultat, SIG et ratios, balances, grand livre, journal, budget, exports PDF et Excel, espace groupe pour les holdings |
 | Données | Export FEC au format de l'article A47 A-1 du LPF, contrôlé à l'export, import FEC, CSV et Excel |
-| Assistants IA | Serveur MCP pour Claude, ChatGPT et Claude Code (OAuth ou clé API) |
+| Assistants IA | Serveur MCP pour Claude, ChatGPT et Claude Code (OAuth ou clé API), vues interactives dans l'assistant, « Proposer avec l'IA » depuis les pages |
 
-**Prochainement** : TVA, IS, liasse fiscale, CFE et CVAE, tiers et factures, notes de frais, IA intégrée.
+**Pas encore dans Kledg** : liasse fiscale complète et télétransmission, émission du document de facture hors Qonto, paie, import Factur-X. La feuille de route est dans les [issues](https://github.com/kledghq/kledg/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap).
 
 ## Stack
 
@@ -92,7 +94,7 @@ Ouvrez http://localhost:3000 : vous arrivez sur `/setup`. Sans `RESEND_API_KEY`,
 
 ## Documentation
 
-- **Guides d'utilisation** : sur le site, [www.kledg.com/fr/docs](https://www.kledg.com/fr/docs). Installer, créer sa société, connecter sa banque, rapprocher, déclarer la TVA et l'IS, clôturer : chaque fonctionnalité expliquée au dirigeant et à l'expert-comptable, avec les règles de droit qui s'appliquent.
+- **Guides d'utilisation** : sur le site, [www.kledg.com/fr/docs](https://www.kledg.com/fr/docs). Installer, créer sa société, connecter sa banque, rapprocher, déclarer la TVA et l'IS, clôturer : chaque fonctionnalité expliquée au dirigeant et à l'expert-comptable, avec les règles de droit qui s'appliquent.
 - **Documentation technique** : dans ce dépôt, [docs/](docs/README.md). Architecture, conventions, sécurité (RLS), configuration, auto-hébergement, serveur MCP, points d'extension, et le fonctionnement technique de chaque fonctionnalité (code, API, règles de calcul, droits).
 
 Une modification qui change ce que voit l'utilisateur met à jour le guide du site ; une modification du code met à jour la page technique de `docs/`.

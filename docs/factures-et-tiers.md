@@ -1,6 +1,6 @@
 # Factures et tiers
 
-Le guide d'utilisation (tiers, saisie d'une facture, numérotation des factures de vente, création dans Qonto, comptabilisation, règlements, TVA sur les encaissements, import Qonto, facturation électronique) est sur le site : [Les factures et les tiers](https://www.kledg.com/fr/docs/les-factures-et-les-tiers) et [Faire ses factures clients avec Qonto](https://www.kledg.com/fr/docs/factures-clients-avec-qonto). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (tiers, saisie d'une facture, numérotation des factures de vente, création dans Qonto, comptabilisation, règlements, TVA sur les encaissements, import Qonto, facturation électronique) est sur le site : [Les factures et les tiers](https://www.kledg.com/fr/docs/les-factures-et-les-tiers) et [Faire ses factures clients avec Qonto](https://www.kledg.com/fr/docs/factures-clients-avec-qonto). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Le journal des achats et des ventes : les clients et fournisseurs (tiers), les factures reçues et émises enregistrées avec leurs lignes et leur TVA par taux, leur comptabilisation, leurs règlements venus de la banque, et leur import depuis Qonto. Kledg **enregistre** les factures, il ne les émet pas et ne les envoie pas. Code : `lib/tiers`, `lib/invoices`, `lib/integrations/providers/qonto/invoicing.ts`.
 
@@ -46,7 +46,7 @@ Source : CGI ann. II art. 242 nonies A, I, 7° (« un numéro unique basé sur 
 | Format | préfixe (20 caractères au plus : lettres, chiffres, `- / _ .`), année sur 4 ou 2 chiffres ou sans année, mois facultatif, séparateur (`-`, `/`, `_`, `.` ou aucun), chiffres de la séquence (1 à 9, complétés par des zéros ; au-delà le numéro s'allonge, il n'est jamais coupé) | `F{YYYY}-{SEQ:4}`, soit F2026-0001 |
 | Remise à 1 | chaque année civile, à chaque exercice (l'année imprimée est celle de la fin de l'exercice), ou jamais | chaque année civile |
 | Avoirs | dans la série des factures, ou dans leur propre série avec leur préfixe | série des factures, préfixe A |
-| Prochain numéro | reprise de la séquence de la période en cours pour une société venant d'un autre outil : seulement à la hausse, jamais sur un numéro déjà donné ou déjà enregistré | |
+| Prochain numéro | reprise de la séquence de la période en cours pour une société venant d'un autre outil : seulement à la hausse, jamais sur un numéro déjà donné ou déjà enregistré ; seulement avant le premier numéro donné par Kledg dans la période, et juste après le plus haut numéro déjà enregistré quand il y en a, pour ne jamais laisser de trou (CGI ann. II art. 242 nonies A, I, 7° : séquence chronologique et continue) | |
 | Créer dans Qonto | voir [création dans Qonto](#création-dans-qonto) | oui quand la connexion Qonto le permet |
 
 Une remise à 1 exige l'année dans le format (sinon deux factures porteraient le même numéro) ; l'aperçu du réglage montre le format et le prochain numéro.

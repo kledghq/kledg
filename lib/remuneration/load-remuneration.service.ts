@@ -173,7 +173,7 @@ function parseOverrides(json: string | undefined) {
     throw new ValidationError('Paramètres de simulation illisibles : un objet JSON est attendu.')
   }
   const parsed = RemunerationOverridesSchema.safeParse(value)
-  if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' ; '))
+  if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' ; '))
   return parsed.data
 }
 

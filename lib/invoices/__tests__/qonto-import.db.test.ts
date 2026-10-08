@@ -115,9 +115,9 @@ describe.skipIf(!available)('Qonto invoices import (PostgreSQL, mocked Qonto API
     vi.stubGlobal('fetch', vi.fn(async (url: string) => qontoMock(url)))
     await prepareTestDatabase('qonto_invoices')
     books = await seedBooks(prisma, svc, { siren: '900000201', slug: 'qonto-alpha' })
-    const { encrypt } = await import('@/lib/integrations/encryption')
+    const { bankConnectionContext, encrypt } = await import('@/lib/integrations/encryption')
     await prisma.bankConnection.create({
-      data: { companyId: books.companyId, provider: 'QONTO', login: 'qonto-login', secretKeyEncrypted: encrypt('qonto-secret', process.env.ENCRYPTION_KEY!) },
+      data: { companyId: books.companyId, provider: 'QONTO', login: 'qonto-login', secretKeyEncrypted: encrypt('qonto-secret', process.env.ENCRYPTION_KEY!, bankConnectionContext(books.companyId, 'QONTO')) },
     })
   })
 

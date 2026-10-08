@@ -146,7 +146,7 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
 
     expect(result.success).toBe(false)
     expect(result.entriesCreated).toBe(1)
-    expect(result.errors).toEqual(["Écriture U1: L'écriture n'est pas équilibrée : débit 100,00 €, crédit 99,99 €, écart 0,01 €"])
+    expect(result.errors).toEqual(["Écriture U1: L'écriture n'est pas équilibrée : débit 100,00 €, crédit 99,99 €, écart 0,01 €"])
     const entries = await entriesWithLines()
     expect(entries.map((e) => e.description)).toEqual(['Équilibrée'])
   })
@@ -162,8 +162,8 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
     const result = await importExcel({ companyId: ids.company, file })
 
     expect(result.errors).toEqual([
-      'Écriture X1: montant invalide (exemple : 1 234,56)',
-      'Écriture X2: montant invalide (exemple : 1 234,56)',
+      'Écriture X1: montant invalide (exemple : 1 234,56)',
+      'Écriture X2: montant invalide (exemple : 1 234,56)',
     ])
     expect(result.entriesCreated).toBe(0)
     expect(await prisma.accountingEntry.count()).toBe(0)
@@ -180,7 +180,7 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
     const result = await importExcel({ companyId: ids.company, file })
 
     expect(result.entriesCreated).toBe(1)
-    expect(result.errors).toEqual(['Écriture N2: Ligne 2 : compte obligatoire'])
+    expect(result.errors).toEqual(['Écriture N2: Ligne 2 : compte obligatoire'])
     const [entry] = await entriesWithLines()
     expect(entry.journal.code).toBe('OD')
   })
@@ -381,15 +381,15 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
     expect(await importExcel({ companyId: ids.company, file: await workbook([]) })).toMatchObject({
       success: false,
       entriesCreated: 0,
-      errors: ['Import interrompu : Le fichier Excel est vide'],
+      errors: ['Import interrompu : Le fichier Excel est vide'],
     })
     expect(await importExcel({ companyId: ids.company, file: await workbook([]), sheetName: 'Absente' })).toMatchObject({
       success: false,
-      errors: ['Import interrompu : Feuille Excel introuvable'],
+      errors: ['Import interrompu : Feuille Excel introuvable'],
     })
     // Not a zip at all: refused by the service before ExcelJS sees it
     await expect(importAccountingFile(ids.company, form(Buffer.from('date;journal\n2025-01-01;OD\n')))).rejects.toThrow(
-      'Fichier Excel invalide : seuls les fichiers .xlsx sont acceptés.',
+      'Fichier Excel invalide : seuls les fichiers .xlsx sont acceptés.',
     )
     expect(await prisma.accountingEntry.count()).toBe(0)
   })
@@ -397,7 +397,7 @@ describe.skipIf(!available)('Excel journal import (PostgreSQL)', () => {
   it('refuses an unknown file type with the French message', async () => {
     const data = form(await workbook([]))
     data.set('type', 'ods')
-    await expect(importAccountingFile(ids.company, data)).rejects.toThrow('Type de fichier inconnu : fec, csv ou excel')
+    await expect(importAccountingFile(ids.company, data)).rejects.toThrow('Type de fichier inconnu : fec, csv ou excel')
   })
 
   describe('createAccountingEntryWithWarnings', () => {

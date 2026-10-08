@@ -97,6 +97,30 @@ describe.skipIf(!available)('addMemberToCompany', () => {
     expect(decodeURIComponent(state.mails[0].text)).toContain('/reset-password?welcome=1')
   })
 
+  it('[KLEDG-R3-INPUT-06] a reset asked with welcome=1 in the URL is a plain reset email', async () => {
+    state.emailEnabled = true
+    await prisma.user.create({ data: { id: 'u-known', email: 'connu@example.fr', name: 'Connu', emailVerified: true } })
+    await auth.api.requestPasswordReset({ body: { email: 'connu@example.fr', redirectTo: '/reset-password?welcome=1' } })
+    await vi.waitFor(() => expect(state.mails).toHaveLength(1))
+    expect(state.mails[0].subject).not.toBe('Votre accès à Kledg')
+    expect(state.mails[0].text).toContain('Réinitialisez votre mot de passe')
+  })
+
+  it('[KLEDG-R3-INPUT-06] sends the welcome email at most 3 times a day to the same person', async () => {
+    state.emailEnabled = true
+    await prisma.user.create({ data: { id: 'u-unconfirmed', email: 'nouveau@example.fr', name: 'Nouveau', emailVerified: false } })
+    await prisma.rateLimit.deleteMany({ where: { key: 'welcome-email|u-unconfirmed' } })
+    await prisma.rateLimit.create({ data: { id: 'rl-welcome', key: 'welcome-email|u-unconfirmed', count: 3, lastRequest: BigInt(Date.now()) } })
+    delete process.env.RATE_LIMIT_DISABLED
+    try {
+      const result = await addMemberToCompany({ companyId, email: 'nouveau@example.fr', role: 'viewer' })
+      expect(result).toMatchObject({ resetUnconfirmedUser: true, welcomeEmailSent: false })
+      expect(state.mails).toEqual([])
+    } finally {
+      process.env.RATE_LIMIT_DISABLED = 'true'
+    }
+  })
+
   it('adds an existing user without creating an account', async () => {
     await prisma.user.create({ data: { id: 'u-existing', email: 'deja@example.fr', name: 'Déjà là', emailVerified: true } })
     const result = await addMemberToCompany({ companyId, email: 'DEJA@example.fr', role: 'companyAdmin' })
@@ -125,7 +149,7 @@ describe.skipIf(!available)('addMemberToCompany', () => {
     await expect(addMemberToCompany({ companyId, email: '   ', role: 'viewer' })).rejects.toThrow(new ValidationError("L'email est requis"))
     await expect(
       addMemberToCompany({ companyId, email: 'a@example.fr', role: 'owner' as unknown as 'viewer' }),
-    ).rejects.toThrow(new ValidationError('Rôle invalide. Valeurs acceptées : companyAdmin, accountant, viewer'))
+    ).rejects.toThrow(new ValidationError('Rôle invalide. Valeurs acceptées : companyAdmin, accountant, viewer'))
     await expect(addMemberToCompany({ companyId: 'missing', email: 'a@example.fr', role: 'viewer' })).rejects.toThrow(
       new NotFoundError('Société introuvable'),
     )

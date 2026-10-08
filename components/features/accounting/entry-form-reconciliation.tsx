@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Lock, Loader2, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { selfAssessedSplit } from '@/lib/vat-deduction/share'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -139,14 +140,15 @@ function templatesFor(context: ReconciliationContext): Template[] {
         return [line('debit', baseCents, { accountCode: keep }), line('debit', vatCents, { hints: ['44566'] })]
       },
     })
+    // Due in full, deducted at the company's coefficient de déduction, the rest in the charge (lib/vat-deduction/share.ts)
     const selfAssessed = (label: string, deductible: string[], due: string[]): Template => ({
       label,
       build: (keep) => {
-        const vat = vatOnBase(amountCents, 20)
+        const split = selfAssessedSplit(vatOnBase(amountCents, 20), context.transaction.vatDeductionShare ?? null)
         return [
-          line('debit', amountCents, { accountCode: keep }),
-          line('debit', vat, { hints: deductible }),
-          line('credit', vat, { hints: due }),
+          line('debit', amountCents + split.nonDeductibleCents, { accountCode: keep }),
+          ...(split.deductibleCents > 0 ? [line('debit', split.deductibleCents, { hints: deductible })] : []),
+          line('credit', split.dueCents, { hints: due }),
         ]
       },
     })

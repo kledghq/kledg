@@ -25,12 +25,6 @@
 export const VAT_TREATMENTS = ['taxable', 'exempt', 'excluded'] as const
 export type VatTreatment = (typeof VAT_TREATMENTS)[number]
 
-export const VAT_TREATMENT_LABELS: Record<VatTreatment, string> = {
-  taxable: 'Ouvre droit à déduction',
-  exempt: 'Exonérée, sans droit à déduction',
-  excluded: 'Exclue du calcul',
-}
-
 export interface RevenueAccountRow {
   code: string
   label: string
@@ -49,7 +43,7 @@ export interface AccountSetting {
   vatTreatment: VatTreatment | null
 }
 
-export type RevenueSource = 'setting' | 'books' | 'default-excluded'
+type RevenueSource = 'setting' | 'books' | 'default-excluded'
 
 export interface ClassifiedAccount {
   code: string

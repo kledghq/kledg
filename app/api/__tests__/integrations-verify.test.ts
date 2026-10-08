@@ -152,7 +152,7 @@ describe('API /api/integrations/verify', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.error).toBe('provider: Choisissez le fournisseur : Qonto ou Ponto.')
+    expect(data.error).toBe('provider: Choisissez le fournisseur : Qonto ou Ponto.')
   })
 
   it('should return 400 if credentials are missing', async () => {

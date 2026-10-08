@@ -30,6 +30,7 @@ const connection: ConnectionSummary = {
   tokenExpiresAt: '2026-12-31T12:00:00.000Z',
   expired: false,
   expiresSoon: false,
+  tokenReachesOtherRepos: false,
   connectedAt: '2026-10-01T12:00:00.000Z',
 }
 
@@ -109,6 +110,14 @@ describe('GitHubConnect: connected', () => {
     expect(screen.getByText('github_pat_••••a1b2')).toBeInTheDocument()
     expect(screen.getByText('31 décembre 2026')).toBeInTheDocument()
     expect(screen.queryByText(/Le jeton expire/)).toBeNull()
+  })
+
+  it('[KLEDG-R3-INPUT-05] warns when the token reaches other repositories', () => {
+    const { unmount } = render(<GitHubConnect detected={null} connection={connection} platform="vercel" onChange={vi.fn()} />)
+    expect(screen.queryByText(/donne aussi accès/)).toBeNull()
+    unmount()
+    render(<GitHubConnect detected={null} connection={{ ...connection, tokenReachesOtherRepos: true }} platform="vercel" onChange={vi.fn()} />)
+    expect(screen.getByText(/Ce jeton donne aussi accès à d'autres dépôts que acme\/kledg/)).toBeInTheDocument()
   })
 
   it('warns when the token expires soon or has expired', () => {

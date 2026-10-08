@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { isQontoAccountId } from './account-id'
 import { QontoClientBase } from './client-base'
 import type { QontoTransaction, QontoTransactionsResponse } from './types'
+import { QontoTransactionsResponseSchema } from './schemas'
 
 /**
  * Transaction-related methods for Qonto API
@@ -65,7 +66,7 @@ export class QontoTransactions extends QontoClientBase {
     const url = `/transactions?${params.toString()}`
     logger.debug('[QontoClient] getTransactions - URL:', url)
     
-    const response = await this.request<QontoTransactionsResponse>(url)
+    const response = await this.request<QontoTransactionsResponse>(url, {}, QontoTransactionsResponseSchema)
     logger.debug('[QontoClient] getTransactions - Réponse:', {
       transactionsCount: response.transactions.length,
       meta: response.meta,

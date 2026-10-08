@@ -118,7 +118,7 @@ export function FixedAssetMovementsPage({ companyId }: { companyId: string }) {
                 Contrôles
                 {differing.length === 0 ? <StatusBadge tone="success">Concordants</StatusBadge> : <StatusBadge tone="warning">{differing.length} à vérifier</StatusBadge>}
               </CardTitle>
-              <CardDescription>La valeur brute à la fin doit égaler l&apos;actif immobilisé brut du bilan ; le registre des immobilisations doit expliquer les mouvements.</CardDescription>
+              <CardDescription>La valeur brute à la fin doit égaler l&apos;actif immobilisé brut du bilan&nbsp;; le registre des immobilisations doit expliquer les mouvements.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {differing.length > 0 ? (

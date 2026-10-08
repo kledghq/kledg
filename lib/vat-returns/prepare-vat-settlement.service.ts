@@ -1,6 +1,8 @@
 /**
  * Prepares the settlement entry of a VAT return as a DRAFT (settlement.ts
- * plans its lines): journal OD, dated on the last day of the period,
+ * plans its lines): journal OD, dated on the last day of the period (on the
+ * first open day when that period is closed, its real date as the date of
+ * the document: lib/accounting/period-lock/booking-day.ts),
  * reference "TVA-CA3-2026-09". Nothing is validated: the user checks the
  * draft and validates it like any entry (PCG art. 1031-3), once the return
  * is filed.
@@ -20,6 +22,7 @@ import { ClosedFiscalYearError, ConflictError, NotFoundError } from '@/lib/accou
 import { createEntryInTx, deleteDraftEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
 import { ensureAccounts, ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
 import { lockFiscalYearRow } from '@/lib/accounting/fiscal-year-closure/lock'
+import { bookingDayInTx, movedDraftNote } from '@/lib/accounting/period-lock/booking-day'
 import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { buildVatReturn } from './load-vat-return.service'
@@ -104,11 +107,14 @@ export async function prepareVatSettlement(companyId: string, periodKey: string,
 
     const journal = await ensureJournal(tx, companyId, OD_JOURNAL)
     const accountIds = await ensureAccounts(tx, companyId, fiscalYear.id, lines.map(({ code, label }) => ({ code, label })))
+    // The period may be closed already (automatic closing after the filing): first open day, real date as the document's
+    const booking = await bookingDayInTx(tx, fiscalYear.id, period.end)
     const entry = await createEntryInTx(tx, {
       companyId,
       fiscalYearId: fiscalYear.id,
       journalId: journal.id,
-      date: new Date(`${period.end}T00:00:00.000Z`),
+      date: new Date(`${booking.date}T00:00:00.000Z`),
+      ...(booking.pieceDate ? { pieceDate: booking.pieceDate } : {}),
       description,
       reference,
       status: 'draft',
@@ -120,7 +126,7 @@ export async function prepareVatSettlement(companyId: string, periodKey: string,
       })),
     })
     const created = await tx.accountingEntry.findUniqueOrThrow({ where: { id: entry.id }, select: { entryNumber: true } })
-    return { status: existing.length > 0 ? ('replaced' as const) : ('created' as const), entryId: entry.id, entryNumber: created.entryNumber }
+    return { status: existing.length > 0 ? ('replaced' as const) : ('created' as const), entryId: entry.id, entryNumber: created.entryNumber, booking }
   }, TX_OPTIONS)
 
   if (result.status === 'created' || result.status === 'replaced') {
@@ -136,5 +142,7 @@ export async function prepareVatSettlement(companyId: string, periodKey: string,
     unchanged: `Le brouillon de liquidation ${result.entryNumber} correspond déjà à la déclaration.`,
     validated: `L’écriture de liquidation ${result.entryNumber} est déjà validée : pour la corriger, contre-passez-la puis préparez-la à nouveau.`,
   }
-  return { ...result, reference, lines, message: messages[result.status] }
+  const moved = 'booking' in result && result.booking ? movedDraftNote(result.booking) : null
+  const { entryId, entryNumber, status } = result
+  return { status, entryId, entryNumber, reference, lines, message: moved ? `${messages[status]} ${moved}` : messages[status] }
 }

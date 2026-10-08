@@ -65,10 +65,6 @@ export function matchProbableDuplicates<E extends ExistingLine>(
   return matches
 }
 
-/** Signed cents of a stored bank line (amount is absolute, the direction is in `side`). */
-export function signedCents(absoluteCents: number, side: string): number {
-  return /^d/i.test(side) ? -Math.abs(absoluteCents) : Math.abs(absoluteCents)
-}
 
 /** First and last day (yyyy-mm-dd, booking or value) of some lines, to load the existing lines around them. */
 export function dayWindow(lines: readonly DatedAmount[]): { first: string; last: string } | null {

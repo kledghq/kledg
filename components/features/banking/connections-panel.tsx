@@ -151,7 +151,7 @@ export function ConnectionsPanel({ companyId, connections, loading, canManage, c
       <ConfirmDialog
         open={disconnecting !== null}
         onOpenChange={(open) => !open && setDisconnecting(null)}
-        title={`Déconnecter ${disconnecting ? (BANK_PROVIDER_LABELS[disconnecting.provider] ?? disconnecting.provider) : ''} ?`}
+        title={`Déconnecter ${disconnecting ? (BANK_PROVIDER_LABELS[disconnecting.provider] ?? disconnecting.provider) : ''}\u00a0?`}
         description="Kledg supprime les identifiants de cette connexion et arrête la synchronisation. Les comptes et les opérations déjà reçues restent dans Kledg."
         confirmLabel="Déconnecter"
         loading={busy}

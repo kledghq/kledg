@@ -106,8 +106,8 @@ export async function guardRequest(request: NextRequest, options: BodyOptions = 
       if (type !== expected) {
         throw new UnsupportedMediaTypeError(
           options.multipart
-            ? 'Type de contenu refusé : envoyez le fichier dans un formulaire multipart/form-data.'
-            : 'Type de contenu refusé : envoyez du JSON (Content-Type: application/json).',
+            ? 'Type de contenu refusé : envoyez le fichier dans un formulaire multipart/form-data.'
+            : 'Type de contenu refusé : envoyez du JSON (Content-Type: application/json).',
         )
       }
     }

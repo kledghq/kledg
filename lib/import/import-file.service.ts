@@ -43,7 +43,7 @@ const FecColumnMappingSchema = z.object({
 /** File code to an existing account or journal id of the company (null: create it). lib/import/fec checks ownership. */
 const IdMappingSchema = z.record(z.string(), z.string().nullable())
 
-const IMPORT_TYPE_MESSAGE = 'Type de fichier inconnu : fec, csv ou excel'
+const IMPORT_TYPE_MESSAGE = 'Type de fichier inconnu : fec, csv ou excel'
 
 /** Fields of the multipart form of POST /api/import (the company comes from `companyId`). */
 const ImportFormSchema = z.object({
@@ -121,7 +121,7 @@ async function importByType(companyId: string, input: z.infer<typeof ImportFormS
       const buffer = Buffer.from(await file.arrayBuffer())
       // ExcelJS only reads .xlsx (a zip); parseExcel inflates it under a byte budget first (zip bomb guard)
       if (!isZip(buffer)) {
-        throw new ValidationError('Fichier Excel invalide : seuls les fichiers .xlsx sont acceptés.')
+        throw new ValidationError('Fichier Excel invalide : seuls les fichiers .xlsx sont acceptés.')
       }
       return importExcel({ companyId, file: buffer })
     }

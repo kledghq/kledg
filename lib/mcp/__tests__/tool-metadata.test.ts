@@ -19,8 +19,8 @@ import { registerKledgTools } from '@/lib/mcp/tools'
 import { AMOUNTS_IN_EUROS, NO_AMOUNTS, describeTool, permissionLabel } from '@/lib/mcp/tool-meta'
 import type { McpAccess } from '@/lib/mcp/company-access'
 
-/** Tools that call a bank provider (Qonto, Revolut, Ponto) or the public company directory: the only open world tools. */
-const OPEN_WORLD = new Set(['sync_bank', 'sync_bank_data', 'upload_receipt', 'import_qonto_invoices', 'get_qonto_statements', 'list_qonto_receipts', 'get_file', 'lookup_siren', 'create_draft_invoice', 'manage_invoice'])
+/** Tools that call a bank provider (Qonto, Revolut, Ponto), the public company directory or OpenAI's file hosts (stage_receipt): the only open world tools. */
+const OPEN_WORLD = new Set(['sync_bank', 'sync_bank_data', 'upload_receipt', 'import_qonto_invoices', 'get_qonto_statements', 'list_qonto_receipts', 'get_file', 'lookup_siren', 'create_draft_invoice', 'manage_invoice', 'stage_receipt', 'file_receipt'])
 
 type Config = {
   title?: string

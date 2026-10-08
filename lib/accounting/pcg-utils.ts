@@ -17,17 +17,6 @@ export function getAccountByCode(code: string): PCGAccount | undefined {
 }
 
 /**
- * Validates that an account code follows PCG format
- * 
- * @param code - Account code to validate
- * @returns Whether the code is valid (2-8 digits)
- */
-export function isValidAccountCode(code: string): boolean {
-  // PCG format: 2 to 8 digits
-  return /^\d{2,8}$/.test(code);
-}
-
-/**
  * Gets the account class (first digit) from an account code
  * 
  * @param code - Account code

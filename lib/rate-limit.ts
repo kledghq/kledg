@@ -24,6 +24,16 @@ export const RATE_LIMITS = {
   setup: { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Bank sync cron called without CRON_SECRET (lib/banking/sync-banks.service.ts), instance-wide. */
   'cron-keyless': { window: 86_400, max: 4, message: 'Synchronisation déjà lancée récemment.' },
+  /** Period-lock cron called without CRON_SECRET (lib/accounting/period-lock/auto-lock.service.ts), instance-wide. */
+  'cron-keyless-period-lock': { window: 86_400, max: 2, message: 'Clôture automatique des périodes déjà lancée récemment.' },
+  /** Welcome email of a member added to a company (lib/rbac/add-member-to-company.service.ts), per person. */
+  'welcome-email': { window: 86_400, max: 3, message: "Trop d'emails de bienvenue envoyés à cette personne aujourd'hui." },
+  /** Invitations sent or sent again by a company administrator (lib/rbac/company-invitations.service.ts), per user. */
+  'member-invitation': { window: 3600, max: 20, message: "Trop d'invitations envoyées en une heure. Réessayez plus tard." },
+  /** Invitation emails received by one address, every company together, per address. */
+  'invitation-email': { window: 86_400, max: 5, message: "Trop d'invitations envoyées à cette adresse aujourd'hui. Réessayez demain." },
+  /** Acceptance attempts on the invitation page (app/(auth)/invitation), per client IP. */
+  'invitation-accept': { window: 900, max: 20, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Test email of the Configuration page, per administrator. */
   'test-email': { window: 3600, max: 5, message: "Trop d'emails de test en une heure. Réessayez plus tard." },
   /** Email change of one's account, per user. */
@@ -50,10 +60,18 @@ export const RATE_LIMITS = {
   'updates-write': { window: 60, max: 10, message: 'Trop de requêtes vers GitHub. Patientez une minute.' },
   /** File imports parsed on the server (FEC, CSV, Excel, bank statements), per user. */
   import: { window: 600, max: 30, message: "Trop d'imports en peu de temps. Patientez quelques minutes avant de réessayer." },
+  /** Receipts staged from an assistant or the Justificatifs page (lib/receipts/stage-receipt.service.ts), per user. */
+  'receipt-upload': { window: 600, max: 60, message: 'Trop de justificatifs déposés en peu de temps. Patientez quelques minutes avant de réessayer.' },
   /** Generated documents (FEC, PDF and Excel exports), per user. */
   export: { window: 60, max: 30, message: "Trop d'exports en une minute. Patientez une minute avant de réessayer." },
   /** MCP calls authenticated with an API key, per key (lib/mcp/api-key.ts): assistants make many calls per conversation. */
   'mcp-api-key': { window: 60, max: 300, message: "Trop d'appels avec cette clé API en une minute. Patientez une minute." },
+  /** Creation of a full control API key (password typed again), per user. */
+  'api-key-full-control': { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+  /** MCP calls authenticated with an OAuth token, per user and assistant (lib/mcp/auth.ts): the same ceiling as an API key. */
+  'mcp-oauth': { window: 60, max: 300, message: "Trop d'appels de cet assistant en une minute. Patientez une minute." },
+  /** MCP draft writes (create_draft_entry and the draft tools of lib/mcp/drafts), per user. */
+  'mcp-write': { window: 60, max: 60, message: "Trop d'enregistrements par l'assistant en une minute. Patientez une minute avant de continuer." },
   /** Approval or refusal of an action prepared by an assistant (password typed again), per user. */
   'ai-action-approval': { window: 900, max: 20, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Saving or resetting one's dashboard layout, per user. */
@@ -81,7 +99,7 @@ export type RateLimitName = keyof typeof RATE_LIMITS | keyof typeof INSTANCE_RAT
 /** Every rule: Kledg's, and the instance's own (a name Kledg uses keeps Kledg's rule). */
 export const RATE_LIMIT_RULES: Readonly<Record<RateLimitName, RateLimitRule>> = { ...INSTANCE_RATE_LIMITS, ...RATE_LIMITS }
 
-export function rateLimitsDisabled(env: Record<string, string | undefined> = process.env): boolean {
+function rateLimitsDisabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.RATE_LIMIT_DISABLED === 'true'
 }
 

@@ -74,7 +74,7 @@ const schema = z
 
 export type TiersFormValues = z.infer<typeof schema>
 
-export const EMPTY_TIERS: TiersFormValues = {
+const EMPTY_TIERS: TiersFormValues = {
   kind: 'SUPPLIER',
   name: '',
   siren: '',

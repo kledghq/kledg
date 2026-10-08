@@ -17,7 +17,7 @@ import { prisma } from '@/lib/prisma'
 type Db = Prisma.TransactionClient | typeof prisma
 
 /** Key of the advisory lock taken by every change to accounts or administrator roles. */
-export const INSTANCE_USERS_LOCK = 'kledg:instance-users'
+const INSTANCE_USERS_LOCK = 'kledg:instance-users'
 
 /**
  * Runs `work` in a transaction holding the instance users lock, so the

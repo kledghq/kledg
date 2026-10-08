@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
+import { ACCOUNT_CODE_MESSAGE } from '@/lib/accounting/account-code'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
@@ -307,9 +308,9 @@ describe('AccountMappingComponent', () => {
     const dialog = await screen.findByRole('dialog')
     const code = within(dialog).getByLabelText('Code *')
     await user.clear(code)
-    await user.type(code, '51A')
+    await user.type(code, '51a')
     await user.click(within(dialog).getByRole('button', { name: 'Créer le compte' }))
-    expect(await within(dialog).findByText('Le code doit contenir entre 2 et 8 chiffres')).toBeInTheDocument()
+    expect((await within(dialog).findAllByText((text) => text.replace(/\s+/g, ' ') === ACCOUNT_CODE_MESSAGE.replace(/\s+/g, ' '))).length).toBeGreaterThan(0)
   })
 
   it('refuses a code that does not start with the parent code', async () => {

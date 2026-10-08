@@ -1,12 +1,12 @@
 /**
  * Categories of expense report lines: the label shown, the expense account
  * proposed (PCG art. 932-1, liste des comptes) and the VAT rule that applies
- * (vat-recovery.ts). Pure module without imports: the line editor and the
- * server share it.
+ * (vat-recovery.ts). Pure module (its one import is pure too): the line
+ * editor and the server share it.
  *
  * Accounts (PCG, classe 6):
- * - 6251 Voyages et déplacements: train, plane, taxi, tolls and the mileage
- *   allowances (indemnités kilométriques);
+ * - 6251 Voyages et déplacements: train, plane, taxi, tolls and parking,
+ *   and the mileage allowances (indemnités kilométriques);
  * - 6256 Missions: hotel and meals of a business trip;
  * - 6257 Réceptions: meals and receptions with customers or partners;
  * - 6061 Fournitures non stockables (eau, énergie): fuel;
@@ -15,8 +15,11 @@
  * - 6234 Cadeaux à la clientèle.
  */
 
+import { isAccountCode } from '@/lib/accounting/account-code'
+
 export type ExpenseCategory =
   | 'TRANSPORT'
+  | 'TOLLS_PARKING'
   | 'LODGING'
   | 'MEALS'
   | 'RECEPTION'
@@ -45,6 +48,16 @@ export const EXPENSE_CATEGORIES: Record<ExpenseCategory, CategoryDefinition> = {
     account: '6251',
     vatRule: 'passenger-transport',
     hint: 'TVA non récupérable sur le transport de personnes.',
+  },
+  // Tolls and parking are not passenger transport: their VAT is deductible by the user under the usual
+  // conditions (BOI-TVA-DED-40-40 § 30 for parking, § 330 for motorway tolls, the deduction being
+  // "strictement subordonnée à la mention par l'usager de son identification complète" on the receipt),
+  // as simple mode and the rules library book them
+  TOLLS_PARKING: {
+    label: 'Péages et parking',
+    account: '6251',
+    vatRule: 'standard',
+    hint: 'TVA récupérable avec le reçu de péage ou de parking complété au nom de la société.',
   },
   LODGING: {
     label: 'Hébergement (hôtel)',
@@ -107,15 +120,12 @@ export const EXPENSE_CATEGORY_KEYS = Object.keys(EXPENSE_CATEGORIES) as ExpenseC
 /** Categories offered on an expense line (mileage has its own line type). */
 export const EXPENSE_LINE_CATEGORIES = EXPENSE_CATEGORY_KEYS.filter((key) => key !== 'MILEAGE')
 
-export function isExpenseCategory(value: string): value is ExpenseCategory {
-  return value in EXPENSE_CATEGORIES
-}
-
 /**
  * Whether `code` can be the expense account of a line: a charge (class 6,
- * at least three characters). A fixed asset bought by an employee is an
- * invoice of its own (its VAT goes to 44562, not 44566).
+ * at least three characters) in the one account number format
+ * (lib/accounting/account-code.ts). A fixed asset bought by an employee is
+ * an invoice of its own (its VAT goes to 44562, not 44566).
  */
 export function isExpenseAccountCode(code: string): boolean {
-  return /^6\d{2}[0-9A-Z]*$/.test(code)
+  return isAccountCode(code) && code.startsWith('6') && code.length >= 3
 }

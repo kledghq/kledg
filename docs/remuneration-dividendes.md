@@ -1,6 +1,6 @@
 # Rémunération et dividendes
 
-Le guide d'utilisation (à quoi sert le simulateur, étapes, règles expliquées) est sur le site : [Rémunération ou dividendes : la simulation](https://www.kledg.com/fr/docs/remuneration-ou-dividendes). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (à quoi sert le simulateur, étapes, règles expliquées) est sur le site : [Rémunération ou dividendes : la simulation](https://www.kledg.com/fr/docs/remuneration-ou-dividendes). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Le simulateur compare, pour le dirigeant associé d'une société à l'impôt sur
 les sociétés, ce qu'il garde du résultat de l'exercice selon qu'il se le verse

@@ -101,16 +101,35 @@ export async function provisionalCoefficientOf(companyId: string, year: number, 
   }
 }
 
+/** What a posting needs on a day: whether the company is under the franchise, and the share of deductible VAT it recovers. */
+export interface VatDeductionOnDay {
+  /** Franchise en base (CGI art. 293 B): no VAT collected, none deducted. */
+  franchise: boolean
+  /** Share (0 to 1) of deductible VAT recovered, null when the company deducts all of it. */
+  share: number | null
+  /** The same in whole percent (the provisional coefficient de déduction), null when the company deducts all of it. */
+  percent: number | null
+}
+
+/**
+ * The deduction of a company on `day`. Collected VAT does not depend on it:
+ * a partly exempt company collects VAT on its taxed sales like any other
+ * (CGI art. 256); only the franchise collects none (art. 293 B).
+ */
+export async function vatDeductionOn(companyId: string, day: Date | string): Promise<VatDeductionOnDay> {
+  const iso = typeof day === 'string' ? day : (calendarDayOf(day) as string)
+  const { mode } = await deductionModeOn(companyId, iso)
+  if (mode === 'full') return { franchise: false, share: null, percent: null }
+  if (mode === 'franchise') return { franchise: true, share: 0, percent: 0 }
+  const coefficient = await provisionalCoefficientOf(companyId, Number(iso.slice(0, 4)), iso)
+  return { franchise: false, share: coefficient.deductionPercent / 100, percent: coefficient.deductionPercent }
+}
+
 /**
  * The share (0 to 1) of deductible VAT the company recovers on `day`, null
  * when it deducts all of it. Replaces the monthly ratio of revenue with VAT
  * Kledg used before (an approximation without legal basis).
  */
 export async function vatDeductionShareOn(companyId: string, day: Date | string): Promise<number | null> {
-  const iso = typeof day === 'string' ? day : (calendarDayOf(day) as string)
-  const { mode } = await deductionModeOn(companyId, iso)
-  if (mode === 'full') return null
-  if (mode === 'franchise') return 0
-  const coefficient = await provisionalCoefficientOf(companyId, Number(iso.slice(0, 4)), iso)
-  return coefficient.deductionPercent / 100
+  return (await vatDeductionOn(companyId, day)).share
 }

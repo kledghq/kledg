@@ -74,6 +74,8 @@ describe('rate limit policy', () => {
  */
 const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/companies/lookup/route.ts': /enforceRateLimit\('siren-lookup'/,
+  'lib/rbac/company-invitations.service.ts': /enforceRateLimit\('member-invitation'[\s\S]*enforceRateLimit\('invitation-email'/,
+  'app/(auth)/invitation/[token]/actions.ts': /withinRateLimit\('invitation-accept'/,
   'app/api/fec/route.ts': /enforceRateLimit\('export'/,
   'app/api/reports/journal/export-excel/route.ts': /enforceRateLimit\('export'/,
   'app/api/reports/aged-balance/export-excel/route.ts': /enforceRateLimit\('export'/,
@@ -109,9 +111,14 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/qonto/test-connection/route.ts': /limitBankCalls\(/,
   'app/api/qonto/verify/route.ts': /guardBankConnect\(/,
   'lib/invoices/import-qonto-invoices.service.ts': /limitBankCalls\(/,
+  'lib/receipts/stage-receipt.service.ts': /enforceRateLimit\('receipt-upload'/,
+  'lib/receipts/file-receipt.service.ts': /limitBankCalls\(/,
   'lib/invoices/read-invoice-attachment.service.ts': /limitBankCalls\(/,
   'lib/invoices/create-in-qonto.service.ts': /limitBankCalls\(/,
   'lib/simple/upload-receipt.service.ts': /limitBankCalls\(/,
+  'lib/integrations/providers/qonto/read-qonto-attachments.service.ts': /limitBankCalls\(/,
+  'app/api/qonto/statements/[id]/proxy/route.ts': /limitBankCalls\(/,
+  'lib/mcp/document-tools.ts': /limitBankCalls\(/,
   'lib/account/change-email.service.ts': /enforceRateLimit\('account-change-email'/,
   'lib/account/change-password.service.ts': /enforceRateLimit\('account-change-password'/,
   'lib/account/delete-account.service.ts': /enforceRateLimit\('account-delete'/,
@@ -125,6 +132,11 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/navigation/sidebar-preferences.service.ts': /enforceRateLimit\('sidebar-preferences'/,
   'app/api/users/route.ts': /createInstanceUser\(/,
   'lib/mcp/api-key.ts': /enforceRateLimit\('mcp-api-key'/,
+  'lib/mcp/auth.ts': /enforceRateLimit\('mcp-oauth'/,
+  'lib/mcp/drafts/define.ts': /enforceRateLimit\('mcp-write'/,
+  'lib/mcp/tools.ts': /enforceRateLimit\('mcp-write'/,
+  'lib/mcp/full-control/banking.ts': /enforceRateLimit\('import'/,
+  'lib/mcp/full-control/year-end.ts': /enforceRateLimit\('export'/,
   'app/(auth)/setup/actions.ts': /withinRateLimit\('setup'/,
 }
 

@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { vatFilingAt } from '@/lib/deadlines/engine'
 import { loadDeadlineContext } from '@/lib/deadlines/load-deadlines.service'
 import { isTrainingOrganisation } from '@/lib/companies/nav-features'
-import { calendarDayOf, todayUtc } from '@/lib/utils/date'
+import { calendarDayOf, formatIsoDateFr, todayUtc } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
 import { deductionModeOn, loadAccountSettings, provisionalCoefficientOf, taxationOf, type DeductionMode, type ProvisionalCoefficient } from './coefficient'
 import type { RevenueSummary, VatTreatment } from './revenue'
@@ -35,7 +35,7 @@ export const VatDeductionQuerySchema = z.object({
 })
 export type VatDeductionQuery = z.infer<typeof VatDeductionQuerySchema>
 
-export interface DraftState {
+interface DraftState {
   reference: string
   status: 'none' | 'draft' | 'validated'
   entryId: string | null
@@ -113,7 +113,10 @@ export async function loadVatDeduction(companyId: string, query: VatDeductionQue
 
   const [company, row, accountSettings, context, training, { mode }] = await Promise.all([
     prisma.company.findUnique({ where: { id: companyId }, select: { isVatExempt: true, partialVatDeduction: true } }),
-    prisma.vatDeductionYear.findUnique({ where: { companyId_year: { companyId, year } }, select: { estimatedTaxationPercent: true, assujettissementPercent: true, incurredVat: true, note: true } }),
+    prisma.vatDeductionYear.findUnique({
+      where: { companyId_year: { companyId, year } },
+      select: { estimatedTaxationPercent: true, assujettissementPercent: true, incurredVat: true, note: true, coefficientChangedOn: true },
+    }),
     loadAccountSettings(companyId),
     loadDeadlineContext(companyId),
     isTrainingOrganisation(companyId),
@@ -129,9 +132,14 @@ export async function loadVatDeduction(companyId: string, query: VatDeductionQue
   const assujettissement = row?.assujettissementPercent ?? 100
   const definitive = taxation.percent === null ? null : deductionPercent(assujettissement, taxation.percent)
   const entered = row?.incurredVat === null || row?.incurredVat === undefined ? null : parseCents(row.incurredVat.toString())
-  const derived = incurredFromDeducted(deductedCents, provisional.deductionPercent)
+  // The VAT borne reads back from the VAT deducted only when one coefficient applied all year: the
+  // definitive one of the year before, or an estimate set before any deduction (not the books to date,
+  // which move with every sale, nor a coefficient changed during the year)
+  const constantApplied = provisional.source !== 'books-to-date' && !row?.coefficientChangedOn
+  const derived = constantApplied ? incurredFromDeducted(deductedCents, provisional.deductionPercent) : null
   const incurredCents = entered ?? derived
-  const amountCents = mode === 'coefficient' && definitive !== null && incurredCents !== null ? regularisationCents(incurredCents, provisional.deductionPercent, definitive) : null
+  // CGI ann. II art. 207, I; BOI-TVA-DED-20-10-40, example 3: definitive x VAT borne - VAT deducted
+  const amountCents = mode === 'coefficient' && definitive !== null && incurredCents !== null ? regularisationCents(incurredCents, deductedCents, definitive) : null
   const filing = vatFilingAt(context.company, context.settings, `${year + 1}-03-01`)
   const form = filing && filing.form !== 'none' ? filing.form : null
 
@@ -146,8 +154,16 @@ export async function loadVatDeduction(companyId: string, query: VatDeductionQue
   if (provisional.source === 'books-to-date') {
     hints.push(`Pas de coefficient définitif pour ${year - 1} : saisissez l’estimation du coefficient de taxation de ${year}. En attendant, Kledg applique celui des comptes de l’année à ce jour.`)
   }
-  if (provisional.deductionPercent === 0 && entered === null && mode === 'coefficient') {
-    hints.push('Avec un coefficient provisoire de 0 %, Kledg ne peut pas retrouver la TVA supportée dans les comptes : saisissez-la pour calculer la régularisation.')
+  if (mode === 'coefficient' && entered === null) {
+    if (!constantApplied) {
+      hints.push(
+        row?.coefficientChangedOn
+          ? `Le coefficient appliqué a changé le ${formatIsoDateFr(day(row.coefficientChangedOn))} après des déductions de l’année : Kledg ne peut pas retrouver la TVA supportée dans les comptes, saisissez-la pour calculer la régularisation.`
+          : 'Le coefficient appliqué a suivi les comptes de l’année au fil des écritures : Kledg ne peut pas retrouver la TVA supportée dans les comptes, saisissez-la pour calculer la régularisation.',
+      )
+    } else if (provisional.deductionPercent === 0) {
+      hints.push('Avec un coefficient provisoire de 0 %, Kledg ne peut pas retrouver la TVA supportée dans les comptes : saisissez-la pour calculer la régularisation.')
+    }
   }
   if (form === 'CA12') {
     hints.push('Au régime simplifié, aucun texte consulté ne dit sur quelle CA12 porter la régularisation due avant le 25 avril : vérifiez avec votre service des impôts.')

@@ -28,6 +28,7 @@ import {
   tiersFlowsChart,
   trialBalanceStatement,
 } from '@/lib/mcp/views/builders'
+import { receiptCaptureForm, receiptMatchView, receiptDoneView, type MatchOut, type ReceiptOut } from '@/lib/mcp/views/receipt'
 
 const COMPANY = 'cmp_atelier'
 const FY = { id: 'fy_2025', year: 2025, startDate: '2025-01-01', endDate: '2025-12-31' }
@@ -385,6 +386,31 @@ export interface ViewSample {
   expect: string[]
 }
 
+/** A staged receipt and its match, as file_receipt returns them (euros). */
+export const SAMPLE_RECEIPT: ReceiptOut = {
+  id: 'sr_1',
+  fileName: 'ticket-boulangerie.jpg',
+  contentType: 'image/jpeg',
+  size: 182_340,
+  status: 'staged',
+  fields: { amount: 43.5, currency: 'EUR', date: '2026-10-03', merchant: 'Boulangerie du Marché', vat: [{ rate: 5.5, amount: 2.27 }], paymentMethod: null },
+}
+
+export const SAMPLE_RECEIPT_MATCH: MatchOut = {
+  action: 'match',
+  receipt: SAMPLE_RECEIPT,
+  outcome: 'candidates',
+  match: null,
+  candidates: [
+    { transactionId: 't_31', date: '2026-10-04', label: 'CB BOULANGERIE DU MARCHE', counterpartyName: null, amount: 43.5, bankAccountName: 'Qonto principal', sendsToBank: true, score: 0.8, reasons: ['Montant identique', 'Débitée 1\u00a0jour après'] },
+    { transactionId: 't_32', date: '2026-10-05', label: 'CB BOUL. ST MARTIN', counterpartyName: null, amount: 43.5, bankAccountName: 'Banque Populaire', sendsToBank: false, score: 0.78, reasons: ['Montant identique', 'Débitée 2\u00a0jours après'] },
+  ],
+  reason: null,
+  expenseProposal: { date: '2026-10-03', merchant: 'Boulangerie du Marché', amount: 43.5, category: 'MEALS', categoryLabel: 'Repas', accountCode: '6256', openDraft: { id: 'er_7', number: 'NDF-0007' }, needsEuroAmount: false },
+}
+
+const RECEIPT_CTX = { executionMode: 'validation' as const, canAttach: true, canExpense: true }
+
 export function viewSamples(): ViewSample[] {
   const [bs, bsPrev] = balanceSheets()
   const [is, isPrev] = incomeStatements()
@@ -421,6 +447,9 @@ export function viewSamples(): ViewSample[] {
     { name: 'justificatifs', tool: 'list_missing_receipts', data: missingReceiptsList(COMPANY, { canAdmin: false, executionMode: 'validation' }, { companyId: COMPANY, limit: 50 }, MISSING), expect: ['Justificatifs manquants', 'Retrouver la pièce', '1\u00a0858,80\u00a0€'] },
     { name: 'facture', tool: 'get_invoice', data: invoiceDocument(COMPANY, SAMPLE_INVOICE), expect: ['Facture de vente n° F-2025-071', 'Maison Dupont', 'Total TTC', '12\u00a0480,00\u00a0€', 'Payée'] },
     { name: 'note-de-frais', tool: 'get_expense_report', data: expenseReportDocument(COMPANY, SAMPLE_EXPENSE_REPORT), expect: ['Note de frais n° NDF-2025-014', 'Hugo Bérard', 'Indemnités kilométriques, 268 km', '412,60\u00a0€', 'Soumise'] },
-    { name: 'organigramme', tool: 'get_group_structure', data: groupStructureOrganigram(HOLDING.id, groupStructure()), expect: ['Structure du groupe Lumen Holding', 'Claire Martin', 'Studio Lumen', '60\u00a0%', 'Société non accessible'] },
+    { name: 'organigramme', tool: 'get_group_structure', data: groupStructureOrganigram(HOLDING.id, groupStructure()), expect: ['Structure du groupe Lumen Holding', 'Claire Martin', 'Studio Lumen', '60\u00a0%', 'Société non accessible'] },    { name: 'depot-justificatif', tool: 'capture_receipt', data: receiptCaptureForm(COMPANY, RECEIPT_CTX, { amount: 43.5, date: '2026-10-03', merchant: 'Boulangerie du Marché' }), expect: ['Déposer un justificatif', 'Prendre une photo', 'Choisir un fichier', 'Envoyer à Kledg'] },
+    { name: 'justificatif-candidats', tool: 'file_receipt', data: receiptMatchView(COMPANY, RECEIPT_CTX, SAMPLE_RECEIPT_MATCH), expect: ['Transactions possibles', 'CB BOULANGERIE DU MARCHE', '43,50\u00a0€', 'Envoyé à Qonto', 'Conservé par Kledg', 'Est-ce une note de frais\u00a0?', 'NDF-0007', 'Créer la note de frais'] },
+    { name: 'justificatif-depose', tool: 'stage_receipt', data: receiptCaptureForm(COMPANY, RECEIPT_CTX, {}, { ...SAMPLE_RECEIPT, fields: { ...SAMPLE_RECEIPT.fields, amount: null, date: null } }), expect: ['Justificatif déposé', 'Rechercher la transaction'] },
+    { name: 'justificatif-note-de-frais', tool: 'file_receipt (expense)', data: receiptDoneView(COMPANY, RECEIPT_CTX, { kind: 'expense', receipt: { ...SAMPLE_RECEIPT, status: 'expense' }, message: 'Ligne ajoutée à la note de frais NDF-0007 en brouillon\u00a0: vérifiez-la et soumettez-la dans Kledg.', link: { label: 'Ouvrir la note de frais NDF-0007', page: 'expense-reports/er_7' } }), expect: ['Note de frais préparée', 'NDF-0007', 'Ouvrir la note de frais NDF-0007'] },
   ]
 }

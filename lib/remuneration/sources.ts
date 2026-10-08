@@ -11,7 +11,7 @@ export interface RemunerationSource {
   url: string
 }
 
-export const REMUNERATION_SOURCES = {
+const REMUNERATION_SOURCES = {
   lfi2026: { label: 'Loi n° 2026-103 du 19 février 2026 de finances pour 2026 (art. 4 : barème de l’impôt sur le revenu)', url: 'https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000053508155' },
   lfss2026: { label: 'Loi n° 2025-1403 du 30 décembre 2025 de financement de la sécurité sociale pour 2026 (art. 12 : CSG de 10,6 % sur les revenus de capitaux)', url: 'https://www.legifrance.gouv.fr/jorf/article_jo/JORFARTI000053226452' },
   cgi197: { label: 'CGI, art. 197 (barème, quotient familial et son plafonnement, décote)', url: 'https://www.service-public.gouv.fr/particuliers/vosdroits/F1419' },
@@ -23,7 +23,7 @@ export const REMUNERATION_SOURCES = {
   cgi219: { label: 'CGI, art. 219, I (impôt sur les sociétés : 15 % jusqu’à 42 500 €, 25 % au-delà)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000046868562' },
   ccomL232_10: { label: 'Code de commerce, art. L232-10 (réserve légale : un vingtième du bénéfice jusqu’au dixième du capital)', url: 'https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000005634379' },
   ccomL232_11: { label: 'Code de commerce, art. L232-11 (bénéfice distribuable)', url: 'https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000005634379' },
-  cssL131_6: { label: 'CSS, art. L131-6 (assiette des travailleurs indépendants ; dividendes au-delà de 10 % du capital, des primes et du compte courant)', url: 'https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006073189' },
+  cssL131_6: { label: 'CSS, art. L131-6 (assiette des travailleurs indépendants ; dividendes au-delà de 10 % du capital, des primes et du compte courant)', url: 'https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006073189' },
   cssL136_8: { label: 'CSS, art. L136-8 (taux de la CSG)', url: 'https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006073189' },
   decret2024_688: { label: 'Décret n° 2024-688 du 5 juillet 2024 (assiette unique et taux des cotisations des indépendants : maladie 8,5 % jusqu’à 3 PASS, retraite de base, abattement de 26 %)', url: 'https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000049888566' },
   urssafTns: { label: 'URSSAF, réforme du calcul des cotisations des indépendants', url: 'https://www.urssaf.fr/accueil/independant/comprendre-payer-cotisations/reforme-cotisations-independants.html' },

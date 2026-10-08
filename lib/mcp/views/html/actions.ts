@@ -163,14 +163,27 @@ export const ACTIONS_TEMPLATE: TemplateSource = {
       }
     }
 
+    /**
+     * A direct write needs a second click, after its question is shown. The
+     * second click counts only after CONFIRM_DELAY_MS (the second half of a
+     * double click is ignored) and within CONFIRM_TIMEOUT_MS (a later click
+     * asks again). During the call every button is disabled (lockButtons).
+     */
+    var CONFIRM_DELAY_MS = 600;
+    var CONFIRM_TIMEOUT_MS = 10000;
     function confirmThen(button, question, run) {
-      if (button.getAttribute('data-confirming') === 'true') {
+      var armedAt = Number(button.getAttribute('data-armed-at'));
+      var elapsed = Date.now() - armedAt;
+      if (button.getAttribute('data-confirming') === 'true' && elapsed < CONFIRM_TIMEOUT_MS) {
+        if (elapsed < CONFIRM_DELAY_MS) return;
         button.removeAttribute('data-confirming');
+        button.removeAttribute('data-armed-at');
         button.textContent = button.getAttribute('data-label');
         run();
         return;
       }
       button.setAttribute('data-confirming', 'true');
+      button.setAttribute('data-armed-at', String(Date.now()));
       button.textContent = 'Confirmer ?';
       setPanel(null, [el('p', null, question)]);
     }

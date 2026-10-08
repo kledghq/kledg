@@ -11,6 +11,19 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { safeRedirectPath } from '@/lib/safe-redirect'
+import { loginErrorMessage } from '@/lib/login-errors'
+
+/**
+ * Goes to a same-origin target after sign-in. An API path (an email change
+ * link, lib/auth.ts) is not a page: it needs a full navigation.
+ */
+function navigateTo(target: string, router: ReturnType<typeof useRouter>, mode: 'push' | 'replace') {
+  if (target.startsWith('/api/')) {
+    window.location.href = target
+    return
+  }
+  router[mode](target)
+}
 
 /** Sign-in form. `extra` (the LoginExtra instance slot) is shown above the card. */
 export function LoginForm({ extra }: { extra?: React.ReactNode }) {
@@ -25,9 +38,13 @@ export function LoginForm({ extra }: { extra?: React.ReactNode }) {
   useEffect(() => {
     const errorParam = searchParams.get('error')
     if (errorParam) {
-      // Already decoded by URLSearchParams: decoding again throws on a literal "%".
-      setError(errorParam)
-      router.replace('/login')
+      // A code mapped to a fixed message, never the raw value (KLEDG-R3-AUTH-04).
+      setError(loginErrorMessage(errorParam))
+      // Only the error leaves the address: the page to go back to stays.
+      const rest = new URLSearchParams(searchParams.toString())
+      rest.delete('error')
+      const query = rest.toString()
+      router.replace(query ? `/login?${query}` : '/login')
     }
   }, [searchParams, router])
 
@@ -37,7 +54,7 @@ export function LoginForm({ extra }: { extra?: React.ReactNode }) {
   useEffect(() => {
     if (session?.user && !searchParams.get('client_id')) {
       const target = safeRedirectPath(searchParams.get('redirect'))
-      router.replace(target)
+      navigateTo(target, router, 'replace')
     }
   }, [session, searchParams, router])
 
@@ -74,6 +91,10 @@ export function LoginForm({ extra }: { extra?: React.ReactNode }) {
       return
     }
 
+    if (redirectTo.startsWith('/api/')) {
+      navigateTo(redirectTo, router, 'push')
+      return
+    }
     router.push(redirectTo)
     router.refresh()
   }
@@ -117,7 +138,7 @@ export function LoginForm({ extra }: { extra?: React.ReactNode }) {
                     href="/forgot-password"
                     className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline pointer-coarse:-my-3.5 pointer-coarse:py-3.5"
                   >
-                    Mot de passe oublié ?
+                    Mot de passe oublié&nbsp;?
                   </Link>
                 </div>
                 <Input

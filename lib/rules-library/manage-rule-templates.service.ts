@@ -263,7 +263,7 @@ export async function addRuleFromTemplate(companyId: string, templateId: string,
   })
   if (unmapped.length > 0) {
     throw new ValidationError(
-      `Le plan de comptes de l'exercice ${fiscalYear.year} n'a aucun compte pour ${[...new Set(unmapped)].join(', ')} : créez ${unmapped.length > 1 ? 'ces comptes' : 'ce compte'}, ou ajoutez le modèle avec createMissingAccounts.`,
+      `Le plan de comptes de l'exercice ${fiscalYear.year} n'a aucun compte pour ${[...new Set(unmapped)].join(', ')} : créez ${unmapped.length > 1 ? 'ces comptes' : 'ce compte'}, ou ajoutez le modèle avec createMissingAccounts.`,
     )
   }
   const rule = await createRule(companyId, {

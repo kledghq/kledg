@@ -1,6 +1,6 @@
 # Règles d'affectation
 
-Le guide d'utilisation (à quoi servent les règles, étapes, priorités, erreurs fréquentes) est sur le site : [Créer des règles d'affectation](https://www.kledg.com/fr/docs/creer-des-regles-d-affectation). Cette page décrit le fonctionnement technique : application des règles, choix entre plusieurs règles, écritures créées et migration.
+Le guide d'utilisation (à quoi servent les règles, étapes, priorités, erreurs fréquentes) est sur le site : [Créer des règles d'affectation](https://www.kledg.com/fr/docs/creer-des-regles-d-affectation). Cette page décrit le fonctionnement technique : application des règles, choix entre plusieurs règles, écritures créées et migration.
 
 Une règle se crée depuis la page **Règles d'affectation** (**Nouvelle règle**), depuis la [bibliothèque de règles](bibliotheque-de-regles.md) (modèles prêts à l'emploi, ou copie depuis une autre société) ou depuis une transaction (**Créer une règle à partir de cette transaction**), qui préremplit les conditions et un nom tiré de la contrepartie ou du libellé nettoyé (« CB Billet de train 12/03 » devient « Billet de train »).
 

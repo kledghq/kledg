@@ -138,7 +138,7 @@ export const SERVICES_TEMPLATES: RuleTemplate[] = [
     lines: [detectedVatLine('6132')],
     vat: {
       treatment: 'detected',
-      why: "Location de locaux nus exonérée (CGI art. 261 D, 2°) sauf option du bailleur pour la TVA (CGI art. 260, 2°) : seule la TVA détectée par la banque est déduite ; le bail ou l'avis d'échéance le dit.",
+      why: "Location de locaux nus exonérée (CGI art. 261 D, 2°) sauf option du bailleur pour la TVA (CGI art. 260, 2°) : seule la TVA détectée par la banque est déduite ; le bail ou l'avis d'échéance le dit.",
     },
     sources: [SOURCES.rentExempt, SOURCES.rentOption],
     samples: { match: ['PRLV LOYER BUREAUX MARS', 'VIR SEPA LOYER LOCAL COMMERCIAL', 'Loyer 03/2026'], noMatch: ['VIR SEPA EMPLOYER'] },
@@ -155,7 +155,7 @@ export const SERVICES_TEMPLATES: RuleTemplate[] = [
     id: 'amazon',
     name: 'Amazon (achats)',
     category: 'fournitures',
-    description: 'Achats sur Amazon, en fournitures administratives (6064) ; changez le compte pour un autre achat.',
+    description: 'Achats sur Amazon, en fournitures administratives (6064) ; changez le compte pour un autre achat.',
     conditions: [DEBIT, labelMatches('\\bamzn\\b|\\bamazon\\s?(\\.fr|eu|payments|marketplace|business|mktp)', 'AMAZON EU, AMAZON.FR, AMZN MKTP')],
     lines: [detectedVatLine('6064')],
     vat: {
@@ -176,7 +176,7 @@ export const SERVICES_TEMPLATES: RuleTemplate[] = [
     lines: [detectedVatLine('626')],
     vat: {
       treatment: 'detected',
-      why: 'Timbres et service universel postal exonérés (CGI art. 261 C, 3° et art. 261, 4, 11°) ; les autres envois peuvent porter la TVA : seule la TVA détectée par la banque est déduite.',
+      why: 'Timbres et service universel postal exonérés (CGI art. 261 C, 3° et art. 261, 4, 11°) ; les autres envois peuvent porter la TVA : seule la TVA détectée par la banque est déduite.',
     },
     sources: [SOURCES.postal],
     samples: { match: ['CB LA POSTE PARIS LOUVRE', 'LAPOSTE.FR BOUTIQUE', 'COLISSIMO'], noMatch: ['CB AFFICHE POSTER'] },

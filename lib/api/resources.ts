@@ -36,12 +36,6 @@ export const companyOfFixedAsset = (id: string): Promise<CompanyRow> =>
 export const companyOfIntegration = (id: string): Promise<CompanyRow> =>
   prisma.integration.findUnique({ where: { id }, select })
 
-export const companyOfAttachment = (id: string): Promise<CompanyRow> =>
-  prisma.attachment.findUnique({ where: { id }, select })
-
-export const companyOfFiscalYear = (id: string): Promise<CompanyRow> =>
-  prisma.fiscalYear.findUnique({ where: { id }, select })
-
 export const companyOfTiers = (id: string): Promise<CompanyRow> =>
   prisma.tiers.findUnique({ where: { id }, select })
 

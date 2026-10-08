@@ -48,4 +48,9 @@ describe('public pages of the instance', () => {
     pages.list = []
     expect((await proxy(new NextRequest('http://localhost/signup'))).status).toBe(307)
   })
+
+  it("let the link of a company invitation through without a session (issue #13), not a longer name", async () => {
+    expect((await proxy(new NextRequest('http://localhost/invitation/abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG'))).status).toBe(200)
+    expect((await proxy(new NextRequest('http://localhost/invitations'))).status).toBe(307)
+  })
 })

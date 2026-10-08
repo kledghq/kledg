@@ -29,7 +29,8 @@ import { prisma } from '@/lib/prisma'
 import { centsToDecimal } from '@/lib/utils/money'
 import { parseAmountCents } from './amount'
 import { importKeys, IMPORT_ID_PREFIX } from './dedupe'
-import { matchProbableDuplicates, signedCents, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { matchProbableDuplicates, type ExistingLine } from '@/lib/banking/probable-duplicates'
+import { signedBankCents } from '@/lib/banking/side'
 import type { ParsedTransaction, ParseResult, RowError, StatementFormat } from './types'
 import { pluralWord } from '@/lib/utils/plural'
 
@@ -126,7 +127,7 @@ export function selectAccountTransactions(parsed: ParseResult, account: TargetAc
       })
     } else if (mine.length < named.length) {
       const others = named.filter((n) => !mine.includes(n))
-      warnings.push(`Le fichier contient aussi ${pluralWord(others.length, 'le compte', 'les comptes')} ${others.join(', ')} : seules les opérations du compte sélectionné sont importées.`)
+      warnings.push(`Le fichier contient aussi ${pluralWord(others.length, 'le compte', 'les comptes')} ${others.join(', ')} : seules les opérations du compte sélectionné sont importées.`)
       transactions = transactions.filter((t) => !t.account || matches(clean(t.account)))
     }
   }
@@ -134,7 +135,7 @@ export function selectAccountTransactions(parsed: ParseResult, account: TargetAc
   const currency = account.currency.toUpperCase()
   transactions = transactions.filter((t) => {
     if (t.currency && t.currency.toUpperCase() !== currency) {
-      errors.push({ line: t.line, message: `Ligne ${t.line} : devise ${t.currency} différente de celle du compte (${currency}).` })
+      errors.push({ line: t.line, message: `Ligne ${t.line} : devise ${t.currency} différente de celle du compte (${currency}).` })
       return false
     }
     return true
@@ -143,7 +144,7 @@ export function selectAccountTransactions(parsed: ParseResult, account: TargetAc
 }
 
 /** Indexes of the probable duplicates to import: only those whose index and key still match. */
-export function keptIndexes(rows: PlannedTransaction[], keep: KeptProbable[] = []): Set<number> {
+function keptIndexes(rows: PlannedTransaction[], keep: KeptProbable[] = []): Set<number> {
   const kept = new Set<number>()
   for (const { index, key } of keep) {
     const row = rows[index]
@@ -195,7 +196,7 @@ function toMatch(row: ExistingRow): ProbableMatch & ExistingLine {
   const data = (row.providerData && typeof row.providerData === 'object' ? row.providerData : {}) as Record<string, unknown>
   const fromFile =
     row.externalTransactionId.startsWith(IMPORT_ID_PREFIX) || row.externalTransactionId.startsWith('import-') || data.source === 'file-import'
-  const cents = signedCents(parseAmountCents(row.amount.toFixed(2), '.') ?? 0, row.side)
+  const cents = signedBankCents(parseAmountCents(row.amount.toFixed(2), '.') ?? 0, row.side)
   const date = dayOf(row.date)
   const valueDate = typeof data.valueDate === 'string' ? data.valueDate : null
   return {

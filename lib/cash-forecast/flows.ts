@@ -24,7 +24,7 @@
  *   next one, spread over its days.
  */
 
-import { daysBetween, type PaymentTerms } from '@/lib/reports/third-parties/payment-terms'
+import type { PaymentTerms } from '@/lib/reports/third-parties/payment-terms'
 import { kindOfAccount, lineDueDate, openOn, tiersOf, type ThirdPartyKind, type ThirdPartyLine, type TiersDirectory } from '@/lib/reports/third-parties/third-party-balances'
 import { addDays, addMonths, endOfMonth, nextMonthStart, type CashFlowItem } from './projection'
 
@@ -96,11 +96,6 @@ export function openItemFlows(
   return items.sort((a, b) => a.day.localeCompare(b.day) || a.label.localeCompare(b.label, 'fr'))
 }
 
-/** Days late on `today` of an overdue flow (0 when not late). */
-export function daysLate(item: Pick<CashFlowItem, 'day'>, today: string): number {
-  return Math.max(daysBetween(item.day, today), 0)
-}
-
 // ------------------------------------------------------------------ recurring payments
 
 export interface RecurringSeries {
@@ -135,7 +130,7 @@ export function recurringFlows(series: readonly RecurringSeries[], start: string
 // ------------------------------------------------------------------ budget
 
 /** Budget lines that move no cash: dotations and reprises (68, 78), stock variations (603, 713), book value and price of assets sold (675, 775: the sale itself is not a planned flow). */
-export const NON_CASH_BUDGET_PREFIXES = ['68', '78', '603', '713', '675', '775'] as const
+const NON_CASH_BUDGET_PREFIXES = ['68', '78', '603', '713', '675', '775'] as const
 
 export interface BudgetPlan {
   /** Calendar months of the budget (yyyy-mm). */
@@ -198,5 +193,6 @@ export function averageMonthlyChange(monthlyNetCents: readonly number[]): number
   if (monthlyNetCents.length === 0) return null
   const total = monthlyNetCents.reduce((sum, cents) => sum + cents, 0)
   const average = Math.abs(total) / monthlyNetCents.length
-  return Math.sign(total) * Math.round(average)
+  // `|| 0`: never -0 for a small negative average rounded to zero
+  return Math.sign(total) * Math.round(average) || 0
 }

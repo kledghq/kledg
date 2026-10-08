@@ -97,13 +97,13 @@ export function planAllocation(
     return plan
   }
   if (balances.resultCents === 0) {
-    errors.push("Aucun résultat à affecter : les comptes 120 et 129 sont soldés (le résultat a peut-être déjà été affecté).")
+    errors.push("Aucun résultat à affecter : les comptes 120 et 129 sont soldés (le résultat a peut-être déjà été affecté).")
     return plan
   }
 
   if (balances.resultCents < 0) {
     if (choice.dividendsCents > 0 || choice.otherReservesCents > 0) {
-      errors.push('Une perte ne peut pas être distribuée ni mise en réserve : elle est reportée à nouveau (compte 119).')
+      errors.push('Une perte ne peut pas être distribuée ni mise en réserve : elle est reportée à nouveau (compte 119).')
     }
     const loss = -balances.resultCents
     plan.retainedEarningsCents = balances.resultCents

@@ -12,9 +12,16 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/** Only http(s) links reach a template; the URL is escaped wherever it appears (KLEDG-R3-INPUT-06). */
+function safeUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? escapeHtml(url) : '#'
 }
 
 function layout(title: string, intro: string, cta: { label: string; url: string }, outro: string): string {
+  const url = safeUrl(cta.url)
   return `<!doctype html>
 <html lang="fr">
   <body style="margin:0;padding:32px 16px;background:#f6f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#18181b">
@@ -23,9 +30,9 @@ function layout(title: string, intro: string, cta: { label: string; url: string 
         <p style="margin:0 0 24px;font-size:15px;font-weight:600;letter-spacing:-0.01em">${APP_NAME}</p>
         <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3">${title}</h1>
         <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#3f3f46">${intro}</p>
-        <a href="${cta.url}" style="display:inline-block;padding:10px 18px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">${cta.label}</a>
+        <a href="${url}" style="display:inline-block;padding:10px 18px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">${cta.label}</a>
         <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#71717a">${outro}</p>
-        <p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#a1a1aa;word-break:break-all">${cta.url}</p>
+        <p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#a1a1aa;word-break:break-all">${url}</p>
       </td></tr>
     </table>
   </body>
@@ -40,9 +47,9 @@ export function resetPasswordEmail(to: string, url: string): EmailMessage {
       'Réinitialiser votre mot de passe',
       'Vous avez demandé à réinitialiser votre mot de passe. Ce lien est valable une heure.',
       { label: 'Choisir un nouveau mot de passe', url },
-      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : votre mot de passe reste inchangé.",
+      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : votre mot de passe reste inchangé.",
     ),
-    text: `Réinitialisez votre mot de passe ${APP_NAME} (lien valable une heure) : ${url}`,
+    text: `Réinitialisez votre mot de passe ${APP_NAME} (lien valable une heure) : ${url}`,
   }
 }
 
@@ -52,11 +59,11 @@ export function setupLinkEmail(to: string, url: string, ttlMinutes: number): Ema
     subject: `Votre lien d'installation ${APP_NAME}`,
     html: layout(
       'Créer le compte administrateur',
-      `Votre instance ${APP_NAME} est en ligne. Ce lien ouvre la création du compte administrateur ; il est valable ${ttlMinutes} minutes.`,
+      `Votre instance ${APP_NAME} est en ligne. Ce lien ouvre la création du compte administrateur ; il est valable ${ttlMinutes} minutes.`,
       { label: 'Créer mon compte', url },
-      "Si vous n'avez pas déployé Kledg, ignorez cet email : sans ce lien, personne ne peut créer le compte.",
+      "Si vous n'avez pas déployé Kledg, ignorez cet email : sans ce lien, personne ne peut créer le compte.",
     ),
-    text: `Créez le compte administrateur de votre instance ${APP_NAME} (lien valable ${ttlMinutes} minutes) : ${url}`,
+    text: `Créez le compte administrateur de votre instance ${APP_NAME} (lien valable ${ttlMinutes} minutes) : ${url}`,
   }
 }
 
@@ -66,11 +73,11 @@ export function testEmail(to: string, url: string): EmailMessage {
     subject: `Email de test ${APP_NAME}`,
     html: layout(
       'Les emails fonctionnent',
-      `Cet email de test confirme que votre instance ${APP_NAME} envoie ses emails : invitations, mots de passe oubliés et liens de vérification partiront de la même adresse.`,
+      `Cet email de test confirme que votre instance ${APP_NAME} envoie ses emails : invitations, mots de passe oubliés et liens de vérification partiront de la même adresse.`,
       { label: 'Ouvrir la configuration', url },
       "Vous l'avez demandé depuis la page Configuration de votre instance.",
     ),
-    text: `Email de test ${APP_NAME} : votre instance envoie ses emails. ${url}`,
+    text: `Email de test ${APP_NAME} : votre instance envoie ses emails. ${url}`,
   }
 }
 
@@ -84,7 +91,7 @@ export function verifyEmailEmail(to: string, url: string): EmailMessage {
       { label: "Confirmer l'adresse", url },
       "Si vous n'avez pas créé de compte, ignorez cet email.",
     ),
-    text: `Confirmez votre adresse email ${APP_NAME} : ${url}`,
+    text: `Confirmez votre adresse email ${APP_NAME} : ${url}`,
   }
 }
 
@@ -94,11 +101,11 @@ export function welcomeEmail(to: string, url: string): EmailMessage {
     subject: `Votre accès à ${APP_NAME}`,
     html: layout(
       `Bienvenue sur ${APP_NAME}`,
-      'Un administrateur vous a ouvert un accès. Choisissez votre mot de passe pour vous connecter. Ce lien est valable une heure ; passé ce délai, utilisez « Mot de passe oublié » sur la page de connexion.',
+      'Un administrateur vous a ouvert un accès. Choisissez votre mot de passe pour vous connecter. Ce lien est valable une heure ; passé ce délai, utilisez « Mot de passe oublié » sur la page de connexion.',
       { label: 'Choisir mon mot de passe', url },
       "Si vous n'attendiez pas cet accès, ignorez cet email.",
     ),
-    text: `Un accès ${APP_NAME} vous a été ouvert. Choisissez votre mot de passe : ${url}`,
+    text: `Un accès ${APP_NAME} vous a été ouvert. Choisissez votre mot de passe : ${url}`,
   }
 }
 
@@ -109,11 +116,11 @@ export function changeEmailVerificationEmail(to: string, url: string): EmailMess
     subject: `Confirmez votre nouvelle adresse email ${APP_NAME}`,
     html: layout(
       'Confirmer votre nouvelle adresse',
-      `Vous avez demandé à utiliser cette adresse pour votre compte ${APP_NAME}. Confirmez-la pour terminer le changement : vous vous connecterez ensuite avec elle.`,
+      `Vous avez demandé à utiliser cette adresse pour votre compte ${APP_NAME}. Confirmez-la pour terminer le changement : vous vous connecterez ensuite avec elle.`,
       { label: 'Confirmer la nouvelle adresse', url },
-      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : l'adresse du compte ne change pas.",
+      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : l'adresse du compte ne change pas.",
     ),
-    text: `Confirmez votre nouvelle adresse email ${APP_NAME} : ${url}`,
+    text: `Confirmez votre nouvelle adresse email ${APP_NAME} : ${url}`,
   }
 }
 
@@ -128,6 +135,55 @@ export function emailChangeNoticeEmail(to: string, newEmail: string, profileUrl:
       { label: 'Ouvrir mon profil', url: profileUrl },
       "Si vous n'êtes pas à l'origine de cette demande, changez votre mot de passe et déconnectez les autres sessions depuis votre profil.",
     ),
-    text: `Un changement de l'adresse de votre compte ${APP_NAME} vers ${newEmail} a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profileUrl}`,
+    text: `Un changement de l'adresse de votre compte ${APP_NAME} vers ${newEmail} a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profileUrl}`,
+  }
+}
+
+/**
+ * Notice to the owner of a new API key (KLEDG-R3-AUTH-01): someone who held
+ * the session could create one; the owner hears of it. Never the secret,
+ * only its name, its access and its expiry.
+ */
+export function apiKeyCreatedEmail(
+  to: string,
+  key: { name: string; access: string; expiresOn: string | null },
+  settingsUrl: string,
+): EmailMessage {
+  const expiry = key.expiresOn ? `Elle expire le ${key.expiresOn}.` : 'Elle n’expire pas (lecture seule).'
+  return {
+    to,
+    subject: `Nouvelle clé API sur ${APP_NAME}`,
+    html: layout(
+      'Nouvelle clé API',
+      `Une clé API « ${escapeHtml(key.name)} » a été créée sur votre compte ${APP_NAME}, avec l’accès « ${escapeHtml(key.access)} ». ${expiry}`,
+      { label: 'Voir mes clés API', url: settingsUrl },
+      "Si vous n'êtes pas à l'origine de cette clé, révoquez-la depuis vos clés API, puis changez votre mot de passe : cela supprime aussi toutes vos clés et déconnecte vos assistants IA.",
+    ),
+    text: `Une clé API « ${key.name} » a été créée sur votre compte ${APP_NAME} (accès : ${key.access}). ${expiry} Si ce n'est pas vous, révoquez-la et changez votre mot de passe : ${settingsUrl}`,
+  }
+}
+
+/**
+ * Invitation to a company (lib/rbac/company-invitations.service.ts). The
+ * link carries the invitation's secret token; the company and inviter names
+ * are escaped, the URL too (safeUrl).
+ */
+export function companyInvitationEmail(
+  to: string,
+  invitation: { companyName: string; inviterName: string | null; roleLabel: string; expiresOn: string },
+  url: string,
+): EmailMessage {
+  const who = invitation.inviterName ? escapeHtml(invitation.inviterName) : 'Un administrateur'
+  const whoText = invitation.inviterName ?? 'Un administrateur'
+  return {
+    to,
+    subject: `Invitation à rejoindre ${invitation.companyName} sur ${APP_NAME}`,
+    html: layout(
+      `Rejoindre ${escapeHtml(invitation.companyName)}`,
+      `${who} vous invite à rejoindre la société <strong>${escapeHtml(invitation.companyName)}</strong> sur ${APP_NAME}, avec le rôle « ${escapeHtml(invitation.roleLabel)} ». Cette invitation est valable jusqu'au ${escapeHtml(invitation.expiresOn)} et ne sert qu'une fois.`,
+      { label: "Accepter l'invitation", url },
+      "Si vous n'attendiez pas cette invitation, ignorez cet email : sans ce lien, personne ne rejoint la société à votre place.",
+    ),
+    text: `${whoText} vous invite à rejoindre ${invitation.companyName} sur ${APP_NAME} (rôle : ${invitation.roleLabel}, valable jusqu'au ${invitation.expiresOn}) : ${url}`,
   }
 }

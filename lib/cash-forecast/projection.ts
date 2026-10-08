@@ -24,6 +24,7 @@
  */
 
 import { CASH_FORECAST_COMPONENTS, type CashForecastComponent } from './components'
+import { addIsoDays, isoDateToUtc, lastDayOfMonth, utcDaysInclusive } from '@/lib/utils/date'
 
 export type ForecastGranularity = 'month' | 'week'
 export const FORECAST_GRANULARITIES = ['month', 'week'] as const
@@ -109,43 +110,27 @@ export interface ProjectionInput {
 
 // ------------------------------------------------------------------ days
 
-const DAY_MS = 86_400_000
+// Day arithmetic goes through lib/utils/date.ts (docs/conventions.md#dates).
+const pad = (n: number) => String(n).padStart(2, '0')
 
-function toUtc(day: string): number {
-  return Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)))
-}
-
-function ofUtc(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10)
-}
-
-export function addDays(day: string, days: number): string {
-  return ofUtc(toUtc(day) + days * DAY_MS)
-}
+/** The day `days` days after `day` (negative goes back). */
+export const addDays = addIsoDays
 
 /** Days from `from` to `to`, both included (0 when `to` is before `from`). */
 export function daysInclusive(from: string, to: string): number {
-  return Math.max(Math.round((toUtc(to) - toUtc(from)) / DAY_MS) + 1, 0)
-}
-
-function lastDayOf(year: number, monthIndex: number): number {
-  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
+  return utcDaysInclusive(isoDateToUtc(from), isoDateToUtc(to))
 }
 
 /** The same day `months` calendar months later, or the last day of a shorter month (31 August + 1 = 30 September). */
 export function addMonths(day: string, months: number): string {
-  const year = Number(day.slice(0, 4))
-  const month = Number(day.slice(5, 7)) - 1 + months
-  const y = year + Math.floor(month / 12)
-  const m = ((month % 12) + 12) % 12
-  const d = Math.min(Number(day.slice(8, 10)), lastDayOf(y, m))
-  return ofUtc(Date.UTC(y, m, d))
+  const index = Number(day.slice(0, 4)) * 12 + Number(day.slice(5, 7)) - 1 + months
+  const y = Math.floor(index / 12)
+  const m = (index % 12) + 1
+  return `${y}-${pad(m)}-${pad(Math.min(Number(day.slice(8, 10)), lastDayOfMonth(y, m)))}`
 }
 
 export function endOfMonth(day: string): string {
-  const year = Number(day.slice(0, 4))
-  const month = Number(day.slice(5, 7)) - 1
-  return ofUtc(Date.UTC(year, month, lastDayOf(year, month)))
+  return `${day.slice(0, 7)}-${pad(lastDayOfMonth(Number(day.slice(0, 4)), Number(day.slice(5, 7))))}`
 }
 
 /** First day of the next month. */
@@ -155,13 +140,13 @@ export function nextMonthStart(day: string): string {
 
 /** Sunday ending the week (weeks run Monday to Sunday). */
 function endOfWeek(day: string): string {
-  const weekday = new Date(toUtc(day)).getUTCDay() // 0 Sunday
+  const weekday = isoDateToUtc(day).getUTCDay() // 0 Sunday
   return addDays(day, (7 - weekday) % 7)
 }
 
 /** Monday starting the week. */
 function startOfWeek(day: string): string {
-  const weekday = new Date(toUtc(day)).getUTCDay()
+  const weekday = isoDateToUtc(day).getUTCDay()
   return addDays(day, -((weekday + 6) % 7))
 }
 

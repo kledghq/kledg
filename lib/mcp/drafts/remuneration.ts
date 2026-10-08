@@ -22,9 +22,11 @@ import { deleteRemunerationScenario, proposeScenarioDividends, saveRemunerationS
 import { DIRECTOR_STATUSES, DIVIDEND_TAXATIONS, ScenarioNameSchema, type RemunerationOverrides } from '@/lib/remuneration/schemas'
 import { REMUNERATION_WRITE } from '@/lib/remuneration/permissions'
 import { fromCents } from '@/lib/utils/money'
+import { percentInput } from '@/lib/mcp/euros'
 import { draftTool, type RegisterDraftTool } from './define'
 
-const percent = z.number().finite().min(0).max(100)
+/** Two decimals at most: 12,345 % is refused, never rounded to 1 235 basis points. */
+const percent = percentInput
 const bp = (value: number) => Math.round(value * 100)
 
 const input = {

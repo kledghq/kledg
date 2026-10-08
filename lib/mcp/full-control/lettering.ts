@@ -17,6 +17,7 @@ import { fromCents } from '@/lib/utils/money'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, ownedFiscalYear } from './resolve'
+import { companyLock, rowTargets } from './fingerprint'
 
 const accountInput = {
   accountCode: z.string().min(1).max(20).describe('Third-party account number, e.g. 411000, 401000, 4081, 467.'),
@@ -90,6 +91,7 @@ const letterTool = fullControlTool({
   permission: { entries: ['update'] },
   amounts: 'euros',
   never: 'letters an unbalanced group, draft lines or lines of a closed fiscal year.',
+  targetState: ({ companyId, fiscalYearId, lineIds }) => [companyLock(companyId), ...rowTargets('fiscal_years', companyId, fiscalYearId), ...rowTargets('entry_lines', companyId, lineIds)],
   confirmation: true,
   async preview({ companyId, accountCode, fiscalYearId, lineIds }) {
     const preview = await previewLettering(companyId, { accountId: await accountIdOf(companyId, accountCode, fiscalYearId), lineIds })
@@ -117,6 +119,7 @@ const unletterTool = fullControlTool({
   permission: { entries: ['update'] },
   amounts: 'none',
   never: 'unletters in a closed fiscal year.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...rowTargets('fiscal_years', companyId, fiscalYearId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, accountCode, fiscalYearId, code }) {

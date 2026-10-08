@@ -176,13 +176,24 @@ describe.skipIf(!available)('sales invoice numbering (PostgreSQL)', () => {
     })
 
     it('resumes the series at a starting number, only upward, never onto a number already given', async () => {
+      // Before Kledg's first number of the period: the sequence of another tool goes on, and can be set again
+      expect((await configure({}, { invoice: 120 })).next.invoice).toBe('F2026-0120')
       const view = await configure({}, { invoice: 138 })
       expect(view.next.invoice).toBe('F2026-0138')
       const invoice = await draft('2026-06-15')
       expect((await posting.postInvoice(books.companyId, invoice.id)).number).toBe('F2026-0138')
       await expect(configure({}, { invoice: 100 })).rejects.toThrow(/F2026-0138 est déjà attribué/)
       await expect(configure({}, { invoice: 138 })).rejects.toBeInstanceOf(errors.ConflictError)
-      expect((await configure({}, { invoice: 200 })).next.invoice).toBe('F2026-0200')
+      // R3 QUAL-10: once Kledg numbered an invoice of the period, raising would leave 139 to 199 never
+      // issued: refused (CGI ann. II art. 242 nonies A, I, 7°: "séquence chronologique et continue")
+      await expect(configure({}, { invoice: 200 })).rejects.toThrow(/déjà attribué le numéro F2026-0138/)
+      expect((await configure({})).next.invoice).toBe('F2026-0139')
+    })
+
+    it('continues right after the numbers already recorded in the period, never leaving a hole', async () => {
+      await invoices.createInvoice(books.companyId, { direction: 'SALE', tiersId: books.customerId, number: 'F2026-0041', numbering: 'recorded', issueDate: '2026-02-01', typeCode: '380', lines: [line('Ancienne')] })
+      await expect(configure({}, { invoice: 50 })).rejects.toThrow(/le prochain numéro est F2026-0042/)
+      expect((await configure({}, { invoice: 42 })).next.invoice).toBe('F2026-0042')
     })
 
     it('keeps an invoice already issued out of the running series: its number is typed and never shifts the sequence', async () => {

@@ -1,7 +1,7 @@
 # Impôts locaux (CFE, CVAE)
 
 Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
-expliquées) est sur le site : [Les impôts locaux : CFE et CVAE](https://www.kledg.com/fr/docs/les-impots-locaux).
+expliquées) est sur le site : [Les impôts locaux : CFE et CVAE](https://www.kledg.com/fr/docs/les-impots-locaux).
 Cette page décrit le fonctionnement technique : code, API, règles de calcul,
 droits et limites d'implémentation.
 

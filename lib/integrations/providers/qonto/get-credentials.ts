@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { decrypt } from '@/lib/integrations/encryption'
+import { bankConnectionContext, decrypt, integrationContext } from '@/lib/integrations/encryption'
 import { logger } from '@/lib/logger'
 import { requireEncryptionKey } from '@/lib/banking/credentials'
 import { QontoClient } from './client'
@@ -17,9 +17,9 @@ export interface QontoCredentials {
   secretKey: string
 }
 
-export const QONTO_NOT_CONNECTED_MESSAGE = "Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque."
+export const QONTO_NOT_CONNECTED_MESSAGE = "Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque."
 const UNREADABLE_MESSAGE =
-  'La clé API Qonto enregistrée ne peut plus être lue : saisissez-la de nouveau depuis la page Banque.'
+  'La clé API Qonto enregistrée ne peut plus être lue : saisissez-la de nouveau depuis la page Banque.'
 
 export async function getQontoCredentials(companyId: string): Promise<QontoCredentials> {
   const encryptionKey = requireEncryptionKey()
@@ -30,7 +30,7 @@ export async function getQontoCredentials(companyId: string): Promise<QontoCrede
   })
   if (connection?.secretKeyEncrypted) {
     try {
-      return { login: connection.login, secretKey: decrypt(connection.secretKeyEncrypted, encryptionKey) }
+      return { login: connection.login, secretKey: decrypt(connection.secretKeyEncrypted, encryptionKey, bankConnectionContext(companyId, 'QONTO')) }
     } catch (error) {
       logger.warn('[Qonto] Legacy connection key unreadable, trying the integration', error)
     }
@@ -47,7 +47,7 @@ export async function getQontoCredentials(companyId: string): Promise<QontoCrede
   let secretKey = typeof stored.secretKey === 'string' ? stored.secretKey : ''
   if (integration.credentialsEncrypted && secretKey) {
     try {
-      secretKey = decrypt(secretKey, encryptionKey)
+      secretKey = decrypt(secretKey, encryptionKey, integrationContext(companyId, 'QONTO', 'secretKey'))
     } catch (error) {
       logger.error('[Qonto] Integration key unreadable', error)
       throw new ValidationError(UNREADABLE_MESSAGE)

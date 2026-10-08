@@ -11,7 +11,7 @@ const MARK_PATHS = [
   'M14.5 14.4 20.9 8h3.6l-8 8 8 8h-3.6l-6.4-6.4z',
 ]
 
-export function LogoMark({ className }: { className?: string }) {
+function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true" className={cn('size-6 shrink-0', className)}>
       <rect width="32" height="32" rx="7" className="fill-foreground" />

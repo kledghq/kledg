@@ -45,7 +45,7 @@ export const TRAVEL_TEMPLATES: RuleTemplate[] = [
     lines: [noVatLine('6256')],
     vat: {
       treatment: 'not-deductible',
-      why: "Hébergement à 10 % (CGI art. 279, a) mais logement des dirigeants et du personnel exclu de la déduction, même en déplacement professionnel (CGI ann. II art. 206, IV, 2°, 2°) : la nuit est une charge pour son montant TTC. Les repas facturés à part suivent la règle des restaurants ; l'hébergement d'un client ou d'un fournisseur ouvre droit à déduction.",
+      why: "Hébergement à 10 % (CGI art. 279, a) mais logement des dirigeants et du personnel exclu de la déduction, même en déplacement professionnel (CGI ann. II art. 206, IV, 2°, 2°) : la nuit est une charge pour son montant TTC. Les repas facturés à part suivent la règle des restaurants ; l'hébergement d'un client ou d'un fournisseur ouvre droit à déduction.",
     },
     sources: [SOURCES.cgiAnnex2Art206, SOURCES.staffLodging, SOURCES.staffLodgingAnswer],
     samples: { match: ['CB IBIS PARIS GARE DE LYON', 'BOOKING.COM HOTEL', 'B&B HOTELS NANTES'], noMatch: ['CB SNACK FOOD', 'PRLV SEPA OVH'] },
@@ -81,7 +81,7 @@ export const TRAVEL_TEMPLATES: RuleTemplate[] = [
     lines: [noVatLine('6251')],
     vat: {
       treatment: 'not-deductible',
-      why: "Vols internationaux exonérés (CGI art. 262, II, 8°) ; vols intérieurs à 10 % mais transport de personnes exclu de la déduction (CGI ann. II art. 206, IV, 2°, 5°) : pas de TVA à déduire.",
+      why: "Vols internationaux exonérés (CGI art. 262, II, 8°) ; vols intérieurs à 10 % mais transport de personnes exclu de la déduction (CGI ann. II art. 206, IV, 2°, 5°) : pas de TVA à déduire.",
     },
     sources: [SOURCES.internationalFlights, SOURCES.passengerTransportExclusion],
     samples: { match: ['AIR FRANCE 0571234567890', 'EASYJET', 'TRANSAVIA FRANCE'], noMatch: ['CB AIR LIQUIDE'] },
@@ -117,7 +117,7 @@ export const TRAVEL_TEMPLATES: RuleTemplate[] = [
     lines: [reducedVatLine('6257', 10)],
     vat: {
       treatment: 'reduced',
-      why: "Repas servis sur place : 10 % sur la nourriture, 20 % sur l'alcool (CGI art. 279, m) ; TVA déductible quand le repas est engagé dans l'intérêt de l'entreprise, avec une facture à son nom. Détectée par la banque, 10 % sinon.",
+      why: "Repas servis sur place : 10 % sur la nourriture, 20 % sur l'alcool (CGI art. 279, m) ; TVA déductible quand le repas est engagé dans l'intérêt de l'entreprise, avec une facture à son nom. Détectée par la banque, 10 % sinon.",
     },
     sources: [SOURCES.restaurantRate, SOURCES.restaurantDeduction],
     samples: { match: ['CB RESTAURANT LE MARAIS', 'BRASSERIE LIPP', 'PIZZERIA NAPOLI'], noMatch: ['CB RESTORATION HARDWARE'] },
@@ -126,7 +126,7 @@ export const TRAVEL_TEMPLATES: RuleTemplate[] = [
     id: 'carburant-voiture-particuliere',
     name: 'Carburant (voiture particulière, TVA 80 %)',
     category: 'carburant',
-    description: "Gazole ou essence d'une voiture particulière, en fournitures non stockables (6061) ; pour un utilitaire, choisissez le modèle à 100 %.",
+    description: "Gazole ou essence d'une voiture particulière, en fournitures non stockables (6061) ; pour un utilitaire, choisissez le modèle à 100 %.",
     conditions: [DEBIT, FUEL_STATIONS],
     lines: FUEL_80,
     vat: {
@@ -140,7 +140,7 @@ export const TRAVEL_TEMPLATES: RuleTemplate[] = [
     id: 'carburant-utilitaire',
     name: 'Carburant (véhicule utilitaire, TVA 100 %)',
     category: 'carburant',
-    description: "Gazole ou essence d'un véhicule utilitaire, en fournitures non stockables (6061) ; pour une voiture particulière, choisissez le modèle à 80 %.",
+    description: "Gazole ou essence d'un véhicule utilitaire, en fournitures non stockables (6061) ; pour une voiture particulière, choisissez le modèle à 80 %.",
     conditions: [DEBIT, FUEL_STATIONS],
     lines: [standardVatLine('6061')],
     vat: { treatment: 'standard', why: "Carburant d'un véhicule utilitaire : TVA à 20 % entièrement déductible depuis 2022 (CGI art. 298, 4, 1°)." },

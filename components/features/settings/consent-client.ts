@@ -12,7 +12,7 @@ const KNOWN_NAMES: Partial<Record<AssistantKind, string>> = {
 }
 
 /** Shown instead of the name an unverified client declares. */
-export const UNVERIFIED_CLIENT_NAME = 'Application non vérifiée'
+const UNVERIFIED_CLIENT_NAME = 'Application non vérifiée'
 
 /**
  * Name shown as the client's identity: a verified assistant (Claude,

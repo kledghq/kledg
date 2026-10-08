@@ -46,7 +46,7 @@ export interface LetteringSuggestion {
 }
 
 /** Lines of one tiers lettered together at most by a third-party-settled proposal. */
-export const MAX_GROUP = 30
+const MAX_GROUP = 30
 
 const auxOf = (line: MatchableLine) => line.auxiliaryAccountNumber?.trim() || null
 const netOf = (line: MatchableLine) => line.debitCents - line.creditCents

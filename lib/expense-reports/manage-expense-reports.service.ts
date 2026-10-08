@@ -27,7 +27,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { dayToDate } from '@/lib/accounting/entry-date'
+import { dayToDate, todayParis } from '@/lib/accounting/entry-date'
 import { calendarDay, centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { formatVatRate, isFrenchVatRate } from '@/lib/invoices/amounts'
@@ -35,6 +35,7 @@ import { calendarDayOf, formatIsoDateFr } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import type { ExpenseActor } from './actor'
 import { assignPriorDistances, computeReport, vehicleKey, type LineInput } from './amounts'
+import { deductionPercentByYear, withDeduction } from './deduction'
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KEYS, isExpenseAccountCode, type ExpenseCategory } from './categories'
 import { matchCategoryRule } from './category-rules'
 import { listCategoryRules } from './manage-category-rules.service'
@@ -43,6 +44,8 @@ import { expenseReportStatus, type ExpenseReportStatus, type ExpenseStatusFilter
 import { RECOVERY_LABELS } from './vat-recovery'
 import { mealLineTreatment, type MealTaker } from './exploitant-meals'
 import { claimantMealRole, mealRulesOn } from './meal-rule.service'
+import { checkApprovedState } from '@/lib/approved-state/guard'
+import { OWN_REPORT_OTHER_VALIDATOR_MESSAGE, ownValidation, type OwnValidation } from './self-validation'
 
 export const REPORT_NOT_FOUND = 'Note de frais introuvable'
 
@@ -135,6 +138,7 @@ const SUMMARY_SELECT = {
   totalExpense: true,
   submittedAt: true,
   validatedAt: true,
+  selfValidated: true,
   createdAt: true,
   claimant: { select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true, userId: true } },
   entry: { select: { id: true, entryNumber: true, status: true, lines: LETTERED_LINES } },
@@ -161,6 +165,8 @@ export interface ExpenseReportSummary {
   entry: { id: string; entryNumber: string; status: string } | null
   submittedAt: string | null
   validatedAt: string | null
+  /** Validated by its own author, the company's only member with the validation right (self-validation.ts). */
+  selfValidated: boolean
 }
 
 function summaryOf(row: SummaryRow, actor: ExpenseActor): ExpenseReportSummary {
@@ -182,6 +188,7 @@ function summaryOf(row: SummaryRow, actor: ExpenseActor): ExpenseReportSummary {
     entry: row.entry ? { id: row.entry.id, entryNumber: row.entry.entryNumber, status: row.entry.status } : null,
     submittedAt: row.submittedAt?.toISOString() ?? null,
     validatedAt: row.validatedAt?.toISOString() ?? null,
+    selfValidated: row.selfValidated,
   }
 }
 
@@ -209,6 +216,12 @@ function statusWhere(filter: ExpenseStatusFilter): Prisma.ExpenseReportWhereInpu
 }
 
 export async function listExpenseReports(companyId: string, actor: ExpenseActor, query: ListExpenseReportsQuery) {
+  // The cursor must be a report the actor may see in the company (KLEDG-R3-AUTHZ-02):
+  // Prisma reads the sort values of the cursor row by its id alone.
+  if (query.cursor) {
+    const visible = await prisma.expenseReport.findFirst({ where: { AND: [{ id: query.cursor }, visibleTo(companyId, actor)] }, select: { id: true } })
+    if (!visible) throw new ValidationError('Curseur invalide\u00a0: rechargez la liste.')
+  }
   const term = query.search?.trim()
   const where: Prisma.ExpenseReportWhereInput = {
     AND: [
@@ -293,16 +306,27 @@ function lineInputOf(line: DetailRow['lines'][number]): LineInput {
 export async function getExpenseReport(companyId: string, id: string, actor: ExpenseActor) {
   const row = await prisma.expenseReport.findFirst({ where: { id, ...visibleTo(companyId, actor) }, select: DETAIL_SELECT })
   if (!row) throw new NotFoundError(REPORT_NOT_FOUND)
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { isVatExempt: true } })
-  const computed = computeReport(row.lines.map(lineInputOf), { vatExempt: company.isVatExempt })
+  // Franchise and coefficient de déduction on each line's day (deduction.ts); the editor previews with the year's
+  const computed = computeReport(await withDeduction(companyId, row.lines.map(lineInputOf)), { vatExempt: false })
+  const today = todayParis()
+  const years = row.lines.map((l) => Number((calendarDayOf(l.date) as string).slice(0, 4)))
+  const deduction = await deductionPercentByYear(companyId, Math.min(Number(today.slice(0, 4)), ...years), Number(today.slice(0, 4)), today)
   const baselines = await mileageBaselines(prisma, companyId, row.claimant.id, id, row.lines.map((l) => calendarDayOf(l.date) as string))
   const meals = await reportMealRule(prisma, companyId, row)
+  const summary = summaryOf(row, actor)
+  // A submitted report of the acting validator: may they validate it themselves (self-validation.ts)?
+  const ownValidationOf: OwnValidation | null =
+    summary.own && actor.canManage && row.status === 'SUBMITTED' ? await ownValidation(companyId, actor.userId) : null
   return {
-    ...summaryOf(row, actor),
+    ...summary,
+    ownValidation: ownValidationOf,
     returnNote: row.returnNote,
     claimant: { ...summaryOf(row, actor).claimant, accountCode: row.claimant.accountCode },
     storedStatus: row.status,
-    vatExempt: company.isVatExempt,
+    /** The company is under the franchise today (CGI art. 293 B): nothing recovered. */
+    vatExempt: deduction.franchise,
+    /** Coefficient de déduction of each year, for the editor's preview; null: full deduction. */
+    deductionPercentByYear: deduction.percentByYear,
     /** Distance already counted per vehicle and year by the claimant's other submitted reports (the editor's starting point). */
     mileageBaselines: baselines,
     lines: row.lines.map((l, i) => ({
@@ -419,7 +443,6 @@ async function prepareLines(
   input: { periodStart: string; periodEnd: string; lines: ExpenseLineBody[] },
 ): Promise<PreparedReport> {
   if (input.periodStart > input.periodEnd) throw new ValidationError('La période commence après sa fin.')
-  const company = await tx.company.findUniqueOrThrow({ where: { id: companyId }, select: { isVatExempt: true } })
   const { rules } = await listCategoryRules(companyId, tx)
   const attachmentIds = [...new Set(input.lines.map((l) => l.receiptAttachmentId).filter((v): v is string => !!v))]
   const ownAttachments = attachmentIds.length
@@ -464,7 +487,8 @@ async function prepareLines(
     })),
     baselines,
   )
-  const totals = computeReport(lineInputs, { vatExempt: company.isVatExempt })
+  // Franchise and coefficient de déduction on each line's day (CGI art. 293 B; CGI ann. II art. 205 and 206)
+  const totals = computeReport(await withDeduction(companyId, lineInputs), { vatExempt: false })
   totals.lines.forEach((line, i) => {
     if (line.error) errors.push(`Ligne ${i + 1} : ${line.error}`)
   })
@@ -531,6 +555,8 @@ async function nextNumber(tx: Prisma.TransactionClient, companyId: string): Prom
 export async function lockExpenseReport(tx: Prisma.TransactionClient, companyId: string, id: string, actor: ExpenseActor | null) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "expense_reports" WHERE "id" = ${id} AND "companyId" = ${companyId} FOR UPDATE`
   if (rows.length === 0) throw new NotFoundError(REPORT_NOT_FOUND)
+  // An approved MCP action acts on the report as the user saw it (KLEDG-R3-MCP-01)
+  await checkApprovedState(tx, { kind: 'expenseReport', companyId, id })
   const report = await tx.expenseReport.findUniqueOrThrow({
     where: { id },
     select: { id: true, number: true, status: true, entryId: true, claimantId: true, claimant: { select: { userId: true } }, _count: { select: { lines: true } } },
@@ -599,6 +625,54 @@ export async function updateExpenseReport(companyId: string, id: string, input: 
   return getExpenseReport(companyId, id, actor)
 }
 
+/** A stored line as the body that recreates it (amounts in cents, its category kept). */
+function lineBodyOf(line: Prisma.ExpenseLineGetPayload<object>): ExpenseLineBody {
+  return {
+    kind: line.kind,
+    date: calendarDayOf(line.date) as string,
+    supplierName: line.supplierName,
+    label: line.label,
+    category: line.category as ExpenseCategory,
+    accountCode: line.accountCode,
+    amountInclTaxCents: cents(line.amountInclTax),
+    vatRateBp: line.vatRateBp,
+    vatCents: cents(line.vatAmount),
+    receiptKind: line.receiptKind,
+    receiptAttachmentId: line.receiptAttachmentId,
+    receiptReference: line.receiptReference,
+    vehicleType: line.vehicleType as ExpenseLineBody['vehicleType'],
+    fiscalPower: line.fiscalPower,
+    electric: line.electric,
+    distanceKm: line.distanceKm,
+    mealTaker: line.mealTaker as MealTaker | null,
+  }
+}
+
+/**
+ * Adds lines at the end of a report the actor may edit (a brouillon of
+ * their own, or one a validator edits), dated within its period: the
+ * existing lines are kept as they are and every amount is computed again,
+ * like an edit (receipts filed from a photo, lib/receipts).
+ */
+export async function appendExpenseLines(companyId: string, id: string, lines: ExpenseLineBody[], actor: ExpenseActor, options: { source?: string } = {}): Promise<ExpenseReportDetail> {
+  const number = await prisma.$transaction(async (tx) => {
+    const report = await lockExpenseReport(tx, companyId, id, actor)
+    assertEditable(report, actor)
+    const current = await tx.expenseReport.findUniqueOrThrow({ where: { id }, select: { periodStart: true, periodEnd: true, lines: { orderBy: { position: 'asc' } } } })
+    const input = {
+      periodStart: calendarDayOf(current.periodStart) as string,
+      periodEnd: calendarDayOf(current.periodEnd) as string,
+      lines: [...current.lines.map(lineBodyOf), ...lines],
+    }
+    const prepared = await prepareLines(tx, companyId, report.claimantId, id, input)
+    await tx.expenseLine.deleteMany({ where: { reportId: id } })
+    await tx.expenseReport.update({ where: { id }, data: { ...amountData(prepared.totals), lines: { create: prepared.lines } } })
+    return report.number
+  }, TX_OPTIONS)
+  await writeAuditLog('info', `Expense report lines added: ${number}`, { action: 'UPDATE_EXPENSE_REPORT', companyId, metadata: { reportId: id, added: lines.length, source: options.source ?? 'web' } })
+  return getExpenseReport(companyId, id, actor)
+}
+
 export async function deleteExpenseReport(companyId: string, id: string, actor: ExpenseActor): Promise<{ id: string }> {
   const number = await prisma.$transaction(async (tx) => {
     const report = await lockExpenseReport(tx, companyId, id, actor)
@@ -625,6 +699,7 @@ export async function runExpenseWorkflow(
   options: { now?: Date; source?: string } = {},
 ): Promise<ExpenseReportDetail> {
   const now = options.now ?? new Date()
+  let selfValidated = false
   const number = await prisma.$transaction(async (tx) => {
     const report = await lockExpenseReport(tx, companyId, id, actor)
     const requireManager = () => {
@@ -648,21 +723,30 @@ export async function runExpenseWorkflow(
         requireManager()
         if (report.status !== 'SUBMITTED') throw new ConflictError(`La note de frais ${report.number} doit être soumise avant d’être validée.`)
         await assertPostable(tx, companyId, id)
-        await tx.expenseReport.update({ where: { id }, data: { status: 'VALIDATED', validatedAt: now, validatedById: actor.userId } })
+        // Its own author validates it only as the company's sole validator, and that is recorded.
+        if (report.own) {
+          if ((await ownValidation(companyId, actor.userId, tx)) === 'refused') throw new ConflictError(OWN_REPORT_OTHER_VALIDATOR_MESSAGE)
+          selfValidated = true
+        }
+        await tx.expenseReport.update({ where: { id }, data: { status: 'VALIDATED', validatedAt: now, validatedById: actor.userId, selfValidated } })
         break
       }
       case 'reopen': {
         requireManager()
         if (report.status !== 'VALIDATED') throw new ConflictError(`La note de frais ${report.number} n’est pas validée.`)
         if (report.entryId) throw new ConflictError(`La note de frais ${report.number} est comptabilisée\u00a0: supprimez d’abord son écriture en brouillon.`)
-        await tx.expenseReport.update({ where: { id }, data: { status: 'DRAFT', validatedAt: null, validatedById: null, submittedAt: null, submittedById: null } })
+        await tx.expenseReport.update({ where: { id }, data: { status: 'DRAFT', validatedAt: null, validatedById: null, selfValidated: false, submittedAt: null, submittedById: null } })
         break
       }
     }
     return report.number
   }, TX_OPTIONS)
   const actions = { submit: 'SUBMIT_EXPENSE_REPORT', return: 'RETURN_EXPENSE_REPORT', validate: 'VALIDATE_EXPENSE_REPORT', reopen: 'REOPEN_EXPENSE_REPORT' } as const
-  await writeAuditLog('info', `Expense report ${input.action}: ${number}`, { action: actions[input.action], companyId, metadata: { reportId: id, source: options.source ?? 'web' } })
+  await writeAuditLog('info', `Expense report ${input.action}${selfValidated ? ' by its own author (sole validator)' : ''}: ${number}`, {
+    action: actions[input.action],
+    companyId,
+    metadata: { reportId: id, source: options.source ?? 'web', ...(input.action === 'validate' && { selfValidated }) },
+  })
   return getExpenseReport(companyId, id, actor)
 }
 

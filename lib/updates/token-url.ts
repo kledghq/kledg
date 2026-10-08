@@ -6,7 +6,7 @@
  * picks it under "Repository access".
  */
 
-export const TOKEN_PERMISSIONS = {
+const TOKEN_PERMISSIONS = {
   contents: 'write',
   pull_requests: 'write',
   actions: 'write',

@@ -39,7 +39,7 @@ const CHART_LABELS: Record<(typeof CHARTED)[number], string> = {
 }
 
 /** An indicator as shown: amount, percentage or days; "-" when it cannot be computed. */
-export function IndicatorValue({ row, indicators }: { row: IndicatorRow; indicators: FinancialIndicators | null }) {
+function IndicatorValue({ row, indicators }: { row: IndicatorRow; indicators: FinancialIndicators | null }) {
   const value = indicators ? row.value(indicators) : null
   if (value === null) return <span className="text-muted-foreground">-</span>
   if (row.kind === 'percent') return <span className={cn('num', value < 0 && 'text-destructive')}>{formatPercent(Math.round(value * 1000) / 10)}</span>

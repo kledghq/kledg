@@ -14,6 +14,7 @@ import { loadProfitTaxation } from '@/lib/companies/profit-taxation.service'
 import { todayUtc, toIsoDateUtc } from '@/lib/utils/date'
 import type { ExpenseActor } from './actor'
 import { claimantRoleOf, mealRuleOfTaxation, NON_DEDUCTIBLE_MEALS_ACCOUNT, type ClaimantRole, type MealRuleCompany } from './exploitant-meals'
+import { loadRootAccount } from '@/lib/accounting/root-account'
 
 type Db = Prisma.TransactionClient | typeof prisma
 
@@ -49,9 +50,9 @@ export async function nonDeductibleMealsAccount(
   lineAccountCode: string,
 ): Promise<{ id: string; code: string }> {
   const root = NON_DEDUCTIBLE_MEALS_ACCOUNT.root
-  const existing = await tx.account.findMany({ where: { companyId, fiscalYearId, code: { startsWith: root } }, select: { id: true, code: true }, orderBy: { code: 'asc' }, take: 20 })
-  const pick = existing.find((a) => a.code === root) ?? existing.find((a) => /^0*$/.test(a.code.slice(root.length))) ?? existing[0]
-  if (pick) return pick
+  // The rule every module shares (lib/accounting/root-account.ts)
+  const pick = await loadRootAccount(tx, companyId, fiscalYearId, root)
+  if (pick) return { id: pick.id, code: pick.code }
   const code = root.padEnd(Math.max(root.length, lineAccountCode.length), '0')
   const parents = await tx.account.findMany({
     where: { companyId, fiscalYearId, code: { in: Array.from({ length: code.length - 1 }, (_, i) => code.slice(0, i + 1)) } },

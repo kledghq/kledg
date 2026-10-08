@@ -30,6 +30,7 @@ import { calendarDayOf } from '@/lib/utils/date'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { inCompany, type GroupAccess } from './access'
 import { assertSubsidiaryOf } from './holding'
+import { isAccountCode } from '@/lib/accounting/account-code'
 import {
   DEFAULT_COST_PREFIXES,
   DEFAULT_EXCLUDED_PREFIXES,
@@ -208,7 +209,7 @@ async function checkConvention(holdingId: string, input: ConventionInput): Promi
   }
   const revenueError = accountCodeError('CUSTOMER', 'line', input.revenueAccountCode)
   if (revenueError) errors.push(revenueError)
-  if (!/^6[0-9A-Z]{1,19}$/.test(input.expenseAccountCode)) {
+  if (!isAccountCode(input.expenseAccountCode) || !input.expenseAccountCode.startsWith('6')) {
     errors.push('Le compte de charges des filiales est un compte de classe 6 (ex. 6226 honoraires, 6228 divers).')
   }
   if (input.pricing === 'FIXED' && !input.fixedAmountCents) errors.push('Indiquez le montant forfaitaire hors taxes de chaque période.')

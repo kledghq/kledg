@@ -10,8 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Amount, EmptyState, HelpTip, PageHeader, StatusBadge, useConfirm } from '@/components/shared'
+import { Amount, EmptyState, HelpTip, PageHeader, SegmentedControl, StatusBadge, useConfirm } from '@/components/shared'
 import { FiscalYearSelector } from '@/components/features/accounting/fiscal-year-selector'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
 import { LetteringPanel, type PanelLine } from '@/components/features/lettering/lettering-panel'
@@ -362,22 +361,12 @@ export default function LetteringPage() {
                     </CardDescription>
                   ) : null}
                 </div>
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  size="sm"
+                <SegmentedControl
+                  label="Lignes affichées"
                   value={status}
-                  onValueChange={(value) => {
-                    if (value) setStatus(value as Status)
-                  }}
-                  aria-label="Lignes affichées"
-                >
-                  {(Object.keys(STATUS_LABELS) as Status[]).map((value) => (
-                    <ToggleGroupItem key={value} value={value}>
-                      {STATUS_LABELS[value]}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+                  onValueChange={setStatus}
+                  options={(Object.keys(STATUS_LABELS) as Status[]).map((value) => ({ value, label: STATUS_LABELS[value] }))}
+                />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">

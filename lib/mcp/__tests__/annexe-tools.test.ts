@@ -17,6 +17,7 @@ const guard = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
+vi.mock('@/lib/rate-limit', () => ({ enforceRateLimit: vi.fn() }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/company-access')>()),
@@ -75,7 +76,7 @@ const VIEW: AnnexeView = {
   fiscalYear: { id: 'fy', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31', isClosed: true },
   annexe: {
     list: 'small',
-    listLabel: 'Petite entreprise : annexe simplifiée',
+    listLabel: 'Petite entreprise : annexe simplifiée',
     listSource: 'C. com. art. L123-16, PCG art. 811-9',
     required: true,
     category: 'small',

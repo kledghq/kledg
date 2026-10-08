@@ -35,8 +35,8 @@ vi.mock('@/lib/import/fec', () => ({
 
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({
   getFiscalYearForDate: vi.fn().mockResolvedValue({ id: 'fy-1', year: 2026 }),
-  getOrCreateActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }),
 }))
+vi.mock('@/lib/accounting/active-fiscal-year.service', () => ({ ensureActiveFiscalYear: vi.fn().mockResolvedValue({ id: 'fy-1' }) }))
 
 vi.mock('@/lib/accounting/services', () => ({
   createAccountingEntryWithWarnings: vi.fn(),
@@ -124,7 +124,7 @@ describe('POST /api/import', () => {
 
     const badType = await importRoute(upload({ companyId: 'company-1', type: 'pdf', file: textFile('x') }))
     expect(badType.status).toBe(400)
-    expect(await errorOf(badType)).toBe('type: Type de fichier inconnu : fec, csv ou excel')
+    expect(await errorOf(badType)).toBe('type: Type de fichier inconnu : fec, csv ou excel')
 
     const badJson = await importRoute(upload({ companyId: 'company-1', type: 'fec', file: textFile('x'), mapping: '{not json' }))
     expect(await errorOf(badJson)).toBe('mapping: Correspondance des colonnes invalide')
@@ -146,7 +146,7 @@ describe('POST /api/import', () => {
   it('refuses an Excel file that is not an .xlsx archive', async () => {
     const response = await importRoute(upload({ companyId: 'company-1', type: 'excel', file: textFile('a;b', 'old.xls') }))
     expect(response.status).toBe(400)
-    expect(await errorOf(response)).toBe('Fichier Excel invalide : seuls les fichiers .xlsx sont acceptés.')
+    expect(await errorOf(response)).toBe('Fichier Excel invalide : seuls les fichiers .xlsx sont acceptés.')
   })
 
   it('answers 403 to a viewer and 404 to a non member, before reading the file', async () => {
@@ -198,7 +198,7 @@ describe('POST /api/import', () => {
         upload({ companyId: 'company-1', type: 'csv', file: textFile('date,journal,account\n2026-03-01,VT\n', 'import.csv') }),
       )
       const result = (await response.json()) as { errors: string[] }
-      expect(result.errors).toEqual(['Import interrompu : Fichier CSV illisible, lignes à corriger : 2'])
+      expect(result.errors).toEqual(['Import interrompu : Fichier CSV illisible, lignes à corriger : 2'])
     })
   })
 })

@@ -13,6 +13,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { companyGuard, type CompanyGuard, type McpAccess } from '@/lib/mcp/company-access'
 import { getTrialBalance } from '@/lib/reports/trial-balance/get-trial-balance.service'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
@@ -22,7 +23,7 @@ import { toEntryDate } from '@/lib/accounting/entry-date'
 import { assertEntryWritableInFiscalYear, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
 import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
 import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
-import { writeAuditLog } from '@/lib/audit'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { uniqueReconciliationMatches, type UniqueMatch } from '@/lib/reconciliation/unique-match'
 import { day, fail, json, run } from '@/lib/mcp/tool-result'
@@ -53,6 +54,8 @@ import { registerTrainingReadTools } from '@/lib/mcp/training-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
+import { registerReceiptTools } from '@/lib/mcp/receipts-tools'
+import { auditDraftWrite } from '@/lib/mcp/drafts/define'
 import { registerLedgerReadTools } from '@/lib/mcp/ledger-read-tools'
 import { registerCompanySettingsTools } from '@/lib/mcp/company-settings-tools'
 import { registerTransactionReadTools } from '@/lib/mcp/transaction-read-tools'
@@ -121,7 +124,7 @@ const fiscalYearId = z
   .string()
   .optional()
   .describe('Fiscal year id, from list_fiscal_years. Defaults to the current fiscal year.')
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
 
 export function registerKledgTools(server: McpServer, access: McpAccess) {
   const { user, canWrite } = access
@@ -187,7 +190,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         summary:
           'Lists the fiscal years of a company with their dates and whether they are closed.',
         access: 'read',
-        permission: { reports: ['read'] },
+        permission: { entries: ['read'] },
         amounts: 'none',
         units: 'Dates as yyyy-mm-dd.',
         never: 'changes anything (read only).',
@@ -197,7 +200,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     },
     ({ companyId }) =>
       run(async () => {
-        await guard.require(companyId, { reports: ['read'] })
+        // entries:read, the right of its routes (GET /api/companies/[id]/fiscal-years)
+        await guard.require(companyId, { entries: ['read'] })
         const years = await prisma.fiscalYear.findMany({
           where: { companyId },
           orderBy: { startDate: 'desc' },
@@ -815,6 +819,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   // work, expense reports, approval of the accounts): lib/mcp/drafts.
   registerDraftTools(server, access, guard)
 
+  // Receipts photographed in the assistant (docs/justificatifs-photo.md): capture view, staging, filing.
+  registerReceiptTools(server, access, guard)
+
   server.registerTool(
     'create_draft_entry',
     {
@@ -849,6 +856,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { entries: ['create'] })
+        await enforceRateLimit('mcp-write', user.id)
         const date = toEntryDate(args.date)
         const found = await getFiscalYearForDate(args.companyId, date)
         const fiscalYear = found
@@ -860,9 +868,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         // becomes the generic message, the detail only in the log.
         assertEntryWritableInFiscalYear(fiscalYear, date, 'create')
 
-        const journal = await prisma.journal.findFirst({
-          where: { companyId: args.companyId, code: args.journalCode },
-        })
+        const journal = await journalByCode(prisma, args.companyId, args.journalCode)
         if (!journal) return fail(`Journal ${args.journalCode} introuvable. Utilisez list_journals.`)
 
         const codes = [...new Set(args.lines.map((l) => l.accountCode))]
@@ -872,7 +878,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         })
         const byCode = new Map(accounts.map((a) => [a.code, a.id]))
         const missing = codes.filter((c) => !byCode.has(c))
-        if (missing.length) return fail(`Comptes introuvables : ${missing.join(', ')}. Utilisez search_accounts.`)
+        if (missing.length) return fail(`Comptes introuvables : ${missing.join(', ')}. Utilisez search_accounts.`)
 
         const entry = await createAccountingEntry({
           companyId: args.companyId,
@@ -890,11 +896,8 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           })),
         })
 
-        await writeAuditLog('info', `Draft entry created via MCP: ${args.description}`, {
-          action: 'CREATE_ACCOUNTING_ENTRY',
-          companyId: args.companyId,
-          metadata: { entryId: entry.id, source: 'mcp', userId: user.id },
-        })
+        // Like every draft tool: MCP_WRITE naming the assistant, ids only (not the description it wrote).
+        await auditDraftWrite('create_draft_entry', access, args.companyId, { entryId: entry.id, journalCode: journal.code, date: args.date })
 
         return json({
           created: true,
@@ -903,7 +906,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           changes: { entryCreated: entry.id, status: 'draft' },
           reviewUrl: kledgPageUrl(args.companyId, 'entries'),
           message:
-            'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
+            'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
         })
       }),
   )

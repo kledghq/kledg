@@ -212,6 +212,33 @@ describe.skipIf(!available)('simple mode (PostgreSQL)', () => {
     expect(await prisma.accountingEntry.count({ where: { companyId: a.id } })).toBe(1)
   })
 
+  it('self-assesses the VAT of a foreign supplier and deducts the VAT the bank read on bank fees (R3 QUAL-03, QUAL-13)', async () => {
+    // Notion bills a French business without French VAT: 20 % self-assessed (CGI art. 259, 1° and 283, 2)
+    const notion = await transaction(a, 'CB NOTION LABS INC', 10)
+    const response = await confirm('owner', notion.id)
+    expect(response.status).toBe(201)
+    const result = await response.json()
+    expect(result).toMatchObject({ categoryId: 'logiciels', status: 'validated' })
+    expect(linesOf(await entryOf(result.entryId))).toEqual([
+      ['4452', 0, 200],
+      ['44566', 200, 0],
+      ['5121', 0, 1_000],
+      ['6511', 1_000, 0],
+    ])
+    // Qonto read 2,00 € of VAT on its 12,00 € plan
+    seq += 1
+    const qonto = await prisma.bankTransaction.create({
+      data: { bankAccountId: a.bankAccountId, externalTransactionId: `simple-${seq}`, amount: 12, date: new Date('2026-03-10T00:00:00Z'), side: 'debit', label: 'QONTO ABONNEMENT ESSENTIAL', vatAmount: 2, vatRate: 20 },
+    })
+    const fees = await (await confirm('owner', qonto.id)).json()
+    expect(fees).toMatchObject({ categoryId: 'frais-bancaires' })
+    expect(linesOf(await entryOf(fees.entryId))).toEqual([
+      ['44566', 200, 0],
+      ['5121', 0, 1_200],
+      ['627', 1_000, 0],
+    ])
+  })
+
   it('with an accountant member, leaves a draft to validate, which the accountant validates through the usual route', async () => {
     await addAccountant()
     const meal = await transaction(a, 'CB LE PETIT BISTROT', 64.5, { day: '2026-09-25' })
@@ -326,6 +353,33 @@ describe.skipIf(!available)('simple mode (PostgreSQL)', () => {
     ])
     expect((await prisma.bankTransaction.findUniqueOrThrow({ where: { id: foreign.id } })).reconciled).toBe(false)
     expect((await call('viewer', 'confirmAll', 'POST', '/api/simple/expenses/confirm-all', { body: { companyId: a.id, transactionIds: [urssaf.id] } })).status).toBe(403)
+  })
+
+  it('reports an unexpected failure of one line and keeps confirming the others (KLEDG-R3-QUAL-23)', async () => {
+    const first = await transaction(a, 'PRLV SEPA FREE PRO', 47.99)
+    const second = await transaction(a, 'PRLV SEPA FREE PRO', 29.99, { day: '2026-03-12' })
+    const spy = vi.spyOn(prisma.bankTransaction, 'findFirst').mockImplementationOnce((() => Promise.reject(new Error('connection reset'))) as never)
+    try {
+      const result = await confirmService.confirmHighConfidenceExpenses(a.id, [first.id, second.id], { userId: USERS.owner.id, canValidate: true, source: 'web' })
+      expect(result.confirmed.map((r) => r.transactionId)).toEqual([second.id])
+      expect(result.skipped).toEqual([{ transactionId: first.id, reason: 'Une erreur inattendue a empêché la confirmation\u00a0: réessayez pour cette ligne.' }])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('learns one rule when two confirmations of the same counterparty run at once (KLEDG-R3-QUAL-23)', async () => {
+    for (const day of ['2026-03-05', '2026-04-05']) {
+      const t = await transaction(a, 'VIR SEPA SARL MARTIN FACTURE', 600, { day, counterpartyName: 'SARL Martin' })
+      await confirm('owner', t.id, { categoryId: 'sous-traitance' })
+    }
+    const [third, fourth] = [
+      await transaction(a, 'VIR SEPA SARL MARTIN FACTURE', 600, { day: '2026-05-05', counterpartyName: 'SARL Martin' }),
+      await transaction(a, 'VIR SEPA SARL MARTIN FACTURE', 600, { day: '2026-05-06', counterpartyName: 'SARL Martin' }),
+    ]
+    const results = await Promise.all([confirm('owner', third.id, { categoryId: 'sous-traitance' }), confirm('owner', fourth.id, { categoryId: 'sous-traitance' })])
+    expect(results.map((r) => r.status)).toEqual([201, 201])
+    expect(await prisma.transactionRule.count({ where: { companyId: a.id, name: 'SARL Martin (mode simple)' } })).toBe(1)
   })
 
   it('learns a rule after three identical choices and suggests it next time', async () => {

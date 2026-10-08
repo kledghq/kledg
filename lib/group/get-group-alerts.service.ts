@@ -13,7 +13,7 @@ import { loadDeadlinesWidget } from '@/lib/deadlines/load-deadlines.service'
 import type { DeadlineCategory } from '@/lib/deadlines/types'
 import { countCompanyTasks } from '@/lib/tasks/count-tasks.service'
 import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink } from './members'
-import type { UnreachableSubsidiary } from './perimeter'
+import { GROUP_BANK_READ, GROUP_ENTRIES_READ, mergePermissions, type UnreachableSubsidiary } from './perimeter'
 
 export interface OverdueDeclaration {
   companyId: string
@@ -53,7 +53,9 @@ export async function getGroupAlerts(holdingId: string, access: GroupAccess, now
       .filter((d) => d.status.status === 'overdue')
       .map((d) => ({ companyId: ref.id, deadlineId: d.id, label: d.label, form: d.form, category: d.category, date: d.status.lateAfter }))
     return { overdue, unreconciled: tasks.unreconciledTransactions, drafts }
-  })
+    // Unreconciled transactions and draft entries are counted with the rights of the company's own
+    // counters: banking:read (tasks count) and entries:read (Écritures), KLEDG-R3-AUTHZ-08.
+  }, mergePermissions(GROUP_BANK_READ, GROUP_ENTRIES_READ))
   const companies = read.members.map(({ ref, value }) => ({ company: linkOf(ref), overdue: value.overdue.length, unreconciled: value.unreconciled, drafts: value.drafts }))
   const overdue = read.members.flatMap((m) => m.value.overdue).sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label, 'fr'))
   return {

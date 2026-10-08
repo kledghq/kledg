@@ -32,7 +32,7 @@ export async function exportApprovalDocument(
   const entry = view.pack.documents.find((d) => d.id === documentId)
   if (!entry) throw new NotFoundError("Ce document ne fait pas partie de l'approbation des comptes de cette société.")
   if (entry.missing.length > 0) {
-    throw new ValidationError(`Complétez d'abord : ${entry.missing.join(' ; ')}.`).withDetails({ missing: entry.missing })
+    throw new ValidationError(`Complétez d'abord : ${entry.missing.join(' ; ')}.`).withDetails({ missing: entry.missing })
   }
   if (documentId === 'annexe') return exportAnnexe(companyId, fiscalYearId, format, access, now)
   const doc = buildDocument(documentId, { context: view.context, details: view.details, pack: view.pack })

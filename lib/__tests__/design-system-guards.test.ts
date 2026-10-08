@@ -4,6 +4,7 @@ import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 import { findNavEntry, findSubPageTitle, navGroups } from '@/components/layout/nav-config'
+import { frenchSpacingEdits } from './helpers/french-spacing'
 
 /**
  * Guards for rules ESLint cannot express well (docs/design-system.md).
@@ -30,8 +31,16 @@ const FILES = ['app', 'components', 'lib'].flatMap((dir) => sourceFiles(path.joi
 const rel = (file: string) => path.relative(ROOT, file)
 
 /** House style: no em or en dashes in any text (UI copy, comments, messages). */
-const KNOWN_DASHES = new Set([
-  'lib/pdf/templates/income-statement-pdf.tsx',
+const KNOWN_DASHES = new Set<string>([])
+
+/**
+ * French text still written with a plain space before ":", ";", "?" or "!":
+ * reference data whose labels are compared with stored layouts and charts.
+ */
+const KNOWN_PLAIN_SPACES = new Set([
+  'lib/accounting/pcg-data.ts',
+  'lib/reports/income-statement/config/default-pcg-config-complete-2026.ts',
+  'lib/reports/income-statement/config/default-pcg-config-simplified-2026.ts',
 ])
 
 describe('design system guards', () => {
@@ -53,9 +62,23 @@ describe('design system guards', () => {
     }
   })
 
+  it('puts a no-break space before ":", ";", "?" and "!" in French text (KLEDG-R3-QUAL-29)', () => {
+    const offenders = FILES.filter((file) => !KNOWN_PLAIN_SPACES.has(rel(file)))
+      .flatMap((file) => frenchSpacingEdits(readFileSync(file, 'utf8'), file).map((edit) => `${rel(file)}:${edit.line}: ${edit.excerpt}`))
+    expect(offenders).toEqual([])
+  })
+
+  it('keeps the known plain space list honest', () => {
+    for (const file of KNOWN_PLAIN_SPACES) {
+      const edits = frenchSpacingEdits(readFileSync(path.join(ROOT, file), 'utf8'), file)
+      expect(edits.length, `${file} is clean: remove it from KNOWN_PLAIN_SPACES`).toBeGreaterThan(0)
+    }
+  })
+
   it('picks files with FileInput, never the native control (English "Choose File" in most browsers)', () => {
-    // The hidden inputs behind a French button: FileInput itself and the photo picker of a person
-    const allowed = new Set(['components/ui/file-input.tsx', 'components/features/companies/create-person-form.tsx'])
+    // The hidden inputs behind a French button: FileInput itself, the photo picker of a person and the
+    // receipt drop zone (camera and several files behind "Prendre une photo" and "Choisir des fichiers")
+    const allowed = new Set(['components/ui/file-input.tsx', 'components/features/companies/create-person-form.tsx', 'components/features/receipts/receipt-drop-zone.tsx'])
     const offenders = FILES.filter((file) => file.endsWith('.tsx'))
       .filter((file) => /type=["'{]+file["'}]/.test(readFileSync(file, 'utf8')))
       .map(rel)

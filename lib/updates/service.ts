@@ -32,12 +32,19 @@ import { UPDATE_WORKFLOW } from './workflow-template'
 export const CHANNELS = ['releases', 'main', 'off'] as const
 export type Channel = (typeof CHANNELS)[number]
 
-export function isChannel(value: unknown): value is Channel {
+function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value)
 }
 
-/** Marker of the workflow version that handles copies with unrelated history. */
-const WORKFLOW_MARKER = '# BEGIN kledg-merge'
+/**
+ * Marker of the current workflow version: an installed file without it is
+ * upgraded. Version 1 handled copies with unrelated history (BEGIN
+ * kledg-merge); version 2 passes step outputs through the environment,
+ * never inside a script, and pins actions/checkout (KLEDG-R3-INPUT-06).
+ * Bump it with every change of .github/workflows/update-from-kledg.yml that
+ * instances must get.
+ */
+export const WORKFLOW_MARKER = '# kledg-workflow-version: 2'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 let delay = sleep
@@ -87,7 +94,7 @@ export async function setChannel(conn: ActiveConnection, channel: Channel): Prom
 export interface WorkflowInfo {
   present: boolean
   state: string | null
-  /** The file handles copies with unrelated history (BEGIN kledg-merge marker). */
+  /** The file is the current version (WORKFLOW_MARKER). */
   current: boolean
   sha: string | null
 }
@@ -112,7 +119,7 @@ export async function getWorkflow(conn: ActiveConnection): Promise<WorkflowInfo>
 }
 
 /** Adds (or upgrades) the update workflow on the default branch. Needs the Workflows permission. */
-export async function installWorkflow(conn: ActiveConnection, existingSha: string | null): Promise<void> {
+async function installWorkflow(conn: ActiveConnection, existingSha: string | null): Promise<void> {
   try {
     await githubRequest(contentsPath(conn.repository, WORKFLOW_PATH), {
       token: conn.token,
@@ -127,7 +134,7 @@ export async function installWorkflow(conn: ActiveConnection, existingSha: strin
   } catch (error) {
     if (error instanceof GitHubError && (error.githubCode === 'forbidden' || error.githubCode === 'not_found')) {
       throw new ValidationError(
-        "Impossible d'ajouter le workflow de mise à jour à votre dépôt : le jeton doit avoir la permission Workflows (lecture et écriture).",
+        "Impossible d'ajouter le workflow de mise à jour à votre dépôt : le jeton doit avoir la permission Workflows (lecture et écriture).",
       )
     }
     throw error
@@ -182,7 +189,8 @@ export async function prepareUpdate(conn: ActiveConnection, channel: Channel | n
   }
 
   let installed = false
-  if (!workflow.present || (!workflow.current && conn.kind === 'copy')) {
+  // An older version is replaced, in a fork as in a copy: version 2 is a security fix (KLEDG-R3-INPUT-06)
+  if (!workflow.present || !workflow.current) {
     await installWorkflow(conn, workflow.sha)
     installed = true
   }
@@ -232,7 +240,8 @@ interface GitHubPull {
   number: number
   title: string
   html_url: string
-  head: { sha: string; ref: string }
+  head: { sha: string; ref: string; repo?: { id?: number; full_name?: string } | null }
+  base?: { ref?: string; repo?: { id?: number } | null }
   mergeable?: boolean | null
   mergeable_state?: string
 }
@@ -271,7 +280,7 @@ export async function findUpdatePull(conn: ActiveConnection): Promise<UpdatePull
 }
 
 /** The preview of a commit, from the GitHub deployments the host creates (Vercel, Railway, Render). */
-export async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePull['preview']> {
+async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePull['preview']> {
   if (!/^[0-9a-f]{40}$/i.test(sha)) return null
   try {
     const { data: deployments } = await githubRequest<Array<{ id: number }>>(
@@ -308,8 +317,24 @@ export interface InstallResult {
 /** Merges the update pull request, only if its head is still the commit the admin confirmed. */
 export async function mergeUpdatePull(conn: ActiveConnection, pullNumber: number, headSha: string): Promise<InstallResult> {
   const pull = await githubRequest<GitHubPull>(repoPath(conn.repository, 'pulls', pullNumber), { token: conn.token })
-  if (pull.data.head.ref !== UPDATE_BRANCH) {
-    throw new ValidationError("Cette pull request n'est pas une mise à jour Kledg.")
+  // The branch name alone proves nothing: anyone with a fork can open a pull request from
+  // their own kledg-update branch. The update is the branch the workflow pushes in the
+  // connected repository itself (head repository = base repository, same id), into its
+  // default branch (KLEDG-R3-INPUT-05).
+  const own = `${conn.repository.owner}/${conn.repository.repo}`.toLowerCase()
+  const headRepo = pull.data.head.repo
+  const baseRepo = pull.data.base?.repo
+  if (
+    pull.data.head.ref !== UPDATE_BRANCH ||
+    !headRepo ||
+    headRepo.full_name?.toLowerCase() !== own ||
+    typeof headRepo.id !== 'number' ||
+    headRepo.id !== baseRepo?.id ||
+    pull.data.base?.ref !== conn.defaultBranch
+  ) {
+    throw new ValidationError(
+      "Cette pull request n'est pas une mise à jour Kledg : seule la branche kledg-update de votre dépôt, vers sa branche par défaut, peut être installée.",
+    )
   }
   if (pull.data.head.sha !== headSha) {
     throw new ConflictError('La mise à jour a changé depuis votre confirmation. Vérifiez-la de nouveau.')
@@ -319,10 +344,14 @@ export async function mergeUpdatePull(conn: ActiveConnection, pullNumber: number
     {
       token: conn.token,
       method: 'PUT',
+      // GitHub merges only if the head is still headSha (409 otherwise): no push after the check slips in
       body: { sha: headSha, merge_method: 'merge' },
-      allow: [405],
+      allow: [405, 409],
     },
   )
+  if (status === 409) {
+    throw new ConflictError('La mise à jour a changé depuis votre confirmation. Vérifiez-la de nouveau.')
+  }
   if (status === 405 || !data?.merged) {
     throw new ConflictError(
       "GitHub refuse de fusionner la mise à jour (conflits, vérifications en attente ou protection de branche). Ouvrez la pull request sur GitHub.",
@@ -341,7 +370,7 @@ export async function mergeUpstream(conn: ActiveConnection): Promise<InstallResu
     allow: [409],
   })
   if (status === 409) {
-    throw new ConflictError('Votre fork contient des modifications en conflit avec Kledg : synchronisez-le sur GitHub (Sync fork).')
+    throw new ConflictError('Votre fork contient des modifications en conflit avec Kledg : synchronisez-le sur GitHub (Sync fork).')
   }
   const { data } = await githubRequest<{ commit?: { sha?: string } }>(repoPath(conn.repository, 'branches', conn.defaultBranch), {
     token: conn.token,

@@ -23,6 +23,7 @@ import { postInvoice } from '@/lib/invoices/post-invoice.service'
 import { fromCents, toCents } from '@/lib/utils/money'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
+import { companyLock } from './fingerprint'
 
 const input = {
   direction: z.enum(['SALE', 'PURCHASE']).describe('SALE: invoice issued to a customer (journal VE); PURCHASE: invoice received from a supplier (journal AC).'),
@@ -115,6 +116,7 @@ const createDraftInvoiceTool = fullControlTool({
   units: 'VAT rates in percent, dates as yyyy-mm-dd.',
   never: 'sends the invoice to the customer or validates its entry (the entry stays a draft).',
   openWorld: true,
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   async preview(args) {
     const tiers = await resolveTiers(args.companyId, args.tiers)

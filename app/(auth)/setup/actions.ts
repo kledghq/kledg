@@ -32,7 +32,7 @@ export type SetupResult = { ok: true } | { ok: false; error: string }
 const ALREADY_DONE = 'Cette instance est déjà configurée.'
 
 const SETUP_BLOCKED =
-  "Installation bloquée : définissez BETTER_AUTH_SECRET, ou SETUP_TOKEN (au moins 16 caractères), puis redéployez."
+  "Installation bloquée : définissez BETTER_AUTH_SECRET, ou SETUP_TOKEN (au moins 16 caractères), puis redéployez."
 
 export async function createFirstAdmin(input: z.input<typeof schema>): Promise<SetupResult> {
   const parsed = schema.safeParse(input)
@@ -97,7 +97,7 @@ export async function createFirstAdmin(input: z.input<typeof schema>): Promise<S
 export type SetupLinkRequestResult = { ok: true; sentTo: string; ttlMinutes: number } | { ok: false; error: string }
 
 const SETUP_LINK_FAILED =
-  "L'email n'a pas pu partir. Tant qu'aucun domaine n'est vérifié dans Resend, Resend n'envoie qu'à l'adresse de votre compte Resend : utilisez-la comme ADMIN_EMAIL, ou vérifiez un domaine et définissez EMAIL_FROM, puis redéployez. Vous pouvez aussi définir SETUP_TOKEN."
+  "L'email n'a pas pu partir. Tant qu'aucun domaine n'est vérifié dans Resend, Resend n'envoie qu'à l'adresse de votre compte Resend : utilisez-la comme ADMIN_EMAIL, ou vérifiez un domaine et définissez EMAIL_FROM, puis redéployez. Vous pouvez aussi définir SETUP_TOKEN."
 
 /** "Send me the installation link" on /setup (email mode, lib/setup.ts). The link only ever goes to ADMIN_EMAIL. */
 export async function requestSetupLink(): Promise<SetupLinkRequestResult> {

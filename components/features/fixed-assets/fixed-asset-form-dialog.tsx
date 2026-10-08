@@ -44,7 +44,7 @@ import {
 import { AccountCombobox } from '@/components/features/accounting/account-combobox'
 import { formatAmount, formatPercent } from '@/components/shared'
 
-export const fixedAssetSchema = z.object({
+const fixedAssetSchema = z.object({
   label: z.string().min(1, 'Le libellé est requis'),
   comment: z.string().optional().nullable(),
   acquisitionDate: z.string().min(1, 'La date d\'acquisition est requise'),

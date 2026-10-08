@@ -26,7 +26,7 @@
 
 import { counterpartyKey, words } from '@/lib/subscriptions/detect'
 
-export type PayeeConfidence = 'high' | 'medium'
+type PayeeConfidence = 'high' | 'medium'
 
 export interface PayeeEntry {
   /** Word sequences naming the payee or the keyword (normalized at load). */
@@ -158,7 +158,7 @@ export const KEYWORDS: readonly PayeeEntry[] = [
  * Words of a bank label that announce a refund: a supplier gives money back
  * (REMBOURSEMENT SNCF, AVOIR AMAZON, REFUND STRIPE).
  */
-export const REFUND_WORDS: readonly string[] = ['REMBOURSEMENT', 'REMBT', 'REMB', 'RBT', 'AVOIR', 'REFUND', 'RETOUR', 'ANNULATION']
+const REFUND_WORDS: readonly string[] = ['REMBOURSEMENT', 'REMBT', 'REMB', 'RBT', 'AVOIR', 'REFUND', 'RETOUR', 'ANNULATION']
 
 /** Whether the text of a bank line (bankText) announces a refund. */
 export function announcesRefund(text: string): boolean {

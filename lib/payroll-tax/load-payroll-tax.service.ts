@@ -97,9 +97,10 @@ async function coreOf(companyId: string, year: number, data: PayrollTaxData): Pr
     ratio = { source: 'none', exactBasisPoints: null, truncatedPercent: null, appliedPercent: 0 }
     liability = 'franchise'
   } else if (data.ratioPercent !== null) {
-    const entered = appliedRatio(data.ratioPercent, 100)!
-    ratio = { source: 'entered', exactBasisPoints: data.ratioPercent * 100, truncatedPercent: data.ratioPercent, appliedPercent: entered.appliedPercent }
-    liability = data.ratioPercent > 10 ? 'liable' : 'not-liable'
+    // Entered with its decimals: 10,4 % is above 10 %, liable (CGI art. 231, 1), whatever the rapport's rounding
+    const basisPoints = Math.round(data.ratioPercent * 100)
+    ratio = { source: 'entered', ...appliedRatio(basisPoints, 10_000)! }
+    liability = isLiable(basisPoints, 10_000) ? 'liable' : 'not-liable'
   } else if (fromBooks) {
     ratio = { source: 'books', ...fromBooks }
     liability = isLiable(nonDeductible, total) ? 'liable' : 'not-liable'
@@ -118,12 +119,17 @@ export function computedOf(core: YearCore, frequency: PayrollTaxFrequency): Payr
   return { liable: core.liability === 'liable', frequency, dueCents: core.computation?.dueCents ?? 0 }
 }
 
-export async function buildPayrollTax(companyId: string, query: PayrollTaxQuery, options: { now?: Date } = {}): Promise<{ view: PayrollTaxView; core: YearCore }> {
+export async function buildPayrollTax(
+  companyId: string,
+  query: PayrollTaxQuery,
+  /** `data`: the year's inputs about to be saved, used instead of the stored ones (savePayrollTax computes before it writes). */
+  options: { now?: Date; data?: PayrollTaxData } = {},
+): Promise<{ view: PayrollTaxView; core: YearCore }> {
   const today = day(todayUtc(options.now))
   const currentYear = Number(today.slice(0, 4))
   const year = query.year ?? currentYear
   const rows = await prisma.payrollTaxYear.findMany({ where: { companyId, year: { in: [year - 1, year] } }, select: { year: true, data: true }, take: 2 })
-  const data = parsePayrollTaxData(rows.find((r) => r.year === year)?.data)
+  const data = options.data ?? parsePayrollTaxData(rows.find((r) => r.year === year)?.data)
   const previousData = rows.find((r) => r.year === year - 1) ? parsePayrollTaxData(rows.find((r) => r.year === year - 1)!.data) : null
 
   const [core, previousCore, booksSalariesCents, entry, fiscalYears] = await Promise.all([

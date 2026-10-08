@@ -10,6 +10,8 @@
 
 import { providerError } from '@/lib/banking/errors'
 import { bankFetch } from '@/lib/banking/http'
+import { parseProviderResponse } from '@/lib/banking/provider-response'
+import type { z } from 'zod'
 
 /** Qonto's sandbox, reached with a sandbox API key plus the staging token. */
 export const QONTO_SANDBOX_API_URL = 'https://thirdparty-sandbox.staging.qonto.co/v2'
@@ -102,9 +104,11 @@ export class QontoClientBase {
     return response
   }
 
-  protected async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  /** JSON of a request; checked against `schema` when given (lib/banking/provider-response.ts). */
+  protected async request<T>(endpoint: string, options: RequestInit = {}, schema?: z.ZodType): Promise<T> {
     const response = await this.send(endpoint, options)
-    return (await response.json()) as T
+    const body: unknown = await response.json()
+    return schema ? parseProviderResponse<T>('Qonto', `${options.method ?? 'GET'} ${endpoint.split('?')[0]}`, schema, body) : (body as T)
   }
 
   /** Request without a JSON response (DELETE...). */

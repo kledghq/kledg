@@ -15,6 +15,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { compileRulePattern } from './rule-regex'
 import type { TransactionRuleConditionInput, TransactionRuleEntryLineInput } from './types'
+import { checkApprovedState } from '@/lib/approved-state/guard'
 
 export const RULE_NOT_FOUND_MESSAGE = 'Règle introuvable'
 
@@ -94,11 +95,11 @@ export interface RuleInput {
  * (rule-regex.ts, KLEDG-SEC-001), with the reason in French, before the
  * rule is saved by the API or the MCP server.
  */
-export function assertRulePatternsValid(conditions: TransactionRuleConditionInput[]): void {
+function assertRulePatternsValid(conditions: TransactionRuleConditionInput[]): void {
   for (const [index, condition] of conditions.entries()) {
     if (condition.operator !== 'regex' || !condition.value) continue
     const compiled = compileRulePattern(condition.value)
-    if (!compiled.ok) throw new ValidationError(`Condition ${index + 1} : ${compiled.message}`)
+    if (!compiled.ok) throw new ValidationError(`Condition ${index + 1} : ${compiled.message}`)
   }
 }
 
@@ -168,13 +169,13 @@ export async function findRule(companyId: string, ruleId: string): Promise<RuleW
   return rule
 }
 
-export async function createRule(companyId: string, input: RuleInput): Promise<RuleWithDetails> {
+export async function createRule(companyId: string, input: RuleInput, db: Prisma.TransactionClient | typeof prisma = prisma): Promise<RuleWithDetails> {
   const name = input.name?.trim()
   if (!name) throw new ValidationError('Donnez un nom à la règle.')
   const conditions = input.conditions ?? []
   const entryLines = input.entryLines ?? []
   assertRulePatternsValid(conditions)
-  return prisma.transactionRule.create({
+  return db.transactionRule.create({
     data: {
       companyId,
       name,
@@ -196,33 +197,42 @@ export async function createRule(companyId: string, input: RuleInput): Promise<R
  * and entry lines are replaced by the given lists (empty when omitted).
  */
 export async function updateRule(companyId: string, ruleId: string, input: RuleInput): Promise<RuleWithDetails> {
+  // Refused before any database work (checked again in updateRuleInTx for its other callers)
   assertRulePatternsValid(input.conditions ?? [])
-  return prisma.$transaction(async (tx) => {
-    const rule = await tx.transactionRule.findFirst({ where: { id: ruleId, companyId }, select: { id: true } })
-    if (!rule) throw new NotFoundError(RULE_NOT_FOUND_MESSAGE)
-    await tx.transactionRuleCondition.deleteMany({ where: { ruleId: rule.id } })
-    await tx.transactionRuleEntryLine.deleteMany({ where: { ruleId: rule.id } })
-    return tx.transactionRule.update({
-      where: { id: rule.id },
-      data: {
-        name: input.name,
-        description: input.description || null,
-        enabled: input.enabled,
-        priority: input.priority,
-        journalCode: input.journalCode,
-        defaultVatAccountCode: input.defaultVatAccountCode || null,
-        autoCreate: input.autoCreate,
-        conditions: { create: conditionRows(input.conditions ?? []) },
-        entryLines: { create: lineRows(input.entryLines ?? []) },
-      },
-      include: RULE_INCLUDE,
-    })
+  return prisma.$transaction((tx) => updateRuleInTx(tx, companyId, ruleId, input))
+}
+
+/** updateRule inside the caller's transaction. */
+export async function updateRuleInTx(tx: Prisma.TransactionClient, companyId: string, ruleId: string, input: RuleInput): Promise<RuleWithDetails> {
+  assertRulePatternsValid(input.conditions ?? [])
+  // An approved MCP action replaces the rule the user saw (KLEDG-R3-MCP-01)
+  await checkApprovedState(tx, { kind: 'rule', companyId, id: ruleId })
+  const rule = await tx.transactionRule.findFirst({ where: { id: ruleId, companyId }, select: { id: true } })
+  if (!rule) throw new NotFoundError(RULE_NOT_FOUND_MESSAGE)
+  await tx.transactionRuleCondition.deleteMany({ where: { ruleId: rule.id } })
+  await tx.transactionRuleEntryLine.deleteMany({ where: { ruleId: rule.id } })
+  return tx.transactionRule.update({
+    where: { id: rule.id },
+    data: {
+      name: input.name,
+      description: input.description || null,
+      enabled: input.enabled,
+      priority: input.priority,
+      journalCode: input.journalCode,
+      defaultVatAccountCode: input.defaultVatAccountCode || null,
+      autoCreate: input.autoCreate,
+      conditions: { create: conditionRows(input.conditions ?? []) },
+      entryLines: { create: lineRows(input.entryLines ?? []) },
+    },
+    include: RULE_INCLUDE,
   })
 }
 
 /** Deletes a rule of the company. Entries it created stay. */
 export async function deleteRule(companyId: string, ruleId: string): Promise<{ id: string; name: string }> {
   return prisma.$transaction(async (tx) => {
+    // An approved MCP action deletes the rule the user saw (KLEDG-R3-MCP-01)
+    await checkApprovedState(tx, { kind: 'rule', companyId, id: ruleId })
     const rule = await tx.transactionRule.findFirst({ where: { id: ruleId, companyId }, select: { id: true, name: true } })
     if (!rule) throw new NotFoundError(RULE_NOT_FOUND_MESSAGE)
     await tx.transactionRule.delete({ where: { id: rule.id } })

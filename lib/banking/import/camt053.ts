@@ -105,15 +105,15 @@ export interface CamtParse {
 }
 
 export function parseCamt053(xml: string): CamtParse {
-  if (/<!ENTITY/i.test(xml)) throw new ValidationError('Fichier XML refusé : les entités DOCTYPE ne sont pas acceptées.')
+  if (/<!ENTITY/i.test(xml)) throw new ValidationError('Fichier XML refusé : les entités DOCTYPE ne sont pas acceptées.')
   let doc: Node
   try {
     doc = parser.parse(xml, true) as Node
   } catch {
-    throw new ValidationError('Fichier camt.053 invalide : XML mal formé ou tronqué.')
+    throw new ValidationError('Fichier camt.053 invalide : XML mal formé ou tronqué.')
   }
   const root = obj(path(doc, 'Document', 'BkToCstmrStmt'))
-  if (!root) throw new ValidationError('Fichier XML non reconnu : un relevé camt.053 (BkToCstmrStmt) est attendu.')
+  if (!root) throw new ValidationError('Fichier XML non reconnu : un relevé camt.053 (BkToCstmrStmt) est attendu.')
 
   const transactions: ParsedTransaction[] = []
   const errors: RowError[] = []
@@ -137,11 +137,11 @@ export function parseCamt053(xml: string): CamtParse {
       const amountCents = signed(entry.Amt, entry.CdtDbtInd)
       const bookingDate = dateOf(entry.BookgDt) ?? dateOf(entry.ValDt)
       if (amountCents === null) {
-        errors.push({ line: index, message: `Écriture ${index} : montant ou sens (CdtDbtInd) illisible.` })
+        errors.push({ line: index, message: `Écriture ${index} : montant ou sens (CdtDbtInd) illisible.` })
         continue
       }
       if (!bookingDate) {
-        errors.push({ line: index, message: `Écriture ${index} : date de comptabilisation (BookgDt) illisible.` })
+        errors.push({ line: index, message: `Écriture ${index} : date de comptabilisation (BookgDt) illisible.` })
         continue
       }
       const valueDate = dateOf(entry.ValDt) ?? undefined
@@ -205,7 +205,7 @@ export function parseCamt053(xml: string): CamtParse {
     }
   }
 
-  if (index === 0 && accounts.length === 0) throw new ValidationError('Relevé camt.053 vide : aucun relevé (Stmt) trouvé.')
+  if (index === 0 && accounts.length === 0) throw new ValidationError('Relevé camt.053 vide : aucun relevé (Stmt) trouvé.')
   if (skipped > 0) warnings.push(`${plural(skipped, 'écriture non comptabilisée', 'écritures non comptabilisées')} (statut autre que BOOK) ${pluralWord(skipped, 'ignorée', 'ignorées')}.`)
   return { transactions, errors, warnings, accounts }
 }

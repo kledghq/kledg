@@ -300,7 +300,7 @@ export default function RevolutSetupPage() {
       <ConfirmDialog
         open={regenerateOpen}
         onOpenChange={setRegenerateOpen}
-        title="Générer un nouveau certificat ?"
+        title="Générer un nouveau certificat ?"
         description="L'ancien certificat ne fonctionnera plus&nbsp;: vous devrez ajouter le nouveau dans Revolut Business, puis autoriser Kledg de nouveau avec le nouvel identifiant client."
         confirmLabel="Générer un nouveau certificat"
         loading={generating}

@@ -165,8 +165,8 @@ async function seed() {
   })
 
   // Qonto connected for A only, a receipt of A and one of B, a Qonto invoice of A and one of B.
-  const { encrypt } = await import('@/lib/integrations/encryption')
-  await prisma.bankConnection.create({ data: { companyId: ids.aCompany, provider: 'QONTO', login: 'qonto-login', secretKeyEncrypted: encrypt('qonto-secret', process.env.ENCRYPTION_KEY!) } })
+  const { bankConnectionContext, encrypt } = await import('@/lib/integrations/encryption')
+  await prisma.bankConnection.create({ data: { companyId: ids.aCompany, provider: 'QONTO', login: 'qonto-login', secretKeyEncrypted: encrypt('qonto-secret', process.env.ENCRYPTION_KEY!, bankConnectionContext(ids.aCompany, 'QONTO')) } })
   for (const prefix of ['a', 'b'] as const) {
     const attachment = await prisma.attachment.create({
       data: { companyId: ids[`${prefix}Company`], externalAttachmentId: `att-${prefix}`, transactionUuid: TX_UUID, fileName: `recu-${prefix}.pdf`, fileContentType: 'application/pdf' },
@@ -333,7 +333,7 @@ describe.skipIf(!available)('MCP tools for files and the company lifecycle', () 
     it('refuses a viewer the exports (reports:export) and the full control tools, and lets it read documents', async () => {
       const viewer = await apiKey('admin', { user: VIEWER })
       const exported = await call(viewer, 'export_report', { companyId: ids.aCompany, report: 'journal_excel' })
-      expect(exported.text).toMatch(/^Action non autorisée : votre rôle \(Lecture seule\)/)
+      expect(exported.text).toMatch(/^Action non autorisée\u00a0: votre rôle \(Lecture seule\)/)
       for (const tool of ['archive_company', 'restore_company']) {
         const result = await call(viewer, tool, { companyId: ids.aCompany })
         expect(result.ok, tool).toBe(false)
@@ -486,7 +486,7 @@ describe.skipIf(!available)('MCP tools for files and the company lifecycle', () 
       ])
       // A SIREN already on the instance is refused, in the dry run too.
       const again = await call(key, 'create_company', NEW_COMPANY)
-      expect(again.text).toBe('Une société avec le SIREN 552100554 existe déjà sur cette instance.')
+      expect(again.text).toBe('Une société avec le SIREN 552100554 existe déjà.')
     })
 
     it('refuses a connection limited to some companies, and validates like the wizard', async () => {

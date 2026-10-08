@@ -26,7 +26,6 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { IntegrationFeature, type SyncResult } from '@/lib/integrations/types'
 import { logger } from '@/lib/logger'
-import { updateEntryDatesFromReconciledTransactions } from '@/lib/services/banking/update-entry-dates-from-transactions.service'
 import { openCredentials } from '@/lib/banking/credentials'
 import { createBankProvider, isBankProvider, providerKind } from '@/lib/banking/providers'
 import { shouldStoreTransaction, type BankProvider } from '@/lib/banking/providers/types'
@@ -38,9 +37,10 @@ import { errorReason } from '@/lib/banking/errors'
 import { AccountingError } from '@/lib/accounting/errors'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { addUtcDays, todayUtc } from '@/lib/utils/date'
+import { bankSyncPause, bankSyncPausedMessage } from '@/lib/banking/sync-pause'
 
 const UNREADABLE_CREDENTIALS_MESSAGE =
-  'Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'
+  'Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'
 
 type IntegrationWithFeatures = Prisma.IntegrationGetPayload<{ include: { featureConfigs: true } }>
 
@@ -85,10 +85,14 @@ export async function syncIntegration(
     return { success: false, itemsSynced: 0, errors: ['Connexion bancaire introuvable'] }
   }
   if (integration.status !== 'active') {
-    return { success: false, itemsSynced: 0, errors: ["La connexion n'est pas active : terminez ou renouvelez l'autorisation depuis la page Banque."] }
+    return { success: false, itemsSynced: 0, errors: ["La connexion n'est pas active : terminez ou renouvelez l'autorisation depuis la page Banque."] }
   }
+  // A read-only company receives no new operation, and nothing is recorded:
+  // its last sync date stays, so the sync catches up once writable (issue #15).
+  const pause = await bankSyncPause(integration.companyId)
+  if (pause) return { success: false, paused: true, itemsSynced: 0, errors: [bankSyncPausedMessage(pause)] }
   if (!isBankProvider(integration.provider)) {
-    return { success: false, itemsSynced: 0, errors: [`Fournisseur non pris en charge : ${integration.provider}`] }
+    return { success: false, itemsSynced: 0, errors: [`Fournisseur non pris en charge : ${integration.provider}`] }
   }
 
   let provider: BankProvider
@@ -97,7 +101,7 @@ export async function syncIntegration(
       options.provider ??
       createBankProvider(
         integration.provider,
-        openCredentials(integration.provider, integration.credentials, integration.credentialsEncrypted, encryptionKey),
+        openCredentials(integration.provider, integration.credentials, integration.credentialsEncrypted, encryptionKey, integration.companyId),
       )
   } catch (error) {
     // Credentials sealed with another instance key, or incomplete: the user reconnects
@@ -126,7 +130,7 @@ export async function syncIntegration(
       result.errors.push(...partial.errors)
     } catch (error) {
       const step = feature === IntegrationFeature.BANKING_ACCOUNTS ? 'Lecture des comptes' : 'Lecture des opérations'
-      result.errors.push(`${step} : ${errorReason(error)}`)
+      result.errors.push(`${step} : ${errorReason(error)}`)
     }
   }
 
@@ -225,7 +229,7 @@ async function syncAccounts(
       }
       result.itemsSynced++
     } catch (error) {
-      result.errors.push(`Compte ${account.name} : ${errorReason(error)}`)
+      result.errors.push(`Compte ${account.name} : ${errorReason(error)}`)
     }
   }
 
@@ -285,13 +289,11 @@ async function syncTransactions(
       result.itemsSynced += stored.created
       result.matched = (result.matched ?? 0) + stored.matched
 
-      // Align the dates of reconciled draft entries on their transactions
-      await updateEntryDatesFromReconciledTransactions({ companyId: integration.companyId, bankAccountId: bankAccount.id })
       await prisma.bankAccount.update({ where: { id: bankAccount.id }, data: { lastSyncedAt: now, lastSyncError: null } })
     } catch (error) {
       const reason = errorReason(error)
       logger.error('[Sync] Bank account sync failed', { resourceId: resource.id, reason })
-      result.errors.push(`Compte ${resource.name} : ${reason}`)
+      result.errors.push(`Compte ${resource.name} : ${reason}`)
       await prisma.bankAccount.update({ where: { id: bankAccount.id }, data: { lastSyncError: reason } })
     }
   }

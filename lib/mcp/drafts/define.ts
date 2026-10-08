@@ -27,6 +27,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { ValidationError } from '@/lib/accounting/errors'
 import { parseInput } from '@/lib/api/zod-fields'
 import type { Permission } from '@/lib/rbac/authorize'
@@ -85,7 +86,13 @@ export function draftTool<S extends Shape, R extends DraftResult>(tool: DraftToo
 
 export type RegisterDraftTool = <S extends Shape, R extends DraftResult>(tool: DraftTool<S, R>) => void
 
-async function audit(tool: string, access: McpAccess, companyId: string, ids: Record<string, unknown>) {
+/**
+ * The audit entry of a draft write (MCP_WRITE): the user, the assistant
+ * (OAuth client or API key, assistantOf) and the main ids, never text the
+ * assistant wrote. Every draft-level write goes through it, create_draft_entry
+ * included (lib/mcp/tools.ts).
+ */
+export async function auditDraftWrite(tool: string, access: McpAccess, companyId: string, ids: Record<string, unknown>) {
   const assistant = await assistantOf(access)
   await writeAuditLog('info', `MCP draft write: ${tool} by ${assistant.name ?? assistant.id}`, {
     action: 'MCP_WRITE',
@@ -114,10 +121,11 @@ export function registerDraftTool<S extends Shape, R extends DraftResult>(server
         const permissions = [...basePermissions, ...permissionsOfAction(tool.actions, (args as { action?: unknown }).action)]
         if (permissions.length === 0) throw new ValidationError('Action inconnue.')
         for (const permission of permissions) await guard.require(args.companyId, permission)
+        await enforceRateLimit('mcp-write', access.user.id)
         const authorize = (permission: Permission) => guard.require(args.companyId, permission)
         const result = await tool.execute(args, { access, companyId: args.companyId, authorize })
         const ids = tool.audit(args, result)
-        if (ids) await audit(tool.name, access, args.companyId, ids)
+        if (ids) await auditDraftWrite(tool.name, access, args.companyId, ids)
         return json(result)
       }),
   )

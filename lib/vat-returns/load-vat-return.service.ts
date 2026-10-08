@@ -35,6 +35,7 @@ import {
   isDeductibleFixedAssetsCode,
   isDeductibleOtherCode,
   isSettlementEntry,
+  SETTLEMENT_REFERENCE_PREFIX,
   isToPayCode,
   type VatEntry,
   type VatInvoiceSource,
@@ -195,11 +196,18 @@ async function openingVatBalances(companyId: string, fiscalYearId: string | null
 
 const sumWhere = (map: Map<string, number>, test: (code: string) => boolean) => [...map.entries()].filter(([code]) => test(code)).reduce((s, [, v]) => s + v, 0)
 
-/** Net debit minus credit by code of the period's entries that are operations (no opening, closing or settlement entry). */
-function periodNets(entries: VatEntry[]): Map<string, number> {
+/**
+ * Net debit minus credit by code of the period's entries that are operations
+ * (no opening, closing or settlement entry). The settlement Kledg prepared
+ * for an earlier period and dated in this one, because that period was
+ * closed (lib/accounting/period-lock/booking-day.ts), counts: the opening
+ * balances do not hold it, and it clears what that period left.
+ */
+function periodNets(entries: VatEntry[], reference: string): Map<string, number> {
   const out = new Map<string, number>()
   for (const entry of entries) {
-    if (isBalanceEntry(entry) || isSettlementEntry(entry)) continue
+    const earlierSettlement = !!entry.reference?.startsWith(SETTLEMENT_REFERENCE_PREFIX) && entry.reference !== reference
+    if (isBalanceEntry(entry) || (isSettlementEntry(entry) && !earlierSettlement)) continue
     for (const l of entry.lines) out.set(l.code, (out.get(l.code) ?? 0) + l.debitCents - l.creditCents)
   }
   return out
@@ -320,7 +328,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   const computation = computeVatReturn({ form: period.form, movements, creditCarriedCents })
 
   // Balances at the end of the period, without this period's settlement (classify left settlements out).
-  const nets = periodNets(entries)
+  const nets = periodNets(entries, reference)
   const end = (test: (code: string) => boolean) => sumWhere(opening, test) + sumWhere(nets, test)
   const declaredCollected = movements.groups.collected
   const balances: BalanceRow[] = [

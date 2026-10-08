@@ -8,7 +8,12 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import type { CurrentUser } from '@/lib/session'
+import { ValidationError } from '@/lib/accounting/errors'
 import {
+  API_KEY_EXPIRY_REQUIRED_MESSAGE,
+  DEFAULT_API_KEY_EXPIRY_DAYS,
+  expiryAllowed,
+  type ApiKeyExpiryDays,
   DEFAULT_EXECUTION_MODE,
   apiKeyPermissionsFor,
   type AccessLevel,
@@ -27,6 +32,8 @@ export interface CreatedApiKey {
   level: AccessLevel
   /** How full control runs high-impact tools (stored on the grant; 'automatic' by default). */
   executionMode: ExecutionMode
+  /** When the key stops working; null only for a read-only key created without expiry. */
+  expiresAt: Date | null
 }
 
 export async function createApiKeyWithGrant(
@@ -35,10 +42,19 @@ export async function createApiKeyWithGrant(
   access: CompanyAccess,
   level: AccessLevel,
   executionMode: ExecutionMode = DEFAULT_EXECUTION_MODE,
+  expiresInDays: ApiKeyExpiryDays = DEFAULT_API_KEY_EXPIRY_DAYS,
 ): Promise<CreatedApiKey> {
+  if (!expiryAllowed(level, expiresInDays)) throw new ValidationError(API_KEY_EXPIRY_REQUIRED_MESSAGE)
   // Server-side call: the key belongs to `userId` (no session cookie involved).
   // Its level is stored as Better Auth key permissions (server-only field).
-  const created = await auth.api.createApiKey({ body: { name, userId: user.id, permissions: apiKeyPermissionsFor(level) } })
+  const created = await auth.api.createApiKey({
+    body: {
+      name,
+      userId: user.id,
+      permissions: apiKeyPermissionsFor(level),
+      ...(expiresInDays !== null && { expiresIn: expiresInDays * 24 * 3600 }),
+    },
+  })
   try {
     const { executionMode: mode, ...saved } = await setGrant(user, { kind: 'apiKey', apiKeyId: created.id }, access, executionMode)
     return {
@@ -49,6 +65,7 @@ export async function createApiKeyWithGrant(
       access: saved,
       level,
       executionMode: mode,
+      expiresAt: created.expiresAt ? new Date(created.expiresAt) : null,
     }
   } catch (error) {
     await prisma.apikey.delete({ where: { id: created.id } })

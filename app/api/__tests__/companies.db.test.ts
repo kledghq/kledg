@@ -224,7 +224,7 @@ describe.skipIf(!available)('company settings routes', () => {
       expect((await create({ siret: '11111111100011' })).status).toBe(201)
       const duplicate = await create({ siret: '11111111100011' })
       expect(duplicate.status).toBe(409)
-      expect(await errorOf(duplicate)).toBe('Un établissement avec ce SIRET existe déjà')
+      expect(await errorOf(duplicate)).toBe('Un établissement avec ce SIRET existe déjà.')
     })
 
     it('updates fields, keeps the SIRET when sent unchanged and refuses a malformed new one', async () => {
@@ -251,10 +251,11 @@ describe.skipIf(!available)('company settings routes', () => {
       expect((await prisma.establishment.findUniqueOrThrow({ where: { id: other.id } })).isActive).toBe(true)
     })
 
-    it('creates the main establishment on first read', async () => {
+    it('reads the establishments without creating any (KLEDG-R3-AUTHZ-07)', async () => {
       const response = await call('viewer', 'establishments', 'GET', `/api/companies/${A()}/establishments`, { params: { id: A() } })
       expect(response.status).toBe(200)
-      expect(await response.json()).toEqual([expect.objectContaining({ name: 'Siège social', isMain: true })])
+      expect(await response.json()).toEqual([])
+      expect(await prisma.establishment.count({ where: { companyId: A() } })).toBe(0)
     })
   })
 
@@ -272,25 +273,36 @@ describe.skipIf(!available)('company settings routes', () => {
       expect(await errorOf(over)).toMatch(/ne peut pas dépasser 100 %/)
     })
 
-    it('records another company of the user as shareholder, read in its own scope', async () => {
+    it('records another company the user administers as shareholder, read in its own scope', async () => {
       // The route narrows its statements to company A (docs/rls.md): the shareholder
-      // company must still be found when the user is a member of it, even as a viewer.
+      // company must still be found when the user is a member of it.
       const holding = await prisma.company.create({ data: { name: 'Holding Gamma', slug: 'holding-gamma', siren: '333333333' } })
       await prisma.organization.create({ data: { id: 'org-c', name: 'Holding Gamma', slug: 'org-holding-gamma', createdAt: new Date(), companyId: holding.id } })
       await prisma.member.create({ data: { id: 'm-u-cadmin-c', userId: 'u-cadmin', organizationId: 'org-c', role: 'viewer', createdAt: new Date() } })
 
+      // KLEDG-R3-AUTHZ-03: a viewer of the holding cannot make A one of its subsidiaries.
+      const refused = await create({ type: 'LEGAL', companyShareholderId: holding.id, sharePercentage: 40 })
+      expect(refused.status).toBe(403)
+      expect(await errorOf(refused)).toMatch(/vous devez pouvoir modifier ses paramètres/)
+      expect(await prisma.shareholder.count({ where: { companyShareholderId: holding.id } })).toBe(0)
+      const { id } = (await (await create({ type: 'LEGAL', name: 'Fonds', sharePercentage: 10 })).json()) as { id: string }
+      const patch = (body: unknown) =>
+        call('companyAdmin', 'shareholder', 'PATCH', `/api/companies/${A()}/shareholders/${id}`, { params: { id: A(), shareholderId: id }, body })
+      expect((await patch({ companyShareholderId: holding.id, sharePercentage: 10 })).status).toBe(403)
+
+      await prisma.member.update({ where: { id: 'm-u-cadmin-c' }, data: { role: 'companyAdmin' } })
       const created = await create({ type: 'LEGAL', companyShareholderId: holding.id, sharePercentage: 40 })
       const body = await created.json()
       expect(created.status).toBe(201)
       expect(body).toMatchObject({ name: 'Holding Gamma', companyShareholderId: holding.id })
 
-      const { id } = (await (await create({ type: 'LEGAL', name: 'Fonds', sharePercentage: 10 })).json()) as { id: string }
-      const updated = await call('companyAdmin', 'shareholder', 'PATCH', `/api/companies/${A()}/shareholders/${id}`, {
-        params: { id: A(), shareholderId: id },
-        body: { companyShareholderId: holding.id, sharePercentage: 10 },
-      })
+      const updated = await patch({ companyShareholderId: holding.id, sharePercentage: 10 })
       expect(updated.status).toBe(200)
       expect(await updated.json()).toMatchObject({ name: 'Holding Gamma', companyShareholderId: holding.id })
+
+      // Keeping an existing link (the form sends it back) only needs access to the holding.
+      await prisma.member.update({ where: { id: 'm-u-cadmin-c' }, data: { role: 'viewer' } })
+      expect((await patch({ companyShareholderId: holding.id, sharePercentage: 12 })).status).toBe(200)
     })
 
     it('refuses a person or a shareholder company the user cannot see', async () => {

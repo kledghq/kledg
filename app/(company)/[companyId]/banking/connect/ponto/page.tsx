@@ -209,7 +209,7 @@ export default function PontoSetupPage() {
         </Card>
       ) : (
         <Alert>
-          <AlertTitle>Votre banque refuse la connexion ou n&apos;est pas stable ?</AlertTitle>
+          <AlertTitle>Votre banque refuse la connexion ou n&apos;est pas stable&nbsp;?</AlertTitle>
           <AlertDescription>
             <p>Vous pouvez toujours ajouter le compte et importer ses relevés (fichier).</p>
             <Button asChild size="sm" variant="outline" className="mt-2">

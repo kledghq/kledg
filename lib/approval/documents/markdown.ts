@@ -35,7 +35,7 @@ function block(b: Block): string {
     case 'signatures': {
       const lines: string[] = []
       if (b.place || b.date) lines.push(escape(`Fait${b.place ? ` à ${b.place}` : ''}${b.date ? `, le ${b.date}` : ''}`))
-      for (const s of b.signers) lines.push(`${escape(s.name)}, ${escape(s.role)}\n\nSignature :\n\n\n`)
+      for (const s of b.signers) lines.push(`${escape(s.name)}, ${escape(s.role)}\n\nSignature :\n\n\n`)
       return lines.join('\n\n')
     }
   }

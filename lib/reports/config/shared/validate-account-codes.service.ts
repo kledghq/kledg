@@ -78,7 +78,7 @@ export async function validateAccountCodes(
 
     if (invalidPrefixes.length > 0) {
       throw new ValidationError(
-        `Préfixes de comptes inconnus : ${invalidPrefixes.join(', ')}. Aucun compte de la société ne commence par ces préfixes.`
+        `Préfixes de comptes inconnus : ${invalidPrefixes.join(', ')}. Aucun compte de la société ne commence par ces préfixes.`
       )
     }
 
@@ -103,7 +103,7 @@ export async function validateAccountCodes(
 
   if (invalidCodes.length > 0) {
     throw new ValidationError(
-      `Comptes inconnus : ${invalidCodes.join(', ')}. Créez-les dans le plan comptable de la société ou corrigez les numéros.`
+      `Comptes inconnus : ${invalidCodes.join(', ')}. Créez-les dans le plan comptable de la société ou corrigez les numéros.`
     )
   }
 }

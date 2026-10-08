@@ -39,7 +39,13 @@ describe('period arithmetic', () => {
   it('ends a period the day before the same date months later', () => {
     expect(periodEnd('2026-01-01', 12)).toBe('2026-12-31')
     expect(periodEnd('2026-03-14', 24)).toBe('2028-03-13')
-    expect(periodEnd('2026-01-31', 1)).toBe('2026-02-27')
+    // No 31 February: the anniversary is 1 March, the period ends on 28 February
+    expect(periodEnd('2026-01-31', 1)).toBe('2026-02-28')
+    expect(periodEnd('2026-01-28', 1)).toBe('2026-02-27')
+    // KLEDG-R3-QUAL-22: a first year starting on 29 February 2024
+    expect(periodEnd('2024-02-29', 12)).toBe('2025-02-28')
+    expect(periodEnd('2024-02-29', 48)).toBe('2028-02-28')
+    expect(periodEnd('2023-12-01', 3)).toBe('2024-02-29')
     expect(periodMonths('2026-01-01', '2026-12-31')).toBe(12)
     expect(periodMonths('2026-03-14', '2026-12-31')).toBe(10)
     expect(periodMonths('2026-01-01', '2027-01-31')).toBe(13)

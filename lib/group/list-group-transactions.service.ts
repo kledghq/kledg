@@ -15,11 +15,12 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import type { GroupAccess } from '@/lib/management-fees/access'
+import { normalizeBankSide } from '@/lib/banking/side'
 import { calendarDayOf, endOfDay, isoDateToUtc } from '@/lib/utils/date'
 import { toCents } from '@/lib/utils/money'
 import { decodeCursor, mergePages, type PageKey } from './merge-pages'
 import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink } from './members'
-import type { UnreachableSubsidiary } from './perimeter'
+import { GROUP_BANK_READ, type UnreachableSubsidiary } from './perimeter'
 
 export const MAX_GROUP_TRANSACTIONS_PAGE = 200
 export const DEFAULT_GROUP_TRANSACTIONS_PAGE = 50
@@ -64,8 +65,8 @@ export interface GroupTransactionsPage {
   warnings: string[]
 }
 
-export const INVALID_CURSOR = 'Curseur de pagination invalide\u00a0: rechargez la liste.'
-export const COMPANY_NOT_IN_GROUP = 'Société introuvable dans ce groupe.'
+const INVALID_CURSOR = 'Curseur de pagination invalide\u00a0: rechargez la liste.'
+const COMPANY_NOT_IN_GROUP = 'Société introuvable dans ce groupe.'
 
 function whereOf(companyId: string, query: GroupTransactionsQuery, after: PageKey | null): Prisma.BankTransactionWhereInput {
   const and: Prisma.BankTransactionWhereInput[] = [{ bankAccount: { bankConnection: { companyId } } }]
@@ -125,12 +126,13 @@ export async function listGroupTransactions(holdingId: string, query: GroupTrans
         counterpartyName: t.counterpartyName,
         reference: t.reference,
         amountCents: Math.abs(toCents(t.amount) ?? 0),
-        side: t.side === 'credit' ? 'credit' : 'debit',
+        side: normalizeBankSide(t.side),
         reconciled: t.reconciled,
         bankAccountName: t.bankAccount.displayName || t.bankAccount.name,
       }),
     )
-  })
+    // Bank transactions need banking:read in each company, like its Transactions page (KLEDG-R3-AUTHZ-08).
+  }, GROUP_BANK_READ)
   if (only && !read.members.some((m) => m.ref.id === only || m.ref.slug === only)) throw new NotFoundError(COMPANY_NOT_IN_GROUP)
   const page = mergePages(
     read.members.map((m) => m.value),

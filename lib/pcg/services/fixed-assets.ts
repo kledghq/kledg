@@ -61,7 +61,7 @@ export async function createFixedAssetWithPCGValidation(
   })
 
   if (!costValidation.valid) {
-    throw new ValidationError(`Validation coût d'acquisition échouée : ${costValidation.errors.join(', ')}`)
+    throw new ValidationError(`Validation coût d'acquisition échouée : ${costValidation.errors.join(', ')}`)
   }
 
   costValidation.warnings.forEach(w => {
@@ -101,7 +101,7 @@ export async function createFixedAssetWithPCGValidation(
     const depreciationValidation = validateDepreciationPlan(tempPlan)
 
     if (!depreciationValidation.valid) {
-      throw new ValidationError(`Validation plan d'amortissement échouée : ${depreciationValidation.errors.join(', ')}`)
+      throw new ValidationError(`Validation plan d'amortissement échouée : ${depreciationValidation.errors.join(', ')}`)
     }
 
     depreciationValidation.warnings.forEach(w => {

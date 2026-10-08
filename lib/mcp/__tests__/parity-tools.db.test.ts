@@ -167,6 +167,7 @@ const HIGH_IMPACT: Record<string, Record<string, unknown>> = {
   manage_bank_accounts: { action: 'disconnect', connectionId: 'x' },
   bulk_reconcile: { action: 'unreconcile', transactionIds: ['x'] },
   delete_bank_transactions: ARGS.delete_bank_transactions,
+  upload_receipt: ARGS.upload_receipt,
   manage_invoice: ARGS.manage_invoice,
   import_qonto_invoices: ARGS.import_qonto_invoices,
   delete_tiers: ARGS.delete_tiers,
@@ -387,7 +388,7 @@ describe.skipIf(!available)('MCP tools covering the API', () => {
           expect(result.text, tool).not.toMatch(/Action non autorisée|Société introuvable/)
         } else {
           expect(result.ok, tool).toBe(false)
-          expect(result.text, tool).toMatch(/^Action non autorisée : votre rôle \(Lecture seule\)/)
+          expect(result.text, tool).toMatch(/^Action non autorisée\u00a0: votre rôle \(Lecture seule\)/)
         }
       }
     })

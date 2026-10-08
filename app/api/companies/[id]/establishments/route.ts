@@ -3,17 +3,18 @@ import { companyRoute, fromParam } from '@/lib/api/route'
 import {
   createEstablishment,
   CreateEstablishmentSchema,
-  listOrInitializeEstablishments,
+  getCompanyEstablishments,
 } from '@/lib/companies/manage-establishments.service'
 
 /**
  * GET /api/companies/[id]/establishments
- * Active establishments of the company, the main one first (created from the
- * company when it has none yet).
+ * Active establishments of the company, the main one first. A read never
+ * writes (KLEDG-R3-AUTHZ-07): a company without any establishment answers an
+ * empty list, and the user adds the main one with its SIRET.
  */
 export const GET = companyRoute(
   { company: fromParam('id'), permission: { settings: ['read'] } },
-  async ({ companyId }) => NextResponse.json(await listOrInitializeEstablishments(companyId)),
+  async ({ companyId }) => NextResponse.json(await getCompanyEstablishments(companyId)),
 )
 
 /**

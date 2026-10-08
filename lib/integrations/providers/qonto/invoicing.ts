@@ -189,7 +189,7 @@ export type QontoCreateOutcome<T> =
   | { kind: 'uncertain' }
 
 /** Pages read at most per list (100 items each): a larger organization is imported in several runs with `since`. */
-export const MAX_PAGES = 50
+const MAX_PAGES = 50
 const PER_PAGE = 100
 
 export class QontoInvoicing extends QontoClientBase {

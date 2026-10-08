@@ -63,9 +63,9 @@ export async function postOpeningBalances(input: {
     orderBy: { startDate: 'asc' },
     select: { id: true, year: true, startDate: true, isClosed: true },
   })
-  if (!target) throw new NotFoundError("Aucun exercice pour cette société : créez d'abord son premier exercice.")
+  if (!target) throw new NotFoundError("Aucun exercice pour cette société : créez d'abord son premier exercice.")
   if (target.isClosed) {
-    throw new ConflictError(`L'exercice ${target.year} est clôturé : ses à-nouveaux ne peuvent plus être saisis.`)
+    throw new ConflictError(`L'exercice ${target.year} est clôturé : ses à-nouveaux ne peuvent plus être saisis.`)
   }
 
   const entryId = await prisma.$transaction(
@@ -76,7 +76,7 @@ export async function postOpeningBalances(input: {
       })
       if (existing > 0) {
         throw new ConflictError(
-          `L'exercice ${target.year} a déjà une écriture d'à-nouveaux (journal ${OPENING_JOURNAL.code}) : corrigez-la dans Écritures plutôt que d'en saisir une seconde.`,
+          `L'exercice ${target.year} a déjà une écriture d'à-nouveaux (journal ${OPENING_JOURNAL.code}) : corrigez-la dans Écritures plutôt que d'en saisir une seconde.`,
         )
       }
       const codes = lines.map((l) => l.accountCode.trim())
@@ -88,7 +88,7 @@ export async function postOpeningBalances(input: {
       const missing = codes.filter((code) => !byCode.has(code))
       if (missing.length > 0) {
         throw new ValidationError(
-          `Compte${missing.length > 1 ? 's' : ''} absent${missing.length > 1 ? 's' : ''} du plan comptable de l'exercice ${target.year} : ${missing.join(', ')}. Créez-le${missing.length > 1 ? 's' : ''} dans Plan de comptes.`,
+          `Compte${missing.length > 1 ? 's' : ''} absent${missing.length > 1 ? 's' : ''} du plan comptable de l'exercice ${target.year} : ${missing.join(', ')}. Créez-le${missing.length > 1 ? 's' : ''} dans Plan de comptes.`,
         )
       }
       const journal = await ensureJournal(tx, input.companyId, OPENING_JOURNAL)

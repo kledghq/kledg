@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { compileRulePattern } from '@/lib/transactions/rule-regex'
+import { cn } from '@/lib/utils'
 import {
   CONDITION_TYPES,
   CONDITION_VALUE_OPTIONS,
@@ -23,6 +24,14 @@ import { RuleSection } from './rule-section'
  * is recognised when every condition holds (AND), said once in the section
  * description; rows are joined by "et".
  */
+/**
+ * Columns of the conditions from the small breakpoint up: Champ, Opérateur,
+ * Valeur (the widest), then the delete button. The header and every row use
+ * the same template, so they stay aligned; on a phone a row stacks its
+ * fields, the delete button beside the first one.
+ */
+export const CONDITION_COLUMNS = 'sm:grid-cols-[12rem_11rem_minmax(0,1fr)_2.25rem]'
+
 export function RuleConditions({
   conditions,
   onChange,
@@ -68,7 +77,7 @@ export function RuleConditions({
         </p>
       ) : (
         <ol className="space-y-2" aria-label="Conditions de la règle">
-          <li aria-hidden className="text-muted-foreground hidden gap-2 text-xs sm:grid sm:grid-cols-[10rem_11rem_minmax(0,1fr)_2.25rem]">
+          <li aria-hidden className={cn('text-muted-foreground hidden gap-2 text-xs sm:grid', CONDITION_COLUMNS)}>
             <span>Champ</span>
             <span>Opérateur</span>
             <span>Valeur</span>
@@ -88,7 +97,7 @@ export function RuleConditions({
                 <div
                   role="group"
                   aria-label={`Condition ${n}${sentence ? ` : ${sentence}` : ''}`}
-                  className="grid grid-cols-[minmax(0,1fr)_2.25rem] gap-2 sm:grid-cols-[10rem_11rem_minmax(0,1fr)_2.25rem]"
+                  className={cn('grid grid-cols-[minmax(0,1fr)_2.25rem] gap-2', CONDITION_COLUMNS)}
                 >
                   <Select value={condition.conditionType || 'label'} onValueChange={(value) => changeType(condition, value)}>
                     <SelectTrigger aria-label={`Champ de la condition ${n}`} className="w-full">
@@ -124,7 +133,7 @@ export function RuleConditions({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="col-start-2 row-start-1"
+                    className="col-start-2 row-start-1 sm:col-start-4"
                     aria-label={`Supprimer la condition ${n}`}
                     title="Supprimer la condition"
                     onClick={() => onChange(conditions.filter((c) => c.id !== condition.id))}

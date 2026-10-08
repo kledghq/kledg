@@ -17,7 +17,7 @@ import { INTEGRATION_SELECT, type IntegrationView } from '@/lib/integrations/lis
 
 /** Providers whose credentials are typed in Kledg (Revolut goes through OAuth). */
 export const TypedCredentialsProvider = z.enum(['QONTO', 'PONTO'], {
-  message: 'Fournisseur non pris en charge : choisissez Qonto ou Ponto.',
+  message: 'Fournisseur non pris en charge : choisissez Qonto ou Ponto.',
 })
 
 /** Credentials typed by the user (Qonto: login, secretKey; Ponto: clientId, clientSecret). */
@@ -26,7 +26,7 @@ export const TypedCredentials = z.record(z.string(), z.string().max(500, '500 ca
 })
 
 export const IntegrationFeatures = z
-  .array(z.enum(IntegrationFeature, { message: 'Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.' }))
+  .array(z.enum(IntegrationFeature, { message: 'Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.' }))
   .max(10)
 
 export const CreateIntegrationSchema = z.object({
@@ -44,7 +44,7 @@ export async function createIntegration(
   encryptionKey: string = requireEncryptionKey(),
 ): Promise<IntegrationView> {
   const { provider } = input
-  const storedCredentials = sealCredentials(provider, input.credentials, encryptionKey)
+  const storedCredentials = sealCredentials(provider, input.credentials, encryptionKey, companyId)
   const hasSecret = SECRET_FIELDS[provider].some((field) => typeof storedCredentials[field] === 'string')
   const features = [...new Set(input.features ?? [])]
 
@@ -54,7 +54,7 @@ export async function createIntegration(
     const existing = await tx.integration.count({ where: { companyId, provider, type: 'BANKING' } })
     if (existing > 0) {
       throw new ConflictError(
-        `${BANK_PROVIDER_LABELS[provider] ?? provider} est déjà connecté pour cette société : modifiez la connexion existante.`,
+        `${BANK_PROVIDER_LABELS[provider] ?? provider} est déjà connecté pour cette société : modifiez la connexion existante.`,
       )
     }
     return tx.integration.create({

@@ -9,7 +9,17 @@ import { ForbiddenError } from '@/lib/accounting/errors'
 import { actionRefusalMessage, companyCreationRefusal, isActionAllowed } from './policy'
 import type { InstanceAction, InstanceActor } from './types'
 
-export { actionRefusalMessage, afterCompanyCreated, companyCreationRefusal, companyWriteRefusal, isActionAllowed, SETUP_PENDING_REDIRECT } from './policy'
+export {
+  actionRefusalMessage,
+  afterCompanyCreated,
+  companyCreationRefusal,
+  companyIdentifierScope,
+  companyWriteRefusal,
+  isActionAllowed,
+  randomCompanySlugSuffix,
+  requiresRowLevelSecurity,
+  SETUP_PENDING_REDIRECT,
+} from './policy'
 export { INSTANCE_ACTIONS, type ActionRefusal, type InstanceAction, type InstanceActor } from './types'
 export { isInstancePublicPage, isSelfAuthenticatedApiPath } from './api-paths'
 

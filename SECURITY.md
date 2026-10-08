@@ -53,8 +53,9 @@ Alertes ouvertes que nous avons analysées et qui n'affectent pas la sécurité 
 | Avis | Paquet | Où | Analyse |
 | --- | --- | --- | --- |
 | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) (déni de service) | `braces` 3.0.3 | site www.kledg.com, dépendance de développement (`shadcn` → `fast-glob` → `micromatch` → `braces`) | Utilisé seulement par l'outil `shadcn` sur le poste du développeur et pendant la construction, sur des motifs écrits par nous. Jamais exécuté sur le site publié ni dans l'application, et aucune donnée d'un visiteur ne l'atteint. Aucune version corrigée n'existe à ce jour : nous mettrons à jour dès sa publication. |
+| [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) (déni de service) | `braces` 3.0.3 | application Kledg, dépendance de développement (`eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` → `micromatch` → `braces`) | Utilisé seulement par l'analyse du code (`pnpm lint`) sur le poste du développeur et dans l'intégration continue, sur les motifs de fichiers de la configuration ESLint. Absent de l'application construite et du serveur, et aucune donnée d'un utilisateur ne l'atteint. 3.0.3 est la dernière version publiée et aucune version corrigée n'existe : une substitution de version (`pnpm.overrides`) n'a rien vers quoi pointer. Nous mettrons à jour dès sa publication. |
 
-L'application Kledg elle-même n'a aucune alerte ouverte.
+Les autres alertes des dépendances de développement sont corrigées par une substitution de version dans `package.json` (`pnpm.overrides`) dès qu'une version corrigée existe, par exemple `source-map-js` 1.2.2 ([GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q), via `@tailwindcss/postcss` et `jsdom`). `pnpm audit --prod` (dépendances de l'application en production) ne signale aucune alerte.
 
 ## Versions prises en charge
 

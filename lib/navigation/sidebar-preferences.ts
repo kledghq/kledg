@@ -14,8 +14,8 @@
 import { z } from 'zod'
 
 /** More than the navigation holds, so a menu is never cut; bounds what a request may send. */
-export const MAX_HIDDEN_ITEMS = 120
-export const MAX_HIDDEN_GROUPS = 20
+const MAX_HIDDEN_ITEMS = 120
+const MAX_HIDDEN_GROUPS = 20
 
 const ItemId = z
   .string()

@@ -31,7 +31,8 @@ export async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request)
   const isAuthenticated = Boolean(sessionCookie)
 
-  const publicRoutes = ['/login', '/setup', '/forgot-password', '/reset-password']
+  // /invitation: the link of a company invitation, opened before the invitee has a session (lib/rbac/company-invitations.service.ts).
+  const publicRoutes = ['/login', '/setup', '/forgot-password', '/reset-password', '/invitation']
   // Plus the pages the instance policy opens (lib/instance/policy.ts, PUBLIC_PAGES).
   const isPublicRoute =
     publicRoutes.some(route => pathname === route || pathname.startsWith(route + '/')) ||
@@ -88,8 +89,16 @@ export async function proxy(request: NextRequest) {
   return next()
 }
 
+/**
+ * Every path goes through the proxy (sign-in redirect, page CSP, path
+ * header) except the static files that exist: Next.js build assets and image
+ * optimizer, the app icons (app/favicon.ico, app/icon.svg,
+ * app/apple-icon.png) and the images of public/. Never a rule on the
+ * extension alone: a page such as /<company>/invoices/x.png would be
+ * rendered without its CSP (KLEDG-R3-INPUT-04).
+ */
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static/|_next/image$|favicon\\.ico$|icon\\.svg$|apple-icon\\.png$|logo\\.svg$|icons/[\\w-]+\\.png$).*)',
   ],
 }

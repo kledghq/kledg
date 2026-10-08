@@ -22,6 +22,7 @@
  */
 
 import type { VatPeriod } from './periods'
+import { pickRootAccount } from '@/lib/accounting/root-account'
 
 export interface SettlementLine {
   code: string
@@ -43,7 +44,7 @@ export interface SettlementInput {
   creditEuros: number
 }
 
-export const SETTLEMENT_ACCOUNTS = {
+const SETTLEMENT_ACCOUNTS = {
   toPay: { code: '44551', label: 'TVA à décaisser' },
   credit: { code: '44567', label: 'Crédit de TVA à reporter' },
   roundingCharge: { code: '658', label: 'Pénalités et autres charges' },
@@ -63,7 +64,7 @@ const LABELS: Array<[string, string]> = [
 const labelOf = (code: string) => LABELS.find(([root]) => code.startsWith(root))?.[1] ?? `Compte ${code}`
 
 /** Accounts the settlement clears by their period movement. */
-export const isSettledCode = (code: string) =>
+const isSettledCode = (code: string) =>
   (code.startsWith('4457') && !code.startsWith('44574') && !code.startsWith('44578')) ||
   code.startsWith('4452') ||
   code.startsWith('44562') ||
@@ -128,18 +129,12 @@ export function netByAccount(lines: SettlementLine[]): SettlementLine[] {
 export const SETTLEMENT_ROOTS: readonly string[] = ['44551', '44567', '44581', '658', '758']
 
 /**
- * The account of the chart to use for a root: the root itself, else the
- * root padded with zeros to six digits, else the first account below it
- * (shortest code first), as invoices resolve theirs
- * (lib/invoices/ledger-accounts.ts); the root when the chart has none (the
- * service creates it).
+ * The account of the chart to use for a root, by the rule every module
+ * shares (pickRootAccount, lib/accounting/root-account.ts); the root when
+ * the chart has none (the service creates it).
  */
 export function resolveRootCode(root: string, chart: readonly string[]): string {
-  if (chart.includes(root)) return root
-  const padded = root.padEnd(6, '0')
-  if (chart.includes(padded)) return padded
-  const below = chart.filter((code) => code.startsWith(root)).sort((a, b) => a.length - b.length || a.localeCompare(b))
-  return below[0] ?? root
+  return pickRootAccount(root, chart.map((code) => ({ code })))?.code ?? root
 }
 
 /** Same lines, whatever their order: a draft that already says this is kept. */

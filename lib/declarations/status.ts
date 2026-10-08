@@ -17,7 +17,7 @@ import type { Deadline } from '@/lib/deadlines/types'
 /** What a deadline asks: a return to file, a payment, or both. */
 export type DeclarationKind = 'file' | 'pay' | 'file-and-pay'
 
-export const DECLARATION_KINDS: Record<string, DeclarationKind> = {
+const DECLARATION_KINDS: Record<string, DeclarationKind> = {
   // The VAT is paid when the return is filed (CGI art. 1692): a CA3 or a CA12 is both.
   'tva-ca3': 'file-and-pay',
   'tva-ca12': 'file-and-pay',

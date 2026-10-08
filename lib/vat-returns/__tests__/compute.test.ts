@@ -124,7 +124,9 @@ describe('CA3 of a month with several rates (notice 3310-CA3-SD, lines A1, 08, 9
   })
 
   it('lists what Kledg cannot know as lines to fill by hand', () => {
-    expect(['A2', 'B4', 'E1', 'F2', '5B', '2C', '26', '29'].map((code) => line(ca3, code).status)).toEqual(Array(8).fill('manual'))
+    expect(['A2', 'E1', 'F2', '5B', '2C', '26', '29'].map((code) => line(ca3, code).status)).toEqual(Array(7).fill('manual'))
+    // B4 is read from the subaccount 44528 (art. 283-1): computed, 0 here
+    expect(line(ca3, 'B4')).toMatchObject({ status: 'computed', base: 0 })
   })
 
   it('books the settlement: VAT accounts cleared, 44551 by the declared amount, the rounding to 658 or 758', () => {
@@ -156,7 +158,9 @@ describe('CA3 of a month with several rates (notice 3310-CA3-SD, lines A1, 08, 9
   it('takes the chart’s own code for an account named by its root (445510 for 44551)', () => {
     expect(resolveRootCode('44551', ['445510', '44551000'])).toBe('445510')
     expect(resolveRootCode('44567', ['44567'])).toBe('44567')
-    expect(resolveRootCode('658', ['6588', '65800'])).toBe('6588')
+    // The root padded with zeros is the general account of the root, before a detailed one (lib/accounting/root-account.ts)
+    expect(resolveRootCode('658', ['6588', '65800'])).toBe('65800')
+    expect(resolveRootCode('658', ['6588', '6581'])).toBe('6581')
     expect(resolveRootCode('758', [])).toBe('758')
   })
 })
@@ -198,6 +202,64 @@ describe('intra-Community acquisitions and autoliquidation (CGI art. 283, 2; not
     const ca12 = computeVatReturn({ form: 'CA12', movements: classifyEntries([goods, services]), creditCarriedCents: 0 })
     expect(line(ca12, 'AC')).toMatchObject({ box: '0044', base: 500, amount: 100 })
     expect(line(ca12, '5A')).toMatchObject({ base: 3_000, amount: 600 })
+  })
+})
+
+// R3 QUAL-20, checked on the 2026 notices: CA3 line A3 holds the services of
+// any supplier not established in France (CGI art. 259, 1° and 283-2), inside
+// or outside the EU; B2 and line 17 the intra-Community acquisitions of
+// goods; B4 the purchases of art. 283-1, second paragraph. The CA12 has no
+// acquisition line (rate lines), AB for art. 283-1 and AC for art. 283-2.
+describe('services from outside the EU and purchases of art. 283-1 (notices 3310-CA3-SD and 3517-S-SD 2026: A3, B2, B4, 17, AB, AC)', () => {
+  // A US software (Notion) self-assessed by the rules library or simple mode: 6511 / 44566 / 4452
+  const usSoftware = entry(
+    [
+      ['651100', 1_000, 0],
+      ['445660', 200, 0],
+      ['445200', 0, 200],
+      ['512000', 0, 1_000],
+    ],
+    { journalCode: 'BQ' },
+  )
+  // Goods located in France bought from a supplier not established there (art. 283-1): subaccount 44528
+  const art2831 = entry(
+    [
+      ['607000', 100_000, 0],
+      ['445660', 20_000, 0],
+      ['445280', 0, 20_000],
+      ['401000', 0, 100_000],
+    ],
+    { journalCode: 'AC' },
+  )
+  const euGoods = entry(
+    [
+      ['607000', 50_000, 0],
+      ['445660', 10_000, 0],
+      ['445200', 0, 10_000],
+      ['401000', 0, 50_000],
+    ],
+    { journalCode: 'AC' },
+  )
+  const movements = classifyEntries([usSoftware, art2831, euGoods])
+  const ca3 = computeVatReturn({ form: 'CA3', movements, creditCarriedCents: 0 })
+
+  it('declares a US service on A3, art. 283-1 purchases on B4 and only intra-Community goods on B2 and line 17', () => {
+    expect(line(ca3, 'A3')).toMatchObject({ box: '0044', base: 10 })
+    expect(line(ca3, 'B4')).toMatchObject({ box: '0040', base: 1_000, status: 'computed' })
+    expect(line(ca3, 'B2')).toMatchObject({ box: '0031', base: 500 })
+    expect(line(ca3, '17')).toMatchObject({ box: '0035', amount: 100 })
+    // All taxed on line 08 and deducted on line 20: nothing to pay
+    expect(line(ca3, '08')).toMatchObject({ base: 1_510, amount: 302 })
+    expect(line(ca3, '20').amount).toBe(302)
+    expect(ca3.result.kind).toBe('nil')
+  })
+
+  it('puts art. 283-1 purchases on line AB of the CA12, services on AC, goods on the rate lines', () => {
+    const ca12 = computeVatReturn({ form: 'CA12', movements, creditCarriedCents: 0 })
+    expect(line(ca12, 'AB')).toMatchObject({ box: '0040', base: 1_000, amount: 200 })
+    expect(line(ca12, 'AC')).toMatchObject({ box: '0044', base: 10, amount: 2 })
+    expect(line(ca12, '5A')).toMatchObject({ base: 500, amount: 100 })
+    expect(line(ca12, '16').amount).toBe(302)
   })
 })
 

@@ -6,14 +6,16 @@
  *
  * - by code: the exact code in that year's chart (a code typed on a line or
  *   on a tiers);
- * - by PCG root (401, 44566...): the account of the root itself, else the
- *   root padded with zeros to six digits (445660), else the first account
- *   below the root (shortest code first), so charts with "401", "401000" or
- *   "4011" all work.
+ * - by PCG root (401, 44566...): the rule every module shares
+ *   (lib/accounting/root-account.ts): the root itself, else the root padded
+ *   with zeros, else the lowest account below it, so charts with "401",
+ *   "401000", "40100000" or "4011" all work. No parent fallback: a missing
+ *   root is refused with a French message.
  */
 
 import type { Prisma } from '@prisma/client'
 import { ValidationError } from '@/lib/accounting/errors'
+import { loadRootAccount } from '@/lib/accounting/root-account'
 
 export interface LedgerAccount {
   id: string
@@ -50,17 +52,7 @@ export async function accountByRoot(
   /** What is being posted, for the message: "cette facture" by default. */
   purpose = 'cette facture',
 ): Promise<LedgerAccount> {
-  const rows = await db.account.findMany({
-    where: { companyId, fiscalYearId: fiscalYear.id, code: { startsWith: root } },
-    select: { id: true, code: true, label: true },
-    orderBy: { code: 'asc' },
-    take: 200,
-  })
-  const padded = root.padEnd(6, '0')
-  const pick =
-    rows.find((a) => a.code === root) ??
-    rows.find((a) => a.code === padded) ??
-    [...rows].sort((a, b) => a.code.length - b.code.length || a.code.localeCompare(b.code))[0]
+  const pick = await loadRootAccount(db, companyId, fiscalYear.id, root)
   if (!pick) {
     throw new ValidationError(
       `Aucun compte ${root} (${label}) dans le plan de comptes de l’exercice ${fiscalYear.year} : créez le compte ${root} pour comptabiliser ${purpose}.`,

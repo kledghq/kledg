@@ -12,6 +12,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { journalByCode } from '@/lib/accounting/journal-by-code';
 import type { TransactionRule } from '@prisma/client';
 import type { EntryLine } from './types';
 import {
@@ -23,9 +24,12 @@ import {
   vatLineDescription,
 } from './entry-line-calculator';
 import { AccountingError, ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors';
-import { toCents } from '@/lib/utils/money';
+import { fromCents, toCents } from '@/lib/utils/money';
+import { bankVatInEuros } from '@/lib/banking/bank-vat';
+import { selfAssessedSplit } from '@/lib/vat-deduction/share';
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date';
 import { checkEntryDate } from '@/lib/reconciliation/validation';
+import { ApprovedStateChangedError, approvedStateActive, checkApprovedState } from '@/lib/approved-state/guard';
 import {
   MESSAGES as RECONCILIATION_MESSAGES,
   assertWritableLines,
@@ -70,6 +74,8 @@ export interface PreparedRuleEntry {
   reference: string | null;
   bankAccountId: string;
   lines: GeneratedLine[];
+  /** When the rule read was last changed (an approved MCP run checks it did not change before the write). */
+  ruleUpdatedAt: Date;
 }
 
 export type RuleFailure = { ok: false; error: string; status: number };
@@ -166,12 +172,7 @@ export async function prepareRuleEntry(
   const { vatDeductionShareOn } = await import('@/lib/vat-deduction/coefficient');
   const vatRecoveryRatio: number | null = await vatDeductionShareOn(companyId, entryDate);
 
-  const journal = await prisma.journal.findFirst({
-    where: {
-      companyId,
-      code: rule.journalCode || 'BQ',
-    },
-  });
+  const journal = await journalByCode(prisma, companyId, rule.journalCode || 'BQ');
 
   if (!journal) {
     return fail(`Journal ${rule.journalCode || 'BQ'} introuvable.`);
@@ -207,7 +208,7 @@ export async function prepareRuleEntry(
   const missingCodes = Array.from(codeSet).filter((code) => !codeToId.has(code));
   if (missingCodes.length > 0) {
     return fail(
-      `Certains comptes de la règle n'existent pas dans l'exercice ${fiscalYear.year} : ${missingCodes.join(', ')}`
+      `Certains comptes de la règle n'existent pas dans l'exercice ${fiscalYear.year} : ${missingCodes.join(', ')}`
     );
   }
 
@@ -246,29 +247,8 @@ export async function prepareRuleEntry(
     return fail(bankAccountMissingMessage(fiscalYear.year));
   }
 
-  const providerData = transaction.providerData as
-    | { vat_rate?: number; vat_amount?: number; vat_amount_cents?: number }
-    | null
-    | undefined;
-  const rawRate =
-    transaction.vatRate != null ? Number(transaction.vatRate) : providerData?.vat_rate ?? null;
-  const effectiveVatRate =
-    rawRate != null && rawRate >= 0 ? rawRate : null;
-  const effectiveVatAmount =
-    transaction.vatAmount != null
-      ? Number(transaction.vatAmount)
-      : providerData?.vat_amount ??
-        (providerData?.vat_amount_cents != null
-          ? providerData.vat_amount_cents / 100
-          : null);
-
-  const transactionVat =
-    effectiveVatRate != null || effectiveVatAmount != null
-      ? {
-          vatRate: effectiveVatRate,
-          vatAmount: effectiveVatAmount,
-        }
-      : null;
+  // The VAT the bank read, when it can be trusted (one rule for every module, lib/banking/bank-vat.ts)
+  const transactionVat = bankVatInEuros(transaction, Math.abs(toCents(transaction.amount) ?? 0));
 
   const transactionAmount = Math.abs(Number(transaction.amount));
   const transactionSide = normalizeSide(transaction.side);
@@ -286,7 +266,7 @@ export async function prepareRuleEntry(
     );
     lines = toCentLines(balanceEntryLines(entryLines, bankAccount.id, description), bankAccount.id);
   } catch (error) {
-    return fail(`La règle « ${rule.name} » ne peut pas être appliquée : ${error instanceof Error ? error.message : 'erreur de calcul'}`);
+    return fail(`La règle « ${rule.name} » ne peut pas être appliquée : ${error instanceof Error ? error.message : 'erreur de calcul'}`);
   }
 
   if (!lines) {
@@ -295,7 +275,7 @@ export async function prepareRuleEntry(
   try {
     assertWritableLines(lines);
   } catch (error) {
-    return fail(`La règle « ${rule.name} » produit une écriture invalide : ${(error as Error).message}`);
+    return fail(`La règle « ${rule.name} » produit une écriture invalide : ${(error as Error).message}`);
   }
 
   return {
@@ -308,6 +288,7 @@ export async function prepareRuleEntry(
     reference: transaction.reference,
     bankAccountId: bankAccount.id,
     lines,
+    ruleUpdatedAt: rule.updatedAt,
   };
 }
 
@@ -339,6 +320,15 @@ export async function applyRule(
       description: prepared.description,
       reference: prepared.reference,
       lines: prepared.lines,
+      // An approved MCP action applies the rule as the user saw it (KLEDG-R3-MCP-01):
+      // checked under a lock of the rule, in the transaction that writes the entry.
+      afterCreate: async (db) => {
+        await checkApprovedState(db, { kind: 'rule', companyId, id: ruleId });
+        if (!approvedStateActive()) return;
+        const current = await db.transactionRule.findUnique({ where: { id: ruleId }, select: { updatedAt: true } });
+        // The entry was computed from the rule read before this transaction: it must still be that one.
+        if (current?.updatedAt.getTime() !== prepared.ruleUpdatedAt.getTime()) throw new ApprovedStateChangedError();
+      },
     });
 
     await prisma.transactionRule.update({
@@ -351,6 +341,7 @@ export async function applyRule(
 
     return { success: true, entryId: entry.id };
   } catch (error) {
+    if (error instanceof ApprovedStateChangedError) throw error;
     if (error instanceof ConflictError || error instanceof ValidationError) {
       return { success: false, error: error.message, status: error.statusCode };
     }
@@ -471,21 +462,30 @@ function calculateEntryLines(
         vatAccountDebitId &&
         vatAccount2Id
       ) {
-        entryLines.push({
-          accountId: vatAccountDebitId,
-          debit: vatAmount,
-          credit: 0,
-          description: vatLineDescription(line.vatType, effectiveVatRate, 'deductible'),
-        });
+        // Self-assessed VAT: due in full, deducted at the coefficient de déduction, the rest in the cost
+        // (CGI ann. II art. 205; lib/vat-deduction/share.ts, the one rule for every posting)
+        const split = selfAssessedSplit(toCents(vatAmount) ?? 0, vatRecoveryRatio ?? null);
+        if (split.nonDeductibleCents > 0) {
+          if (mainLine.debit > 0) mainLine.debit = fromCents((toCents(mainLine.debit) ?? 0) + split.nonDeductibleCents);
+          else if (mainLine.credit > 0) mainLine.credit = fromCents((toCents(mainLine.credit) ?? 0) + split.nonDeductibleCents);
+        }
+        if (split.deductibleCents > 0) {
+          entryLines.push({
+            accountId: vatAccountDebitId,
+            debit: fromCents(split.deductibleCents),
+            credit: 0,
+            description: vatLineDescription(line.vatType, effectiveVatRate, 'deductible'),
+          });
+        }
         entryLines.push({
           accountId: vatAccount2Id,
           debit: 0,
-          credit: vatAmount,
+          credit: fromCents(split.dueCents),
           description: vatLineDescription(line.vatType, effectiveVatRate, 'due'),
         });
       } else {
         if (!vatAccountDebitId) {
-          throw new Error(`aucun compte de TVA pour la ligne ${rule.entryLines.indexOf(line) + 1} : choisissez-le dans la règle.`);
+          throw new Error(`aucun compte de TVA pour la ligne ${rule.entryLines.indexOf(line) + 1} : choisissez-le dans la règle.`);
         }
         const { vatDebit, vatCredit } = calculateVATLineAmounts(
           line.vatType,

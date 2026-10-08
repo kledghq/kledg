@@ -1,7 +1,7 @@
 # Impôt sur les sociétés
 
 Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
-expliquées) est sur le site : [L'impôt sur les sociétés](https://www.kledg.com/fr/docs/l-impot-sur-les-societes).
+expliquées) est sur le site : [L'impôt sur les sociétés](https://www.kledg.com/fr/docs/l-impot-sur-les-societes).
 Cette page décrit le fonctionnement technique : code, API, règles de calcul,
 droits et limites d'implémentation.
 

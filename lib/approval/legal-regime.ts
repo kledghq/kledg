@@ -211,7 +211,7 @@ const REGIMES: Record<ApprovalForm, Omit<ApprovalRegime, 'legalType'>> = {
     sixMonthDeadline: false,
     convocation: {
       minDays: 15,
-      how: "Lettre recommandée au moins quinze jours avant l'assemblée, avec l'ordre du jour ; le texte des résolutions et les documents sont adressés dans le même délai.",
+      how: "Lettre recommandée au moins quinze jours avant l'assemblée, avec l'ordre du jour ; le texte des résolutions et les documents sont adressés dans le même délai.",
       sources: [SOURCES.D78_704],
     },
     register: { text: 'Registre des procès-verbaux des décisions des associés.', sources: [SOURCES.D78_704] },
@@ -237,10 +237,10 @@ const FORM_OF: Record<string, ApprovalForm> = {
 
 /** Why a legal type has no approval pack, in French. */
 export function unsupportedReason(legalType: string | null | undefined): string | null {
-  if (!legalType) return "La forme juridique de la société n'est pas renseignée : indiquez-la dans les informations de la société."
+  if (!legalType) return "La forme juridique de la société n'est pas renseignée : indiquez-la dans les informations de la société."
   if (FORM_OF[legalType]) return null
-  if (legalType === 'EI') return "Un entrepreneur individuel n'a pas d'associés : il n'y a pas d'approbation des comptes."
-  return `La forme juridique ${legalType} n'est pas encore prise en charge (SNC, SCS et SCA ont des règles propres) : faites préparer ces documents par votre conseil.`
+  if (legalType === 'EI') return "Un entrepreneur individuel n'a pas d'associés : il n'y a pas d'approbation des comptes."
+  return `La forme juridique ${legalType} n'est pas encore prise en charge (SNC, SCS et SCA ont des règles propres) : faites préparer ces documents par votre conseil.`
 }
 
 /**

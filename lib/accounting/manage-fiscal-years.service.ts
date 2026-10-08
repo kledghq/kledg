@@ -41,7 +41,7 @@ export async function getFiscalYear(companyId: string, fiscalYearId: string) {
 /** The calendar day of a date sent by a client, at midnight UTC, or a French 400. */
 function dayOf(value: string, label: string): Date {
   const day = calendarDayOf(value)
-  if (!day) throw new ValidationError(`${label} invalide : utilisez le format AAAA-MM-JJ.`)
+  if (!day) throw new ValidationError(`${label} invalide : utilisez le format AAAA-MM-JJ.`)
   return isoDateToUtc(day)
 }
 
@@ -97,7 +97,7 @@ export async function createFiscalYear(companyId: string, input: CreateFiscalYea
 export async function updateFiscalYearDates(companyId: string, fiscalYearId: string, input: { startDate: string; endDate: string }) {
   const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
   if (fiscalYear.isClosed) {
-    throw new ConflictError(`L'exercice ${fiscalYear.year} est clôturé : ses dates ne peuvent plus être modifiées.`)
+    throw new ConflictError(`L'exercice ${fiscalYear.year} est clôturé : ses dates ne peuvent plus être modifiées.`)
   }
   const { start, end } = datesOf(input)
 

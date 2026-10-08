@@ -19,8 +19,10 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { validateAccountCode } from '@/lib/accounting/validator'
-import { getOrCreateActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
+import { getActiveFiscalYear } from '@/lib/accounting/fiscal-year-utils'
+import { ensureActiveFiscalYear } from '@/lib/accounting/active-fiscal-year.service'
 import { fromCents, parseCents, sumCents } from '@/lib/utils/money'
+import { ACCOUNT_CODE_MESSAGE } from '@/lib/accounting/account-code'
 
 export const ACCOUNT_NOT_FOUND = 'Compte introuvable'
 
@@ -31,9 +33,13 @@ export async function ownedAccount<S extends Prisma.AccountSelect>(companyId: st
   return account
 }
 
-/** The fiscal year whose chart is read: the one given (scoped by the company in the queries), else the active one. */
-async function chartFiscalYearId(companyId: string, fiscalYearId?: string | null): Promise<string> {
-  return fiscalYearId || (await getOrCreateActiveFiscalYear(companyId)).id
+/**
+ * The fiscal year whose chart is read: the one given (scoped by the company
+ * in the queries), else the active one; null when the company has no open
+ * year (a read never creates one).
+ */
+async function chartFiscalYearId(companyId: string, fiscalYearId?: string | null): Promise<string | null> {
+  return fiscalYearId || (await getActiveFiscalYear(companyId))?.id || null
 }
 
 /**
@@ -42,25 +48,29 @@ async function chartFiscalYearId(companyId: string, fiscalYearId?: string | null
  * (created when there is none).
  */
 export async function targetChartFiscalYearId(companyId: string, fiscalYearId?: string | null): Promise<string> {
-  if (!fiscalYearId) return (await getOrCreateActiveFiscalYear(companyId)).id
+  if (!fiscalYearId) return (await ensureActiveFiscalYear(companyId)).id
   const fiscalYear = await prisma.fiscalYear.findFirst({ where: { id: fiscalYearId, companyId }, select: { id: true } })
-  if (!fiscalYear) throw new ValidationError("Exercice invalide : il n'appartient pas à cette société.")
+  if (!fiscalYear) throw new ValidationError("Exercice invalide : il n'appartient pas à cette société.")
   return fiscalYear.id
 }
 
 /** Accounts of the chart of a fiscal year (the active one by default), by number. */
 export async function listAccounts(companyId: string, fiscalYearId?: string | null) {
+  const chart = await chartFiscalYearId(companyId, fiscalYearId)
+  if (!chart) return []
   return prisma.account.findMany({
-    where: { companyId, fiscalYearId: await chartFiscalYearId(companyId, fiscalYearId) },
+    where: { companyId, fiscalYearId: chart },
     orderBy: { code: 'asc' },
   })
 }
 
 /** The account with this number in the chart of a fiscal year (the active one by default), or null. */
 export async function findAccountByCode(companyId: string, code: string, fiscalYearId?: string | null) {
+  const chart = await chartFiscalYearId(companyId, fiscalYearId)
+  if (!chart) return null
   // The unique key includes companyId: a fiscal year of another company matches nothing
   return prisma.account.findUnique({
-    where: { companyId_code_fiscalYearId: { companyId, code, fiscalYearId: await chartFiscalYearId(companyId, fiscalYearId) } },
+    where: { companyId_code_fiscalYearId: { companyId, code, fiscalYearId: chart } },
     select: { id: true, code: true, label: true },
   })
 }
@@ -105,7 +115,7 @@ export async function updateAccount(companyId: string, id: string, input: Update
   }
 
   if (code !== undefined) {
-    if (!validateAccountCode(code)) throw new ValidationError('Le code doit contenir entre 2 et 8 chiffres')
+    if (!validateAccountCode(code)) throw new ValidationError(ACCOUNT_CODE_MESSAGE)
     if (code !== account.code) {
       const existing = await prisma.account.findFirst({
         where: { companyId, code, fiscalYearId: account.fiscalYearId },

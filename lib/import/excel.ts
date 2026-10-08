@@ -1,6 +1,5 @@
 // Import Excel
-import { assertSafeZip } from '@/lib/api/files'
-import ExcelJS from 'exceljs'
+import { loadWorkbook, readSheetRows } from '@/lib/api/xlsx'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { validateEntryBalance } from '@/lib/accounting/validator'
@@ -41,6 +40,9 @@ interface ImportResult {
   }>
 }
 
+/** Last row an accounting import sheet may use (one line per entry line). */
+export const ACCOUNTING_IMPORT_MAX_ROWS = 500_000
+
 /**
  * Parse un fichier Excel (renvoie un tableau d'objets clés = en-têtes)
  */
@@ -48,17 +50,8 @@ export async function parseExcel(
   file: Buffer,
   sheetName?: string
 ): Promise<Array<Record<string, unknown>>> {
-  // Zip bomb guard before ExcelJS inflates anything (lib/api/files.ts).
-  await assertSafeZip(file)
-  const workbook = new ExcelJS.Workbook()
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await workbook.xlsx.load(file as any)
-  } catch (error) {
-    // ExcelJS reasons are internal (zip and XML details): logged, not shown
-    logger.warn('[import/excel] Unreadable workbook', error)
-    throw new ValidationError('Fichier Excel illisible : enregistrez-le au format .xlsx et réessayez.')
-  }
+  // Zip bomb guard, content and time budget before and while ExcelJS reads (lib/api/xlsx.ts).
+  const { workbook, deadline } = await loadWorkbook(file, 'Fichier Excel illisible : enregistrez-le au format .xlsx et réessayez.')
   const worksheet = sheetName
     ? workbook.getWorksheet(sheetName)
     : workbook.worksheets[0]
@@ -69,16 +62,17 @@ export async function parseExcel(
 
   const rows: Array<Record<string, unknown>> = []
   let headers: string[] = []
-  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-    const values = row.values as unknown[]
-    if (rowNumber === 1) {
-      headers = values.slice(1).map((v) => String(v ?? '').trim())
-      return
+  for (const row of readSheetRows(worksheet, { maxRows: ACCOUNTING_IMPORT_MAX_ROWS, deadline })) {
+    if (!row.hasValue) continue
+    const values = row.values
+    if (row.number === 1) {
+      headers = values.map((v) => String(v ?? '').trim())
+      continue
     }
     const obj: Record<string, unknown> = {}
     headers.forEach((header, i) => {
       if (!header) return
-      const raw = values[i + 1]
+      const raw = values[i] ?? undefined
       if (raw && typeof raw === 'object' && 'text' in (raw as Record<string, unknown>)) {
         obj[header] = (raw as { text: string }).text
       } else if (raw && typeof raw === 'object' && 'result' in (raw as Record<string, unknown>)) {
@@ -88,7 +82,7 @@ export async function parseExcel(
       }
     })
     rows.push(obj)
-  })
+  }
   return rows
 }
 
@@ -216,7 +210,7 @@ export async function importExcel(
           credit: importAmountCents(l[defaultMapping.creditColumn]),
         }))
         if (amounts.some((a) => a.debit === null || a.credit === null)) {
-          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
+          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
           continue
         }
         const fiscalYearId = await accounts.fiscalYearId(entryDate)
@@ -314,7 +308,7 @@ export async function importExcel(
 
     result.success = result.errors.length === 0
   } catch (error) {
-    result.errors.push(`Import interrompu : ${handleError(error).message}`)
+    result.errors.push(`Import interrompu : ${handleError(error).message}`)
     result.success = false
   }
 

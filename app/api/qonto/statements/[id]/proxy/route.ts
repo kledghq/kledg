@@ -4,6 +4,7 @@ import { companyRoute, fromQuery } from '@/lib/api/route'
 import { fileResponseHeaders } from '@/lib/api/files'
 import { qontoClientFor } from '@/lib/integrations/providers/qonto/get-credentials'
 import { fetchQontoFile } from '@/lib/integrations/providers/qonto/files'
+import { limitBankCalls } from '@/lib/banking/guard'
 
 /** Qonto ids are UUIDs: never let a path segment reach the Qonto API path. */
 const QONTO_ID = /^[A-Za-z0-9-]{1,100}$/
@@ -25,6 +26,7 @@ export const GET = companyRoute(
       throw new ValidationError('Identifiant de relevé invalide.')
     }
 
+    await limitBankCalls(companyId)
     const { statement } = await (await qontoClientFor(companyId)).getStatement(statementId)
     if (!statement?.file?.file_url) {
       throw new NotFoundError('Relevé non trouvé ou fichier non disponible')

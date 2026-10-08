@@ -36,6 +36,7 @@ vi.mock('@/components/features/accounting/account-combobox', () => ({
 
 import { RuleEditor, type RuleEditorProps } from '../rule-editor'
 import { RuleEditorPage } from '../rule-editor-page'
+import { CONDITION_COLUMNS } from '../rule-conditions'
 import { newRuleState, savedRuleState, priorityPresetOf, defaultVatRateSource, transactionVatOf, type SavedRule } from '../rule-form'
 import { PREVIEW_DEBOUNCE_MS } from '../rule-preview'
 
@@ -205,6 +206,22 @@ describe('rule editor page, conditions', () => {
     await user.click(screen.getByRole('button', { name: 'Supprimer la condition 1' }))
     expect(conditionRows()).toHaveLength(1)
     expect(screen.queryByDisplayValue('Adobe')).not.toBeInTheDocument()
+  })
+
+  it('aligns each row on the header: Champ, Opérateur, Valeur, then the delete button in the last column (#18)', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    await user.click(screen.getByRole('button', { name: 'Ajouter une condition' }))
+    const row = screen.getByRole('group', { name: /^Condition 1/ })
+    const header = screen.getByText('Opérateur').closest('li') as HTMLElement
+    // Same column template for the header and the row, from the small breakpoint up
+    expect(header.className).toContain(CONDITION_COLUMNS)
+    expect(row.className).toContain(CONDITION_COLUMNS)
+    // Controls in the order of the header (the selects' hidden native fields aside), the delete button placed in the fourth column
+    const controls = Array.from(row.children).map((c) => c.getAttribute('aria-label') ?? c.querySelector('[aria-label]')?.getAttribute('aria-label'))
+      .filter(Boolean)
+    expect(controls).toEqual(['Champ de la condition 1', 'Opérateur de la condition 1', 'Valeur de la condition 1', 'Supprimer la condition 1'])
+    expect(within(row).getByRole('button', { name: 'Supprimer la condition 1' }).className).toContain('sm:col-start-4')
   })
 
   it('offers only "equals" and a list of values for the side, clearing the previous value', async () => {

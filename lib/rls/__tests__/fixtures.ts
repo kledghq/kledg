@@ -438,6 +438,33 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
       record('local_taxes', p, id('local_taxes'))
       await prisma.declarationStatus.create({ data: { id: id('declaration_statuses'), companyId, deadlineId: 'cfe:2026', paidOn: day('2026-12-10'), amount: 1_200 } })
       record('declaration_statuses', p, id('declaration_statuses'))
+      // Invoice numbering counter, VAT deduction year, revenue account setting,
+      // training report and payroll tax year (migrations 20261115090000 and 20261116090000)
+      await prisma.invoiceNumberCounter.create({
+        data: { id: id('invoice_number_counters'), companyId, series: 'INVOICE', periodKey: '2026', lastValue: 1 },
+      })
+      record('invoice_number_counters', p, id('invoice_number_counters'))
+      await prisma.vatDeductionYear.create({ data: { id: id('vat_deduction_years'), companyId, year: 2026 } })
+      record('vat_deduction_years', p, id('vat_deduction_years'))
+      await prisma.revenueAccountSetting.create({ data: { id: id('revenue_account_settings'), companyId, accountCode: '706000', vatTreatment: 'taxable' } })
+      record('revenue_account_settings', p, id('revenue_account_settings'))
+      await prisma.trainingReport.create({ data: { id: id('training_reports'), companyId, fiscalYearId: id('fiscal_years') } })
+      record('training_reports', p, id('training_reports'))
+      await prisma.payrollTaxYear.create({ data: { id: id('payroll_tax_years'), companyId, year: 2026 } })
+      record('payroll_tax_years', p, id('payroll_tax_years'))
+      // Invitation of a member by email (migration 20261128090000)
+      await prisma.companyInvitation.create({
+        data: { id: id('company_invitations'), companyId, email: `invite-${p}@rls.test`, role: 'viewer', tokenHash: p.charCodeAt(0).toString(16).padStart(64, '0'), expiresAt: new Date('2099-01-01') },
+      })
+      record('company_invitations', p, id('company_invitations'))
+      // A receipt photographed in an assistant, staged with its stored file (migration 20261201090000)
+      const sha256 = p.charCodeAt(0).toString(16).padStart(64, '0')
+      await prisma.receiptFile.create({ data: { id: id('receipt_files'), companyId, sha256, contentType: 'image/jpeg', size: 4, content: Buffer.from([0xff, 0xd8, 0xff, 0xe0]) } })
+      record('receipt_files', p, id('receipt_files'))
+      await prisma.stagedReceipt.create({
+        data: { id: id('staged_receipts'), companyId, fileId: id('receipt_files'), sha256, fileName: 'ticket.jpg', contentType: 'image/jpeg', size: 4, source: 'view', expiresAt: new Date('2099-01-01') },
+      })
+      record('staged_receipts', p, id('staged_receipts'))
     }
     return keys
   })

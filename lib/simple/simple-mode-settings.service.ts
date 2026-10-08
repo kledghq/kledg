@@ -38,7 +38,7 @@ export const SimpleModeSettingsBodySchema = z.object({
 })
 
 /** Members of the company whose roles include accountant (a membership may hold several roles, comma separated). */
-export async function companyAccountants(companyId: string, client: Client = prisma): Promise<Accountant[]> {
+async function companyAccountants(companyId: string, client: Client = prisma): Promise<Accountant[]> {
   const members = await client.member.findMany({
     where: { organization: { companyId }, role: { contains: 'accountant' } },
     select: { role: true, user: { select: { name: true, email: true } } },

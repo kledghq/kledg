@@ -1,7 +1,7 @@
 # Échéances et suivi des déclarations
 
 Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
-expliquées) est sur le site : [Suivre ses échéances fiscales et juridiques](https://www.kledg.com/fr/docs/les-echeances).
+expliquées) est sur le site : [Suivre ses échéances fiscales et juridiques](https://www.kledg.com/fr/docs/les-echeances).
 Cette page décrit le fonctionnement technique : code, API, règles de calcul,
 droits et limites d'implémentation.
 

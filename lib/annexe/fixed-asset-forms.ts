@@ -168,7 +168,3 @@ export function lineOf<C extends string>(form: readonly FormEntryDef<C>[], code:
   return best
 }
 
-/** Rubrique of an account of gross fixed assets (20 and 23 intangible or tangible, 26 and 27 financial). */
-export function rubriqueOf(code: string): Rubrique {
-  return lineOf(FORM_2054, code)?.rubrique ?? (code.startsWith('26') || code.startsWith('27') ? 'financial' : code.startsWith('20') ? 'intangible' : 'tangible')
-}

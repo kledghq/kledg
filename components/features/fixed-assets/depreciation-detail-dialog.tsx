@@ -582,7 +582,7 @@ export function DepreciationDetailDialog({
   const deleteEntry = async (recordId: string, key: string) => {
     if (!assetId) return
     const ok = await confirm({
-      title: 'Supprimer cet amortissement ?',
+      title: 'Supprimer cet amortissement\u00a0?',
       description:
         "Le montant enregistré est effacé et son écriture d'amortissement en brouillon est supprimée. Une écriture validée ne peut pas être supprimée\u00a0: passez une contre-passation.",
       confirmLabel: "Supprimer l'amortissement",

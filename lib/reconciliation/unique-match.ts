@@ -25,6 +25,7 @@
 import { prisma } from '@/lib/prisma'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { resolveBankAccountLedger } from '@/lib/banking/ledger-account'
+import { isDebitSide } from '@/lib/banking/side'
 import { loadRuleMatcher } from '@/lib/transactions/rule-service'
 import { fromCents, toCents } from '@/lib/utils/money'
 import { addUtcDays, formatIsoDateFr, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
@@ -69,10 +70,9 @@ export const MAX_MATCHED_TRANSACTIONS = 200
 const MAX_DESCRIPTION = 500
 const DAY_MS = 86_400_000
 
-const isDebit = (side: string) => side === 'debit' || side === 'Débit'
 const signedEuros = (t: { amount: unknown; side: string }) => {
   const cents = Math.abs(toCents(t.amount as number) ?? 0)
-  return fromCents(isDebit(t.side) ? -cents : cents)
+  return fromCents(isDebitSide(t.side) ? -cents : cents)
 }
 const dayGap = (a: string, b: string) => Math.abs(isoDateToUtc(a).getTime() - isoDateToUtc(b).getTime()) / DAY_MS
 

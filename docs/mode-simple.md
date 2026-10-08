@@ -1,6 +1,6 @@
 # Mode simple
 
-Le guide d'utilisation (choisir son mode, navigation, blocs de l'accueil expliqués) est sur le site : [Mode simple, standard ou expert](https://www.kledg.com/fr/docs/le-mode-simple). Cette page décrit le fonctionnement technique : navigation, routes, sources des chiffres, droits, stockage et tests.
+Le guide d'utilisation (choisir son mode, navigation, blocs de l'accueil expliqués) est sur le site : [Mode simple, standard ou expert](https://www.kledg.com/fr/docs/le-mode-simple). Cette page décrit le fonctionnement technique : navigation, routes, sources des chiffres, droits, stockage et tests.
 
 Kledg propose trois façons d'afficher les mêmes livres :
 

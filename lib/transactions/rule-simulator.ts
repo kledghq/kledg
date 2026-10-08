@@ -16,6 +16,8 @@ import {
   vatLineDescription,
 } from './entry-line-calculator';
 import { todayUtc } from '@/lib/utils/date';
+import { fromCents, sumCents, toCents } from '@/lib/utils/money';
+import { selfAssessedSplit } from '@/lib/vat-deduction/share';
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors';
 import { z } from 'zod';
 import { RuleEntryLineSchema } from './manage-rules.service';
@@ -35,7 +37,7 @@ async function deductionShareToday(companyId: string): Promise<number | null> {
 }
 
 const RULE_NOT_FOUND_MESSAGE = 'Règle introuvable';
-const NO_LINES_MESSAGE = "La règle n'a aucune ligne d'écriture à simuler : ajoutez-en une.";
+const NO_LINES_MESSAGE = "La règle n'a aucune ligne d'écriture à simuler : ajoutez-en une.";
 
 type AccountDisplay = { code: string; label: string };
 
@@ -366,17 +368,25 @@ function calculateSimulationResult(
         vatAccountDebit &&
         vatAccount2
       ) {
-        entryLines.push({
-          account: { code: vatAccountDebit.code, label: vatAccountDebit.label },
-          debit: vatAmount,
-          credit: 0,
-          description: vatLineDescription(line.vatType, effectiveRate, 'deductible'),
-          vatInfo: { type: line.vatType, rate: effectiveRate ?? 0, amount: vatAmount },
-        });
+        // Self-assessed VAT: due in full, deducted at the coefficient, the rest in the cost, as rule-executor.ts writes it
+        const split = selfAssessedSplit(toCents(vatAmount) ?? 0, vatRecoveryRatio ?? null);
+        if (split.nonDeductibleCents > 0) {
+          if (mainLine.debit > 0) mainLine.debit = fromCents((toCents(mainLine.debit) ?? 0) + split.nonDeductibleCents);
+          else if (mainLine.credit > 0) mainLine.credit = fromCents((toCents(mainLine.credit) ?? 0) + split.nonDeductibleCents);
+        }
+        if (split.deductibleCents > 0) {
+          entryLines.push({
+            account: { code: vatAccountDebit.code, label: vatAccountDebit.label },
+            debit: fromCents(split.deductibleCents),
+            credit: 0,
+            description: vatLineDescription(line.vatType, effectiveRate, 'deductible'),
+            vatInfo: { type: line.vatType, rate: effectiveRate ?? 0, amount: vatAmount },
+          });
+        }
         entryLines.push({
           account: { code: vatAccount2.code, label: vatAccount2.label },
           debit: 0,
-          credit: vatAmount,
+          credit: fromCents(split.dueCents),
           description: vatLineDescription(line.vatType, effectiveRate, 'due'),
           vatInfo: { type: line.vatType, rate: effectiveRate ?? 0, amount: vatAmount },
         });
@@ -410,9 +420,12 @@ function calculateSimulationResult(
     }
   }
 
-  const totalDebit = entryLines.reduce((sum, line) => sum + line.debit, 0);
-  const totalCredit = entryLines.reduce((sum, line) => sum + line.credit, 0);
-  const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  // Sums in cents (lib/utils/money.ts): exact totals, balanced to the cent
+  const debitCents = Number(sumCents(entryLines.map((line) => toCents(line.debit) ?? 0)));
+  const creditCents = Number(sumCents(entryLines.map((line) => toCents(line.credit) ?? 0)));
+  const totalDebit = fromCents(debitCents);
+  const totalCredit = fromCents(creditCents);
+  const balanced = debitCents === creditCents;
 
   return {
     entryLines,

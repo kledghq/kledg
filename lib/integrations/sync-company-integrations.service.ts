@@ -13,6 +13,7 @@ import { errorReason } from '@/lib/banking/errors'
 import { BANK_PROVIDER_LABELS } from '@/lib/banking/links'
 import { syncIntegration, type SyncOptions } from '@/lib/integrations/sync'
 import { IntegrationFeature, type SyncResult } from '@/lib/integrations/types'
+import { bankSyncPause, bankSyncPausedMessage } from '@/lib/banking/sync-pause'
 
 const FEATURES = Object.values(IntegrationFeature) as string[]
 
@@ -62,6 +63,8 @@ export interface CompanySyncOutcome {
   errors: string[]
   /** Set when the company has no active bank integration. */
   message?: string
+  /** The company is read-only: no bank was called (lib/banking/sync-pause.ts). */
+  paused?: boolean
 }
 
 /** Syncs the accounts and transactions of every active bank integration, oldest first. */
@@ -71,6 +74,8 @@ export async function syncCompanyIntegrations(
   options: SyncOptions & { encryptionKey?: string } = {},
 ): Promise<CompanySyncOutcome> {
   const { encryptionKey = requireEncryptionKey(), ...syncOptions } = options
+  const pause = await bankSyncPause(companyId)
+  if (pause) return { success: false, paused: true, integrationsSynced: 0, totalItemsSynced: 0, errors: [bankSyncPausedMessage(pause)] }
   const integrations = await prisma.integration.findMany({
     where: { companyId, status: 'active', type: 'BANKING' },
     select: { id: true, provider: true },
@@ -92,11 +97,11 @@ export async function syncCompanyIntegrations(
         outcome.integrationsSynced++
         outcome.totalItemsSynced += result.itemsSynced
       } else {
-        outcome.errors.push(`${label} : ${result.errors.join(', ')}`)
+        outcome.errors.push(`${label} : ${result.errors.join(', ')}`)
       }
     } catch (error) {
       // Keep going: the other banks still sync; the reason is French, the detail is logged
-      outcome.errors.push(`${label} : ${errorReason(error)}`)
+      outcome.errors.push(`${label} : ${errorReason(error)}`)
     }
   }
   outcome.success = outcome.errors.length === 0

@@ -140,7 +140,7 @@ export type MappingMode = 'template' | 'copy'
  * expense or income account of classes 6 and 7, `exact` otherwise) and its
  * VAT accounts (`exact`, 445662 preferred for self-assessed deductible VAT).
  */
-export function accountFieldsOf(
+function accountFieldsOf(
   lines: ReadonlyArray<{ accountCode: string; vatType?: string | null; vatAccountCode?: string | null; vatAccount2Code?: string | null }>,
   defaultVatAccountCode?: string | null,
   mode: MappingMode = 'template',

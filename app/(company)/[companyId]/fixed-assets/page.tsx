@@ -609,7 +609,7 @@ export default function FixedAssetsPage() {
       <ConfirmDeleteDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title={deletingAsset ? `Supprimer l'immobilisation « ${deletingAsset.label} » ?` : "Supprimer l'immobilisation ?"}
+        title={deletingAsset ? `Supprimer l'immobilisation « ${deletingAsset.label} » ?` : "Supprimer l'immobilisation ?"}
         description="Ses écritures d'amortissement en brouillon sont supprimées avec elle. Cette action est irréversible."
         confirmLabel="Supprimer l'immobilisation"
         loading={deleting}

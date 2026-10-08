@@ -14,7 +14,6 @@
 export type TiersKindValue = 'CUSTOMER' | 'SUPPLIER'
 
 export const TIERS_KIND_LABELS: Record<TiersKindValue, string> = { CUSTOMER: 'Client', SUPPLIER: 'Fournisseur' }
-export const TIERS_KIND_PLURALS: Record<TiersKindValue, string> = { CUSTOMER: 'Clients', SUPPLIER: 'Fournisseurs' }
 
 /** Collective account used when the tiers names none (resolved in the fiscal year: 411, 411000...). */
 export const DEFAULT_COLLECTIVE: Record<TiersKindValue, string> = { CUSTOMER: '411', SUPPLIER: '401' }

@@ -14,7 +14,7 @@ const statusOf = (t: RuleTemplate, rules: ExistingRule[]) =>
 
 describe('duplicate detection', () => {
   it('compares names without accents, case or punctuation, and conditions as a set', () => {
-    expect(normalizeName('  Télécom : ORANGE  ')).toBe('telecom orange')
+    expect(normalizeName('  Télécom : ORANGE  ')).toBe('telecom orange')
     expect(conditionsKey([{ conditionType: 'side', operator: 'equals', value: 'debit' }, { conditionType: 'label', operator: 'regex', value: 'X' }])).toBe(
       conditionsKey([{ conditionType: 'label', operator: 'regex', value: 'x' }, { conditionType: 'side', operator: 'equals', value: 'DEBIT ' }]),
     )

@@ -80,6 +80,19 @@ describe('validateToken', () => {
     expect(result.checks.every((c) => c.ok)).toBe(true)
   })
 
+  it('[KLEDG-R3-INPUT-05] tells whether the token reaches other private repositories', async () => {
+    const USER_REPOS = 'GET /user/repos?visibility=private&per_page=2'
+    fakeGitHub(repoRoutes({}, { [USER_REPOS]: { body: [{ full_name: 'Acme/Compta', private: true }] } }))
+    expect((await validateToken(TOKEN, target)).reachesOtherRepos).toBe(false)
+    fakeGitHub(repoRoutes({}, { [USER_REPOS]: { body: [{ full_name: 'acme/compta', private: true }, { full_name: 'acme/paie', private: true }] } }))
+    const broad = await validateToken(TOKEN, target)
+    expect(broad.reachesOtherRepos).toBe(true)
+    // Unknown when GitHub does not answer: no warning, the connection still works
+    fakeGitHub(repoRoutes({}))
+    expect((await validateToken(TOKEN, target)).reachesOtherRepos).toBeNull()
+    expect(summarize({ owner: 'acme', repo: 'compta', isFork: false, defaultBranch: 'main', tokenLast4: 'wxyz', tokenExpiresAt: null, tokenReachesOtherRepos: true, createdAt: new Date(), updatedAt: new Date() }).tokenReachesOtherRepos).toBe(true)
+  })
+
   it('accepts a fork of kledghq/kledg', async () => {
     fakeGitHub(repoRoutes({ fork: true, parent: { full_name: 'kledghq/kledg' }, source: { full_name: 'kledghq/kledg' } }))
     expect((await validateToken(TOKEN, target)).kind).toBe('fork')
@@ -119,7 +132,7 @@ describe('validateToken', () => {
         'GET /repos/acme/compta/actions/workflows?per_page=1': forbidden,
       }),
     )
-    await expect(validateToken(TOKEN, target)).rejects.toThrow('Permissions manquantes sur le jeton : Pull requests, Actions')
+    await expect(validateToken(TOKEN, target)).rejects.toThrow('Permissions manquantes sur le jeton : Pull requests, Actions')
   })
 
   it('accepts missing optional permissions and reports them', async () => {

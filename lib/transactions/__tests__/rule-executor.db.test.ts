@@ -147,7 +147,7 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
     // Applied twice: one entry only, 409 with the reconciliation message
     expect(await executor.applyRule(ruleId, txId, ids.company)).toEqual({
       success: false,
-      error: 'Cette transaction est déjà rapprochée : rechargez la liste pour voir son écriture.',
+      error: 'Cette transaction est déjà rapprochée : rechargez la liste pour voir son écriture.',
       status: 409,
     })
     expect(await prisma.accountingEntry.count()).toBe(1)
@@ -286,6 +286,29 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
         ['445660', 1200, 0],
         ['512000', 0, 12000],
       ])
+
+      // Self-assessed VAT (R3): due in full on 4452, deducted at the coefficient, the rest in the charge.
+      // 100,00 of intra-EU goods at 20 %, coefficient 60 %: 20,00 due, 12,00 deducted, charge 108,00
+      const intracom = await rule('Achat UE', [{ accountCode: '607000', vatType: 'intracom', vatRate: '20', vatAccountCode: '445662', vatAccount2Code: '445200' }])
+      const euTx = await transaction('100.00', 'debit')
+      expect(await prepared(intracom, euTx)).toEqual([
+        ['607000', 10800, 0],
+        ['445662', 1200, 0],
+        ['445200', 0, 2000],
+        ['512000', 0, 10000],
+      ])
+      // The rule editor's preview books the same lines
+      const { simulateRuleFromData } = await import('@/lib/transactions/rule-simulator')
+      const preview = await simulateRuleFromData(
+        { entryLines: [{ accountCode: '607000', lineType: 'auto', amountType: 'full', order: 0, vatType: 'intracom', vatRate: 20, vatAccountCode: '445662', vatAccount2Code: '445200' }] },
+        { amount: -100, side: 'debit', label: 'CB' },
+        ids.company,
+      )
+      expect(preview.entryLines.map((l) => [l.account.code, toCents(l.debit), toCents(l.credit)])).toEqual([
+        ['607000', 10800, 0],
+        ['445662', 1200, 0],
+        ['445200', 0, 2000],
+      ])
     })
   })
 
@@ -296,7 +319,7 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
 
       expect(await executor.prepareRuleEntry(ruleId, txId, ids.company)).toEqual({
         ok: false,
-        error: "Certains comptes de la règle n'existent pas dans l'exercice 2025 : 999999, 445999",
+        error: "Certains comptes de la règle n'existent pas dans l'exercice 2025 : 999999, 445999",
         status: 400,
       })
     })
@@ -323,7 +346,7 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
 
       expect(await executor.prepareRuleEntry(ruleId, txId, ids.company)).toEqual({
         ok: false,
-        error: 'La règle « Sans compte TVA » ne peut pas être appliquée : aucun compte de TVA pour la ligne 2 : choisissez-le dans la règle.',
+        error: 'La règle « Sans compte TVA » ne peut pas être appliquée : aucun compte de TVA pour la ligne 2 : choisissez-le dans la règle.',
         status: 400,
       })
     })
@@ -335,11 +358,11 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
 
       expect(await executor.prepareRuleEntry(ruleId, inClosed, ids.company)).toMatchObject({
         ok: false,
-        error: "L'exercice 2024 est clôturé : choisissez une date dans un exercice ouvert.",
+        error: "L'exercice 2024 est clôturé : choisissez une date dans un exercice ouvert.",
       })
       expect(await executor.prepareRuleEntry(ruleId, outside, ids.company)).toMatchObject({
         ok: false,
-        error: "Aucun exercice comptable ne couvre le 01/06/2023 : créez l'exercice avant de rapprocher.",
+        error: "Aucun exercice comptable ne couvre le 01/06/2023 : créez l'exercice avant de rapprocher.",
       })
     })
 

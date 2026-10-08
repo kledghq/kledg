@@ -75,10 +75,10 @@ export async function refreshConnection(input: {
   if (!connection) throw new NotFoundError('Connexion bancaire introuvable')
   const integration = connection.integration
   if (!integration || connection.provider === 'MANUAL' || !isBankProvider(integration.provider)) {
-    throw new ValidationError("Ce compte n'est relié à aucune banque : importez un relevé pour le mettre à jour.")
+    throw new ValidationError("Ce compte n'est relié à aucune banque : importez un relevé pour le mettre à jour.")
   }
   if (integration.status !== 'active') {
-    throw new ValidationError("La connexion n'est pas active : terminez ou renouvelez l'autorisation.")
+    throw new ValidationError("La connexion n'est pas active : terminez ou renouvelez l'autorisation.")
   }
 
   let bankRefreshRequested = false
@@ -97,11 +97,11 @@ export async function refreshConnection(input: {
       )
     }
     if (!input.customerIp || input.customerIp === 'unknown') {
-      throw new ValidationError("Adresse IP de l'utilisateur introuvable : Ponto l'exige pour une actualisation.")
+      throw new ValidationError("Adresse IP de l'utilisateur introuvable : Ponto l'exige pour une actualisation.")
     }
     const provider = createBankProvider(
       'PONTO',
-      openCredentials('PONTO', integration.credentials, integration.credentialsEncrypted, input.encryptionKey),
+      openCredentials('PONTO', integration.credentials, integration.credentialsEncrypted, input.encryptionKey, input.companyId),
     )
     // Every Ponto account except those a direct connection already covers
     const superseded = new Set(connection.bankAccounts.map((a) => a.externalAccountId))
@@ -157,7 +157,7 @@ export interface ManualAccountInput {
 /** Adds a bank account without API (fed by statement files). */
 export async function createManualAccount(companyId: string, input: ManualAccountInput) {
   const iban = input.iban ? compactIban(input.iban) : null
-  if (iban && !isValidIban(iban)) throw new ValidationError("L'IBAN saisi n'est pas valide : vérifiez-le sur votre relevé.")
+  if (iban && !isValidIban(iban)) throw new ValidationError("L'IBAN saisi n'est pas valide : vérifiez-le sur votre relevé.")
   await assertLedgerAccount(companyId, input.ledgerAccountCode)
   if (iban) {
     const duplicate = await prisma.bankAccount.count({ where: { iban, bankConnection: { companyId } } })
@@ -204,9 +204,9 @@ export async function updateBankAccount(
 }
 
 const SYNC_TOGGLE_MESSAGES = {
-  manual: "Ce compte est alimenté par des relevés importés : il n'a pas de synchronisation à activer.",
-  superseded: 'Une connexion directe synchronise déjà ce compte (même IBAN) : il reste en lecture seule ici.',
-  disconnected: 'La banque de ce compte est déconnectée : reconnectez-la pour reprendre la synchronisation.',
+  manual: "Ce compte est alimenté par des relevés importés : il n'a pas de synchronisation à activer.",
+  superseded: 'Une connexion directe synchronise déjà ce compte (même IBAN) : il reste en lecture seule ici.',
+  disconnected: 'La banque de ce compte est déconnectée : reconnectez-la pour reprendre la synchronisation.',
 } as const
 
 /**
@@ -297,7 +297,7 @@ export async function updateIntegrationCredentials(input: {
   }
 
   // Empty secrets keep the stored ones: the form never shows them again
-  const stored = openCredentials(provider, integration.credentials, integration.credentialsEncrypted, input.encryptionKey)
+  const stored = openCredentials(provider, integration.credentials, integration.credentialsEncrypted, input.encryptionKey, input.companyId)
   const merged: Record<string, unknown> = { ...stored }
   for (const [key, value] of Object.entries(input.credentials)) {
     if (typeof value === 'string' && value.trim() === '') continue
@@ -310,13 +310,13 @@ export async function updateIntegrationCredentials(input: {
   } catch (error) {
     if (error instanceof BankAuthorizationError) {
       throw new ValidationError(
-        provider === 'QONTO' ? QONTO_CREDENTIALS_REFUSED : "Ponto refuse ces identifiants : vérifiez l'identifiant et le secret de l'intégration.",
+        provider === 'QONTO' ? QONTO_CREDENTIALS_REFUSED : "Ponto refuse ces identifiants : vérifiez l'identifiant et le secret de l'intégration.",
       )
     }
     throw error
   }
 
-  const sealed = sealCredentials(provider, merged, input.encryptionKey)
+  const sealed = sealCredentials(provider, merged, input.encryptionKey, input.companyId)
   await prisma.$transaction(async (tx) => {
     await tx.integration.update({
       where: { id: integration.id },

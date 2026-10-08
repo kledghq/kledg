@@ -1,6 +1,6 @@
 # Espace groupe
 
-Le guide d'utilisation (à quoi sert l'espace groupe, comment le lire, règles expliquées) est sur le site : [La vue groupe](https://www.kledg.com/fr/docs/la-vue-groupe). Cette page est la spécification technique des pages du groupe : adresses, règles de calcul, sources des données, droits, API et outils MCP.
+Le guide d'utilisation (à quoi sert l'espace groupe, comment le lire, règles expliquées) est sur le site : [La vue groupe](https://www.kledg.com/fr/docs/la-vue-groupe). Cette page est la spécification technique des pages du groupe : adresses, règles de calcul, sources des données, droits, API et outils MCP.
 
 Une holding a son **espace groupe** (`/<holding>/group`), ouvert depuis le sélecteur de société (section **Groupes**) ou l'entrée **États, Vue groupe** de la holding. Il remplace le menu de la société par celui du groupe, comme si le groupe était une société :
 
@@ -110,10 +110,18 @@ Les lignes d'actionnaires appartiennent à la filiale : un membre de la holding 
 | Action | Holding | Chaque filiale |
 | --- | --- | --- |
 | Voir les pages de l'espace groupe | `reports:read` | `reports:read` |
-| Exporter (CSV, Excel) | `reports:export` | `reports:read` |
+| Transactions bancaires, Soldes (comptes bancaires) | `reports:read`, `banking:read` | `reports:read`, `banking:read` (comme les pages Transactions et Comptes bancaires de la société) |
+| Écritures d'un compte du grand livre combiné | `reports:read`, `entries:read` | `reports:read`, `entries:read` (comme les écritures d'un compte de la société) ; les soldes du grand livre demandent `reports:read`, comme le Grand livre |
+| Alertes (opérations à rapprocher, brouillons) | `reports:read`, `banking:read`, `entries:read` | les mêmes |
+| Exporter (CSV, Excel) | `reports:export` | `reports:export` |
+| Déclarer la holding parmi les actionnaires d'une société | `settings:update` | `settings:update` (dans la société détenue) |
 
 - Une filiale dont l'utilisateur n'est pas membre, ou qu'un assistant IA n'a pas reçue dans son autorisation, est **comptée comme non accessible et jamais lue** : ni son nom, ni son identifiant, ni son SIREN, ni ses transactions, associés ou échéances ne sortent du serveur, sur aucune page ni dans aucun export ; ses chiffres ne sont pas additionnés et ses flux ne sont pas éliminés.
 - Une filiale dont l'utilisateur est membre avec un rôle qui ne lit pas les états est nommée (il en est membre) et n'est pas lue.
+- Un export ne contient que les sociétés où l'utilisateur a le droit d'exporter (`reports:export`) : une filiale où il n'est que lecteur (`viewer`) se voit dans les pages du groupe, mais ses chiffres, transactions et écritures ne sortent pas dans un fichier ; elle y est comptée comme non lue, avec la même mention qu'une filiale non accessible. Les exports de chaque société demandent le même droit.
+- Déclarer une société actionnaire (page Informations de la filiale, actionnaire « Société ») la fait entrer dans le groupe de cette holding : il faut pouvoir modifier les paramètres de la filiale et ceux de la holding (`settings:update` dans les deux). Un lecteur de la holding ne peut pas lui ajouter une filiale.
+- Chaque vue vérifie dans chaque filiale le droit de la page correspondante de la société : une filiale dont le rôle lit les états mais pas la banque ou les écritures est nommée et comptée comme non lue sur la page des transactions, des soldes ou des écritures, et lue sur les autres.
+- Une société actionnaire hors du groupe (Associés et dirigeants, Structure) est nommée seulement si l'utilisateur la lit ou en est membre ; sinon elle s'affiche « Société actionnaire », jamais avec le nom enregistré sur la ligne d'actionnaire.
 - Chaque filiale lisible est lue dans son propre périmètre d'isolation (`inCompany`, `lib/management-fees/access.ts`) : la base décide encore d'après les adhésions de l'utilisateur et l'autorisation de l'assistant.
 
 ## Exercices
@@ -223,7 +231,7 @@ Transactions fusionne les transactions des sociétés page par page (`merge-page
 
 ## Exports et outils MCP
 
-Chaque tableau a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/export?report=`) : `combined`, `participations`, `companies`, `indicators`, `evolution`, `treasury`, `persons`, `deadlines`, `transactions` (les 5 000 plus récentes, avec les filtres de la page), `ledger`, `structure` (nœuds et détentions de l'organigramme), `tax` (impôt par société, régime mère-fille, périmètre et simulation d'intégration avec les retraitements saisis, sources). Droit `reports:export` dans la holding, `reports:read` dans chaque filiale lue ; cellules protégées contre les formules (`lib/reports/csv-safe.ts`).
+Chaque tableau a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/export?report=`) : `combined`, `participations`, `companies`, `indicators`, `evolution`, `treasury`, `persons`, `deadlines`, `transactions` (les 5 000 plus récentes, avec les filtres de la page), `ledger`, `structure` (nœuds et détentions de l'organigramme), `tax` (impôt par société, régime mère-fille, périmètre et simulation d'intégration avec les retraitements saisis, sources). Droit `reports:export` dans la holding et dans chaque filiale exportée (une filiale où l'utilisateur n'a que `reports:read` est laissée hors du fichier, avec une mention) ; cellules protégées contre les formules (`lib/reports/csv-safe.ts`).
 
 | Outil | Rôle |
 | --- | --- |
@@ -241,7 +249,7 @@ Chaque tableau a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/e
 | `get_group_structure` | Organigramme : nœuds, détentions et leur catégorie, détention directe, indirecte et totale, dirigeants |
 | `simulate_tax_integration` | Impôt de chaque société, régime mère-fille, simulation d'intégration fiscale avec ses conditions, retraitements et sources |
 
-Tous en lecture seule, avec `reports:read` dans la holding et dans chaque filiale lue. Un assistant n'atteint que les filiales de son autorisation : les autres sont comptées, ni lues ni nommées ([serveur MCP](mcp.md)).
+Tous en lecture seule, avec `reports:read` dans la holding et dans chaque filiale lue, et les droits du tableau d'accès ci-dessus pour les transactions, les soldes bancaires, les écritures d'un compte et les alertes. Un assistant n'atteint que les filiales de son autorisation : les autres sont comptées, ni lues ni nommées ([serveur MCP](mcp.md)).
 
 ## Choix de conception
 

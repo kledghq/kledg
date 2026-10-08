@@ -48,6 +48,12 @@ export interface GroupAccess {
    * never run wider than this.
    */
   companyIds?(): Promise<readonly string[] | null>
+  /**
+   * What reading a company of a group needs there (lib/group/perimeter.ts):
+   * reports:read when absent. An export of the group space asks for
+   * reports:export in every company it reads (KLEDG-R3-AUTHZ-04).
+   */
+  readPermission?: Permission
 }
 
 /** Whether a permission only reads (every action is 'read'): allowed on an archived company. */

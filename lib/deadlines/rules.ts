@@ -34,21 +34,21 @@ const BOI_TVA_RSI = {
   url: `${BOFIP}2418-PGP.html/identifiant=BOI-TVA-DECLA-20-20-30-10-20230118`,
 }
 const RSI_ABOLISHED = {
-  label: 'impots.gouv.fr : suppression du régime simplifié de TVA au 1er janvier 2027',
+  label: 'impots.gouv.fr : suppression du régime simplifié de TVA au 1er janvier 2027',
   url: 'https://www.impots.gouv.fr/actualite/le-regime-simplifie-dimposition-la-tva-est-supprime-compter-du-1er-janvier-2027',
 }
 const CGI_1668 = { label: 'CGI, art. 1668', url: `${LEGIFRANCE}LEGIARTI000033836779` }
 const BOI_IS_ACOMPTES = { label: 'BOI-IS-DECLA-20-10 (acomptes et solde)', url: `${BOFIP}3558-PGP.html` }
 const CGI_223 = { label: 'CGI, art. 223', url: `${LEGIFRANCE}LEGIARTI000034387974` }
-const CALENDAR_MAY = { label: 'impots.gouv.fr : calendrier fiscal de mai 2026', url: 'https://www.impots.gouv.fr/professionnel/calendrier-fiscal/2026-05' }
-const CALENDAR_JUNE = { label: 'impots.gouv.fr : calendrier fiscal de juin 2026', url: 'https://www.impots.gouv.fr/professionnel/calendrier-fiscal/2026-06' }
+const CALENDAR_MAY = { label: 'impots.gouv.fr : calendrier fiscal de mai 2026', url: 'https://www.impots.gouv.fr/professionnel/calendrier-fiscal/2026-05' }
+const CALENDAR_JUNE = { label: 'impots.gouv.fr : calendrier fiscal de juin 2026', url: 'https://www.impots.gouv.fr/professionnel/calendrier-fiscal/2026-06' }
 const BOI_DAS2 = {
   label: 'BOI-BIC-DECLA-30-70-20 (DAS2)',
   url: `${BOFIP}8661-PGP.html/identifiant=BOI-BIC-DECLA-30-70-20-20250212`,
 }
-const CVAE_PAGE = { label: 'impots.gouv.fr : CET, CFE et CVAE', url: 'https://www.impots.gouv.fr/professionnel/cet-cfe-et-cvae' }
+const CVAE_PAGE = { label: 'impots.gouv.fr : CET, CFE et CVAE', url: 'https://www.impots.gouv.fr/professionnel/cet-cfe-et-cvae' }
 const CVAE_2026 = {
-  label: 'impots.gouv.fr : échéance de la 1330-CVAE en 2026',
+  label: 'impots.gouv.fr : échéance de la 1330-CVAE en 2026',
   url: 'https://www.impots.gouv.fr/pro-05052026-cvae-echeance-teledeclaration-de-la-valeur-ajoutee-et-des-effectifs-salaries',
 }
 const CVAE_SECTION = {
@@ -209,7 +209,7 @@ export const RULES = {
     category: 'salaires',
     form: '2502',
     summary:
-      "La déclaration annuelle 2502 des salaires d'une année est déposée, avec le solde de la taxe, au plus tard le 15 janvier de l'année suivante ; il est admis qu'elle le soit jusqu'au 31 janvier. Rien à déposer quand la taxe n'est pas due (franchise de 1 200 €, abattement des associations).",
+      "La déclaration annuelle 2502 des salaires d'une année est déposée, avec le solde de la taxe, au plus tard le 15 janvier de l'année suivante ; il est admis qu'elle le soit jusqu'au 31 janvier. Rien à déposer quand la taxe n'est pas due (franchise de 1 200 €, abattement des associations).",
     sources: [CGI_231, BOI_TS_DECLA],
   },
   bpf: {

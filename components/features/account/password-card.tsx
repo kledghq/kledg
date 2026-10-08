@@ -50,7 +50,8 @@ export function PasswordCard({ state, onOtherSessionsRevoked }: { state: ActionS
       <CardHeader>
         <CardTitle>Mot de passe</CardTitle>
         <CardDescription>
-          Saisissez votre mot de passe actuel, puis le nouveau. Il servira dès votre prochaine connexion.
+          Saisissez votre mot de passe actuel, puis le nouveau. Il servira dès votre prochaine connexion. Vos clés
+          API sont supprimées et vos assistants IA déconnectés&nbsp;: recréez ou reconnectez ceux que vous utilisez.
         </CardDescription>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>

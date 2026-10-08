@@ -60,7 +60,7 @@ const TX_UUID = '0b7f1d64-5a8c-4b6e-9a51-3f1c2d3e4f50'
 const QONTO_DETAIL = 'Invalid API key for organization acme-sas-4242'
 const SECRET = 'qonto-secret-key-0123'
 const QONTO_REFUSED_HINT =
-  "Qonto refuse l'accès : vérifiez l'identifiant et la clé secrète de l'API, puis mettez-les à jour depuis la page Banque."
+  "Qonto refuse l'accès : vérifiez l'identifiant et la clé secrète de l'API, puis mettez-les à jour depuis la page Banque."
 
 async function call(handler: Handler, request: NextRequest, params: Record<string, string> = {}) {
   const response = await handler(request, { params: Promise.resolve(params) })
@@ -192,7 +192,7 @@ describe('GET /api/qonto/statements/[id]', () => {
     stubQonto({ [`/statements/${STATEMENT_ID}`]: refused(404) })
     const response = await call(statementRoute, get(path(STATEMENT_ID)), { id: STATEMENT_ID })
     expect(response.status).toBe(502)
-    expect(response.json).toEqual({ error: "Qonto ne trouve pas l'élément demandé : actualisez la page puis réessayez." })
+    expect(response.json).toEqual({ error: "Qonto ne trouve pas l'élément demandé : actualisez la page puis réessayez." })
   })
 })
 
@@ -324,7 +324,7 @@ describe('POST /api/qonto/transactions/[id]/attachments/upload', () => {
     stubQonto({ [`/transactions/${TX_UUID}/attachments`]: refused(429) })
     const response = await call(uploadRoute, upload(pdf()), { id: TX_UUID })
     expect(response.status).toBe(429)
-    expect(response.json).toEqual({ error: 'Qonto limite le nombre de requêtes : réessayez dans quelques minutes.' })
+    expect(response.json).toEqual({ error: 'Qonto limite le nombre de requêtes : réessayez dans quelques minutes.' })
     expect(response.text).not.toContain(QONTO_DETAIL)
   })
 })

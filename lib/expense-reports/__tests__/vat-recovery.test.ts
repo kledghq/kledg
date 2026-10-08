@@ -74,3 +74,19 @@ describe('recoverable VAT of an expense line', () => {
     expect(vatIncludedCents(1_000, 0)).toBe(0)
   })
 })
+
+// R3 QUAL-14: a toll or a parking ticket is not passenger transport; its VAT
+// is deductible by the user (BOI-TVA-DED-40-40, § 30 and § 330), in an
+// expense report as in simple mode (category peages-parking).
+describe('tolls and parking', () => {
+  it('a 12 € toll at 20 % recovers its 2 € of VAT, as simple mode does', async () => {
+    const { findCategory } = await import('@/lib/simple/categories')
+    const { buildPostingLines } = await import('@/lib/simple/posting')
+    const expense = recoverableVat({ category: 'TOLLS_PARKING', receiptKind: 'RECEIPT', amountInclTaxCents: 1_200, vatCents: 200, vatExempt: false })
+    expect(expense).toEqual({ recoverableVatCents: 200, reason: 'full' })
+    const category = findCategory('peages-parking')!
+    expect(buildPostingLines({ category, posting: category.posting, side: 'debit', amountCents: 1_200, recoveryRatio: null }).vatBookedCents).toBe(200)
+    // Train, plane and taxi stay excluded (CGI ann. II art. 206, IV, 2, 5°)
+    expect(recoverableVat({ category: 'TRANSPORT', receiptKind: 'RECEIPT', amountInclTaxCents: 1_100, vatCents: 100, vatExempt: false }).recoverableVatCents).toBe(0)
+  })
+})

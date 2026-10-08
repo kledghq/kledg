@@ -1,7 +1,9 @@
 /**
  * Period closing (clôture des périodes) inside an open fiscal year.
  *
- * PCG art. 1031-4 (règlement ANC n° 2014-03 as amended by n° 2022-06): "une
+ * PCG art. 1031-4 (règlement ANC n° 2014-03 as amended by n° 2022-06,
+ * checked on the version consolidated by the ANC on 1 January 2026; art.
+ * 921-4 in the versions before 2025): "une
  * procédure de clôture destinée à figer la chronologie et à garantir
  * l'intangibilité des enregistrements est mise en œuvre au plus tard avant
  * l'expiration de la période suivante"; an operation dated in a closed period

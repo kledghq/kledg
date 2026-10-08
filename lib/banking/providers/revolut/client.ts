@@ -12,6 +12,19 @@
 import { BankAuthorizationError, providerError } from '@/lib/banking/errors'
 import { bankFetch } from '@/lib/banking/http'
 import { buildClientAssertion, CLIENT_ASSERTION_TYPE } from './jwt'
+import { z } from 'zod'
+import { parseProviderResponse } from '@/lib/banking/provider-response'
+
+/** What Kledg reads in the Revolut responses that feed the books (lib/banking/provider-response.ts). */
+const RevolutAccountsSchema = z.array(z.looseObject({ id: z.string(), balance: z.number(), currency: z.string(), state: z.string() }))
+const RevolutTransactionsSchema = z.array(
+  z.looseObject({
+    id: z.string(),
+    state: z.string(),
+    created_at: z.string(),
+    legs: z.array(z.looseObject({ leg_id: z.string(), account_id: z.string(), amount: z.number(), currency: z.string() })),
+  }),
+)
 
 export interface RevolutAccount {
   id: string
@@ -80,7 +93,7 @@ export interface RevolutClientOptions {
 }
 
 /** Largest page the transactions endpoint accepts. */
-export const REVOLUT_PAGE_SIZE = 1000
+const REVOLUT_PAGE_SIZE = 1000
 
 async function errorDetail(response: Response): Promise<string> {
   const text = await response.text().catch(() => '')
@@ -155,25 +168,26 @@ export class RevolutClient {
       return this.accessToken.value
     }
     if (!this.options.refreshToken) {
-      throw new BankAuthorizationError("Revolut n'est pas encore autorisé : terminez l'autorisation dans Revolut Business.")
+      throw new BankAuthorizationError("Revolut n'est pas encore autorisé : terminez l'autorisation dans Revolut Business.")
     }
     const tokens = await this.token({ grant_type: 'refresh_token', refresh_token: this.options.refreshToken })
     if (tokens.refresh_token) this.options.refreshToken = tokens.refresh_token
     return tokens.access_token
   }
 
-  private async get<T>(path: string, query?: URLSearchParams): Promise<T> {
+  private async get<T>(path: string, query?: URLSearchParams, schema?: z.ZodType): Promise<T> {
     const url = `${this.options.apiUrl}${path}${query && [...query.keys()].length ? `?${query}` : ''}`
     const response = await bankFetch('Revolut', this.fetchImpl, url, {
       headers: { Authorization: `Bearer ${await this.getAccessToken()}`, Accept: 'application/json' },
     })
     if (!response.ok) throw await revolutError(response)
-    return (await response.json()) as T
+    const body: unknown = await response.json()
+    return schema ? parseProviderResponse<T>('Revolut', `GET ${path}`, schema, body) : (body as T)
   }
 
   /** GET /accounts */
   getAccounts(): Promise<RevolutAccount[]> {
-    return this.get('/accounts')
+    return this.get('/accounts', undefined, RevolutAccountsSchema)
   }
 
   /** GET /accounts/{id}/bank-details: IBAN and BIC of an account (one entry per scheme). */
@@ -188,7 +202,7 @@ export class RevolutClient {
     if (params.from) query.set('from', params.from)
     if (params.to) query.set('to', params.to)
     query.set('count', String(params.count ?? REVOLUT_PAGE_SIZE))
-    return this.get('/transactions', query)
+    return this.get('/transactions', query, RevolutTransactionsSchema)
   }
 
   /**

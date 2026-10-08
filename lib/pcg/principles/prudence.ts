@@ -7,6 +7,7 @@
  */
 
 import type { EntryLine } from '@/lib/accounting/types'
+import { isAccountCode } from '@/lib/accounting/account-code'
 
 export interface PrudenceValidationResult {
   valid: boolean
@@ -131,7 +132,7 @@ export function recommendProvisions(entry: {
  */
 function extractAccountCode(accountId: string): string | null {
   // Si accountId est déjà un code (format numérique)
-  if (/^\d{2,8}$/.test(accountId)) {
+  if (isAccountCode(accountId)) {
     return accountId
   }
   

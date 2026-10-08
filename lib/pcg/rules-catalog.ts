@@ -17,7 +17,7 @@ const CATALOG_PATH = join(process.cwd(), 'lib', 'pcg', 'catalog.json')
 /**
  * Charge ou génère le catalogue des règles PCG
  */
-export function getPCGRulesCatalog(regenerate: boolean = false): PCGRulesCatalog {
+function getPCGRulesCatalog(regenerate: boolean = false): PCGRulesCatalog {
   const fs = require('fs')
   
   // Si le catalogue existe et qu'on ne régénère pas, le charger

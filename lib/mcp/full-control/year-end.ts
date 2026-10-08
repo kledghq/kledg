@@ -17,9 +17,12 @@ import { exportFec } from '@/lib/fec/export'
 import { validateFec } from '@/lib/fec/validator'
 import { FEC_FILE_NAME } from '@/lib/fec/format'
 import { day } from '@/lib/mcp/tool-result'
+import { MAX_MCP_FILE_BYTES, fileTooLargeMessage } from '@/lib/mcp/file-result'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { euros, isoDate, ownedFiscalYear } from './resolve'
+import { companyLock, fiscalYearTargets } from './fingerprint'
 
 const fiscalYearId = z.string().min(1).describe('Fiscal year id, from list_fiscal_years.')
 
@@ -32,6 +35,7 @@ const generateDepreciation = fullControlTool({
   amounts: 'euros',
   never: 'books an allowance twice or writes in a closed fiscal year.',
   idempotent: true,
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...fiscalYearTargets(companyId, fiscalYearId)],
   confirmation: true,
   async preview({ companyId, fiscalYearId }) {
     const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
@@ -48,7 +52,7 @@ const generateDepreciation = fullControlTool({
         debit: i.expenseAccount.code,
         credit: i.depreciationAccount.code,
       })),
-      warnings: fiscalYear.isClosed ? [`L'exercice ${fiscalYear.year} est clôturé : la génération sera refusée.`] : [],
+      warnings: fiscalYear.isClosed ? [`L'exercice ${fiscalYear.year} est clôturé : la génération sera refusée.`] : [],
     }
   },
   async execute({ companyId, fiscalYearId }) {
@@ -71,6 +75,7 @@ const closeFiscalYearTool = fullControlTool({
   permission: { closing: ['execute'] },
   amounts: 'euros',
   never: 'closes a year with drafts, before its end date or after an open earlier year; and never reopens a year.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...fiscalYearTargets(companyId, fiscalYearId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, fiscalYearId }) {
@@ -127,7 +132,7 @@ function euroPlan(plan: AllocationPlan) {
 function cents(value: string | number | undefined, field: string): number {
   if (value === undefined) return 0
   const parsed = parseCents(value)
-  if (parsed === null || parsed < 0) throw new ValidationError(`${field} : montant invalide`)
+  if (parsed === null || parsed < 0) throw new ValidationError(`${field} : montant invalide`)
   return parsed
 }
 
@@ -149,6 +154,7 @@ const allocateResultTool = fullControlTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd.',
   never: 'allocates a result twice.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...fiscalYearTargets(companyId, fiscalYearId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, fiscalYearId, dividends, otherReserves }) {
@@ -185,7 +191,7 @@ const allocateResultTool = fullControlTool({
 const exportFecTool = fullControlTool({
   name: 'export_fec',
   title: 'Exporter le FEC',
-  description: `Exports the FEC (fichier des écritures comptables, LPF art. A47 A-1) of a fiscal year: the file name (SirenFECAAAAMMJJ.txt), its content (tab separated, validated entries only) and the compliance report of the file (errors and warnings). ${ACTS_AS_USER}`,
+  description: `Exports the FEC (fichier des écritures comptables, LPF art. A47 A-1) of a fiscal year: the file name (SirenFECAAAAMMJJ.txt), its content (tab separated, validated entries only) and the compliance report of the file (errors and warnings). A FEC above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB is refused, like export_report: the user downloads it from Kledg. Within the export limit of the user. ${ACTS_AS_USER}`,
   input: { fiscalYearId },
   permission: { reports: ['export'] },
   amounts: 'euros',
@@ -193,9 +199,13 @@ const exportFecTool = fullControlTool({
   idempotent: true,
   confirmation: false,
   readOnly: true,
-  async execute({ companyId, fiscalYearId }) {
+  async execute({ companyId, fiscalYearId }, ctx) {
+    // Same limits as export_report and the FEC route (app/api/fec/route.ts): the export rate limit and the size of a file sent to an assistant.
+    await enforceRateLimit('export', ctx.access.user.id)
     const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
     const fec = await exportFec(companyId, fiscalYear.id)
+    const size = Buffer.byteLength(fec.content, 'utf8')
+    if (size > MAX_MCP_FILE_BYTES) throw new ValidationError(fileTooLargeMessage(size))
     const report = validateFec(fec.content, { fileName: fec.fileName, closingDate: FEC_FILE_NAME.exec(fec.fileName)?.[2] })
     return { fileName: fec.fileName, entries: fec.entries, lines: fec.lines, report, content: fec.content }
   },

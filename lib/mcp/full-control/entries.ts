@@ -16,6 +16,7 @@ import { parseCents } from '@/lib/utils/money'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
+import { companyLock, entryTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -93,6 +94,8 @@ const validateEntriesTool = fullControlTool({
   never: 'validates an unbalanced entry, an entry of a closed fiscal year or of another company; a validated entry can then only be reversed.',
   confirmation: true,
   destructive: true,
+  // The approval covers the drafts as the user saw them: an edit before the execution refuses it.
+  targetState: ({ companyId, entryIds }) => entryTargets(companyId, entryIds),
   async preview({ companyId, entryIds }) {
     const ids = [...new Set(entryIds)]
     const rows = await prisma.accountingEntry.findMany({
@@ -100,7 +103,7 @@ const validateEntriesTool = fullControlTool({
       select: { ...ENTRY_SUMMARY_SELECT, fiscalYear: { select: GUARDED_FISCAL_YEAR_SELECT } },
     })
     const found = new Set(rows.map((r) => r.id))
-    const warnings: string[] = ids.filter((id) => !found.has(id)).map((id) => `${id} : ${ENTRY_NOT_FOUND}.`)
+    const warnings: string[] = ids.filter((id) => !found.has(id)).map((id) => `${id} : ${ENTRY_NOT_FOUND}.`)
     // Same order as validateEntries: date, then creation.
     rows.sort((a, b) => a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime())
     const next = new Map<string, number>()
@@ -110,7 +113,7 @@ const validateEntriesTool = fullControlTool({
       let problem: string | null = null
       if (row.status === 'validated') problem = `Déjà validée (n° ${row.entryNumber}).`
       else if (isFiscalYearClosed(row.fiscalYear)) problem = `Exercice ${row.fiscalYear.year} clôturé.`
-      else if (!summary.balanced) problem = 'Écriture déséquilibrée : débits et crédits diffèrent.'
+      else if (!summary.balanced) problem = 'Écriture déséquilibrée : débits et crédits diffèrent.'
       let numberToAssign: string | null = null
       if (!problem) {
         if (!next.has(row.fiscalYearId)) next.set(row.fiscalYearId, Number(await nextDefinitiveEntryNumber(row.fiscalYearId)))
@@ -118,7 +121,7 @@ const validateEntriesTool = fullControlTool({
         numberToAssign = String(n)
         next.set(row.fiscalYearId, n + 1)
       } else {
-        warnings.push(`Écriture ${row.entryNumber} : ${problem}`)
+        warnings.push(`Écriture ${row.entryNumber} : ${problem}`)
       }
       entries.push({ ...summary, fiscalYear: row.fiscalYear.year, numberToAssign, problem })
     }
@@ -133,7 +136,7 @@ const validateEntriesTool = fullControlTool({
       totalDebit: totalDebitCents / 100,
       entries,
       warnings,
-      note: "Numéros indicatifs : ils sont attribués à la validation, dans la suite de l'exercice, et peuvent avancer si une autre écriture est validée entre-temps.",
+      note: "Numéros indicatifs : ils sont attribués à la validation, dans la suite de l'exercice, et peuvent avancer si une autre écriture est validée entre-temps.",
     }
   },
   async execute({ companyId, entryIds }) {
@@ -164,6 +167,7 @@ const reverseEntryTool = fullControlTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd.',
   never: 'deletes or edits the validated entry: it adds the reversing entry.',
+  targetState: ({ companyId, entryId }) => [companyLock(companyId), ...entryTargets(companyId, [entryId])],
   confirmation: true,
   destructive: true,
   async preview({ companyId, entryId, date }) {
@@ -177,17 +181,17 @@ const reverseEntryTool = fullControlTool({
     const fiscalYears = await prisma.fiscalYear.findMany({ where: { companyId }, select: GUARDED_FISCAL_YEAR_SELECT })
     const target = fiscalYearContaining(fiscalYears, reversalDay)
     const warnings: string[] = []
-    if (entry.status !== 'validated') warnings.push('Seule une écriture validée peut être contre-passée : un brouillon se modifie ou se supprime.')
+    if (entry.status !== 'validated') warnings.push('Seule une écriture validée peut être contre-passée : un brouillon se modifie ou se supprime.')
     if (entry.reversedBy) warnings.push(`Déjà contre-passée par l'écriture n° ${entry.reversedBy.entryNumber}.`)
     if (!target) warnings.push(`Aucun exercice ne couvre le ${reversalDay}.`)
-    else if (isFiscalYearClosed(target)) warnings.push(`L'exercice ${target.year} est clôturé : choisissez une date de l'exercice ouvert.`)
+    else if (isFiscalYearClosed(target)) warnings.push(`L'exercice ${target.year} est clôturé : choisissez une date de l'exercice ouvert.`)
     return {
       original: summary,
       reversal: {
         date: reversalDay,
         fiscalYear: target?.year ?? null,
         journal: summary.journal,
-        description: `Contre-passation de l'écriture n° ${entry.entryNumber}${entry.description ? ` : ${entry.description}` : ''}`,
+        description: `Contre-passation de l'écriture n° ${entry.entryNumber}${entry.description ? ` : ${entry.description}` : ''}`,
         status: 'validated',
         lines: summary.lines.map((l) => ({ ...l, debit: l.credit, credit: l.debit })),
       },
@@ -275,12 +279,13 @@ const deleteDraftEntryTool = fullControlTool({
   never: 'deletes a validated entry (refused).',
   confirmation: true,
   destructive: true,
+  targetState: ({ companyId, entryId }) => entryTargets(companyId, [entryId]),
   async preview({ companyId, entryId }) {
     const entry = await prisma.accountingEntry.findFirst({ where: { id: entryId, companyId }, select: ENTRY_SUMMARY_SELECT })
     if (!entry) throw new NotFoundError(ENTRY_NOT_FOUND)
     const warnings =
       entry.status === 'validated'
-        ? [`L'écriture n° ${entry.entryNumber} est validée : la suppression sera refusée (PCG art. 1031-3). Utilisez reverse_entry.`]
+        ? [`L'écriture n° ${entry.entryNumber} est validée : la suppression sera refusée (PCG art. 1031-3). Utilisez reverse_entry.`]
         : []
     return { entryToDelete: summarize(entry), warnings }
   },

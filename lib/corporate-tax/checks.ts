@@ -123,7 +123,7 @@ export function corporateTaxChecks(input: CheckInput): CorporateTaxCheck[] {
       id: 'receptions',
       severity: 'info',
       title: 'Réceptions à vérifier',
-      detail: `${euros(input.receptionsCents)} au compte 6257 (réceptions). Elles sont déductibles si elles servent l’intérêt de la société ; une dépense somptuaire ou personnelle se réintègre à la main (CGI, art. 39, 4 ; approbation par les associés, art. 223 quater).`,
+      detail: `${euros(input.receptionsCents)} au compte 6257 (réceptions). Elles sont déductibles si elles servent l’intérêt de la société ; une dépense somptuaire ou personnelle se réintègre à la main (CGI, art. 39, 4 ; approbation par les associés, art. 223 quater).`,
     })
   }
   if (input.foreignTaxCents !== 0) {

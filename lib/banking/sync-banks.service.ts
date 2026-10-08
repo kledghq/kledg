@@ -21,6 +21,7 @@ import { BANK_PROVIDERS } from '@/lib/banking/providers'
 import { withSystemContext } from '@/lib/rls/context'
 import { writeAuditLog } from '@/lib/audit'
 import { withinRateLimit } from '@/lib/rate-limit'
+import { bankSyncPause } from '@/lib/banking/sync-pause'
 
 export interface BankSyncRunResult {
   companyId: string
@@ -29,6 +30,8 @@ export interface BankSyncRunResult {
   success: boolean
   itemsSynced: number
   errors: string[]
+  /** Skipped: the company is read-only (lib/banking/sync-pause.ts); it catches up once writable. */
+  paused?: boolean
 }
 
 /** Features read by the cron: Qonto keeps its former transactions-only run; the others also refresh balances and consent dates. */
@@ -43,6 +46,11 @@ function cronFeatures(provider: string): IntegrationFeature[] {
  * lists the integrations of every company, then each sync runs narrowed to
  * its own company, so a sync can only read and write that company's rows,
  * and is recorded in that company's audit log.
+ *
+ * A read-only company (archived, or refused writes by the instance policy)
+ * is skipped without calling its bank nor recording anything: its last sync
+ * date stays, and the first run once it is writable again reads from that
+ * date (issue #15, lib/banking/sync-pause.ts).
  */
 export async function syncAllBankIntegrations(
   encryptionKey: string,
@@ -58,8 +66,19 @@ export async function syncAllBankIntegrations(
     }),
   )
   const results: BankSyncRunResult[] = []
+  const paused = new Map<string, boolean>()
   for (const integration of integrations) {
     try {
+      if (!paused.has(integration.companyId)) {
+        const pause = await withSystemContext('cron:bank-sync', () => bankSyncPause(integration.companyId), {
+          companyIds: [integration.companyId],
+        })
+        paused.set(integration.companyId, pause !== null)
+      }
+      if (paused.get(integration.companyId)) {
+        results.push({ ...base(integration), success: true, itemsSynced: 0, errors: [], paused: true })
+        continue
+      }
       const result = await withSystemContext(
         'cron:bank-sync',
         async () => {
@@ -129,10 +148,10 @@ export async function handleBankSyncCron(request: Request): Promise<Response> {
       const results = await syncAllBankIntegrations(encryptionKey, {
         notSyncedSince: new Date(Date.now() - KEYLESS_MIN_INTERVAL_MS),
       })
-      return NextResponse.json({ success: true, synced: results.length })
+      return NextResponse.json({ success: true, synced: results.filter((r) => !r.paused).length })
     }
     const results = await syncAllBankIntegrations(encryptionKey)
-    return NextResponse.json({ success: true, synced: results.length, results })
+    return NextResponse.json({ success: true, synced: results.filter((r) => !r.paused).length, results })
   } catch (error) {
     return toErrorResponse(error)
   }

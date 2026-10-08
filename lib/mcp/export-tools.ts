@@ -76,7 +76,7 @@ function exportOf<S extends z.ZodType>(
 }
 
 /** Every export route, by report name (route in the comment). */
-export const EXPORTS = {
+const EXPORTS = {
   /** GET /api/companies/[id]/balance-sheet/export-pdf */
   balance_sheet_pdf: exportOf(REPORT_EXPORT, StatementQuerySchema, (companyId, query) => exportBalanceSheetPdf(companyId, query)),
   /** GET /api/companies/[id]/balance-sheet/export-excel */

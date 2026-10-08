@@ -5,15 +5,18 @@
  * Invariant: Qonto is only queried with the stored credentials of the
  * company, for a transaction of the company; file URLs come from the stored
  * attachment or a fresh Qonto response, never from the request, and only
- * Qonto's file hosts are fetched (files.ts).
+ * Qonto's file hosts are fetched (files.ts). Every read asks Qonto, so it
+ * counts in the company's limit of bank calls (limitBankCalls), like the
+ * other user triggered Qonto calls.
  */
 
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
+import { limitBankCalls } from '@/lib/banking/guard'
 import { qontoClientFor } from './get-credentials'
-import { fetchQontoFile } from './files'
+import { PROVIDER_FILE_BUDGET, assertDeclaredFileSize, fetchQontoFile, type FileBudget } from './files'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -49,6 +52,7 @@ export async function listQontoTransactionAttachments(
 ) {
   if (!transactionRef) throw new ValidationError('Identifiant de transaction invalide.')
   const uuid = await qontoTransactionUuid(companyId, transactionRef)
+  await limitBankCalls(companyId)
   return (await qontoClientFor(companyId)).listTransactionAttachments(uuid, { page: query.page, perPage: query.per_page })
 }
 
@@ -88,6 +92,7 @@ async function unsyncedAttachment(companyId: string, attachmentRef: string, tran
     fileName: 'justificatif',
     fileContentType: null as string | null,
     fileUrl: null as string | null,
+    receiptFileId: null as string | null,
     bankTransaction: null as { externalTransactionId: string } | null,
   }
 }
@@ -99,11 +104,20 @@ export interface QontoReceipt {
 }
 
 /**
- * The file of a receipt of the company (PDF or image). Qonto is asked for a
+ * The file of a receipt of the company (PDF or image). A receipt Kledg
+ * keeps itself (receiptFileId, lib/receipts) is read from the database.
+ * Otherwise Qonto is asked for a
  * fresh signed URL (stored URLs expire after 30 minutes); the URL stored at
- * synchronization time is the fallback.
+ * synchronization time is the fallback. A file larger than `budget`
+ * (25 MB by default) is refused from Qonto's metadata when it gives the
+ * size, else as soon as the download passes it.
  */
-export async function readQontoReceipt(companyId: string, attachmentRef: string, transactionUuid?: string): Promise<QontoReceipt> {
+export async function readQontoReceipt(
+  companyId: string,
+  attachmentRef: string,
+  transactionUuid?: string,
+  budget: FileBudget = PROVIDER_FILE_BUDGET,
+): Promise<QontoReceipt> {
   const stored =
     (await prisma.attachment.findFirst({
       where: { ...attachmentWhere(attachmentRef), companyId },
@@ -113,11 +127,22 @@ export async function readQontoReceipt(companyId: string, attachmentRef: string,
         fileName: true,
         fileContentType: true,
         fileUrl: true,
+        receiptFileId: true,
         bankTransaction: { select: { externalTransactionId: true } },
       },
     })) ?? (await unsyncedAttachment(companyId, attachmentRef, transactionUuid))
 
+  // A receipt Kledg keeps itself (a photo filed for a bank without receipt API, the receipt of an expense line): no bank call.
+  if (stored.receiptFileId) {
+    const file = await prisma.receiptFile.findFirst({ where: { id: stored.receiptFileId, companyId }, select: { content: true, contentType: true, size: true } })
+    if (!file) throw new NotFoundError(RECEIPT_NOT_FOUND)
+    if (file.size > budget.maxBytes) throw budget.tooLarge(file.size)
+    const body = new Uint8Array(file.content)
+    return { body: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer, contentType: file.contentType, fileName: stored.fileName || 'justificatif' }
+  }
+
   const uuid = stored.transactionUuid || stored.bankTransaction?.externalTransactionId || null
+  await limitBankCalls(companyId)
   let fileUrl: string | null = null
   let contentType = stored.fileContentType
   let fileName = stored.fileName
@@ -126,6 +151,7 @@ export async function readQontoReceipt(companyId: string, attachmentRef: string,
     const { attachments } = await (await qontoClientFor(companyId)).listTransactionAttachments(uuid)
     const fresh = attachments?.find((a) => a.id === stored.externalAttachmentId)
     if (fresh?.url) {
+      assertDeclaredFileSize(fresh.file_size, budget)
       fileUrl = fresh.url
       contentType = fresh.file_content_type || contentType
       fileName = fresh.file_name || fileName
@@ -135,7 +161,7 @@ export async function readQontoReceipt(companyId: string, attachmentRef: string,
   fileUrl ??= stored.fileUrl
   if (!fileUrl) throw new NotFoundError(RECEIPT_NOT_FOUND)
   return {
-    body: await fetchQontoFile(fileUrl),
+    body: await fetchQontoFile(fileUrl, undefined, budget),
     contentType: contentType || 'application/pdf',
     fileName: fileName || 'justificatif',
   }

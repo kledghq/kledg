@@ -15,7 +15,7 @@ import { prisma } from '@/lib/prisma'
 import { ValidationError } from '@/lib/accounting/errors'
 import { BankAuthorizationError, errorReason, QONTO_CREDENTIALS_REFUSED } from '@/lib/banking/errors'
 import { requireEncryptionKey } from '@/lib/banking/credentials'
-import { encrypt } from '@/lib/integrations/encryption'
+import { bankConnectionContext, encrypt } from '@/lib/integrations/encryption'
 import { QontoClient } from './client'
 import { qontoClientFor } from './get-credentials'
 
@@ -79,7 +79,7 @@ export async function connectQonto(companyId: string, input: z.infer<typeof Conn
     throw new ValidationError("Le compte choisi n'existe pas dans cette organisation Qonto.")
   }
 
-  const secretKeyEncrypted = encrypt(input.secretKey, requireEncryptionKey())
+  const secretKeyEncrypted = encrypt(input.secretKey, requireEncryptionKey(), bankConnectionContext(companyId, 'QONTO'))
   const fields = {
     provider: IntegrationProvider.QONTO,
     login: input.login,

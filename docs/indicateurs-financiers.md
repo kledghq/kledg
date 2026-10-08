@@ -1,6 +1,6 @@
 # Indicateurs financiers : SIG, CAF, BFR et ratios
 
-Le guide d'utilisation (à quoi servent les indicateurs, comment les lire) est sur le site : [Les indicateurs financiers](https://www.kledg.com/fr/docs/les-indicateurs-financiers). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (à quoi servent les indicateurs, comment les lire) est sur le site : [Les indicateurs financiers](https://www.kledg.com/fr/docs/les-indicateurs-financiers). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 La page **États, SIG et ratios** (`/<société>/reports/sig`) présente, pour un
 exercice et l'exercice précédent : les soldes intermédiaires de gestion, la

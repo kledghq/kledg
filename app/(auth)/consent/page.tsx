@@ -171,7 +171,7 @@ function ConsentForm() {
 
   const whatItCanDo =
     level === 'admin'
-      ? ' et agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice...'
+      ? ' et agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice...'
       : level === 'write'
         ? " et préparer des brouillons (écritures, notes de frais, budget, provisions, données de l'approbation des comptes), que vous vérifierez vous-même dans Kledg."
         : ", sans pouvoir proposer d'écritures."

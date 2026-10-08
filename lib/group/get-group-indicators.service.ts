@@ -24,7 +24,7 @@ import type { UnreachableSubsidiary } from './perimeter'
 import { samePeriod } from './periods'
 import { matchFiscalYear, type MemberFiscalYear } from './read-member'
 
-export const AGGREGATE_NOTICE =
+const AGGREGATE_NOTICE =
   'Agrégat du groupe : comptes des sociétés lues additionnés à 100 %, flux intragroupe non éliminés. Ce ne sont pas des comptes consolidés.'
 
 export interface MemberIndicators {

@@ -3,7 +3,7 @@
  * this module.
  *
  * - Every response (next.config.ts): no framing (X-Frame-Options DENY, and
- *   frame-ancestors in the CSP), nosniff, a strict referrer policy, HSTS
+ *   frame-ancestors in the CSP), nosniff, an origin-only referrer, HSTS
  *   (browsers ignore it on plain HTTP, so local development is unaffected),
  *   a cross-origin opener policy and a permissions policy that turns off
  *   the device features Kledg never uses.
@@ -48,13 +48,19 @@ export function buildContentSecurityPolicy(nonce: string, options: { development
 type HeaderRule = { source: string; headers: Array<{ key: string; value: string }> }
 
 /** Headers of next.config.ts. A later rule overrides the same header of an earlier one. */
+/** Policy of the static files the proxy skips: images and styles from the app, no script, no framing. */
+export const STATIC_FILE_CSP = "default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+
 export const STATIC_SECURITY_HEADERS: HeaderRule[] = [
   {
     source: '/:path*',
     headers: [
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      // The origin only, even to this instance's own pages: a page address
+      // (company slug, record ids, search terms) never reaches a script or a
+      // service that reads the referrer, analytics included (KLEDG-R3-CLOUD-03).
+      { key: 'Referrer-Policy', value: 'strict-origin' },
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
       { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
       {
@@ -67,6 +73,12 @@ export const STATIC_SECURITY_HEADERS: HeaderRule[] = [
     source: '/api/:path*',
     headers: [{ key: 'Content-Security-Policy', value: "default-src 'none'; frame-ancestors 'none'" }],
   },
+  // Files the proxy skips (config.matcher of proxy.ts): no page nonce there, so a strict policy of
+  // their own, in case one is opened directly or answers with an HTML 404 (KLEDG-R3-INPUT-04).
+  ...['/_next/static/:path*', '/_next/image', '/favicon.ico', '/icon.svg', '/apple-icon.png', '/logo.svg', '/icons/:path*'].map((source) => ({
+    source,
+    headers: [{ key: 'Content-Security-Policy', value: STATIC_FILE_CSP }],
+  })),
   {
     source: '/sw.js',
     headers: [

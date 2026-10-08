@@ -14,6 +14,7 @@ import type { CompanyGuard } from '@/lib/mcp/company-access'
 import { day, json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
 import { listBankConnections } from '@/lib/banking/list-bank-connections.service'
+import { bankSyncPause } from '@/lib/banking/sync-pause'
 import { fromCents, toCents } from '@/lib/utils/money'
 
 const iso = (d: Date | null) => d?.toISOString() ?? null
@@ -25,7 +26,7 @@ export function registerBankingReadTools(server: McpServer, guard: CompanyGuard)
       title: 'État des synchronisations bancaires',
       description: describeTool({
         summary:
-          'State of the bank feeds of a company: each connection (Qonto, Revolut, Ponto, or MANUAL for statement files) with its status, last successful synchronization, last attempt and its error, expiry of the bank consent; each account with its name, whether it is synced, last synchronization and error, balance reported by the bank, and the number of transactions not yet reconciled with the date of the oldest. Also the bank integrations (Qonto, Ponto) with their id for sync_bank_data, status, last synchronization and enabled features. Use it to check that the books are fed up to date before a closing.',
+          'State of the bank feeds of a company: each connection (Qonto, Revolut, Ponto, or MANUAL for statement files) with its status, last successful synchronization, last attempt and its error, expiry of the bank consent; each account with its name, whether it is synced, last synchronization and error, balance reported by the bank, and the number of transactions not yet reconciled with the date of the oldest. Also the bank integrations (Qonto, Ponto) with their id for sync_bank_data, status, last synchronization and enabled features, and syncPaused: why the bank sync is paused while the company is read-only (archived, or the instance refuses its writes), else null; it resumes by itself and catches up once the company is writable again. Use it to check that the books are fed up to date before a closing.',
         access: 'read',
         permission: { banking: ['read'] },
         amounts: 'euros',
@@ -38,7 +39,7 @@ export function registerBankingReadTools(server: McpServer, guard: CompanyGuard)
     (args) =>
       run(async () => {
         await guard.require(args.companyId, { banking: ['read'] })
-        const [connections, open, integrations] = await Promise.all([
+        const [connections, open, integrations, pause] = await Promise.all([
           listBankConnections(args.companyId),
           prisma.bankTransaction.groupBy({
             by: ['bankAccountId'],
@@ -52,9 +53,11 @@ export function registerBankingReadTools(server: McpServer, guard: CompanyGuard)
             orderBy: { createdAt: 'asc' },
             select: { id: true, provider: true, type: true, name: true, status: true, lastSyncAt: true, featureConfigs: { where: { enabled: true }, select: { feature: true } } },
           }),
+          bankSyncPause(args.companyId),
         ])
         const unreconciled = new Map(open.map((row) => [row.bankAccountId, row]))
         return json({
+          syncPaused: pause?.reason ?? null,
           connections: connections.map((c) => ({
             id: c.id,
             provider: c.provider,

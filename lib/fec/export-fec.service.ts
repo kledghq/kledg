@@ -13,14 +13,14 @@ import { FEC_FILE_NAME } from './format'
 import { validateFec, type FecValidationReport } from './validator'
 
 /** The fiscal year containing today in France, else the latest one. */
-export async function defaultFecFiscalYearId(companyId: string, now = new Date()): Promise<string> {
+async function defaultFecFiscalYearId(companyId: string, now = new Date()): Promise<string> {
   const fiscalYears = await prisma.fiscalYear.findMany({
     where: { companyId },
     select: { id: true, startDate: true, endDate: true },
     orderBy: { year: 'desc' },
   })
   const current = fiscalYearContaining(fiscalYears, parisDayOf(now)) ?? fiscalYears[0]
-  if (!current) throw new NotFoundError("Aucun exercice : créez l'exercice avant d'exporter le FEC")
+  if (!current) throw new NotFoundError("Aucun exercice : créez l'exercice avant d'exporter le FEC")
   return current.id
 }
 

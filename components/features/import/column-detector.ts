@@ -41,7 +41,7 @@ export const OPTIONAL_FIELDS = [
  * Common column names for auto-detection
  * Maps FEC field keys to common variations of column names
  */
-export const COMMON_COLUMN_NAMES: Record<string, string[]> = {
+const COMMON_COLUMN_NAMES: Record<string, string[]> = {
   JournalCode: ['journalcode', 'code journal', 'journal', 'code_journal', 'journal_code'],
   JournalLib: ['journallib', 'libellé journal', 'libelle journal', 'lib journal', 'journal_lib', 'journal_libelle'],
   EcritureNum: ['ecriturenum', 'numéro écriture', 'numero ecriture', 'num ecriture', 'ecriture_num', 'num_ecriture', 'n° écriture'],

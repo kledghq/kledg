@@ -16,13 +16,32 @@
 import { ExternalServiceError } from '@/lib/accounting/errors'
 import { providerError } from '@/lib/banking/errors'
 import { bankFetch } from '@/lib/banking/http'
+import { z } from 'zod'
+import { parseProviderResponse } from '@/lib/banking/provider-response'
 
-export const PONTO_API_URL = 'https://api.myponto.com'
+const PONTO_API_URL = 'https://api.myponto.com'
 export const PONTO_DASHBOARD_URL = 'https://dashboard.myponto.com/'
 
-export function getPontoApiUrl(): string {
+function getPontoApiUrl(): string {
   return (process.env.PONTO_API_URL || PONTO_API_URL).replace(/\/$/, '')
 }
+
+/** A JSON:API list page: Kledg reads `data` (id, type, attributes) and `links.next`. */
+const JsonApiListSchema = z.looseObject({
+  data: z.array(z.looseObject({ id: z.string(), type: z.string(), attributes: z.looseObject({}) })),
+  links: z.looseObject({ next: z.string().nullish() }).optional(),
+})
+
+/** A page of transactions: the amount and dates the books are made of. */
+const PontoTransactionsPageSchema = JsonApiListSchema.extend({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      type: z.string(),
+      attributes: z.looseObject({ amount: z.number(), executionDate: z.string().nullable(), valueDate: z.string().nullable() }),
+    }),
+  ),
+})
 
 export interface JsonApiResource<A> {
   id: string
@@ -139,7 +158,7 @@ export interface PontoClientOptions {
 }
 
 /** Largest page Ponto accepts. */
-export const PONTO_PAGE_LIMIT = 100
+const PONTO_PAGE_LIMIT = 100
 
 export class PontoClient {
   private readonly apiUrl: string
@@ -174,7 +193,7 @@ export class PontoClient {
     return data.access_token
   }
 
-  private async request<T>(pathOrUrl: string, init: RequestInit = {}): Promise<T> {
+  private async request<T>(pathOrUrl: string, init: RequestInit = {}, schema?: z.ZodType): Promise<T> {
     const url = pathOrUrl.startsWith('http') ? pathOrUrl : `${this.apiUrl}${pathOrUrl}`
     if (!url.startsWith(`${this.apiUrl}/`)) throw new ExternalServiceError('Lien de pagination Ponto inattendu')
     const response = await bankFetch('Ponto', this.fetchImpl, url, {
@@ -187,7 +206,8 @@ export class PontoClient {
       },
     })
     if (!response.ok) throw await pontoError(response)
-    return (await response.json()) as T
+    const body: unknown = await response.json()
+    return schema ? parseProviderResponse<T>('Ponto', `${init.method ?? 'GET'} ${new URL(url).pathname}`, schema, body) : (body as T)
   }
 
   /**
@@ -198,11 +218,13 @@ export class PontoClient {
     path: string,
     stop?: (page: JsonApiList<A>) => boolean,
     maxPages = 100,
+    /** Shape of each page, checked at the edge (lib/banking/provider-response.ts). */
+    pageSchema?: z.ZodType,
   ): Promise<JsonApiResource<A>[]> {
     const items: JsonApiResource<A>[] = []
     let next: string | null | undefined = path
     for (let pages = 0; next && pages < maxPages; pages++) {
-      const page: JsonApiList<A> = await this.request<JsonApiList<A>>(next)
+      const page: JsonApiList<A> = await this.request<JsonApiList<A>>(next, {}, pageSchema ?? JsonApiListSchema)
       items.push(...page.data)
       if (stop?.(page)) break
       next = page.data.length > 0 ? page.links?.next : null
@@ -238,7 +260,7 @@ export class PontoClient {
           return date ? new Date(date) < since : false
         })
       )
-    })
+    }, undefined, PontoTransactionsPageSchema)
   }
 
   /**

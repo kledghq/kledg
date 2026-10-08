@@ -648,7 +648,7 @@ export function CompanyWizard({ askDisplayMode = false }: { askDisplayMode?: boo
                     fois tous les douze mois (Code de commerce, art. L123-12).
                   </li>
                   <li>
-                    Le premier exercice peut être plus court ou plus long. Aucune durée minimale ; 24 mois au plus selon
+                    Le premier exercice peut être plus court ou plus long. Aucune durée minimale&nbsp;; 24 mois au plus selon
                     l&apos;usage admis par les greffes.
                   </li>
                   <li>

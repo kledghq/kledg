@@ -1,7 +1,7 @@
 # Déclarations de TVA
 
 Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
-expliquées) est sur le site : [Les déclarations de TVA](https://www.kledg.com/fr/docs/les-declarations-de-tva).
+expliquées) est sur le site : [Les déclarations de TVA](https://www.kledg.com/fr/docs/les-declarations-de-tva).
 Cette page décrit le fonctionnement technique : code, API, règles de calcul,
 droits et limites d'implémentation.
 
@@ -54,7 +54,7 @@ période et sont laissées de côté.
 | --- | --- |
 | 4457 TVA collectée (44571), sauf 44574 et 44578 | TVA due sur les ventes de la période |
 | 44574 TVA collectée en attente d'encaissement | Pas encore due : les prestations de services sont taxées à l'encaissement (CGI art. 269, 2, c). Elle est déclarée quand le règlement de la facture la vire au 44571 ([factures et tiers](factures-et-tiers.md)) ; la page affiche le montant en attente |
-| 4452 TVA due intracommunautaire | TVA autoliquidée : acquisitions intracommunautaires de biens (CGI art. 256 bis) et services d'un prestataire non établi en France (CGI art. 283, 2). La TVA déductible correspondante est au 4456 de la même écriture |
+| 4452 TVA due intracommunautaire | TVA autoliquidée : acquisitions intracommunautaires de biens (CGI art. 256 bis) et services d'un prestataire non établi en France (CGI art. 283, 2). La TVA déductible correspondante est au 4456 de la même écriture ; son sous-compte 44528 porte la TVA due au titre de l'article 283, 1, second alinéa (lignes B4 et AB) |
 | 44562 TVA sur immobilisations | TVA déductible, ligne 19 de la CA3, ligne 23 de la CA12 |
 | 44566 TVA sur autres biens et services | TVA déductible, ligne 20 de la CA3 et de la CA12 |
 | 44563 TVA transférée par d'autres entités | Autre TVA à déduire, ligne 21 de la CA3, ligne 25 de la CA12 |
@@ -107,7 +107,16 @@ immobilisations 2) va en B2 sur la CA3, et sa TVA en ligne 17 ; des
 **services** (toute autre contrepartie) vont en A3 sur la CA3 et en AC sur la
 CA12. La TVA des deux est taxée sur les lignes de taux (08, 9B, 09, T6 ;
 5A, 6C, 06, 09 sur la CA12, sauf AC qui porte sa propre taxe) et déduite en
-ligne 20 par le 44566 de la même écriture.
+ligne 20 par le 44566 de la même écriture. Un service d'un prestataire établi
+hors de l'Union européenne (Notion, GitHub) va aussi en A3 et en AC : la ligne
+couvre tout prestataire non établi en France (CGI art. 259, 1° et 283, 2 ;
+notices 3310-CA3-SD et 3517-S-SD 2026).
+
+Un achat auprès d'un assujetti non établi en France dont la société est
+redevable au titre du second alinéa de l'article 283, 1 (par exemple un bien
+situé en France vendu par un fournisseur étranger) se comptabilise avec sa TVA
+due au sous-compte **44528** du 4452 : Kledg le porte en B4 sur la CA3 et en AB
+sur la CA12, taxé sur les lignes de taux, jamais en B2 ni en ligne 17.
 
 ## Correspondance avec les formulaires
 
@@ -126,7 +135,7 @@ depuis d'autres lignes, comme le formulaire.
 | A2 | 0981 | Autres opérations imposables | À remplir : cessions d'immobilisations, livraisons à soi-même, autoliquidations du BTP (comptées en A1 par Kledg) |
 | A3 | 0044 | Achats de prestations de services d'un assujetti non établi en France (283-2) | Calculé : autoliquidation 4452, contrepartie de services |
 | B2 | 0031 | Acquisitions intracommunautaires | Calculé : autoliquidation 4452, contrepartie de biens |
-| B4 | 0040 | Achats auprès d'un assujetti non établi en France (283-1) | À remplir |
+| B4 | 0040 | Achats auprès d'un assujetti non établi en France (283-1) | Calculé : autoliquidation au sous-compte 44528 |
 | B5 | 0036 | Régularisations | Calculé : base des avoirs clients |
 | E1 | 0032 | Exportations hors UE | À remplir, depuis E2 |
 | E2 | 0033 | Autres opérations non imposables | Calculé : ventes (comptes 70) sans aucune TVA, à répartir entre E1, E2 et F2 |
@@ -164,6 +173,7 @@ depuis d'autres lignes, comme le formulaire.
 | 06 | 0105 | Taux réduit 5,5 % | Calculé |
 | 6C | 0151 | Taux réduit 10 % | Calculé |
 | 09 | 0950 | Opérations imposables à un taux particulier | Calculé : 2,1 % en métropole (notice, ligne 09) |
+| AB | 0040 | Achats auprès d'un assujetti non établi en France (283-1) | Calculé : autoliquidation au sous-compte 44528, base et taxe |
 | AC | 0044 | Achats de prestations d'un assujetti non établi en France (283-2) | Calculé : autoliquidation de services, base et taxe |
 | 11 | 0970 | Cessions d'immobilisations | À remplir (comptées avec les ventes par Kledg) |
 | 12 | 0980 | Livraisons à soi-même | À remplir |
@@ -191,8 +201,8 @@ depuis d'autres lignes, comme le formulaire.
 | 57 | | Base des acomptes de l'année suivante : 16 - (11 + 12 + 22) | Total ; acompte de juillet 55 %, de décembre 40 %, aucun sous 1 000 € (BOI-TVA-DECLA-20-20-30-10) |
 
 La CA12 n'a pas de ligne propre aux acquisitions intracommunautaires de
-biens : Kledg les porte sur les lignes de taux avec les ventes, et les
-achats de l'article 283-1 (ligne AB) restent à distinguer à la main.
+biens : Kledg les porte sur les lignes de taux avec les ventes. Les achats de
+l'article 283-1 (ligne AB) sont lus sur le sous-compte 44528.
 
 ### Arrondis
 

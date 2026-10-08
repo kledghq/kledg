@@ -47,10 +47,14 @@ import { assertInvoiceAmountsFit } from './amount-bounds'
 import { assertOutsideRunningSeries, loadNumberingSettings, lockInvoiceNumbers, peekNextNumber } from './numbering/series'
 import { VAT_EXEMPTION_CODES, invoiceExemptionMentions, isVatExemption, type VatExemption } from './vat-exemptions'
 import { defaultDueDate, invoiceStatus, maxDueDate, remainingCents, type InvoiceStatus } from './status'
+import { checkApprovedState } from '@/lib/approved-state/guard'
 
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
 
 type Db = Prisma.TransactionClient | typeof prisma
+
+/** A list cursor that is not an invoice of the company. */
+const INVALID_CURSOR = 'Curseur invalide\u00a0: rechargez la liste.'
 
 const directionSchema = z.enum(['SALE', 'PURCHASE'], { error: 'Choisissez une facture de vente ou d’achat' })
 
@@ -227,6 +231,13 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
 }
 
 export async function listInvoices(companyId: string, query: ListInvoicesQuery) {
+  // The cursor must be an invoice of the company (KLEDG-R3-AUTHZ-02): Prisma
+  // reads the sort values of the cursor row by its id alone, so an id of
+  // another company would reveal its existence and its date.
+  if (query.cursor) {
+    const owned = await prisma.invoice.findFirst({ where: { id: query.cursor, companyId }, select: { id: true } })
+    if (!owned) throw new ValidationError(INVALID_CURSOR)
+  }
   const term = query.search?.trim()
   const where: Prisma.InvoiceWhereInput = {
     companyId,
@@ -476,6 +487,8 @@ async function loadCompany(db: Db, companyId: string) {
 }
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const
+/** A transaction that waits for Qonto (20 s per call, lib/banking/http.ts) while it holds the invoice lock. */
+const QONTO_TX_OPTIONS = { maxWait: 10_000, timeout: 60_000 } as const
 
 export const AUTO_NUMBER_TYPED =
   'La numérotation automatique est active : Kledg donne le numéro quand la facture est comptabilisée. Pour une facture déjà émise ailleurs, choisissez « Enregistrer une facture déjà émise ».'
@@ -565,6 +578,8 @@ export async function createInvoice(
 export async function lockInvoice(tx: Prisma.TransactionClient, companyId: string, id: string) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "invoices" WHERE "id" = ${id} AND "companyId" = ${companyId} FOR UPDATE`
   if (rows.length === 0) throw new NotFoundError(INVOICE_NOT_FOUND)
+  // An approved MCP action acts on the invoice as the user saw it (KLEDG-R3-MCP-01)
+  await checkApprovedState(tx, { kind: 'invoice', companyId, id })
   const invoice = await tx.invoice.findUniqueOrThrow({
     where: { id },
     select: {
@@ -592,7 +607,7 @@ export function invoiceName(invoice: { number: string | null }): string {
 }
 
 const DRAFT_ONLY = (invoice: { number: string | null }) =>
-  `${invoiceName(invoice)} est comptabilisée : supprimez d’abord son écriture en brouillon (ou contre-passez-la si elle est validée) pour la modifier.`
+  `${invoiceName(invoice)} est comptabilisée : supprimez d’abord son écriture en brouillon (ou contre-passez-la si elle est validée) pour la modifier.`
 
 export async function updateInvoice(companyId: string, id: string, input: UpdateInvoiceInput): Promise<InvoiceDetail> {
   const number = await prisma.$transaction(async (tx) => {
@@ -684,13 +699,8 @@ export async function updateInvoiceLineAccounts(companyId: string, id: string, i
 }
 
 export async function deleteInvoice(companyId: string, id: string): Promise<{ id: string }> {
-  // A draft created in Qonto is deleted there first, so Kledg and Qonto stay in step.
-  const qontoDraft = await prisma.invoice.findFirst({ where: { id, companyId, origin: 'QONTO', qontoDraft: true, entryId: null, externalId: { not: null } }, select: { externalId: true } })
-  if (qontoDraft?.externalId) {
-    const { deleteQontoDraft } = await import('./create-in-qonto.service')
-    await deleteQontoDraft(companyId, qontoDraft.externalId)
-  }
   const deleted = await prisma.$transaction(async (tx) => {
+    // The lock also checks an approved MCP action's invoice (KLEDG-R3-MCP-01)
     const current = await lockInvoice(tx, companyId, id)
     if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
     if (current.origin === 'AUTO' && current.number) {
@@ -698,17 +708,25 @@ export async function deleteInvoice(companyId: string, id: string): Promise<{ id
         `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
       )
     }
-    // A draft in Qonto has no number yet and was deleted in Qonto just above: deleting it in Kledg leaves no gap.
-    if (current.origin === 'QONTO' && current.qontoRequestedAt && !(current.qontoDraft && current.externalId)) {
+    const qontoDraft = current.origin === 'QONTO' && current.qontoDraft && current.externalId ? current.externalId : null
+    if (current.origin === 'QONTO' && current.qontoRequestedAt && !qontoDraft) {
       throw new ConflictError(
         current.externalId
-          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
-          : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
+          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
+          : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
       )
+    }
+    // A draft created in Qonto is deleted there first, so Kledg and Qonto stay in step: only once every
+    // check above passed, under the invoice lock, so a refusal never leaves a Kledg invoice whose Qonto
+    // draft is gone. A Qonto failure throws and rolls back: nothing changes in Kledg. It has no number
+    // yet: deleting it in Kledg leaves no gap.
+    if (qontoDraft) {
+      const { deleteQontoDraft } = await import('./create-in-qonto.service')
+      await deleteQontoDraft(companyId, qontoDraft)
     }
     await tx.invoice.delete({ where: { id } })
     return current
-  }, TX_OPTIONS)
+  }, QONTO_TX_OPTIONS)
   await writeAuditLog('info', `Invoice deleted: ${deleted.number ?? 'draft without number'}`, { action: 'DELETE_INVOICE', companyId, metadata: { invoiceId: id } })
   return { id }
 }

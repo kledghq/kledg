@@ -2,8 +2,9 @@
  * Full control tools on the company settings (settings:update, like the
  * routes of app/api/companies/[id]/**): the company card and its options,
  * establishments, persons, shareholders, tax regimes and addresses, the
- * layout of the balance sheet and of the income statement; and the members
- * of the company (instance administrators only, like their adminRoute).
+ * layout of the balance sheet and of the income statement; the members of
+ * the company (instance administrators only, like their adminRoute) and its
+ * invitations (members:manage, like app/api/companies/[id]/invitations).
  * Every change of settings is high impact: it follows the execution mode
  * of the connection (approval in Kledg in validation mode).
  */
@@ -12,6 +13,7 @@ import { z } from 'zod'
 import { ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { assertActionAllowed } from '@/lib/instance'
+import { inviteMember, listInvitations, resendInvitation, revokeInvitation } from '@/lib/rbac/company-invitations.service'
 import { assistantInput, forAssistant, routeBody } from '@/lib/mcp/euros'
 import { UpdateCompanySchema, getCompanyById, updateCompany } from '@/lib/companies/manage-company.service'
 import { PaymentTermsBodySchema, getPaymentTerms, updatePaymentTerms } from '@/lib/companies/payment-terms.service'
@@ -49,6 +51,7 @@ import {
   updateBalanceSheetLine,
   updateIncomeStatementLine,
 } from '@/lib/reports/config/manage-layouts.service'
+import { deleteBalanceSheetTemplate } from '@/lib/reports/balance-sheet/config/manage-templates.service'
 import {
   ConfigHistoryActionSchema,
   CreateBalanceSheetLineSchema,
@@ -61,6 +64,7 @@ import { COMPANY_ROLES, addMemberToCompany } from '@/lib/rbac/add-member-to-comp
 import { listMembers, removeMember, updateMemberRole } from '@/lib/rbac/manage-members.service'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
+import { companyLock, rowTargets } from './fingerprint'
 
 const SETTINGS_SECTIONS = ['company', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'invoice_numbering', 'cash_forecast'] as const
 
@@ -82,6 +86,7 @@ const updateCompanySettingsTool = fullControlTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, payment terms in days.',
   never: 'deletes the company, changes its members or touches the books.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   idempotent: true,
@@ -176,6 +181,7 @@ const manageCompanyRecordsTool = fullControlTool({
   amounts: 'none',
   units: 'Dates as yyyy-mm-dd, percentages in percent.',
   never: 'deletes the company or changes the books.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   async preview(args) {
@@ -228,15 +234,15 @@ const manageCompanyRecordsTool = fullControlTool({
   audit: ({ action, establishmentId, shareholderId, taxRegimeId, personId }) => ({ action, establishmentId: establishmentId ?? null, shareholderId: shareholderId ?? null, taxRegimeId: taxRegimeId ?? null, personId: personId ?? null }),
 })
 
-const LAYOUT_ACTIONS = ['reset_default', 'create_default', 'create_line', 'update_line', 'delete_line', 'snapshot_line', 'restore_line', 'save_template', 'apply_template'] as const
-const BALANCE_SHEET_ONLY = new Set(['create_default', 'snapshot_line', 'restore_line', 'save_template', 'apply_template'])
+const LAYOUT_ACTIONS = ['reset_default', 'create_default', 'create_line', 'update_line', 'delete_line', 'snapshot_line', 'restore_line', 'save_template', 'apply_template', 'delete_template'] as const
+const BALANCE_SHEET_ONLY = new Set(['create_default', 'snapshot_line', 'restore_line', 'save_template', 'apply_template', 'delete_template'])
 
 const lineFields = CreateBalanceSheetLineSchema.partial().extend(UpdateBalanceSheetLineSchema.shape).extend(CreateIncomeStatementLineSchema.partial().shape)
 
 const manageStatementLayoutTool = fullControlTool({
   name: 'manage_statement_layout',
   title: 'Modifier la mise en page des états',
-  description: `Changes the layout of the balance sheet or of the income statement (variant complete or simplified), like the layout pages: reset_default (back to the PCG default), create_default (balance sheet: create the default layout), create_line, update_line (the fields given), delete_line, and for the balance sheet snapshot_line and restore_line (history of a line), save_template (save the layout as a template) and apply_template. Lines have a label, a type, a parent, form codes, account codes (included, excluded, depreciation), a sense (debit, credit, auto), a display and an order. Read it with get_statement_layout. ${ACTS_AS_USER} ${TWO_STEP}`,
+  description: `Changes the layout of the balance sheet or of the income statement (variant complete or simplified), like the layout pages: reset_default (back to the PCG default), create_default (balance sheet: create the default layout), create_line, update_line (the fields given), delete_line, and for the balance sheet snapshot_line and restore_line (history of a line), save_template (save the layout as a template of the company), apply_template (a template of the company or one provided by Kledg) and delete_template (a template of the company). Lines have a label, a type, a parent, form codes, account codes (included, excluded, depreciation), a sense (debit, credit, auto), a display and an order. Read it with get_statement_layout. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: {
     statement: z.enum(['balance_sheet', 'income_statement']),
     action: z.enum(LAYOUT_ACTIONS),
@@ -245,21 +251,21 @@ const manageStatementLayoutTool = fullControlTool({
     line: assistantInput(lineFields).optional().describe('create_line and update_line: the fields of the line (lineLabel required to create).'),
     version: z.number().int().optional().describe('restore_line: the version to restore.'),
     changeReason: z.string().max(500).optional().describe('snapshot_line: why.'),
-    templateId: z.string().max(64).optional().describe('apply_template: from get_statement_layout view templates.'),
+    templateId: z.string().max(64).optional().describe('apply_template and delete_template: from get_statement_layout view templates.'),
     templateName: z.string().max(200).optional().describe('save_template: its name.'),
     templateDescription: z.string().max(1000).optional(),
-    templatePublic: z.boolean().optional().describe('save_template: visible to the other companies of the instance.'),
   },
   permission: { settings: ['update'] },
   amounts: 'none',
   never: 'changes an account, an entry or the amounts of the books (only how the statements are presented).',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, statement, action, lineId, line, variant }) {
     const current = lineId ? forAssistant(statement === 'balance_sheet' ? await getBalanceSheetLine(companyId, lineId) : await getIncomeStatementLine(companyId, lineId)) : null
     return { statement, action, variant, line: current, requested: line ?? null }
   },
-  async execute({ companyId, statement, action, variant, lineId, line, version, changeReason, templateId, templateName, templateDescription, templatePublic }, ctx) {
+  async execute({ companyId, statement, action, variant, lineId, line, version, changeReason, templateId, templateName, templateDescription }, ctx) {
     const balanceSheet = statement === 'balance_sheet'
     if (!balanceSheet && BALANCE_SHEET_ONLY.has(action)) throw new ValidationError('Cette action existe pour le bilan seulement.')
     const needLine = () => {
@@ -297,9 +303,13 @@ const manageStatementLayoutTool = fullControlTool({
       case 'apply_template': {
         const body = routeBody(
           TemplateActionSchema,
-          action === 'save_template' ? { action: 'create', name: templateName, description: templateDescription, variant, isPublic: templatePublic } : { action: 'apply', templateId },
+          action === 'save_template' ? { action: 'create', name: templateName, description: templateDescription, variant } : { action: 'apply', templateId },
         )
         return forAssistant((await runBalanceSheetTemplateAction(companyId, userId, body)).result)
+      }
+      case 'delete_template': {
+        if (!templateId) throw new ValidationError('templateId est requis pour cette action.')
+        return { deleted: (await deleteBalanceSheetTemplate(companyId, templateId)).id }
       }
     }
   },
@@ -320,6 +330,7 @@ const manageMembersTool = fullControlTool({
   permission: { members: ['manage'] },
   amounts: 'none',
   never: 'gives instance administration rights or deletes a user account.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, action, email, role, memberId }, ctx) {
@@ -358,9 +369,53 @@ const manageMembersTool = fullControlTool({
   audit: ({ action, memberId, role }, result) => ({ action, memberId: memberId ?? (result as { memberId?: string }).memberId ?? null, role: role ?? null }),
 })
 
+const manageInvitationsTool = fullControlTool({
+  name: 'manage_invitations',
+  title: 'Inviter des membres dans la société',
+  description: `Invitations of the company by email, like the Membres page (issue #13): action list returns the open invitations (email, role, expiry, whether expired, who invited; never the link); action invite sends an invitation to email with a role (companyAdmin, accountant or viewer, never more rights than the user's own role in the company); the person joins by opening the emailed link, valid 7 days and single use, with their account or one they create; action resend sends invitationId again with a new link (the old one stops working); action revoke cancels invitationId. The instance may refuse invitations. Changing a member's role or removing a member: manage_members (instance administrators). ${ACTS_AS_USER} Actions invite, resend and revoke are high impact: ${TWO_STEP}`,
+  input: {
+    action: z.enum(['list', 'invite', 'resend', 'revoke']),
+    email: z.string().trim().max(320).pipe(z.email('Email invalide.')).optional().describe('invite: the email of the person.'),
+    role: z.enum(COMPANY_ROLES).optional().describe('invite: the company role given on acceptance.'),
+    invitationId: z.string().max(64).optional().describe('resend and revoke: from action list.'),
+  },
+  permission: { members: ['manage'] },
+  amounts: 'none',
+  never: 'returns an invitation link, gives instance administration rights, or a role above the user\'s own.',
+  // invite: the company (an invitation does not exist yet); resend and revoke: the approved invitation as well.
+  targetState: ({ companyId, invitationId }) => [companyLock(companyId), ...rowTargets('company_invitations', companyId, invitationId)],
+  confirmation: true,
+  highImpactActions: ['invite', 'resend', 'revoke'],
+  async preview({ companyId, action, email, role, invitationId }) {
+    const invitations = await listInvitations(companyId)
+    if (action === 'invite') return { action, email: email ?? null, role: role ?? null, openInvitations: invitations.length }
+    return { action, invitation: invitationId ? (invitations.find((i) => i.id === invitationId) ?? null) : null }
+  },
+  async execute({ companyId, action, email, role, invitationId }, ctx) {
+    if (action === 'list') return { invitations: await listInvitations(companyId) }
+    const user = ctx.access.user
+    const inviter = { id: user.id, email: user.email, name: user.name ?? null, role: user.role }
+    if (action === 'invite') {
+      if (!email || !role) throw new ValidationError("L'email et le rôle sont requis pour inviter.")
+      const sent = await inviteMember({ companyId, email, role, inviter, inviterCan: ctx.can, source: 'mcp' })
+      // The link never goes to an assistant: without email delivery, the user copies it from the Membres page.
+      return { action, invitation: sent.invitation, emailSent: sent.emailSent }
+    }
+    if (!invitationId) throw new ValidationError('invitationId est requis pour cette action.')
+    if (action === 'resend') {
+      const sent = await resendInvitation({ companyId, invitationId, inviter, inviterCan: ctx.can, source: 'mcp' })
+      return { action, invitation: sent.invitation, emailSent: sent.emailSent }
+    }
+    return { action, ...(await revokeInvitation({ companyId, invitationId, source: 'mcp' })) }
+  },
+  audit: ({ action, invitationId, role }, result) =>
+    action === 'list' ? {} : { action, invitationId: invitationId ?? (result as { invitation?: { id: string } }).invitation?.id ?? null, role: role ?? null },
+})
+
 export function registerSettingsTools(register: RegisterTool) {
   register(updateCompanySettingsTool)
   register(manageCompanyRecordsTool)
   register(manageStatementLayoutTool)
   register(manageMembersTool)
+  register(manageInvitationsTool)
 }

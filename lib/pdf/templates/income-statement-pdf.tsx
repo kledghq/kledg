@@ -318,7 +318,7 @@ export function IncomeStatementPDF({
             }}
           >
             <Text style={{ fontSize: 7.5, color: '#000', fontWeight: 'bold' }}>
-              ATTENTION&nbsp;: écart avec le bilan (compte 12) —{' '}
+              ATTENTION&nbsp;: écart avec le bilan (compte 12) de{' '}
               {formatAmount(incomeStatement.validation.difference || 0)}
             </Text>
           </View>

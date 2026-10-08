@@ -110,22 +110,22 @@ describe('CSV detection without a preset', () => {
     const result = await parse('bad-amount.csv')
     expect(lines(result)).toEqual([['2026-03-01', -1000, 'OK']])
     expect(result.errors).toEqual([
-      { line: 3, message: 'Ligne 3 : montant « douze euros » illisible.' },
-      { line: 4, message: 'Ligne 4 : date « 31/02/2026 » illisible (format attendu dd/mm/yyyy).' },
+      { line: 3, message: 'Ligne 3 : montant « douze euros » illisible.' },
+      { line: 4, message: 'Ligne 4 : date « 31/02/2026 » illisible (format attendu dd/mm/yyyy).' },
     ])
   })
 
   it('says which column is missing', async () => {
     const result = await parseStatementFile(new TextEncoder().encode('Nom;Ville\nDupont;Lyon\n'))
     expect(result.errors.map((e) => e.message)).toEqual([
-      'Colonne de date introuvable : choisissez-la dans la correspondance des colonnes.',
-      'Colonne de montant introuvable : choisissez Montant, ou Débit et Crédit.',
+      'Colonne de date introuvable : choisissez-la dans la correspondance des colonnes.',
+      'Colonne de montant introuvable : choisissez Montant, ou Débit et Crédit.',
     ])
   })
 
   it('rejects a line with both a debit and a credit', async () => {
     const result = await parseStatementFile(new TextEncoder().encode('Date;Libellé;Débit;Crédit\n01/03/2026;X;10,00;5,00\n'))
-    expect(result.errors[0].message).toBe('Ligne 2 : débit et crédit renseignés sur la même ligne.')
+    expect(result.errors[0].message).toBe('Ligne 2 : débit et crédit renseignés sur la même ligne.')
   })
 
   it('ignores balance footers and zero amounts', async () => {
@@ -296,10 +296,10 @@ describe('downloadable example files (public/examples)', () => {
 
 describe('malformed files: clear French errors', () => {
   it.each([
-    ['broken.xml', 'Fichier camt.053 invalide : XML mal formé ou tronqué.'],
-    ['camt052.xml', 'Fichier camt.052 ou camt.054 non pris en charge : exportez le relevé au format camt.053.'],
-    ['entity-bomb.xml', 'Fichier XML refusé : les entités DOCTYPE ne sont pas acceptées.'],
-    ['fake.pdf', 'Les relevés PDF ne sont pas pris en charge : exportez vos opérations en CSV, OFX ou camt.053 depuis votre espace bancaire.'],
+    ['broken.xml', 'Fichier camt.053 invalide : XML mal formé ou tronqué.'],
+    ['camt052.xml', 'Fichier camt.052 ou camt.054 non pris en charge : exportez le relevé au format camt.053.'],
+    ['entity-bomb.xml', 'Fichier XML refusé : les entités DOCTYPE ne sont pas acceptées.'],
+    ['fake.pdf', 'Les relevés PDF ne sont pas pris en charge : exportez vos opérations en CSV, OFX ou camt.053 depuis votre espace bancaire.'],
     ['no-ofx-statement.ofx', 'Fichier OFX sans relevé de compte (STMTRS).'],
   ])('%s', async (file, message) => {
     await expect(parse(file)).rejects.toMatchObject({ name: 'ValidationError', message })

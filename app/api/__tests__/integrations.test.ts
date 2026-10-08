@@ -36,6 +36,8 @@ vi.mock('@/lib/banking/guard', () => ({
 
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn().mockResolvedValue(undefined) }))
 
+// Writable company: the pause of read-only companies is covered by lib/banking/__tests__/sync-pause.db.test.ts
+vi.mock('@/lib/banking/sync-pause', () => ({ bankSyncPause: async () => null, bankSyncPausedMessage: () => '' }))
 vi.mock('@/lib/integrations/sync', () => ({ syncIntegration: vi.fn() }))
 
 vi.mock('@/lib/banking/providers', () => ({ createBankProvider: vi.fn() }))
@@ -48,7 +50,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { syncIntegration } from '@/lib/integrations/sync'
 import { createBankProvider, type BankProvider } from '@/lib/banking/providers'
 import { BankAuthorizationError } from '@/lib/banking/errors'
-import { decrypt, encrypt } from '@/lib/integrations/encryption'
+import { decrypt, encrypt, integrationContext } from '@/lib/integrations/encryption'
 import { RateLimitError } from '@/lib/accounting/errors'
 import * as list from '../integrations/route'
 import * as one from '../integrations/[id]/route'
@@ -135,10 +137,10 @@ describe('POST /api/integrations', () => {
   })
 
   it.each([
-    ['an unsupported provider', { provider: 'REVOLUT' }, 'provider: Fournisseur non pris en charge : choisissez Qonto ou Ponto.'],
+    ['an unsupported provider', { provider: 'REVOLUT' }, 'provider: Fournisseur non pris en charge : choisissez Qonto ou Ponto.'],
     ['missing credentials', { credentials: undefined }, 'credentials: Saisissez les identifiants de la connexion.'],
     ['another type', { type: 'STORAGE' }, 'type: Seules les connexions bancaires (BANKING) sont prises en charge.'],
-    ['an unknown feature', { features: ['INVOICES'] }, 'features.0: Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.'],
+    ['an unknown feature', { features: ['INVOICES'] }, 'features.0: Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.'],
   ])('answers 400 for %s', async (_label, change, message) => {
     const response = await call(list.POST, '/api/integrations', { method: 'POST', body: { ...valid, ...change } })
     expect(response.status).toBe(400)
@@ -150,7 +152,7 @@ describe('POST /api/integrations', () => {
     db.integration.count.mockResolvedValue(1)
     const response = await call(list.POST, '/api/integrations', { method: 'POST', body: valid })
     expect(response.status).toBe(409)
-    expect((await response.json()).error).toBe('Qonto est déjà connecté pour cette société : modifiez la connexion existante.')
+    expect((await response.json()).error).toBe('Qonto est déjà connecté pour cette société : modifiez la connexion existante.')
     expect(db.integration.create).not.toHaveBeenCalled()
   })
 
@@ -167,7 +169,7 @@ describe('POST /api/integrations', () => {
     const stored = args.data.credentials as Record<string, string>
     expect(stored.login).toBe('org-login')
     expect(stored.secretKey).not.toBe('super-secret-key')
-    expect(decrypt(stored.secretKey, KEY)).toBe('super-secret-key')
+    expect(decrypt(stored.secretKey, KEY, integrationContext('company-1', 'QONTO', 'secretKey'))).toBe('super-secret-key')
     expect(args.data).toMatchObject({
       companyId: 'company-1',
       credentialsEncrypted: true,
@@ -260,7 +262,7 @@ describe('GET /api/integrations/[id]/credentials', () => {
     db.integration.findFirst.mockResolvedValue({
       provider: 'QONTO',
       type: 'BANKING',
-      credentials: { login: 'org-login', secretKey: encrypt('my-long-secret-1234', KEY) },
+      credentials: { login: 'org-login', secretKey: encrypt('my-long-secret-1234', KEY, integrationContext('company-1', 'QONTO', 'secretKey')) },
       credentialsEncrypted: true,
     })
     const response = await call(credentials.GET, url, { id: 'int-1' })
@@ -298,7 +300,7 @@ describe('POST /api/integrations/[id]/features', () => {
 
   it.each([
     ['no list', {}, 'features: Indiquez les fonctionnalités à activer ou désactiver (features).'],
-    ['an unknown feature', { features: [{ feature: 'INVOICES' }] }, 'features.0.feature: Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.'],
+    ['an unknown feature', { features: [{ feature: 'INVOICES' }] }, 'features.0.feature: Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.'],
   ])('answers 400 for %s', async (_label, body, message) => {
     const response = await call(features.POST, url, { method: 'POST', id: 'int-1', body })
     expect(response.status).toBe(400)
@@ -463,8 +465,8 @@ describe('POST /api/integrations/sync', () => {
       integrationsSynced: 1,
       totalItemsSynced: 4,
       errors: [
-        "Ponto : L'accès de Ponto à votre banque a expiré.",
-        'Revolut Business : Une erreur inattendue a interrompu la synchronisation. Réessayez dans quelques minutes.',
+        "Ponto : L'accès de Ponto à votre banque a expiré.",
+        'Revolut Business : Une erreur inattendue a interrompu la synchronisation. Réessayez dans quelques minutes.',
       ],
     })
     expect(sync).toHaveBeenCalledWith('int-q', KEY, ['BANKING_ACCOUNTS', 'BANKING_TRANSACTIONS'], { maxDays: 30 })

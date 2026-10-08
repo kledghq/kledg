@@ -39,11 +39,11 @@ export async function validateBalanceSheetAgainstIncomeStatement(
   const errors: string[] = []
   if (differenceCents !== 0) {
     errors.push(
-      `Le résultat du bilan (${formatCentsFr(balanceSheetCents)}) ne correspond pas au résultat du compte de résultat (${formatCentsFr(incomeStatementCents)}). Écart : ${formatCentsFr(differenceCents)}`
+      `Le résultat du bilan (${formatCentsFr(balanceSheetCents)}) ne correspond pas au résultat du compte de résultat (${formatCentsFr(incomeStatementCents)}). Écart : ${formatCentsFr(differenceCents)}`
     )
   }
   if (balanceSheet.imbalance !== undefined) {
-    errors.push(`Le bilan n'est pas équilibré : écart de ${formatCentsFr(toCents(balanceSheet.imbalance) ?? 0)}`)
+    errors.push(`Le bilan n'est pas équilibré : écart de ${formatCentsFr(toCents(balanceSheet.imbalance) ?? 0)}`)
   }
 
   return {

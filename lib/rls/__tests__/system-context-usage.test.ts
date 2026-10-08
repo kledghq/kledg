@@ -26,6 +26,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/crypto/reencrypt.ts': ['secret-rotation'],
   // Update history at server start: reads the instance's UPDATES_MERGE audit rows (no company) to attribute a new version.
   'lib/updates/history.ts': ['version-history'],
+  // Invitation page: finds the invitation by the hash of its token (the invitee is not a member yet), then creates the membership.
+  'lib/rbac/company-invitations.service.ts': ['invitation-acceptance'],
 }
 
 function files(entry: string): string[] {

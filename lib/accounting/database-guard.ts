@@ -7,14 +7,6 @@
 
 const GUARD_PATTERN = /KLEDG_(IMMUTABLE|INVALID)_ENTRY: ([^\n"]+)/
 
-/**
- * Message of a database guard (trigger) error, or null. The triggers raise
- * "KLEDG_IMMUTABLE_ENTRY: ..." or "KLEDG_INVALID_ENTRY: ..." with a French text.
- */
-export function databaseGuardMessage(error: unknown): string | null {
-  return parseDatabaseGuard(error)?.text ?? null
-}
-
 /** Kind and French message of a database guard (trigger) error, or null. */
 export function parseDatabaseGuard(error: unknown): { kind: 'immutable' | 'invalid'; text: string } | null {
   if (!error || typeof error !== 'object') return null

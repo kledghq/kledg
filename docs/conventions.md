@@ -129,8 +129,12 @@ hooks/                   client hooks
   journal holding entries) is a 409. Anti-pattern: `return NextResponse.json({ error: 'Missing required
   fields' }, { status: 400 })` or a `try/catch` in the handler.
 - **Messages shown to users are French** and say what to do
-  ("L'exercice 2025 est clôturé : ... Passez la correction sur l'exercice
-  ouvert."). Log messages and code are English.
+  ("L'exercice 2025 est clôturé : ... Passez la correction sur l'exercice
+  ouvert."). Log messages and code are English. French typography: a
+  no-break space (U+00A0, `\u00a0` in a string, `&nbsp;` in JSX text)
+  before ":", ";", "?" and "!" (enforced by
+  `lib/__tests__/design-system-guards.test.ts`; `scripts/french-spacing.ts`
+  fixes a file), and no em or en dash.
 - **Never leak internals**: unexpected errors become the generic 500 message
   (`INTERNAL_ERROR_MESSAGE`), the detail goes to the server log. Do not
   return `error.message` of a third-party or database error to the client.
@@ -235,10 +239,18 @@ hooks/                   client hooks
     `addIsoDays`, `parseFrenchDate`, `formatIsoDateFr`.
   - `lib/accounting/entry-date.ts` (accounting edges, French errors):
     `toEntryDate`, `dayToDate`, `requireDay`, `isDayWithin`, `fecDateOf`,
-    `parisDayOf` (validation day in France).
+    `parisDayOf` (validation day in France), `todayParis`.
   - Bank statement files: `parseCalendarDate` (`lib/banking/import/date.ts`).
 
   Do not write a local `addDay`, `nextDay`, `utcDay` or `frDay`.
+- **"Today" is the calendar day in France**: a business rule that depends
+  on the current day (deadlines and their status, cash forecast, simple mode
+  summary, the current fiscal year) reads `todayParis(now)`, with the `now`
+  the service received so tests control the clock. Between midnight and 1 or
+  2 am in Paris the UTC day is still the day before, so `todayUtc` is only
+  for technical timestamps. Compare it with stored days as strings, or as
+  `isoDateToUtc(todayParis(now))` against columns at midnight UTC; never
+  compare a column holding a day with the current instant.
 - **Server code never uses local-time Date APIs** (enforced in `lib/` and
   `app/api/`): no `getFullYear`/`getMonth`/`getDate`/`setDate`..., no
   `new Date(y, m, d)`. Use `getUTC*`/`setUTC*` or the helpers. The few
@@ -295,7 +307,7 @@ it must hold for every code path, by the database (trigger in a migration).
   `lib/rls/tables.ts` (enforced by `lib/rls/__tests__/policy-coverage.db.test.ts`).
   Code outside a request (a job, a script) runs inside `withSystemContext`
   with a documented reason, or `withUserContext`; never as the system on
-  behalf of a user. Cross-company checks (SIREN or slug uniqueness) go
+  behalf of a user. Cross-company checks (SIREN, SIRET or slug uniqueness) go
   through a `SECURITY DEFINER` function that answers a boolean only.
 - Secrets at rest are encrypted with `encrypt`/`decrypt`
   (`lib/integrations/encryption.ts`) and the instance key
@@ -314,7 +326,10 @@ it must hold for every code path, by the database (trigger in a migration).
 - No unsanitized HTML: no `dangerouslySetInnerHTML` outside
   `components/ui/chart.tsx` (static CSS).
 - Uploads: `assertRequestSize` before reading, `assertFileSize`,
-  `assertSafeZip` for `.xlsx` (`lib/api/files.ts`).
+  `assertSafeZip` for `.xlsx` (`lib/api/files.ts`). Read an uploaded `.xlsx`
+  only through `loadWorkbook` and `readSheetRows` (`lib/api/xlsx.ts`): they
+  bound cells, rows, columns and time, and never let ExcelJS expand a range
+  cell by cell; never `row.values` or `eachRow({ includeEmpty: true })`.
 - **Rate limits** (tested by `lib/__tests__/rate-limit.test.ts`): every
   limit of Kledg's own code is a named rule of `RATE_LIMITS` in
   `lib/rate-limit.ts` (window, maximum, French message), applied with
@@ -327,12 +342,18 @@ it must hold for every code path, by the database (trigger in a migration).
   | Sign-in, password reset, account creation, OAuth registration and tokens | `authRateLimit` (`lib/auth-policy.ts`) | client IP |
   | API keys (MCP), 300 calls per minute | `mcp-api-key` (`lib/mcp/api-key.ts`: Better Auth verifies a key on first use and once a minute, so its row is not written on every call) | key |
   | First-run setup | `setup` | client IP |
+  | Crons called without `CRON_SECRET` (bank sync, period closing) | `cron-keyless`, `cron-keyless-period-lock` | instance |
+  | Welcome email of a member added to a company | `welcome-email` (3 a day) | person added |
+  | Invitations sent or sent again by a company administrator | `member-invitation` (20 an hour) | user |
+  | Invitation emails received | `invitation-email` (5 a day) | address invited |
+  | Acceptance of an invitation | `invitation-accept` | client IP |
   | Email, password change, account deletion, chart colours and display mode | `account-*` | user |
   | Instance user management (role, ban, email, deletion) | `instance-users` | administrator |
   | Bank API calls (connect, refresh, sync, verify, Qonto) | `bank-api` through `limitBankCalls` / `guardBankConnect` | company |
   | GitHub (updates) | `updates-read`, `updates-write` | administrator |
   | SIREN directory | `siren-lookup` | administrator |
   | Uploads parsed on the server (FEC, CSV, Excel, statements) | `import` | user |
+  | Receipts staged from an assistant or the Justificatifs page | `receipt-upload` | user |
   | Generated documents (FEC, PDF, Excel) | `export` | user |
   | MCP full control | `mcp-full-control` | user |
   | Approval of an action prepared by an assistant | `ai-action-approval` | user |

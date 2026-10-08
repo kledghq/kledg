@@ -50,7 +50,7 @@ export function RequestSetupLink({ maskedEmail }: { maskedEmail: string }) {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p className="text-muted-foreground">
-            Rien reçu après une minute ? Regardez dans les indésirables, puis
+            Rien reçu après une minute&nbsp;? Regardez dans les indésirables, puis
             renvoyez le lien.
           </p>
           <Button variant="outline" onClick={send}>

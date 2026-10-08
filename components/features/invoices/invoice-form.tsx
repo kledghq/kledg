@@ -93,7 +93,7 @@ interface InvoiceFormProps {
 }
 
 /** Whether the number is typed in the form: a purchase, an invoice already issued, a company typing its numbers, or a draft edited with a typed number. */
-export function numberIsTyped(sale: boolean, numbering: InvoiceFormValues['numbering'], info: NumberingInfo | null, edited?: EditedNumber): boolean {
+function numberIsTyped(sale: boolean, numbering: InvoiceFormValues['numbering'], info: NumberingInfo | null, edited?: EditedNumber): boolean {
   if (!sale) return true
   if (edited) return edited.origin !== 'AUTO' && edited.origin !== 'QONTO'
   if (numbering === 'recorded') return true

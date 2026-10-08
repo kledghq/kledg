@@ -49,7 +49,8 @@ async function pendingByInvoice(companyId: string, invoiceIds: string[]): Promis
     where: {
       companyId,
       invoiceId: { in: invoiceIds },
-      entry: { lines: { none: { invoicePayments: { some: {} } } } },
+      // Drafts only: a validated payment whose recording was refused must not lower what is left to pay forever
+      entry: { status: 'draft', lines: { none: { invoicePayments: { some: {} } } } },
     },
     select: { invoiceId: true, entry: { select: { lines: { where: { ...CUSTOMER_LINE, credit: { gt: 0 } }, select: { credit: true } } } } },
   })

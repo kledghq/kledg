@@ -15,7 +15,7 @@ import { parseCalendarDay } from './ledger/query'
 
 export const FISCAL_YEAR_NOT_FOUND = 'Exercice fiscal introuvable'
 
-const required = (name: string) => z.string({ error: `${name} est requis : choisissez l'exercice` })
+const required = (name: string) => z.string({ error: `${name} est requis : choisissez l'exercice` })
 
 /** A calendar day parameter: undefined when absent, a 400 naming the field when invalid. */
 const calendarDay = (label: string) =>
@@ -25,7 +25,7 @@ const calendarDay = (label: string) =>
     .transform((value) => parseCalendarDay(value ?? null, label))
 
 export const ReportVariantSchema = z
-  .enum(['complete', 'simplified'], { error: 'Variante inconnue : complete ou simplified' })
+  .enum(['complete', 'simplified'], { error: 'Variante inconnue : complete ou simplified' })
   .default('complete')
 export type ReportVariant = z.infer<typeof ReportVariantSchema>
 

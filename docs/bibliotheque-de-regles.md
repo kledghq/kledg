@@ -1,6 +1,6 @@
 # Bibliothèque de règles
 
-Le guide d'utilisation (suggestions, ajout d'un modèle, TVA des modèles expliquée, copie depuis une autre société) est sur le site : [La bibliothèque de règles](https://www.kledg.com/fr/docs/la-bibliotheque-de-regles). Cette page décrit le fonctionnement technique : code, API, rapprochement des comptes, calcul des suggestions, format et contribution des modèles.
+Le guide d'utilisation (suggestions, ajout d'un modèle, TVA des modèles expliquée, copie depuis une autre société) est sur le site : [La bibliothèque de règles](https://www.kledg.com/fr/docs/la-bibliotheque-de-regles). Cette page décrit le fonctionnement technique : code, API, rapprochement des comptes, calcul des suggestions, format et contribution des modèles.
 
 La bibliothèque propose des [règles d'affectation](regles-d-affectation.md) prêtes à l'emploi (56 modèles). Chaque modèle donne ses conditions, son écriture, son traitement de la TVA avec la raison et les sources officielles. Ajouter un modèle ouvre l'éditeur de règle prérempli, avec les comptes du plan de la société ; rien n'est enregistré sans validation.
 

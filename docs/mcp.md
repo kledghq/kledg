@@ -1,6 +1,6 @@
 # Serveur MCP : connecter Claude ou ChatGPT
 
-Le guide d'utilisation (connecter Claude, ChatGPT ou Claude Code, choisir l'accès et les sociétés, mode d'exécution, approuver une action, révoquer, Proposer avec l'IA, parcours guidés) est sur le site : [Connecter Claude ou ChatGPT](https://www.kledg.com/fr/docs/connecter-claude-ou-chatgpt). Cette page décrit le fonctionnement technique : autorisations OAuth, portées, outils et leurs conventions, actions en attente, journal d'audit, prompts, couverture et inventaire de l'API.
+Le guide d'utilisation (connecter Claude, ChatGPT ou Claude Code, choisir l'accès et les sociétés, mode d'exécution, approuver une action, révoquer, Proposer avec l'IA, parcours guidés) est sur le site : [Connecter Claude ou ChatGPT](https://www.kledg.com/fr/docs/connecter-claude-ou-chatgpt). Cette page décrit le fonctionnement technique : autorisations OAuth, portées, outils et leurs conventions, actions en attente, journal d'audit, prompts, couverture et inventaire de l'API.
 
 Chaque instance Kledg expose un serveur [MCP](https://modelcontextprotocol.io) sur `https://votre-instance/api/mcp`. Votre assistant peut alors lire votre comptabilité et proposer des écritures, sans que vos données ne transitent par un service tiers autre que l'assistant que vous choisissez.
 
@@ -25,7 +25,7 @@ Dans Kledg, les **Paramètres** du compte ont deux pages :
 - Les jetons d'accès sont des JWT de courte durée, renouvelés par un jeton de rafraîchissement (portée `offline_access`). À chaque requête, `/api/mcp` vérifie aussi que l'autorisation de l'utilisateur pour cet assistant existe toujours et quelles portées elle accorde : un jeton ne donne jamais plus que l'autorisation en cours.
 - L'assistant agit avec les droits de l'utilisateur qui l'a autorisé, société par société (mêmes rôles que l'interface), et seulement sur les sociétés choisies pour lui.
 - Une clé API agit avec les droits de son propriétaire, au niveau d'accès et sur les sociétés choisis pour elle.
-- Une clé API est limitée à 300 appels par minute. Une clé supprimée ou désactivée est refusée dès l'appel suivant ; sa date de dernière utilisation est mise à jour au plus une fois par minute.
+- Une clé API est limitée à 300 appels par minute, un assistant connecté par OAuth aussi (par utilisateur et par assistant ; au-delà, réponse 429 avec `Retry-After`). Les enregistrements de brouillons (`create_draft_entry` et les outils de brouillon) sont limités à 60 par minute et par utilisateur, et l'import d'un relevé (`import_statement`, aperçu compris) compte dans la limite des imports de l'interface (30 par 10 minutes). Une clé supprimée ou désactivée est refusée dès l'appel suivant ; sa date de dernière utilisation est mise à jour au plus une fois par minute.
 - Aucun niveau ne donne plus que vos rôles : le contrôle total permet seulement à l'assistant de faire ce que vous pouvez faire vous-même dans chaque société choisie.
 
 ## Choisir l'accès d'un assistant
@@ -48,6 +48,10 @@ Après une réduction, l'autorisation enregistrée ne couvre plus tout ce que l'
 ### Niveau des clés API
 
 Une clé API reçoit son niveau à sa création (**Lecture et brouillons d'écritures** par défaut, jamais Contrôle total sans le choisir), et pour le contrôle total son mode d'exécution (**Automatique** par défaut), modifiable ensuite avec **Modifier**. Il est affiché dans la liste des clés ; pour en changer, créez une nouvelle clé et révoquez l'ancienne. Une clé sans niveau enregistré n'a que la lecture ; les clés créées avant l'ajout des niveaux ont reçu, par une migration, le niveau qu'elles avaient (lecture et brouillons).
+
+Une clé à **Contrôle total** agit comme vous et survit à la session qui l'a créée : sa création demande de saisir de nouveau votre mot de passe (10 tentatives par quart d'heure), une session ouverte ne suffit pas.
+
+Une clé a une **durée de validité** choisie à sa création : 30, 90 (par défaut) ou 365 jours. Une clé en lecture seule peut aussi ne pas expirer ; une clé qui écrit (brouillons ou contrôle total) expire toujours. La durée ne se change pas ensuite : à l'échéance, créez une nouvelle clé. La date d'expiration est affichée dans la liste des clés, et une clé expirée est refusée par `/api/mcp`. À chaque création, un email prévient le titulaire du compte (nom, accès et échéance de la clé, jamais la clé elle-même) : si vous n'êtes pas à l'origine de la clé, révoquez-la et changez votre mot de passe.
 
 ### Pour les outils de contrôle total
 
@@ -87,6 +91,20 @@ Le bouton **Révoquer** d'un assistant autorisé supprime, pour votre compte :
 
 Le nettoyage est fait par la base de données (déclencheurs sur la table des autorisations), quel que soit le chemin de la révocation. Les autres utilisateurs du même assistant ne sont pas concernés. Une nouvelle connexion repasse par la page d'autorisation.
 
+### Changement ou réinitialisation du mot de passe
+
+Un nouveau mot de passe écarte quiconque connaissait l'ancien ou tenait une de vos sessions. La réinitialisation (« Mot de passe oublié ») et le changement depuis **Profil** suppriment, en plus des sessions :
+
+- toutes vos clés API ;
+- toutes vos autorisations d'assistants (Claude, ChatGPT...), leurs jetons et leurs choix de sociétés : un jeton d'accès encore valide est refusé dès la requête suivante ;
+- les actions en attente d'approbation et les confirmations des assistants.
+
+Recréez ensuite les clés dont vous avez besoin et reconnectez vos assistants. La liste de ce qui est supprimé est la même que pour un compte jamais confirmé repris par un administrateur (`lib/account/revoke-delegated-access.ts`).
+
+### Déconnexion du navigateur
+
+Le jeton de rafraîchissement d'un assistant est lié à la session du navigateur dans laquelle vous avez accepté la page d'autorisation. Si vous vous déconnectez de ce navigateur (ou si cette session expire ou est révoquée depuis **Profil**, **Sessions**), l'assistant ne peut plus renouveler son jeton : il fonctionne jusqu'à l'expiration de son jeton d'accès (1 heure), puis demande à être reconnecté. Pour qu'un assistant reste connecté longtemps, autorisez-le depuis un navigateur où vous restez connecté, ou utilisez une clé API.
+
 ## Proposer avec l'IA
 
 Sur les objets où un assistant aide (une transaction à rapprocher, un brouillon d'écriture, une facture, un justificatif manquant, une dépense ou une recette à classer en mode simple, une déclaration de TVA, ce qui bloque la clôture d'un exercice), le bouton **Proposer avec l'IA** ouvre votre assistant dans un nouvel onglet avec une demande préparée, par exemple : « Avec Kledg (société « Atelier Lumen », id …), propose l'écriture pour la transaction … du 29/09/2026, « PRLV SEPA FREE PRO », débit de 47,99 €. Lis-la avec get_transaction_details… ». La demande nomme la société et l'objet par leurs identifiants et les outils à appeler ; Kledg n'appelle aucun modèle : c'est votre assistant qui lit les données, avec l'accès que vous lui avez donné. Claude préremplit le champ sans l'envoyer ; ChatGPT peut envoyer la demande dès l'ouverture. Pour un justificatif manquant, la demande donne le fournisseur reconnu et demande à l'assistant de chercher la facture dans vos outils de messagerie et de fichiers s'il y a accès, puis de la joindre avec `upload_receipt` (compte Qonto) ou de vous la donner, sinon d'indiquer la page des factures du fournisseur ([Justificatifs](lettrage-et-tiers.md#où-trouver-la-facture)) ; Kledg ne lit ni vos mails ni vos fichiers.
@@ -104,7 +122,7 @@ Sur les objets où un assistant aide (une transaction à rapprocher, un brouillo
 - **Annotations** (MCP `ToolAnnotations`), toujours les quatre :
   - lecture : `readOnlyHint` vrai, `destructiveHint` faux, `idempotentHint` vrai, `openWorldHint` faux ;
   - écriture : `readOnlyHint` faux ; `destructiveHint` vrai quand l'appel remplace ou supprime quelque chose qui existe (les montants d'une ligne, une évaluation, un brouillon, une écriture validée) et faux quand il ne fait qu'ajouter ; `idempotentHint` vrai quand le même appel répété ne change rien de plus ;
-  - `openWorldHint` vrai seulement pour les outils qui appellent un tiers : une banque (`sync_bank`, `sync_bank_data`, `upload_receipt`, `import_qonto_invoices`, `get_qonto_statements`, `list_qonto_receipts` et `get_file`) ou l'annuaire des entreprises (`lookup_siren`).
+  - `openWorldHint` vrai seulement pour les outils qui appellent un tiers : une banque (`sync_bank`, `sync_bank_data`, `upload_receipt`, `file_receipt`, `import_qonto_invoices`, `get_qonto_statements`, `list_qonto_receipts` et `get_file`), les fichiers de ChatGPT (`stage_receipt`) ou l'annuaire des entreprises (`lookup_siren`).
 
   Un test (`lib/mcp/__tests__/tool-metadata.test.ts`) vérifie titre, annotations, description et convention de montants de chaque outil, à chaque niveau d'accès.
 - **Fichiers** : `export_report` et `get_file` renvoient le fichier dans le résultat de l'outil, en ressource intégrée MCP (`type: "resource"`, `blob` en base64, `mimeType`, nom du fichier dans `_meta.fileName`), après un bloc texte JSON (nom, type, taille). Le fichier est produit ou lu par le même service que la route de téléchargement, après les mêmes contrôles. Kledg ne crée jamais de lien de téléchargement pour un assistant, ni lien public ni jeton dans une URL : l'`uri` (`kledg://...`) nomme le fichier sans pouvoir être ouverte, et les liens signés de Qonto ne sont jamais renvoyés. Au-delà de 5 Mo, l'outil refuse en français et l'utilisateur télécharge le fichier dans Kledg (`lib/mcp/file-result.ts`).
@@ -207,8 +225,8 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `prepare_year_end_entries` | Préparer dotations, reprises et quotes-parts de subventions en **brouillons** au journal OD ; une seconde fois ne crée rien | `entries:create` | Oui (brouillons périmés) | Oui |
 | `create_draft_expense_report` | Note de frais en **brouillon** pour l'utilisateur ou, s'il valide les notes, un autre bénéficiaire ; `dryRun` pour un aperçu | `expenses:submit` | Non | Non |
 | `update_year_end_formalities` | Renseigner l'approbation des comptes (dates, taille, mode de décision, votes, affectation proposée, dépôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
-| `manage_accounting_methods` | Registre des méthodes comptables (créer, modifier, supprimer) ; une méthode de référence le reste (PCG art. 121-5) | `entries:create`, `entries:delete` pour supprimer | Oui | Non |
-| `manage_accounting_changes` | Changements de méthode, de réglementation ou d'estimation et corrections d'erreurs (PCG art. 122-1 à 122-6) ; `prepare_entry` prépare l'écriture de rattrapage en **brouillon** (110 / 119 ou 678 / 778) | `entries:create`, `entries:delete` pour supprimer | Oui (brouillon périmé) | Non |
+| `manage_accounting_methods` | Registre des méthodes comptables (créer, modifier, supprimer) ; une méthode de référence le reste (PCG art. 121-5) | `entries:create`, `entries:update` pour modifier, `entries:delete` pour supprimer | Oui | Non |
+| `manage_accounting_changes` | Changements de méthode, de réglementation ou d'estimation et corrections d'erreurs (PCG art. 122-1 à 122-6) ; `prepare_entry` prépare l'écriture de rattrapage en **brouillon** (110 / 119 ou 678 / 778) | `entries:create`, `entries:update` pour modifier, `entries:delete` pour supprimer | Oui (brouillon périmé) | Non |
 | `update_annexe_notes` | Renseigner l'annexe (engagements, événements postérieurs, dirigeants, échéances, effectif, crédits d'impôt) ; seuls les champs donnés changent | `closing:execute` | Oui | Oui |
 | `prepare_vat_settlement` | Préparer l'écriture de liquidation de la TVA d'une période en **brouillon** au journal OD (comptes de TVA soldés, 44551 ou 44567, arrondi au 658 ou 758) ; inchangée si le brouillon correspond, remplacée s'il est périmé, jamais si elle est validée ; ne dépose pas la déclaration | `entries:create` | Oui (brouillon périmé) | Oui |
 | `prepare_corporate_tax_entry` | Préparer en **brouillon** la charge d'impôt de l'exercice (695 / 444, journal OD, dernier jour) ou le paiement d'un acompte de l'exercice suivant (444 / 512, journal BQ, à son échéance) ; inchangé si le brouillon correspond, remplacé s'il est périmé, jamais si l'écriture est validée ; ne dépose ni ne paie | `entries:create` | Oui (brouillon périmé) | Oui |
@@ -219,7 +237,7 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `manage_tiers` | Clients et fournisseurs : créer, modifier, rattacher les comptes auxiliaires déjà utilisés sur des lignes 40 et 41 | `entries:create` (créer, rattacher), `entries:update` (modifier) | Oui (modifier) | Non |
 | `duplicate_entry` | Copier une écriture en **brouillon** | `entries:create` | Non | Non |
 | `update_draft_invoice` | Modifier une facture encore en brouillon (champs et lignes, ou seulement les comptes des lignes d'une facture importée) ; refusé une fois comptabilisée | `entries:update` | Oui | Oui |
-| `update_provision`, `update_investment_grant` | Remplacer une provision ou une subvention ; figées dès qu'un mouvement est validé | `entries:create` | Oui | Oui |
+| `update_provision`, `update_investment_grant` | Remplacer une provision ou une subvention ; figées dès qu'un mouvement est validé | `entries:update` | Oui | Oui |
 | `update_draft_expense_report` | Remplacer la période, le libellé et les lignes d'une note de frais en brouillon (ou soumise, pour un valideur) ; Kledg recalcule montants et TVA | `expenses:submit` | Oui | Oui |
 | `reclassify_doubtful_receivable` | Reclasser une créance de 411 en 416 à la clôture, en **brouillon** | `entries:create` | Non | Non |
 | `save_vat_deduction_settings` | Régler le coefficient de déduction : assujetti partiel, estimation d'une première année, coefficient d'assujettissement, TVA supportée, traitement des comptes de produits | `entries:create` | Oui | Oui |
@@ -234,8 +252,11 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `record_tax_filing` | Enregistrer le dépôt d'une déclaration de TVA ou d'impôt sur les sociétés (date, montants), ou retirer cet enregistrement ; ne dépose ni ne paie | `entries:create` | Oui | Oui |
 | `save_depreciation_record` | Enregistrer l'amortissement d'une période (un enregistrement, pas une écriture) ou le lier à une écriture | `entries:create` (enregistrer ; `entries:update` pour remplacer), `entries:update` (lier) | Oui | Oui |
 | `prepare_opening_balances` | Soldes d'ouverture du premier exercice en **brouillon** au journal AN | `entries:create` | Non | Non |
+| `capture_receipt` | Ouvrir la vue de dépôt d'un justificatif (photo ou fichier), préremplie avec ce que l'assistant a lu sur la photo ; n'écrit rien | `expenses:submit` | Non | Oui |
+| `stage_receipt` | Déposer un justificatif (vue de dépôt, fichier joint dans ChatGPT par `openai/fileParams`, ou base64), une fois par contenu ; avec les champs lus, cherche aussi la transaction | `expenses:submit` | Non | Oui |
+| `file_receipt` | Classer un justificatif déposé : `match` (transaction trouvée, candidates ou aucune), `attach` (rattacher à la transaction : **toujours approuvé dans Kledg** à ce niveau), `expense` (ligne de note de frais en **brouillon**, après la réponse de l'utilisateur), `discard` | `banking:read`, `banking:reconcile` pour rattacher, `expenses:submit` pour la note de frais | Non | Oui |
 
-À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
+À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. Les outils de justificatifs (`capture_receipt`, `stage_receipt`, `file_receipt`) sont de ce niveau mais passent par `registerFullControlTool` avec `level: 'write'` : mêmes contrôles d'accès que les brouillons, et le rattachement d'un justificatif à une transaction (envoyé à Qonto, ou compté comme fourni) attend l'approbation de l'utilisateur dans Kledg, comme une action à fort impact en mode validation ; avec le contrôle total, il suit le mode d'exécution ([justificatifs photographiés](justificatifs-photo.md)). `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
 
 ### Contrôle total (`kledg:admin`)
 
@@ -251,7 +272,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `unreconcile_transaction` | Annuler un rapprochement (supprime le brouillon qu'il a créé ; refusé si l'écriture est validée ou l'exercice clôturé) | `banking:reconcile` | Oui |
 | `run_rules` | Exécuter les règles d'affectation sur les transactions à rapprocher | `banking:reconcile` | Oui |
 | `list_rules` | Règles d'affectation, avec conditions et lignes | `banking:read` | Non |
-| `create_rule`, `update_rule` | Créer ou remplacer une règle d'affectation | `ledger:manage` | Non |
+| `create_rule`, `update_rule` | Créer ou remplacer une règle d'affectation | `ledger:manage` | Oui avec « Créer automatiquement l'écriture » (`autoCreate`), appliquée sans clic à chaque actualisation |
 | `delete_rule` | Supprimer une règle d'affectation | `ledger:manage` | Oui |
 | `list_bank_accounts` | Connexions bancaires et comptes (identifiants pour `sync_bank` et `import_statement`) | `banking:read` | Non |
 | `create_bank_account` | Ajouter un compte bancaire manuel, alimenté par relevés | `banking:manage` | Non |
@@ -263,7 +284,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `generate_depreciation` | Générer les dotations de l'exercice (écritures validées, une par immobilisation) | `entries:create, validate` | Oui |
 | `close_fiscal_year` | Clôturer l'exercice : résultat en 120 / 129, exercice suivant, à-nouveaux, verrouillage définitif | `closing:execute` | Oui |
 | `allocate_result` | Affecter le résultat de l'exercice précédent (réserve légale, dividendes, autres réserves, report à nouveau) | `closing:execute` | Oui |
-| `export_fec` | FEC de l'exercice (contenu du fichier) et rapport de conformité | `reports:export` | Non |
+| `export_fec` | FEC de l'exercice (contenu du fichier, 5 Mo au plus comme `export_report`, dans la limite d'exports de l'utilisateur) et rapport de conformité | `reports:export` | Non |
 | `list_unlettered_lines` | Lignes non lettrées d'un compte de tiers (identifiants, montants, compte auxiliaire, solde progressif) et propositions de lettrage | `entries:read` | Non |
 | `letter_entry_lines` | Lettrer des lignes d'un compte de tiers : code suivant du compte et date du jour, débits égaux aux crédits, écritures validées, exercice ouvert | `entries:update` | Oui |
 | `unletter_entry_lines` | Délettrer un code d'un compte de tiers, dans un exercice ouvert | `entries:update` | Oui |
@@ -272,26 +293,27 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `manage_journals` | Modifier ou supprimer un journal sans écriture, rétablir les journaux par défaut | `ledger:manage` | Oui (suppression) |
 | `manage_fiscal_years` | Créer un exercice, changer les dates d'un exercice ouvert, supprimer un exercice ouvert sans écriture, clôturer les périodes jusqu'à un jour (PCG art. 1031-4) | `ledger:manage`, plus `closing:execute` pour la clôture des périodes | Oui (suppression, clôture des périodes) |
 | `import_accounting_file` | Importer un FEC, un CSV ou un Excel d'écritures (base64, 5 Mo au plus) ; l'aperçu donne les exercices du FEC | `entries:create` et `ledger:manage` | Oui |
-| `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances, numérotation des factures (et prochain numéro de la période, seulement à la hausse), seuil et réglages de la prévision de trésorerie | `settings:update` | Oui |
+| `update_company_settings` | Fiche de la société, délai de paiement, options de TVA, mode simple, calendrier des échéances, numérotation des factures (et prochain numéro de la période, seulement à la hausse et avant le premier numéro donné par Kledg dans la période), seuil et réglages de la prévision de trésorerie | `settings:update` | Oui |
 | `manage_company_records` | Établissements, personnes (création, rectification, effacement dans les limites de la conservation légale, RGPD art. 16 et 17), associés, régimes fiscaux, adresses | `settings:update` | Oui |
-| `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles) | `settings:update` | Oui |
+| `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles de la société : enregistrer, appliquer, supprimer) | `settings:update` | Oui |
 | `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
+| `manage_invitations` | Lister les invitations en attente, inviter une personne par email avec un rôle (jamais plus de droits que le sien), renvoyer une invitation avec un nouveau lien, l'annuler ; le lien n'est jamais rendu à l'assistant | `members:manage` | Oui, sauf `list` |
 | `manage_bank_accounts` | Nom, compte 512 et synchronisation d'un compte bancaire, compte par défaut, comptes synchronisés d'une connexion, déconnexion d'une banque (identifiants supprimés, opérations gardées) | `banking:manage` | Oui (comptes synchronisés, déconnexion) |
-| `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui (annulation, rapprochement automatique) |
+| `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui, comme `run_rules` |
 | `delete_bank_transactions` | Supprimer des transactions bancaires | `banking:manage` | Oui |
 | `duplicate_rule` | Copier une règle d'affectation (désactivée) | `ledger:manage` | Non |
-| `add_rule_from_template` | Ajouter la règle d'un modèle de la bibliothèque, comptes rapprochés du plan de la société ; comptes manquants créés seulement avec `createMissingAccounts` ; refusé si la même règle existe, sauf `allowDuplicate` | `ledger:manage` | Non |
-| `copy_rules_from_company` | Copier des règles d'une autre société de l'utilisateur, comptes rapprochés du plan ; copies inactives par défaut, règles déjà présentes ignorées | `ledger:manage` ici, `banking:read` dans la société source | Non |
-| `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles), copier les justificatifs de Qonto | `banking:reconcile` | Non |
-| `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) | `banking:reconcile` | Non |
+| `add_rule_from_template` | Ajouter la règle d'un modèle de la bibliothèque, comptes rapprochés du plan de la société ; comptes manquants créés seulement avec `createMissingAccounts` ; refusé si la même règle existe, sauf `allowDuplicate` | `ledger:manage` | Oui avec `autoCreate` |
+| `copy_rules_from_company` | Copier des règles d'une autre société de l'utilisateur, comptes rapprochés du plan ; copies inactives par défaut, règles déjà présentes ignorées | `ledger:manage` ici, `banking:read` dans la société source | Oui pour des copies actives (`enabled`), qui gardent `autoCreate` |
+| `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles « Créer automatiquement l'écriture »), copier les justificatifs de Qonto | `banking:reconcile` | Oui pour l'actualisation (`refresh`), comme `run_rules` |
+| `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) ; l'aperçu donne la transaction et le fichier (nom, type, taille, SHA-256) | `banking:reconcile` | Oui |
 | `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée, reprendre la création dans Qonto d'une facture sans réponse de Qonto ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
 | `import_qonto_invoices` | Importer les clients et les factures de Qonto (idempotent) | `entries:create` et `banking:read` | Oui |
 | `delete_tiers` | Supprimer un client ou un fournisseur sans facture | `entries:delete` | Oui |
 | `delete_budget_items` | Supprimer un budget ou une ligne | `budgets:manage` | Oui |
-| `delete_year_end_items` | Supprimer une provision, une évaluation ou une subvention, avec leurs brouillons | `entries:delete` (provision, subvention), `entries:create` (évaluation) | Oui |
+| `delete_year_end_items` | Supprimer une provision, une évaluation ou une subvention, avec leurs brouillons | `entries:delete` | Oui |
 | `manage_expense_report` | Soumettre, renvoyer, valider, rouvrir une note de frais, la comptabiliser (brouillon) ou l'annuler, constater son remboursement, la supprimer ; paiements candidats (lecture) | `expenses:submit`, `expenses:validate`, `entries:create`, `entries:delete` ou `entries:update` selon l'action, comme les routes | Oui (sauf la lecture) |
 | `manage_expense_settings` | Bénéficiaires des notes de frais et règles de mots-clés des catégories | `expenses:validate` | Oui (suppressions) |
-| `manage_management_fee_convention` | Créer, remplacer ou supprimer une convention de frais de gestion (droits vérifiés dans chaque filiale) ; la génération des factures reste dans Kledg | `entries:create` | Oui |
+| `manage_management_fee_convention` | Créer, remplacer ou supprimer une convention de frais de gestion (droits vérifiés dans chaque filiale) ; la génération des factures reste dans Kledg | `entries:create` (création), `entries:update` (remplacement), `entries:delete` (suppression) | Oui |
 | `auto_letter_account` | Lettrage automatique d'un compte de tiers (toutes les propositions) | `entries:update` | Oui |
 | `manage_fixed_asset` | Modifier une immobilisation, la supprimer avec ses brouillons de dotation | `ledger:manage` | Oui (suppression) |
 | `manage_depreciation_record` | Comptabiliser un amortissement en écriture **validée**, ou supprimer l'enregistrement | `entries:create` et `entries:validate` (comptabiliser), `entries:delete` (supprimer) | Oui |
@@ -327,6 +349,7 @@ En mode validation, les outils à fort impact ne font rien tant que vous ne les 
 L'action en attente est :
 
 - liée à votre compte, à la connexion (assistant ou clé API), à l'outil, à la société et aux arguments de l'aperçu : avec d'autres arguments, un autre outil ou une autre société elle est refusée ; présentée par une autre connexion ou un autre utilisateur, elle est introuvable. La création d'une société (`create_company`) n'a pas encore de société : son action n'est liée qu'à votre compte, à la connexion, à l'outil et aux arguments, et la page l'affiche comme « Nouvelle société » ;
+- liée aussi aux **données** que vous avez vues : Kledg garde une empreinte de l'aperçu et des données visées (écritures et leurs lignes, facture et ses lignes, règles d'affectation, note de frais), recalculée juste avant l'exécution, puis vérifiée de nouveau dans la transaction qui écrit, les lignes visées étant verrouillées (une modification qui arrive pendant l'exécution est donc vue elle aussi). Chaque outil à fort impact nomme ces lignes : écritures, factures, notes de frais et règles d'affectation, vérifiées par leur service ; pour les autres (imports, clôture, lettrage, paramètres, suppressions...), l'action s'exécute en une seule transaction qui commence par verrouiller la société, les lignes nommées (tiers, lignes d'écriture, exercice et ses écritures, compte bancaire...) et les vérifier, si bien qu'elle est entière ou n'a pas lieu. Si l'assistant ou quelqu'un d'autre a modifié ces données entre-temps (un brouillon réécrit avec `update_draft_entry` ou `update_draft_invoice`, une règle changée avec `update_rule`...), l'action est refusée (« Les données ont changé depuis l'approbation ») et rien n'est écrit. L'approbation reste inutilisée : elle ne pourra s'exécuter que sur les données que vous avez approuvées ; pour agir sur les nouvelles données, il faut préparer une nouvelle action et l'approuver. Les numéros indicatifs de l'aperçu, qui avancent seuls, ne comptent pas ;
 - valable 30 minutes, pour l'approuver puis l'exécuter ;
 - exécutée une seule fois : deux exécutions simultanées n'agissent qu'une fois, une seconde est refusée, une action refusée ne s'exécute jamais.
 
@@ -349,7 +372,7 @@ Chaque appel d'un outil de brouillons (sauf un aperçu `dryRun`) écrit `MCP_WRI
 
 ### Vues interactives
 
-Dans Claude et ChatGPT, les états financiers (`get_balance_sheet`, `get_income_statement`, `get_trial_balance`), les flux et la trésorerie (`get_tiers_flows`, `get_group_view`, `get_group_treasury`), les listes à traiter (`list_entries`, `list_bank_transactions`, `list_missing_receipts`), les factures et notes de frais (`get_invoice`, `get_expense_report`) et l'organigramme du groupe (`get_group_structure`) s'affichent en tableau, graphique ou fiche dans la conversation (extension MCP Apps). Leurs boutons passent par les mêmes outils : droits, approbation dans Kledg et journal d'audit inchangés. Les clients en texte seul reçoivent la même réponse qu'avant. Fonctionnement et sécurité : [mcp-views.md](mcp-views.md).
+Dans Claude et ChatGPT, les états financiers (`get_balance_sheet`, `get_income_statement`, `get_trial_balance`), les flux et la trésorerie (`get_tiers_flows`, `get_group_view`, `get_group_treasury`), les listes à traiter (`list_entries`, `list_bank_transactions`, `list_missing_receipts`), les factures et notes de frais (`get_invoice`, `get_expense_report`) et l'organigramme du groupe (`get_group_structure`) s'affichent en tableau, graphique ou fiche dans la conversation (extension MCP Apps), et la vue de dépôt d'un justificatif photographié (`capture_receipt`, `stage_receipt`, `file_receipt`) montre la transaction trouvée ou la note de frais proposée. Leurs boutons passent par les mêmes outils : droits, approbation dans Kledg et journal d'audit inchangés. Les clients en texte seul reçoivent la même réponse qu'avant. Fonctionnement et sécurité : [mcp-views.md](mcp-views.md).
 
 ### Ce que le serveur ne fait pas
 
@@ -407,7 +430,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status`, `get_transaction_details`, `simulate_rule`, `list_rule_templates`, `get_qonto_statements`, `list_qonto_receipts`, `get_file` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `sync_bank_data`, `import_statement`, `reconcile_transaction`, `bulk_reconcile`, `run_rules`, `manage_bank_accounts`, `delete_bank_transactions`, `duplicate_rule`, `add_rule_from_template`, `copy_rules_from_company`... | Connecter une banque |
 | Écritures, plan comptable, journaux, exercices | `list_entries`, `get_entry`, `get_ledger_report`, `search_accounts`, `list_journals`, `list_fiscal_years` | `create_draft_entry`, `duplicate_entry`, `prepare_opening_balances` | `update_draft_entry`, `validate_entries`, `reverse_entry`, `delete_draft_entry`, `create_account`, `manage_accounts`, `create_journal`, `manage_journals`, `manage_fiscal_years`, `import_accounting_file` | Exports Excel du journal |
 | Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `generate_depreciation` | |
-| Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (administrateurs de l'instance) | Suppression définitive de société |
+| Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (administrateurs de l'instance), `manage_invitations` | Suppression définitive de société |
 | Création, archivage et restauration de société | `list_companies` (`includeArchived`), `lookup_siren` | | `create_company`, `archive_company`, `restore_company` | Suppression définitive |
 
 ## Inventaire de l'API
@@ -418,9 +441,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 227 | 186 | 41 |
-| Lectures (GET) | 182 | 154 | 28 |
-| Total | 409 | 340 | 69 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 236 | 195 | 41 |
+| Lectures (GET) | 184 | 155 | 29 |
+| Total | 420 | 350 | 70 |
 
 ### Exclusions
 
@@ -438,7 +461,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
-| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 10 (4) |
+| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 11 (4) |
 
 ### Table des routes
 
@@ -456,12 +479,12 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/account/sessions` | session | Exclu : compte personnel |
 | `DELETE /api/account/sessions` | session | Exclu : compte personnel |
 | `POST /api/accounting-changes` | entries:create | `manage_accounting_changes` (B) |
-| `PATCH /api/accounting-changes/[id]` | entries:create | `manage_accounting_changes` (B) |
+| `PATCH /api/accounting-changes/[id]` | entries:update | `manage_accounting_changes` (B) |
 | `DELETE /api/accounting-changes/[id]` | entries:delete | `manage_accounting_changes` (B) |
 | `POST /api/accounting-changes/[id]/entry` | entries:create | `manage_accounting_changes` (B) |
 | `GET /api/accounting-methods` | reports:read | `get_annexe` (L) |
 | `POST /api/accounting-methods` | entries:create | `manage_accounting_methods` (B) |
-| `PATCH /api/accounting-methods/[id]` | entries:create | `manage_accounting_methods` (B) |
+| `PATCH /api/accounting-methods/[id]` | entries:update | `manage_accounting_methods` (B) |
 | `DELETE /api/accounting-methods/[id]` | entries:delete | `manage_accounting_methods` (B) |
 | `GET /api/accounts/[id]/balance-evolution` | entries:read | `get_ledger_report` (L) |
 | `GET /api/accounts/[id]/entries` | entries:read | `list_entries` (L) |
@@ -535,6 +558,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/companies/[id]/balance-sheet/config` | settings:update | `manage_statement_layout` (CT) |
 | `GET /api/companies/[id]/balance-sheet/config/templates` | settings:read | `get_statement_layout` (L) |
 | `POST /api/companies/[id]/balance-sheet/config/templates` | settings:update | `manage_statement_layout` (CT) |
+| `DELETE /api/companies/[id]/balance-sheet/config/templates/[templateId]` | settings:update | `manage_statement_layout` (CT) ; Action delete_template. |
 | `GET /api/companies/[id]/balance-sheet/export-excel` | reports:export | `export_report` (L) |
 | `GET /api/companies/[id]/balance-sheet/export-pdf` | reports:export | `export_report` (L) |
 | `GET /api/companies/[id]/balance-sheet` | reports:read | `get_balance_sheet` (L) |
@@ -603,6 +627,10 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/companies/[id]/members/[memberId]` | administrateur de l’instance | `manage_members` (CT) |
 | `GET /api/companies/[id]/members` | settings:read | `get_company_settings` (L) |
 | `POST /api/companies/[id]/members` | administrateur de l’instance | `manage_members` (CT) |
+| `GET /api/companies/[id]/invitations` | members:manage | `manage_invitations` (CT) |
+| `POST /api/companies/[id]/invitations` | members:manage | `manage_invitations` (CT) |
+| `DELETE /api/companies/[id]/invitations/[invitationId]` | members:manage | `manage_invitations` (CT) |
+| `POST /api/companies/[id]/invitations/[invitationId]/resend` | members:manage | `manage_invitations` (CT) |
 | `GET /api/companies/[id]/onboarding` | entries:read | Exclu : aides de l'interface |
 | `POST /api/companies/[id]/onboarding` | ledger:manage | Exclu : aides de l'interface |
 | `GET /api/companies/[id]/opening-balances` | entries:read | `list_fiscal_years` (L), `list_entries` (L) |
@@ -672,7 +700,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/expense-reports/[id]/post` | entries:create | `manage_expense_report` (CT) |
 | `DELETE /api/expense-reports/[id]/post` | entries:delete | `manage_expense_report` (CT) |
 | `GET /api/expense-reports/[id]/reimbursement` | expenses:validate, entries:read | `manage_expense_report` (CT) ; Action reimbursement_candidates, en lecture. |
-| `POST /api/expense-reports/[id]/reimbursement` | entries:update | `manage_expense_report` (CT) |
+| `POST /api/expense-reports/[id]/reimbursement` | expenses:validate, entries:update | `manage_expense_report` (CT) |
 | `GET /api/expense-reports/[id]` | entries:read | `get_expense_report` (L) |
 | `PATCH /api/expense-reports/[id]` | expenses:submit | `update_draft_expense_report` (B) |
 | `DELETE /api/expense-reports/[id]` | expenses:submit | `manage_expense_report` (CT) |
@@ -723,7 +751,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/integrations` | banking:manage | Exclu : connexion d'une banque |
 | `POST /api/integrations/sync` | banking:reconcile | `sync_bank_data` (CT) |
 | `POST /api/integrations/verify` | banking:manage | Exclu : connexion d'une banque |
-| `PATCH /api/investment-grants/[id]` | entries:create | `update_investment_grant` (B) |
+| `PATCH /api/investment-grants/[id]` | entries:update | `update_investment_grant` (B) |
 | `DELETE /api/investment-grants/[id]` | entries:delete | `delete_year_end_items` (CT) |
 | `GET /api/investment-grants` | reports:read | `get_year_end_inventory` (L) |
 | `POST /api/investment-grants` | entries:create | `create_investment_grant` (B) |
@@ -757,8 +785,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/management-fees/conventions/[id]/invoices` | entries:create | Exclu : factures de frais de gestion |
 | `GET /api/management-fees/conventions/[id]/preview` | reports:read | `preview_management_fees` (L) |
 | `GET /api/management-fees/conventions/[id]` | reports:read | `list_management_fee_conventions` (L) |
-| `PATCH /api/management-fees/conventions/[id]` | entries:create | `manage_management_fee_convention` (CT) |
-| `DELETE /api/management-fees/conventions/[id]` | entries:create | `manage_management_fee_convention` (CT) |
+| `PATCH /api/management-fees/conventions/[id]` | entries:update | `manage_management_fee_convention` (CT) |
+| `DELETE /api/management-fees/conventions/[id]` | entries:delete | `manage_management_fee_convention` (CT) |
 | `GET /api/management-fees/conventions` | reports:read | `list_management_fee_conventions` (L) |
 | `POST /api/management-fees/conventions` | entries:create | `manage_management_fee_convention` (CT) |
 | `GET /api/management-fees/subsidiaries` | reports:read | `list_management_fee_conventions` (L) |
@@ -766,8 +794,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/mcp` | aucun (voir exclusion) | Exclu : serveur mcp |
 | `DELETE /api/mcp` | aucun (voir exclusion) | Exclu : serveur mcp |
 | `PUT /api/provisions/[id]/assessment` | entries:create | `record_provision_assessment` (B) |
-| `DELETE /api/provisions/[id]/assessment` | entries:create | `delete_year_end_items` (CT) |
-| `PATCH /api/provisions/[id]` | entries:create | `update_provision` (B) |
+| `DELETE /api/provisions/[id]/assessment` | entries:delete | `delete_year_end_items` (CT) |
+| `PATCH /api/provisions/[id]` | entries:update | `update_provision` (B) |
 | `DELETE /api/provisions/[id]` | entries:delete | `delete_year_end_items` (CT) |
 | `POST /api/provisions/doubtful-receivables/reclassify` | entries:create | `reclassify_doubtful_receivable` (B) |
 | `GET /api/provisions/doubtful-receivables` | reports:read | `list_doubtful_receivables` (L) |
@@ -799,6 +827,12 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/reports/journal` | reports:read | `get_ledger_report` (L) |
 | `GET /api/reports/tiers-flows` | reports:read | `get_tiers_flows` (L) |
 | `GET /api/reports/trial-balance` | reports:read | `get_trial_balance` (L) |
+| `GET /api/receipts/staged` | expenses:submit | Exclu : aides de l'interface |
+| `POST /api/receipts/staged` | expenses:submit | `stage_receipt` (B) |
+| `DELETE /api/receipts/staged/[id]` | expenses:submit | `file_receipt` (B) ; Action discard. |
+| `POST /api/receipts/staged/[id]/attach` | banking:reconcile | `file_receipt` (B) ; Action attach, à fort impact : approuvée dans Kledg sans le contrôle total. |
+| `POST /api/receipts/staged/[id]/expense` | expenses:submit | `file_receipt` (B) ; Action expense, note de frais en brouillon. |
+| `POST /api/receipts/staged/[id]/match` | banking:read | `file_receipt` (B) ; Action match. |
 | `GET /api/rule-templates` | banking:read | `list_rule_templates` (L) |
 | `GET /api/rule-templates/[id]` | banking:read | `list_rule_templates` (L) |
 | `POST /api/rule-templates/[id]/accounts` | ledger:manage | `add_rule_from_template` (CT) ; Option createMissingAccounts de l'outil. |

@@ -44,7 +44,7 @@ export function SessionsCard({ ref }: { ref?: Ref<SessionsCardHandle> }) {
 
   const revoke = async (session: AccountSession) => {
     const ok = await confirm({
-      title: `Déconnecter la session ${session.device} ?`,
+      title: `Déconnecter la session ${session.device} ?`,
       description: 'Ce navigateur devra se reconnecter avec votre mot de passe pour accéder à Kledg.',
       confirmLabel: 'Déconnecter',
     })
@@ -63,7 +63,7 @@ export function SessionsCard({ ref }: { ref?: Ref<SessionsCardHandle> }) {
 
   const revokeOthers = async () => {
     const ok = await confirm({
-      title: 'Déconnecter les autres sessions ?',
+      title: 'Déconnecter les autres sessions ?',
       description: `${others.length} session${others.length > 1 ? 's' : ''} sur d'autres navigateurs ou appareils ${others.length > 1 ? 'seront fermées' : 'sera fermée'}. Cette session reste ouverte.`,
       confirmLabel: 'Déconnecter',
     })

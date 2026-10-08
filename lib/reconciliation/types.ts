@@ -37,6 +37,12 @@ export interface ReconciliationContext {
     reconciledWith: string | null
     vatRatePercent: number | null
     vatAmountCents: number | null
+    /**
+     * Share (0 to 1) of its deductible VAT the company recovers on the day of
+     * the transaction (coefficient de déduction, lib/vat-deduction/coefficient.ts);
+     * null: all of it. The self-assessed templates deduct this share (share.ts).
+     */
+    vatDeductionShare?: number | null
   }
   bankLine: { debitCents: number; creditCents: number }
   /** Account of the locked bank line (in the fiscal year of the transaction date), null when missing. */

@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   changeEmailVerificationEmail,
+  companyInvitationEmail,
   emailChangeNoticeEmail,
   resetPasswordEmail,
   verifyEmailEmail,
@@ -22,7 +23,7 @@ describe.each([
     subject: 'Réinitialisation de votre mot de passe Kledg',
     title: 'Réinitialiser votre mot de passe',
     button: 'Choisir un nouveau mot de passe',
-    text: `Réinitialisez votre mot de passe Kledg (lien valable une heure) : ${URL}`,
+    text: `Réinitialisez votre mot de passe Kledg (lien valable une heure) : ${URL}`,
   },
   {
     name: 'verifyEmailEmail',
@@ -30,7 +31,7 @@ describe.each([
     subject: 'Confirmez votre adresse email Kledg',
     title: 'Confirmer votre adresse email',
     button: "Confirmer l'adresse",
-    text: `Confirmez votre adresse email Kledg : ${URL}`,
+    text: `Confirmez votre adresse email Kledg : ${URL}`,
   },
   {
     name: 'welcomeEmail',
@@ -38,7 +39,7 @@ describe.each([
     subject: 'Votre accès à Kledg',
     title: 'Bienvenue sur Kledg',
     button: 'Choisir mon mot de passe',
-    text: `Un accès Kledg vous a été ouvert. Choisissez votre mot de passe : ${URL}`,
+    text: `Un accès Kledg vous a été ouvert. Choisissez votre mot de passe : ${URL}`,
   },
   {
     name: 'changeEmailVerificationEmail',
@@ -46,7 +47,7 @@ describe.each([
     subject: 'Confirmez votre nouvelle adresse email Kledg',
     title: 'Confirmer votre nouvelle adresse',
     button: 'Confirmer la nouvelle adresse',
-    text: `Confirmez votre nouvelle adresse email Kledg : ${URL}`,
+    text: `Confirmez votre nouvelle adresse email Kledg : ${URL}`,
   },
 ])('$name', ({ build, subject, title, button, text }) => {
   const message = build('marie@example.fr', URL)
@@ -76,7 +77,7 @@ describe('emailChangeNoticeEmail', () => {
     expect(message.html).toContain('vers <strong>marie.durand@example.fr</strong> a été demandé')
     expect(message.html).toContain(`<a href="${profile}"`)
     expect(message.text).toBe(
-      `Un changement de l'adresse de votre compte Kledg vers marie.durand@example.fr a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profile}`,
+      `Un changement de l'adresse de votre compte Kledg vers marie.durand@example.fr a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profile}`,
     )
   })
 
@@ -84,5 +85,43 @@ describe('emailChangeNoticeEmail', () => {
     const message = emailChangeNoticeEmail('marie@example.fr', '"><img src=x onerror=alert(1)>&@evil.example', profile)
     expect(message.html).toContain('<strong>&quot;&gt;&lt;img src=x onerror=alert(1)&gt;&amp;@evil.example</strong>')
     expect(message.html).not.toContain('<img src=x')
+  })
+})
+
+describe('[KLEDG-R3-INPUT-06] links in templates', () => {
+  it('escapes the URL in the button and in clear', () => {
+    const url = 'https://kledg.example.com/x?a=1&b="><img src=x onerror=alert(1)>'
+    const { html } = resetPasswordEmail('a@example.fr', url)
+    expect(html).not.toContain('"><img')
+    expect(html).toContain('href="https://kledg.example.com/x?a=1&amp;b=&quot;&gt;&lt;img src=x onerror=alert(1)&gt;"')
+  })
+
+  it('never links anything but http(s)', () => {
+    const { html } = welcomeEmail('a@example.fr', 'javascript:alert(1)')
+    expect(html).not.toContain('javascript:')
+    expect(html).toContain('href="#"')
+  })
+})
+
+describe('companyInvitationEmail (issue #13)', () => {
+  const invitation = { companyName: 'Atelier <b>Lumen</b> & Co', inviterName: 'Claire "Admin"', roleLabel: 'Comptable', expiresOn: '15/10/2026' }
+  const url = 'https://kledg.example.com/invitation/abc"><img src=x>'
+
+  it('names the company, the inviter, the role and the expiry, with the link in the button and in clear', () => {
+    const message = companyInvitationEmail('expert@cabinet.fr', invitation, 'https://kledg.example.com/invitation/abc')
+    expect(message.to).toBe('expert@cabinet.fr')
+    expect(message.subject).toBe('Invitation à rejoindre Atelier <b>Lumen</b> & Co sur Kledg')
+    expect(message.text).toContain('Comptable')
+    expect(message.text).toContain('15/10/2026')
+    expect(message.text).toContain('https://kledg.example.com/invitation/abc')
+    expect(message.html).toContain('href="https://kledg.example.com/invitation/abc"')
+  })
+
+  it('escapes the company name, the inviter name and the URL in the HTML', () => {
+    const { html } = companyInvitationEmail('expert@cabinet.fr', invitation, url)
+    expect(html).not.toContain('<b>Lumen</b>')
+    expect(html).toContain('Atelier &lt;b&gt;Lumen&lt;/b&gt; &amp; Co')
+    expect(html).toContain('Claire &quot;Admin&quot;')
+    expect(html).not.toContain('"><img')
   })
 })

@@ -143,7 +143,7 @@ describe('transactions page', () => {
     render(<TransactionsPage />)
     await screen.findByText('LOYER OCTOBRE')
     await user.click(await screen.findByRole('button', { name: /Synchroniser/ }))
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('La synchronisation a échoué : Qonto : identifiants refusés'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('La synchronisation a échoué\u00a0: Qonto : identifiants refusés'))
     expect(posts('/api/banking/attachments/sync')).toHaveLength(0)
   })
 

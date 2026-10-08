@@ -7,9 +7,10 @@
  * company's own credentials, then the transaction's receipts are copied
  * back (uploadQontoReceipt, the receipts sync of
  * lib/integrations/providers/qonto/sync-attachments.ts for one transaction).
- * Other banks have no such API: the user keeps the receipt and hands it to
- * the accountant (Code de commerce art. L123-22: supporting documents are
- * kept ten years).
+ * Other banks have no such API: this button answers so, and a photo or PDF
+ * dropped on the Justificatifs page (or sent by an assistant) is kept by
+ * Kledg instead (lib/receipts, docs/justificatifs-photo.md; Code de
+ * commerce art. L123-22: supporting documents are kept ten years).
  *
  * The call reaches the bank: it counts in the company's bank API limit
  * (limitBankCalls, lib/rate-limit.ts).
@@ -24,7 +25,7 @@ import { limitBankCalls } from '@/lib/banking/guard'
 import { uploadQontoReceipt } from '@/lib/integrations/providers/qonto/sync-attachments'
 import { writeAuditLog } from '@/lib/audit'
 
-export const RECEIPT_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'] as const
+const RECEIPT_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'] as const
 
 export const RECEIPT_MESSAGES = {
   missing: 'Joignez un fichier (photo JPEG ou PNG, ou PDF).',
