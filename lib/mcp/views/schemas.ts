@@ -275,12 +275,100 @@ const organigramView = z.object({
     .max(400),
 })
 
+// ---------------------------------------------------------- receipt capture
+
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+/** A bank transaction a receipt may belong to (lib/receipts/match-receipt.ts). */
+const receiptCandidate = z.object({
+  transactionId: z.string().max(64),
+  date: day,
+  label,
+  /** Debit in euros, positive. */
+  amount,
+  bankAccount: label,
+  /** The receipt goes to the bank (Qonto); else Kledg keeps it. */
+  sendsToBank: z.boolean(),
+  score: z.number().min(0).max(1),
+  reasons: z.array(label).max(8),
+})
+
+/**
+ * The receipt capture view (docs/justificatifs-photo.md): the photo and the
+ * fields read on it, then where it goes. Every step is a call of
+ * stage_receipt or file_receipt whose result is this view again.
+ * - capture: the file input and the fields (prefilled by the assistant);
+ * - result: the matched transaction, the candidates, or none with the
+ *   expense report proposal;
+ * - approval: the dry run of an attach (automatic mode: confirm; validation
+ *   mode: approve in Kledg, then execute with the actionId);
+ * - done: attached, or added to an expense report.
+ */
+const receiptCaptureView = z.object({
+  view: z.literal('receipt-capture'),
+  ...base,
+  companyId: z.string().max(100),
+  mode: z.enum(['capture', 'result', 'approval', 'done']),
+  /** How an attach runs for this connection (validation: approved in Kledg first). */
+  executionMode: z.enum(['automatic', 'validation']),
+  canAttach: z.boolean(),
+  canExpense: z.boolean(),
+  /** Largest file sent, after the downscale of large photos. */
+  maxBytes: z.number().int().min(1),
+  accept: z.string().max(100),
+  fields: z.object({
+    amount: amount.nullable(),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    date: day.nullable(),
+    merchant: label.nullable(),
+    vat: z.array(z.object({ rate: z.number().min(0).max(100), amount })).max(5),
+    paymentMethod: z.string().max(40).nullable(),
+  }),
+  receipt: z
+    .object({
+      id: z.string().max(64),
+      fileName: label,
+      contentType: z.string().max(100),
+      size: z.number().int().min(0),
+      status: z.enum(['staged', 'attached', 'expense', 'discarded']),
+    })
+    .nullable(),
+  outcome: z.enum(['matched', 'candidates', 'none', 'attached', 'expense', 'discarded']).nullable(),
+  /** The matched transaction first when outcome is matched. */
+  candidates: z.array(receiptCandidate).max(5),
+  proposal: z
+    .object({
+      date: day,
+      merchant: label.nullable(),
+      amount,
+      category: label,
+      accountCode: z.string().max(20).nullable(),
+      /** The open brouillon the line joins, e.g. "NDF-0007"; null: a new brouillon for the month. */
+      openDraft: label.nullable(),
+      needsEuroAmount: z.boolean(),
+    })
+    .nullable(),
+  approval: z
+    .object({
+      transactionId: z.string().max(64),
+      destination: z.enum(['qonto', 'kledg']),
+      effect: text,
+      transaction: receiptCandidate.nullable(),
+      /** Validation mode: the pending action and its approval page. */
+      actionId: z.string().max(100).nullable(),
+      approvalUrl: z.string().max(2000).regex(/^https?:\/\/[^\s]+$/).nullable(),
+    })
+    .nullable(),
+  done: z.object({ kind: z.enum(['attached', 'expense', 'discarded']), message: text }).nullable(),
+})
+
 export const VIEW_SCHEMAS = {
   statement: statementView,
   chart: chartView,
   actions: actionsView,
   document: documentView,
   organigram: organigramView,
+  'receipt-capture': receiptCaptureView,
 } as const
 
 export type ViewName = keyof typeof VIEW_SCHEMAS
@@ -292,4 +380,6 @@ export type ViewAction = z.infer<typeof viewAction>
 export type ReconciliationMatch = z.infer<typeof reconciliationMatch>
 export type DocumentView = z.infer<typeof documentView>
 export type OrganigramView = z.infer<typeof organigramView>
-export type ViewData = StatementView | ChartView | ActionsView | DocumentView | OrganigramView
+export type ReceiptCaptureView = z.infer<typeof receiptCaptureView>
+export type ReceiptCandidateView = z.infer<typeof receiptCandidate>
+export type ViewData = StatementView | ChartView | ActionsView | DocumentView | OrganigramView | ReceiptCaptureView

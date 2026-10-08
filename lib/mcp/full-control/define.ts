@@ -32,6 +32,12 @@
  *    audit log with the user, the assistant (OAuth client name or API key
  *    name), the execution mode, the tool and the main ids.
  *
+ * A tool declared with `level: 'write'` (the receipt tools,
+ * lib/mcp/full-control/receipts.ts) is registered for draft-level
+ * connections too: step 1 uses `guard.require` (no kledg:admin), step 2 the
+ * limit of draft writes, and on a connection without full control its
+ * high-impact actions always run in validation mode (approved in Kledg).
+ *
  * Tools are thin: `preview` and `execute` call the lib services the web UI
  * uses, which keep every accounting invariant (and the database triggers
  * behind them). Errors go through handleError: typed errors keep their French
@@ -56,6 +62,7 @@ import { isGenericTarget, type TargetRef } from '@/lib/approved-state/targets'
 import { ApprovedStateChangedError, checkApprovedTargets, runWithApprovedState } from '@/lib/approved-state/guard'
 import { runInAmbientTransaction } from '@/lib/approved-state/ambient'
 import { logger } from '@/lib/logger'
+import { withView, type ViewData } from '@/lib/mcp/views'
 import { TWO_STEP, stepFor } from './descriptions'
 
 export const companyIdInput = z.string().describe('Company id, from list_companies.')
@@ -103,6 +110,23 @@ interface ToolBase<S extends Shape, R> {
   idempotent?: boolean
   /** The tool calls a third party (a bank). */
   openWorld?: boolean
+  /**
+   * 'write': a tool of draft-level connections (kledg:write), registered for
+   * them too (lib/mcp/receipts-tools.ts): its rights are checked with
+   * `guard.require` (no kledg:admin needed) and its calls count in the
+   * limit of draft writes. Its high-impact actions always wait for the
+   * user's approval in Kledg on such a connection; with full control they
+   * follow the connection's execution mode. Default 'admin'.
+   */
+  level?: 'write' | 'admin'
+  /** `_meta` of the tool: an MCP Apps template (viewMeta), ChatGPT file params. */
+  meta?: Record<string, unknown>
+  /**
+   * The structuredContent of every result for the tool's template, from the
+   * arguments and the JSON the call returns (dry run, pending action or
+   * executed result); left out when it cannot be built (withView).
+   */
+  view?: (args: Args<S>, payload: unknown, ctx: FullControlContext & { executionMode: ExecutionMode }) => ViewData | Promise<ViewData>
 }
 
 export interface DirectTool<S extends Shape, R> extends ToolBase<S, R> {
@@ -225,13 +249,17 @@ export function registerFullControlTool<S extends Shape, P, R>(
   guard: CompanyGuard,
   tool: FullControlTool<S, P, R>,
 ): void {
-  const mode = access.executionMode
+  const writeLevel = tool.level === 'write'
+  // A draft-level connection never executes a high-impact action without the user's approval in Kledg.
+  const mode: ExecutionMode = writeLevel && !access.canAdmin ? 'validation' : access.executionMode
+  const runAccess: McpAccess = mode === access.executionMode ? access : { ...access, executionMode: mode }
   const automatic = mode === 'automatic'
+  const check = (companyId: string, permission: Permission) => (writeLevel ? guard.require(companyId, permission) : guard.requireFullControl(companyId, permission))
   const base = z.object({ companyId: companyIdInput, ...tool.input })
   const inputSchema = tool.confirmation ? base.extend(automatic ? dryRunFields : confirmFields) : base
   const description = describeTool({
     summary: tool.confirmation ? tool.description.replace(TWO_STEP, stepFor(mode)) : tool.description,
-    access: 'admin',
+    access: writeLevel ? 'write' : 'admin',
     permission: tool.permission,
     actions: tool.actions,
     amounts: tool.amounts,
@@ -248,22 +276,24 @@ export function registerFullControlTool<S extends Shape, P, R>(
       annotations: tool.readOnly
         ? { ...READ_ONLY, openWorldHint: tool.openWorld ?? false }
         : writeAnnotations({ destructive: tool.destructive ?? false, idempotent: tool.idempotent ?? false, openWorld: tool.openWorld }),
+      ...(tool.meta && { _meta: tool.meta }),
     },
     (raw: unknown) =>
       run(async () => {
         const { actionId, dryRun, ...rest } = inputSchema.parse(raw) as Args<S> & { actionId?: string; dryRun?: boolean }
         const args = rest as Args<S>
         const companyId = args.companyId
-        await guard.requireFullControl(companyId, tool.permission)
+        await check(companyId, tool.permission)
         const action = (args as { action?: unknown }).action
-        for (const permission of permissionsOfAction(tool.actions, action)) await guard.requireFullControl(companyId, permission)
-        await limitFullControl(access.user.id)
+        for (const permission of permissionsOfAction(tool.actions, action)) await check(companyId, permission)
+        if (writeLevel) await enforceRateLimit('mcp-write', access.user.id)
+        else await limitFullControl(access.user.id)
         const ctx: FullControlContext = {
-          access,
+          access: runAccess,
           companyId,
-          authorize: (permission) => guard.requireFullControl(companyId, permission),
+          authorize: (permission) => check(companyId, permission),
           can: (permission) =>
-            guard.requireFullControl(companyId, permission).then(
+            check(companyId, permission).then(
               () => true,
               (error) => {
                 if (error instanceof ForbiddenError) return false
@@ -280,17 +310,19 @@ export function registerFullControlTool<S extends Shape, P, R>(
         const highImpact =
           tool.confirmation &&
           (tool.highImpactWhen ? tool.highImpactWhen(args) : !tool.highImpactActions || tool.highImpactActions.includes(String(action)))
+        const view = tool.view
+        const withToolView = view ? (result: ToolResult) => withView(result, () => view(args, JSON.parse(result.content[0].text), { ...ctx, executionMode: mode })) : async (result: ToolResult) => result
 
         // A dry run asked in automatic mode only previews, whatever the action.
         if (tool.confirmation && automatic && dryRun) {
-          return json({ dryRun: true, preview: await tool.preview(args, ctx), nextStep: AUTOMATIC_NEXT_STEP })
+          return withToolView(json({ dryRun: true, preview: await tool.preview(args, ctx), nextStep: AUTOMATIC_NEXT_STEP }))
         }
 
         if (tool.confirmation && highImpact) {
           const audited = tool.audit
           const targetState = tool.targetState
-          return highImpactCall<P, R>({
-            access,
+          return withToolView(await highImpactCall<P, R>({
+            access: runAccess,
             tool: tool.name,
             companyId,
             args,
@@ -299,13 +331,13 @@ export function registerFullControlTool<S extends Shape, P, R>(
             targetState: targetState && (() => targetState(args, ctx)),
             execute: () => tool.execute(args, ctx),
             audit: audited && ((result: R) => audited(args, result)),
-          })
+          }))
         }
 
         const result = await tool.execute(args, ctx)
-        if (tool.audit) await audit(tool.name, access, companyId, tool.audit(args, result))
+        if (tool.audit) await audit(tool.name, runAccess, companyId, tool.audit(args, result))
         // An action of a high-impact tool that is not high impact itself answers like an executed one.
-        return json(tool.confirmation ? { executed: true, result } : result)
+        return withToolView(json(tool.confirmation ? { executed: true, result } : result))
       }),
   )
 }

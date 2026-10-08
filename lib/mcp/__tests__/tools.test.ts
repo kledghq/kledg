@@ -114,6 +114,9 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
 const INSTANCE_TOOLS = new Set(['create_company'])
 
 /** Draft-level tools (kledg:write) of lib/mcp/drafts, besides create_draft_entry. */
+/** Receipts photographed in the assistant (lib/mcp/full-control/receipts.ts, level write). */
+const RECEIPT_TOOLS = ['capture_receipt', 'stage_receipt', 'file_receipt']
+
 const DRAFT_TOOLS = [
   'save_vat_deduction_settings',
   'prepare_vat_coefficient_regularisation',
@@ -237,12 +240,14 @@ describe('registerKledgTools', () => {
     const writer = fakeServer()
     registerKledgTools(writer as never, { user, canWrite: true, canAdmin: false, caller, executionMode: 'validation' })
     const added = [...writer.tools.keys()].filter((name) => !readOnly.tools.has(name)).sort()
-    expect(added).toEqual(['create_draft_entry', ...DRAFT_TOOLS].sort())
+    expect(added).toEqual(['create_draft_entry', ...DRAFT_TOOLS, ...RECEIPT_TOOLS].sort())
     for (const name of added) {
-      expect(writer.tools.get(name)?.annotations?.readOnlyHint, name).toBe(false)
+      // capture_receipt only opens the capture view
+      if (name !== 'capture_receipt') expect(writer.tools.get(name)?.annotations?.readOnlyHint, name).toBe(false)
       expect(writer.tools.get(name)?.description, name).toContain('kledg:write')
-      // Draft tools never follow the full control flow.
-      expect(writer.tools.get(name)?.inputSchema?.shape, name).not.toHaveProperty('actionId')
+      // Draft tools never follow the full control flow; file_receipt's attach waits for the user's approval in Kledg.
+      if (name === 'file_receipt') expect(writer.tools.get(name)?.inputSchema?.shape, name).toHaveProperty('actionId')
+      else expect(writer.tools.get(name)?.inputSchema?.shape, name).not.toHaveProperty('actionId')
     }
   })
 })
@@ -323,7 +328,9 @@ describe('full control tools', () => {
 
   it('checks full control first, in the single registration path', () => {
     const handler = define.slice(define.indexOf('server.registerTool('))
-    const guardAt = handler.indexOf('await guard.requireFullControl(companyId, tool.permission)')
+    const guardAt = handler.indexOf('await check(companyId, tool.permission)')
+    // check is guard.requireFullControl, or guard.require for the draft-level tools (level write)
+    expect(define).toContain("const check = (companyId: string, permission: Permission) => (writeLevel ? guard.require(companyId, permission) : guard.requireFullControl(companyId, permission))")
     expect(guardAt).toBeGreaterThan(0)
     for (const step of ['tool.preview(', 'tool.execute(', 'claimApprovedAction(', 'createPendingAction(']) {
       expect(handler.indexOf(step), step).toBeGreaterThan(guardAt)
