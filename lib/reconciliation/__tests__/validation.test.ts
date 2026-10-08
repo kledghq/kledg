@@ -149,13 +149,13 @@ describe('validateReconciliation', () => {
 
     it('refuses a date in a closed fiscal year', () => {
       expect(messages(purchase([line('606100', 12000)], { date: '2025-12-31' }))).toEqual([
-        "date: L'exercice 2025 est clôturé : choisissez une date dans un exercice ouvert.",
+        "date: L'exercice 2025 est clôturé : choisissez une date dans un exercice ouvert.",
       ])
     })
 
     it('refuses a date outside every fiscal year', () => {
       expect(messages(purchase([line('606100', 12000)], { date: '2027-01-01' }))).toEqual([
-        "date: Aucun exercice comptable ne couvre le 01/01/2027 : créez l'exercice avant de rapprocher.",
+        "date: Aucun exercice comptable ne couvre le 01/01/2027 : créez l'exercice avant de rapprocher.",
       ])
     })
 

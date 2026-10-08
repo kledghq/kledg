@@ -319,7 +319,7 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
 
       expect(await executor.prepareRuleEntry(ruleId, txId, ids.company)).toEqual({
         ok: false,
-        error: "Certains comptes de la règle n'existent pas dans l'exercice 2025 : 999999, 445999",
+        error: "Certains comptes de la règle n'existent pas dans l'exercice 2025 : 999999, 445999",
         status: 400,
       })
     })
@@ -346,7 +346,7 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
 
       expect(await executor.prepareRuleEntry(ruleId, txId, ids.company)).toEqual({
         ok: false,
-        error: 'La règle « Sans compte TVA » ne peut pas être appliquée : aucun compte de TVA pour la ligne 2 : choisissez-le dans la règle.',
+        error: 'La règle « Sans compte TVA » ne peut pas être appliquée : aucun compte de TVA pour la ligne 2 : choisissez-le dans la règle.',
         status: 400,
       })
     })
@@ -358,11 +358,11 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
 
       expect(await executor.prepareRuleEntry(ruleId, inClosed, ids.company)).toMatchObject({
         ok: false,
-        error: "L'exercice 2024 est clôturé : choisissez une date dans un exercice ouvert.",
+        error: "L'exercice 2024 est clôturé : choisissez une date dans un exercice ouvert.",
       })
       expect(await executor.prepareRuleEntry(ruleId, outside, ids.company)).toMatchObject({
         ok: false,
-        error: "Aucun exercice comptable ne couvre le 01/06/2023 : créez l'exercice avant de rapprocher.",
+        error: "Aucun exercice comptable ne couvre le 01/06/2023 : créez l'exercice avant de rapprocher.",
       })
     })
 

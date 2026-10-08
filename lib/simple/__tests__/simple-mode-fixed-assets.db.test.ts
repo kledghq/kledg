@@ -257,7 +257,7 @@ describe.skipIf(!available)('simple mode fixed assets (PostgreSQL)', () => {
     expect(refused.status).toBe(409)
     expect((await refused.json()).error).toBe(
       `Le rapprochement ne peut pas être annulé : l'écriture n° ${result.entryNumber} a créé l'immobilisation « Matériel informatique (Apple Store Opera) », qui ne peut pas être supprimée. ` +
-        `Cette immobilisation a 1 dotation aux amortissements comptabilisée (écriture n° ${posted.accountingEntry.entryNumber}). Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`,
+        `Cette immobilisation a 1 dotation aux amortissements comptabilisée (écriture n° ${posted.accountingEntry.entryNumber}). Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`,
     )
     // Nothing changed
     expect(await prisma.fixedAsset.count({ where: { id: result.fixedAsset.id } })).toBe(1)
@@ -326,7 +326,7 @@ describe.skipIf(!available)('simple mode fixed assets (PostgreSQL)', () => {
     expect(response.status).toBe(409)
     expect((await response.json()).error).toBe(
       `L'écriture n° ${result.entryNumber} ne peut pas être modifiée ainsi : elle a créé l'immobilisation « Matériel informatique (Apple Store Opera) » au compte 2183, qui ne peut pas être supprimée. ` +
-        `Cette immobilisation a 1 dotation aux amortissements comptabilisée (écriture n° ${posted.accountingEntry.entryNumber}). Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`,
+        `Cette immobilisation a 1 dotation aux amortissements comptabilisée (écriture n° ${posted.accountingEntry.entryNumber}). Une écriture validée ne peut pas être supprimée : contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`,
     )
     // Nothing changed
     expect(await linesOf(result.entryId)).toEqual(before)
