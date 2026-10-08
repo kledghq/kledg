@@ -80,7 +80,7 @@ async function periodFor(db: Db, companyId: string, settings: InvoiceNumberingSe
   const fiscalYear = (await fiscalYearsOf(db, companyId)).find((fy) => fy.startDay <= day && day <= fy.endDay)
   if (!fiscalYear) {
     throw new ValidationError(
-      `Aucun exercice ne contient le ${formatIsoDateFr(day)} : la numérotation repart à chaque exercice, créez l’exercice avant d’émettre la facture.`,
+      `Aucun exercice ne contient le ${formatIsoDateFr(day)} : la numérotation repart à chaque exercice, créez l’exercice avant d’émettre la facture.`,
     )
   }
   return { ...(periodOf('FISCAL_YEAR', day, fiscalYear) as Omit<Period, 'bounds'>), bounds: { start: fiscalYear.startDay, end: fiscalYear.endDay } }

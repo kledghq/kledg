@@ -32,7 +32,7 @@ export const XLSX_READ_BUDGET_MS = 30_000
 const IGNORED_SHEET_NODES = ['mergeCells', 'dataValidations', 'conditionalFormatting', 'hyperlinks', 'extLst']
 
 function tooSlow(): ValidationError {
-  return new ValidationError('Fichier Excel refusé : sa lecture prend trop de temps. Découpez-le ou exportez-le en CSV.')
+  return new ValidationError('Fichier Excel refusé : sa lecture prend trop de temps. Découpez-le ou exportez-le en CSV.')
 }
 
 /** Rejects once the deadline passes (the work itself is bounded by the guard's limits). */
@@ -106,14 +106,14 @@ export function readSheetRows(sheet: ExcelJS.Worksheet, bounds: SheetBounds): Sh
   const lastRow = sheet.rowCount
   if (lastRow > bounds.maxRows) {
     throw new ValidationError(
-      `Fichier Excel refusé : la feuille « ${sheet.name} » va jusqu'à la ligne ${lastRow} (maximum ${bounds.maxRows}). Supprimez les lignes inutiles ou découpez le fichier.`,
+      `Fichier Excel refusé : la feuille « ${sheet.name} » va jusqu'à la ligne ${lastRow} (maximum ${bounds.maxRows}). Supprimez les lignes inutiles ou découpez le fichier.`,
     )
   }
   for (let r = 1; r <= lastRow; r++) {
     const row = sheet.findRow(r)
     if (row && row.cellCount > maxColumns) {
       throw new ValidationError(
-        `Fichier Excel refusé : la ligne ${r} de la feuille « ${sheet.name} » va au-delà de la colonne ${maxColumns}. Supprimez les colonnes inutiles ou exportez la feuille en CSV.`,
+        `Fichier Excel refusé : la ligne ${r} de la feuille « ${sheet.name} » va au-delà de la colonne ${maxColumns}. Supprimez les colonnes inutiles ou exportez la feuille en CSV.`,
       )
     }
   }

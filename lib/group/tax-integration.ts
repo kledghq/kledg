@@ -64,7 +64,7 @@ import { formatCentsFr } from '@/lib/utils/money'
 
 const INTEGRATION_SOURCES = {
   cgi223A: { label: 'CGI, art. 223 A (société mère, détention de 95 % au moins, exercices, option pour cinq exercices)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042340402/' },
-  cgi223: { label: 'CGI, art. 223 A à 223 U (régime des groupes de sociétés\u00a0: résultat d’ensemble, art. 223 B ; déficits, art. 223 C et 223 I ; cessions entre sociétés du groupe, art. 223 F)', url: 'https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006069577/LEGISCTA000006162535/' },
+  cgi223: { label: 'CGI, art. 223 A à 223 U (régime des groupes de sociétés\u00a0: résultat d’ensemble, art. 223 B\u00a0; déficits, art. 223 C et 223 I\u00a0; cessions entre sociétés du groupe, art. 223 F)', url: 'https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006069577/LEGISCTA000006162535/' },
   cgi216: { label: 'CGI, art. 216, I (quote-part de frais et charges de 1 % pour les dividendes entre sociétés d’un groupe)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048831340' },
   cgi209: { label: 'CGI, art. 209, I (imputation des déficits\u00a0: 1 000 000 € majorés de 50 %)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042909650/' },
   cgi219: { label: 'CGI, art. 219, I, b (taux réduit de 15 %\u00a0: chiffre d’affaires du groupe, conditions appréciées chez la société mère)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000046868562' },
@@ -152,7 +152,7 @@ export type ManualNeutralisationId = 'provisions' | 'asset_sales' | 'waivers' | 
 export const MANUAL_NEUTRALISATIONS: Array<{ id: ManualNeutralisationId; label: string; hint: string; source: IntegrationSourceKey }> = [
   { id: 'provisions', label: 'Provisions sur une autre société du groupe', hint: 'Dotations sur les titres, prêts ou créances d’un membre\u00a0: réintégrées (montant positif), reprises déduites (négatif).', source: 'cgi223' },
   { id: 'asset_sales', label: 'Cessions d’immobilisations entre sociétés du groupe', hint: 'La plus-value est déduite (montant négatif), la moins-value réintégrée (positif), jusqu’à la sortie du bien du groupe (art. 223 F).', source: 'cgi223' },
-  { id: 'waivers', label: 'Abandons de créances et subventions entre sociétés du groupe', hint: 'Neutralisés\u00a0: la charge de l’une et le produit de l’autre ; saisissez l’écart éventuel.', source: 'cgi223' },
+  { id: 'waivers', label: 'Abandons de créances et subventions entre sociétés du groupe', hint: 'Neutralisés\u00a0: la charge de l’une et le produit de l’autre\u00a0; saisissez l’écart éventuel.', source: 'cgi223' },
   { id: 'financial_charges', label: 'Limitation des charges financières au niveau du groupe', hint: 'Plafond des charges financières nettes apprécié pour le groupe (art. 223 B bis)\u00a0: réintégration éventuelle.', source: 'cgi223' },
   { id: 'other', label: 'Autres retraitements', hint: 'Tout autre retraitement que votre expert-comptable retient.', source: 'cgi223' },
 ]
@@ -340,7 +340,7 @@ export function simulateTaxIntegration(input: IntegrationInput): IntegrationSimu
       id: 'option',
       label: 'Option notifiée par la holding avec l’accord de chaque filiale',
       status: 'check',
-      detail: 'Au plus tard à la date limite de dépôt de la déclaration de résultat de l’exercice qui précède le premier exercice du groupe ; l’option vaut pour cinq exercices.',
+      detail: 'Au plus tard à la date limite de dépôt de la déclaration de résultat de l’exercice qui précède le premier exercice du groupe\u00a0; l’option vaut pour cinq exercices.',
       source: 'cgi223A',
     },
   ]

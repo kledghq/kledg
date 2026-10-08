@@ -205,7 +205,7 @@ export async function prepareRuleEntry(
   const missingCodes = Array.from(codeSet).filter((code) => !codeToId.has(code));
   if (missingCodes.length > 0) {
     return fail(
-      `Certains comptes de la règle n'existent pas dans l'exercice ${fiscalYear.year} : ${missingCodes.join(', ')}`
+      `Certains comptes de la règle n'existent pas dans l'exercice ${fiscalYear.year} : ${missingCodes.join(', ')}`
     );
   }
 
@@ -263,7 +263,7 @@ export async function prepareRuleEntry(
     );
     lines = toCentLines(balanceEntryLines(entryLines, bankAccount.id, description), bankAccount.id);
   } catch (error) {
-    return fail(`La règle « ${rule.name} » ne peut pas être appliquée : ${error instanceof Error ? error.message : 'erreur de calcul'}`);
+    return fail(`La règle « ${rule.name} » ne peut pas être appliquée : ${error instanceof Error ? error.message : 'erreur de calcul'}`);
   }
 
   if (!lines) {
@@ -272,7 +272,7 @@ export async function prepareRuleEntry(
   try {
     assertWritableLines(lines);
   } catch (error) {
-    return fail(`La règle « ${rule.name} » produit une écriture invalide : ${(error as Error).message}`);
+    return fail(`La règle « ${rule.name} » produit une écriture invalide : ${(error as Error).message}`);
   }
 
   return {
@@ -471,7 +471,7 @@ function calculateEntryLines(
         });
       } else {
         if (!vatAccountDebitId) {
-          throw new Error(`aucun compte de TVA pour la ligne ${rule.entryLines.indexOf(line) + 1} : choisissez-le dans la règle.`);
+          throw new Error(`aucun compte de TVA pour la ligne ${rule.entryLines.indexOf(line) + 1} : choisissez-le dans la règle.`);
         }
         const { vatDebit, vatCredit } = calculateVATLineAmounts(
           line.vatType,

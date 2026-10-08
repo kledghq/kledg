@@ -49,21 +49,21 @@ export const ASSET_LIFETIMES: readonly AssetLifetime[] = [
     assetAccount: '2183',
     depreciationAccount: '2818',
     years: 3,
-    source: `Usage admis pour le matériel informatique (obsolescence rapide) : 3 ans, plus court que le matériel de bureau (10 à 20 %, ${USUAL_RATES}); PCG art. 214-1 et 214-4; CGI art. 39, 1-2°`,
+    source: `Usage admis pour le matériel informatique (obsolescence rapide) : 3 ans, plus court que le matériel de bureau (10 à 20 %, ${USUAL_RATES}); PCG art. 214-1 et 214-4; CGI art. 39, 1-2°`,
   },
   {
     categoryId: 'mobilier',
     assetAccount: '2184',
     depreciationAccount: '2818',
     years: 10,
-    source: `Mobilier : 10 % par an, soit 10 ans (${USUAL_RATES}); PCG art. 214-1 et 214-4; CGI art. 39, 1-2°`,
+    source: `Mobilier : 10 % par an, soit 10 ans (${USUAL_RATES}); PCG art. 214-1 et 214-4; CGI art. 39, 1-2°`,
   },
   {
     categoryId: 'outillage',
     assetAccount: '2155',
     depreciationAccount: '2815',
     years: 5,
-    source: `Outillage : 10 à 20 % par an, soit 5 à 10 ans; matériel : 10 à 15 % (${USUAL_RATES}); durée la plus courte retenue, à allonger pour une machine; PCG art. 214-1 et 214-4; CGI art. 39, 1-2°`,
+    source: `Outillage : 10 à 20 % par an, soit 5 à 10 ans; matériel : 10 à 15 % (${USUAL_RATES}); durée la plus courte retenue, à allonger pour une machine; PCG art. 214-1 et 214-4; CGI art. 39, 1-2°`,
   },
 ]
 

@@ -51,7 +51,7 @@ export async function parseExcel(
   sheetName?: string
 ): Promise<Array<Record<string, unknown>>> {
   // Zip bomb guard, content and time budget before and while ExcelJS reads (lib/api/xlsx.ts).
-  const { workbook, deadline } = await loadWorkbook(file, 'Fichier Excel illisible : enregistrez-le au format .xlsx et réessayez.')
+  const { workbook, deadline } = await loadWorkbook(file, 'Fichier Excel illisible : enregistrez-le au format .xlsx et réessayez.')
   const worksheet = sheetName
     ? workbook.getWorksheet(sheetName)
     : workbook.worksheets[0]

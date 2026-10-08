@@ -157,8 +157,8 @@ export function apiKeyCreatedEmail(
       'Nouvelle clé API',
       `Une clé API « ${escapeHtml(key.name)} » a été créée sur votre compte ${APP_NAME}, avec l’accès « ${escapeHtml(key.access)} ». ${expiry}`,
       { label: 'Voir mes clés API', url: settingsUrl },
-      "Si vous n'êtes pas à l'origine de cette clé, révoquez-la depuis vos clés API, puis changez votre mot de passe : cela supprime aussi toutes vos clés et déconnecte vos assistants IA.",
+      "Si vous n'êtes pas à l'origine de cette clé, révoquez-la depuis vos clés API, puis changez votre mot de passe : cela supprime aussi toutes vos clés et déconnecte vos assistants IA.",
     ),
-    text: `Une clé API « ${key.name} » a été créée sur votre compte ${APP_NAME} (accès : ${key.access}). ${expiry} Si ce n'est pas vous, révoquez-la et changez votre mot de passe : ${settingsUrl}`,
+    text: `Une clé API « ${key.name} » a été créée sur votre compte ${APP_NAME} (accès : ${key.access}). ${expiry} Si ce n'est pas vous, révoquez-la et changez votre mot de passe : ${settingsUrl}`,
   }
 }

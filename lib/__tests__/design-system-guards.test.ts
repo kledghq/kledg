@@ -34,26 +34,13 @@ const rel = (file: string) => path.relative(ROOT, file)
 const KNOWN_DASHES = new Set<string>([])
 
 /**
- * French text still written with a plain space before ":", ";", "?" or "!".
- * Tax files changed by a parallel fix (run the codemod of
- * lib/__tests__/helpers/french-spacing.ts once it is merged), and reference
- * data whose labels are compared with stored layouts and charts.
+ * French text still written with a plain space before ":", ";", "?" or "!":
+ * reference data whose labels are compared with stored layouts and charts.
  */
 const KNOWN_PLAIN_SPACES = new Set([
   'lib/accounting/pcg-data.ts',
-  'lib/group/tax-integration.ts',
-  'lib/invoices/numbering/series.ts',
-  'lib/invoices/numbering/settings.ts',
-  'lib/reconciliation/validation.ts',
   'lib/reports/income-statement/config/default-pcg-config-complete-2026.ts',
   'lib/reports/income-statement/config/default-pcg-config-simplified-2026.ts',
-  'lib/rules-library/catalog/finance.ts',
-  'lib/rules-library/catalog/services.ts',
-  'lib/rules-library/catalog/travel.ts',
-  'lib/simple/asset-lifetimes.ts',
-  'lib/transactions/rule-executor.ts',
-  'lib/vat-deduction/sources.ts',
-  'lib/vat-returns/checks.ts',
 ])
 
 describe('design system guards', () => {

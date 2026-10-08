@@ -101,7 +101,7 @@ export const FINANCE_TEMPLATES: RuleTemplate[] = [
     description: 'Virements de SumUp (paiements par carte encaissés au terminal), à suivre sur un sous-compte 467 SumUp.',
     conditions: [CREDIT, labelMatches('\\bsum\\s?up\\b', 'SUMUP')],
     lines: [noVatLine('467', 'credit')],
-    vat: { treatment: 'none', why: "Un virement de vos propres fonds n'est pas une opération soumise à la TVA ; les ventes sont enregistrées par ailleurs." },
+    vat: { treatment: 'none', why: "Un virement de vos propres fonds n'est pas une opération soumise à la TVA ; les ventes sont enregistrées par ailleurs." },
     sources: [SOURCES.scope],
     samples: { match: ['SUMUP', 'VIR SEPA SUMUP PAYMENTS LIMITED', 'SumUp payout'], noMatch: ['VIR SUMMUM SAS'] },
   },

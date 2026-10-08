@@ -333,7 +333,7 @@ export async function mergeUpdatePull(conn: ActiveConnection, pullNumber: number
     pull.data.base?.ref !== conn.defaultBranch
   ) {
     throw new ValidationError(
-      "Cette pull request n'est pas une mise à jour Kledg : seule la branche kledg-update de votre dépôt, vers sa branche par défaut, peut être installée.",
+      "Cette pull request n'est pas une mise à jour Kledg : seule la branche kledg-update de votre dépôt, vers sa branche par défaut, peut être installée.",
     )
   }
   if (pull.data.head.sha !== headSha) {

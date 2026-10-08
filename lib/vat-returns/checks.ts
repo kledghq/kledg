@@ -103,7 +103,7 @@ export function vatChecks(input: CheckInput): VatCheck[] {
       id: 'rates',
       severity: 'blocking',
       title: `Taux de TVA à déterminer sur ${plural(input.unidentified.length, 'écriture', 'écritures')}`,
-      detail: `La TVA de ${input.unidentified.length > 1 ? 'ces écritures' : 'cette écriture'} ne correspond à aucun taux unique (plusieurs taux sans facture, ou une base hors des comptes 6, 7 et 2). Elle est comprise dans le total ; répartissez-la à la main sur les lignes de taux.`,
+      detail: `La TVA de ${input.unidentified.length > 1 ? 'ces écritures' : 'cette écriture'} ne correspond à aucun taux unique (plusieurs taux sans facture, ou une base hors des comptes 6, 7 et 2). Elle est comprise dans le total ; répartissez-la à la main sur les lignes de taux.`,
       items: input.unidentified.map((u) => `N° ${u.number} du ${u.date.slice(8, 10)}/${u.date.slice(5, 7)}/${u.date.slice(0, 4)} : TVA ${euros(u.vatCents)}, base ${euros(u.baseCents)}`),
     })
   }

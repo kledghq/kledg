@@ -187,9 +187,9 @@ export async function assertSafeZip(buffer: Uint8Array, limits: ZipLimits = {}):
   const maxRatio = limits.maxRatio ?? MAX_XLSX_RATIO
   const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
   const invalid = () => new ValidationError('Fichier Excel invalide ou corrompu.')
-  const bomb = () => new ValidationError('Fichier Excel refusé : contenu décompressé trop volumineux.')
+  const bomb = () => new ValidationError('Fichier Excel refusé : contenu décompressé trop volumineux.')
   const tooManyCells = () =>
-    new ValidationError('Fichier Excel refusé : il contient trop de cellules. Découpez-le ou exportez-le en CSV.')
+    new ValidationError('Fichier Excel refusé : il contient trop de cellules. Découpez-le ou exportez-le en CSV.')
   if (buffer.length < 22) throw invalid()
 
   // End of central directory: the last signature in the file, as JSZip looks for it (from the very end).
@@ -216,7 +216,7 @@ export async function assertSafeZip(buffer: Uint8Array, limits: ZipLimits = {}):
   if (diskNumber !== 0 || cdDisk !== 0 || entriesOnDisk !== entries) throw invalid()
   if (eocd + 22 + commentLength !== buffer.length) throw invalid()
   if (cdOffset + cdSize !== eocd) throw invalid()
-  if (entries > maxEntries) throw new ValidationError('Fichier Excel refusé : il contient trop de fichiers.')
+  if (entries > maxEntries) throw new ValidationError('Fichier Excel refusé : il contient trop de fichiers.')
 
   const counter = new XmlElementCounter(limits.maxElements ?? MAX_XLSX_ELEMENTS, limits.maxCells ?? MAX_XLSX_CELLS)
   const names: string[] = []

@@ -63,7 +63,7 @@ export interface ReconciliationValidation {
 
 export const MESSAGES = {
   journal: 'Choisissez un journal.',
-  date: 'Date invalide : saisissez-la au format jj/mm/aaaa.',
+  date: 'Date invalide : saisissez-la au format jj/mm/aaaa.',
   noLines: 'Ajoutez au moins une ligne de contrepartie.',
   account: 'Choisissez un compte.',
   amountMissing: 'Saisissez un débit ou un crédit.',
@@ -126,13 +126,13 @@ export function checkEntryDate(
   const fiscalYear = fiscalYearForDate(fiscalYears, date)
   if (!fiscalYear) {
     return {
-      error: `Aucun exercice comptable ne couvre le ${formatIsoDateFr(date)} : créez l'exercice avant de rapprocher.`,
+      error: `Aucun exercice comptable ne couvre le ${formatIsoDateFr(date)} : créez l'exercice avant de rapprocher.`,
       fiscalYear: null,
     }
   }
   if (fiscalYear.isClosed) {
     return {
-      error: `L'exercice ${fiscalYear.year} est clôturé : choisissez une date dans un exercice ouvert.`,
+      error: `L'exercice ${fiscalYear.year} est clôturé : choisissez une date dans un exercice ouvert.`,
       fiscalYear: null,
     }
   }
@@ -179,7 +179,7 @@ export function validateReconciliation(
   if (differenceCents !== 0 && draft.lines.length > 0) {
     errors.push({
       path: 'lines',
-      message: `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)} (écart ${formatCentsFr(Math.abs(differenceCents))}).`,
+      message: `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)} (écart ${formatCentsFr(Math.abs(differenceCents))}).`,
     })
   }
 
@@ -241,7 +241,7 @@ export function checkVat(lines: ReconciliationLine[]): { errors: Issue[]; vatCen
     } else if (vatCents * 100 > baseCents * MAX_VAT_RATE_PERCENT + vatLines * 100) {
       errors.push({
         path: 'lines',
-        message: `La TVA (${formatCentsFr(vatCents)}) dépasse ${MAX_VAT_RATE_PERCENT} % de la base hors taxe (${formatCentsFr(baseCents)}) : vérifiez le montant de TVA.`,
+        message: `La TVA (${formatCentsFr(vatCents)}) dépasse ${MAX_VAT_RATE_PERCENT} % de la base hors taxe (${formatCentsFr(baseCents)}) : vérifiez le montant de TVA.`,
       })
     }
   }

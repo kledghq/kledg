@@ -365,7 +365,7 @@ const DEFS: Def[] = [
     hint: 'Restaurant avec des clients, ou repas seul en déplacement.', keywords: ['restaurant', 'repas', 'dejeuner', 'diner', 'resto', 'brasserie'], source: `${pcg('6257', 'Réceptions')}; ${MEAL_GUESTS.source}` },
   { id: 'peages-parking', label: 'Péages et parking', group: 'Déplacements et repas', kind: 'expense', account: '6251', vatRateBp: STANDARD, vatRule: 'standard',
     hint: 'Autoroute, stationnement lors de déplacements professionnels.', keywords: ['peage', 'autoroute', 'parking', 'stationnement'],
-    source: `${pcg('6251', 'Voyages et déplacements')}; BOI-TVA-DED-40-40, § 30 (stationnement) et § 330 (péages autoroutiers : TVA déductible par l’usager)` },
+    source: `${pcg('6251', 'Voyages et déplacements')}; BOI-TVA-DED-40-40, § 30 (stationnement) et § 330 (péages autoroutiers : TVA déductible par l’usager)` },
 
   // Véhicule
   { id: 'carburant', label: 'Carburant', group: 'Véhicule', kind: 'expense', account: '6061', vatRateBp: STANDARD, vatRule: 'fuel', question: vehicle('6061'),
@@ -406,7 +406,7 @@ const DEFS: Def[] = [
   // Banque et finances
   { id: 'frais-bancaires', label: 'Frais bancaires', group: 'Banque et finances', kind: 'expense', account: '627', vatRateBp: 0, vatRule: 'detected',
     hint: 'Abonnement du compte, frais de carte, commissions.', keywords: ['frais', 'banque', 'commission', 'carte', 'abonnement bancaire', 'qonto', 'shine'],
-    source: `${pcg('627', 'Services bancaires et assimilés')}; CGI art. 261 C, 1° (opérations bancaires exonérées) et 260 B (option de la banque : seule la TVA lue sur la facture est déduite)` },
+    source: `${pcg('627', 'Services bancaires et assimilés')}; CGI art. 261 C, 1° (opérations bancaires exonérées) et 260 B (option de la banque : seule la TVA lue sur la facture est déduite)` },
   { id: 'commissions-paiement', label: 'Commissions de paiement en ligne', group: 'Banque et finances', kind: 'expense', account: '6278', vatRateBp: 0, vatRule: 'detected',
     hint: 'Frais de Stripe, SumUp, PayPal sur vos encaissements.', keywords: ['stripe', 'sumup', 'paypal', 'commission', 'terminal'],
     source: `${pcg('6278', 'Autres frais et commissions sur prestations de services')}; CGI art. 261 C, 1° et 260 B (seule la TVA lue sur la facture est déduite)` },

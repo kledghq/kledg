@@ -66,7 +66,7 @@ describe('[KLEDG-R3-INPUT-01] xlsx rows, columns and ranges are bounded', () => 
     })
     expect(bytes.length).toBeLessThan(10_000)
     const m = await measure(() => parseStatementFile(bytes))
-    expect(m.outcome).toMatch(/refused: Fichier Excel refusé : la feuille « S » va jusqu'à la ligne 1048576/)
+    expect(m.outcome).toMatch(/refused: Fichier Excel refusé\u00a0: la feuille « S » va jusqu'à la ligne 1048576/)
     expect(m.ms).toBeLessThan(1000)
     expect(m.heapMb).toBeLessThan(50)
   })
@@ -86,7 +86,7 @@ describe('[KLEDG-R3-INPUT-01] xlsx rows, columns and ranges are bounded', () => 
     })
     for (const run of [() => parseStatementFile(bytes), () => parseExcel(Buffer.from(bytes))]) {
       const m = await measure(run)
-      expect(m.outcome).toMatch(/refused: Fichier Excel refusé : la ligne 2 de la feuille « S » va au-delà de la colonne 256/)
+      expect(m.outcome).toMatch(/refused: Fichier Excel refusé\u00a0: la ligne 2 de la feuille « S » va au-delà de la colonne 256/)
       expect(m.ms).toBeLessThan(1000)
       expect(m.heapMb).toBeLessThan(100)
     }
@@ -132,7 +132,7 @@ describe('[KLEDG-R3-INPUT-01] xlsx rows, columns and ranges are bounded', () => 
     cells.push('<row r="100002"><c r="A100002"/></row>')
     const bytes = await patched({ sheet: (x) => x.replace('</sheetData>', `${cells.join('')}</sheetData>`) })
     const m = await measure(() => parseStatementFile(bytes))
-    expect(m.outcome).toMatch(/refused: Fichier Excel refusé : il contient trop de cellules/)
+    expect(m.outcome).toMatch(/refused: Fichier Excel refusé\u00a0: il contient trop de cellules/)
     expect(m.heapMb).toBeLessThan(150)
   }, 30_000)
 

@@ -91,7 +91,7 @@ export async function parseStatementFile(bytes: Uint8Array, options: TabularOpti
   }
   const { delimiter, rows } = splitCsv(text, options.delimiter)
   if (rows.length > STATEMENT_MAX_ROWS) {
-    throw new ValidationError(`Fichier refusé : ${rows.length} lignes (maximum ${STATEMENT_MAX_ROWS}). Découpez le relevé en plusieurs fichiers.`)
+    throw new ValidationError(`Fichier refusé : ${rows.length} lignes (maximum ${STATEMENT_MAX_ROWS}). Découpez le relevé en plusieurs fichiers.`)
   }
   if (!rows.some((row) => row.some((cell) => cell.trim() !== ''))) throw new ValidationError('Le fichier ne contient aucune ligne.')
   const parsed = parseTabular(rows, options, { delimiter })
