@@ -10,12 +10,15 @@
  * other user triggered Qonto calls.
  */
 
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { limitBankCalls } from '@/lib/banking/guard'
-import { qontoClientFor } from './get-credentials'
+import { readReceiptFile } from '@/lib/receipts/receipt-file-store'
+import { getQontoCredentials, qontoClientFor } from './get-credentials'
+import { QontoInvoicing } from './invoicing'
 import { PROVIDER_FILE_BUDGET, assertDeclaredFileSize, fetchQontoFile, type FileBudget } from './files'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -93,6 +96,7 @@ async function unsyncedAttachment(companyId: string, attachmentRef: string, tran
     fileContentType: null as string | null,
     fileUrl: null as string | null,
     receiptFileId: null as string | null,
+    providerData: null as Prisma.JsonValue,
     bankTransaction: null as { externalTransactionId: string } | null,
   }
 }
@@ -105,8 +109,8 @@ export interface QontoReceipt {
 
 /**
  * The file of a receipt of the company (PDF or image). A receipt Kledg
- * keeps itself (receiptFileId, lib/receipts) is read from the database.
- * Otherwise Qonto is asked for a
+ * keeps itself (receiptFileId, lib/receipts) is read from the instance's
+ * storage. Otherwise Qonto is asked for a
  * fresh signed URL (stored URLs expire after 30 minutes); the URL stored at
  * synchronization time is the fallback. A file larger than `budget`
  * (25 MB by default) is refused from Qonto's metadata when it gives the
@@ -128,16 +132,20 @@ export async function readQontoReceipt(
         fileContentType: true,
         fileUrl: true,
         receiptFileId: true,
+        providerData: true,
         bankTransaction: { select: { externalTransactionId: true } },
       },
     })) ?? (await unsyncedAttachment(companyId, attachmentRef, transactionUuid))
+  const providerData = stored.providerData as { storedAt?: unknown } | null
 
   // A receipt Kledg keeps itself (a photo filed for a bank without receipt API, the receipt of an expense line): no bank call.
+  // Its bytes come from the instance's storage (lib/receipts/receipt-file-store.ts), checked against their SHA-256.
   if (stored.receiptFileId) {
-    const file = await prisma.receiptFile.findFirst({ where: { id: stored.receiptFileId, companyId }, select: { content: true, contentType: true, size: true } })
-    if (!file) throw new NotFoundError(RECEIPT_NOT_FOUND)
+    const file = await readReceiptFile(companyId, stored.receiptFileId).catch((error: unknown) => {
+      throw error instanceof NotFoundError ? new NotFoundError(RECEIPT_NOT_FOUND) : error
+    })
     if (file.size > budget.maxBytes) throw budget.tooLarge(file.size)
-    const body = new Uint8Array(file.content)
+    const body = file.bytes
     return { body: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer, contentType: file.contentType, fileName: stored.fileName || 'justificatif' }
   }
 
@@ -152,6 +160,19 @@ export async function readQontoReceipt(
     const fresh = attachments?.find((a) => a.id === stored.externalAttachmentId)
     if (fresh?.url) {
       assertDeclaredFileSize(fresh.file_size, budget)
+      fileUrl = fresh.url
+      contentType = fresh.file_content_type || contentType
+      fileName = fresh.file_name || fileName
+    }
+  }
+
+  // A receipt stored at Qonto without a transaction (an expense line's receipt
+  // sent as a supplier invoice, lib/receipts/offload-to-qonto.service.ts):
+  // GET /v2/attachments/{id} gives a fresh signed URL.
+  if (!uuid && stored.externalAttachmentId && providerData?.storedAt === 'qonto_supplier_invoice') {
+    const { login, secretKey } = await getQontoCredentials(companyId)
+    const fresh = await new QontoInvoicing(login, secretKey).getAttachmentFile(stored.externalAttachmentId)
+    if (fresh) {
       fileUrl = fresh.url
       contentType = fresh.file_content_type || contentType
       fileName = fresh.file_name || fileName

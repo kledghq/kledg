@@ -23,6 +23,7 @@ import { COMPANY_NOT_FOUND_MESSAGE } from '@/lib/rbac/authorize'
 import { writeAuditLog } from '@/lib/audit'
 import type { CurrentUser } from '@/lib/session'
 import { companyWriteRefusal } from '@/lib/instance'
+import { companyReceiptObjects, discardObjects } from '@/lib/receipts/receipt-file-store'
 
 export const ARCHIVED_COMPANY_MESSAGE =
   "Cette société est archivée : elle est en lecture seule. Un administrateur de l'instance peut la restaurer depuis la page Sociétés."
@@ -57,7 +58,8 @@ export async function companyHasBooks(companyId: string, client: Pick<typeof pri
 const isBooksGuardError = (error: unknown) => error instanceof Error && error.message.includes('KLEDG_COMPANY_HAS_BOOKS')
 
 /**
- * Deletes an empty company and all its data (onDelete: Cascade). Refused
+ * Deletes an empty company and all its data (onDelete: Cascade), then the
+ * objects of its receipt files (lib/receipts/receipt-file-store.ts). Refused
  * (409) once the company holds books. Foreign keys to accounts, journals and
  * fiscal years are deferred to the end of the transaction (migration
  * 20261004100000), once the cascades are done.
@@ -66,10 +68,13 @@ export async function deleteCompany(id: string, actor: Pick<CurrentUser, 'id' | 
   const company = await prisma.company.findUnique({ where: { id }, select: { id: true, name: true, siren: true } })
   if (!company) throw new NotFoundError(COMPANY_NOT_FOUND_MESSAGE)
 
+  let objects: Awaited<ReturnType<typeof companyReceiptObjects>> = []
   try {
     await prisma.$transaction(async (tx) => {
       // Checked under the transaction; the database trigger closes the race with a concurrent validation.
       if (await companyHasBooks(id, tx)) throw new ConflictError(COMPANY_HAS_BOOKS_MESSAGE)
+      // The receipt files go with the company (cascade); their objects in storage are deleted after the commit.
+      objects = await companyReceiptObjects(id, tx)
       // createMany: no RETURNING (a row without company is not readable back under RLS).
       await tx.auditLog.createMany({
         data: {
@@ -87,6 +92,7 @@ export async function deleteCompany(id: string, actor: Pick<CurrentUser, 'id' | 
     if (isBooksGuardError(error)) throw new ConflictError(COMPANY_HAS_BOOKS_MESSAGE)
     throw error
   }
+  await discardObjects(objects)
 
   return { success: true, message: 'Société supprimée.' }
 }

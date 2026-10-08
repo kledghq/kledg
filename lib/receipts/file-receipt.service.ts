@@ -38,6 +38,7 @@ import { calendarDay, centsField, optionalText } from '@/lib/api/zod-fields'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { limitBankCalls } from '@/lib/banking/guard'
 import { uploadQontoReceipt } from '@/lib/integrations/providers/qonto/sync-attachments'
+import { deleteUnreferencedReceiptFiles, readReceiptFile } from './receipt-file-store'
 import { detectSupplier, indexTiers } from './detect-supplier'
 import { EXPENSE_CATEGORIES, EXPENSE_LINE_CATEGORIES, type ExpenseCategory } from '@/lib/expense-reports/categories'
 import { matchCategoryRule } from '@/lib/expense-reports/category-rules'
@@ -406,10 +407,12 @@ export async function attachStagedReceipt(companyId: string, id: string, actor: 
     return done(assertAttachable(now, transactionId))
   }
   try {
-    const file = await prisma.receiptFile.findFirst({ where: { id: row.fileId!, companyId }, select: { content: true } })
-    if (!file) throw new ConflictError('Le fichier de ce justificatif n’est plus conservé par Kledg : déposez-le de nouveau.')
+    const file = await readReceiptFile(companyId, row.fileId!).catch((error: unknown) => {
+      if (error instanceof NotFoundError) throw new ConflictError('Le fichier de ce justificatif n’est plus conservé par Kledg : déposez-le de nouveau.')
+      throw error
+    })
     await limitBankCalls(companyId)
-    const body = new File([new Uint8Array(file.content) as BlobPart], row.fileName, { type: row.contentType })
+    const body = new File([new Uint8Array(file.bytes) as BlobPart], row.fileName, { type: row.contentType })
     await uploadQontoReceipt(companyId, transactionId, body, idempotencyKey(id, transactionId))
   } catch (error) {
     await prisma.stagedReceipt.updateMany({ where: { id, companyId, status: 'attached', bankTransactionId: transactionId }, data: { status: 'staged', bankTransactionId: null } })
@@ -417,7 +420,7 @@ export async function attachStagedReceipt(companyId: string, id: string, actor: 
   }
   // The receipt lives at Qonto now (synchronized back as an attachment): Kledg drops its copy.
   await prisma.stagedReceipt.update({ where: { id }, data: { fileId: null } })
-  await prisma.receiptFile.deleteMany({ where: { companyId, id: row.fileId!, stagedReceipts: { none: {} }, attachments: { none: {} } } })
+  await deleteUnreferencedReceiptFiles(companyId, row.fileId!)
   await writeAuditLog('info', 'Receipt sent to the bank', { action: 'RECEIPT_ATTACHED', companyId, metadata: { stagedReceiptId: id, transactionId, destination, source: options.source ?? 'web' } })
   return done(false)
 }

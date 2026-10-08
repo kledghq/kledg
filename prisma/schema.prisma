@@ -3075,14 +3075,19 @@ model CompanyInvitation {
 /// (check constraints). Kept while a staged receipt or an attachment
 /// refers to it.
 model ReceiptFile {
-  id          String   @id @default(cuid())
-  companyId   String
+  id            String   @id @default(cuid())
+  companyId     String
   /// SHA-256 of the content, hex.
-  sha256      String
-  contentType String
-  size        Int
-  content     Bytes
-  createdAt   DateTime @default(now())
+  sha256        String
+  contentType   String
+  size          Int
+  /// The bytes when storageDriver is postgres; null when they live in object storage (lib/storage).
+  content       Bytes?
+  /// Where the bytes are: postgres (content), blob, s3 or fs (storageKey).
+  storageDriver String   @default("postgres")
+  /// Object key, receipts/<companyId>/<random>; null for postgres.
+  storageKey    String?  @unique
+  createdAt     DateTime @default(now())
 
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   attachments    Attachment[]

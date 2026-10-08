@@ -9,8 +9,11 @@
  * - the same content is staged once per company (SHA-256): sending it again
  *   returns the receipt already staged, attached or turned into an expense
  *   line, so a retried call files nothing twice;
- * - the bytes go to receipt_files (company table, row level security), the
- *   receipt to staged_receipts with its uploader;
+ * - the bytes go to the instance's storage (lib/receipts/receipt-file-store.ts:
+ *   a private object under the company's prefix, or receipt_files.content
+ *   when no object storage is configured), their row to receipt_files
+ *   (company table, row level security), the receipt to staged_receipts
+ *   with its uploader;
  * - a member sees the receipts they staged; a member who reconciles the
  *   bank or validates expense reports sees every receipt of the company
  *   (StagedReceiptActor). Another member's receipt is "introuvable";
@@ -30,6 +33,8 @@ import { enforceRateLimit } from '@/lib/rate-limit'
 import { calendarDayOf } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
 import { RECEIPT_FILE_MESSAGES, RECEIPT_MAX_BYTES, checkReceiptFile, receiptFileName, type ReceiptContentType } from './file-type'
+import { configuredStorageDriver } from '@/lib/storage'
+import { deleteUnreferencedReceiptFiles, discardObject, putReceiptObject, receiptFileData, type PendingObject } from './receipt-file-store'
 
 export const STAGED_RECEIPT_TTL_DAYS = 30
 const DAY_MS = 86_400_000
@@ -160,12 +165,61 @@ export function companyOfStagedReceipt(id: string): Promise<{ companyId: string 
 /**
  * Deletes the company's unclaimed receipts past their expiry, then the
  * stored files nothing refers to any more (no staged receipt, no
- * attachment): the file of an attached or expensed receipt stays.
+ * attachment) with their objects: the file of an attached or expensed
+ * receipt stays.
  */
 export async function purgeExpiredReceipts(companyId: string, now: Date = new Date()): Promise<{ receipts: number; files: number }> {
   const receipts = await prisma.stagedReceipt.deleteMany({ where: { companyId, status: { in: ['staged', 'discarded'] }, expiresAt: { lt: now } } })
-  const files = await prisma.receiptFile.deleteMany({ where: { companyId, stagedReceipts: { none: {} }, attachments: { none: {} } } })
-  return { receipts: receipts.count, files: files.count }
+  const files = await deleteUnreferencedReceiptFiles(companyId)
+  return { receipts: receipts.count, files }
+}
+
+const NEEDS_OBJECT = 'needs-object' as const
+type StageOutcome = { row: StagedReceiptRow; duplicate: boolean; usedObject: boolean } | typeof NEEDS_OBJECT
+
+/**
+ * The rows of a staging, under the company's lock for this content: the
+ * receipt already staged (duplicate), or a new or restarted one on the
+ * company's file of this content, created with `pending` (its object, or
+ * the bytes for postgres) when there is none. NEEDS_OBJECT when the file
+ * must be created but no object was written for it.
+ */
+async function stageInTransaction(
+  companyId: string,
+  actor: StagedReceiptActor,
+  input: StageReceiptInput,
+  meta: { contentType: ReceiptContentType; sha256: string; fileName: string; expiresAt: Date; size: number },
+  pending: PendingObject | null,
+): Promise<StageOutcome> {
+  const { contentType, sha256, fileName, expiresAt, size } = meta
+  return prisma.$transaction(async (tx) => {
+    // One staging of a content at a time in a company: a retried call waits, then finds the first one.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:staged-receipt:${companyId}:${sha256}`}))`
+    const existing = await tx.stagedReceipt.findUnique({ where: { companyId_sha256: { companyId, sha256 } }, select: STAGED_SELECT })
+    if (existing && existing.status !== 'discarded') {
+      if (!actor.seesAll && existing.uploadedById !== actor.userId) {
+        throw new ConflictError('Ce justificatif a déjà été déposé par un autre membre de la société.')
+      }
+      return { row: existing, duplicate: true, usedObject: false }
+    }
+    let file = await tx.receiptFile.findUnique({ where: { companyId_sha256: { companyId, sha256 } }, select: { id: true } })
+    let usedObject = false
+    if (!file) {
+      if (!pending && configuredStorageDriver() !== 'postgres') return NEEDS_OBJECT
+      file = await tx.receiptFile.create({ data: { companyId, sha256, contentType, size, ...receiptFileData(input.bytes, pending) }, select: { id: true } })
+      usedObject = pending !== null
+    }
+    const data = { fileId: file.id, fileName, contentType, size, source: input.source, status: 'staged', uploadedById: actor.userId, expiresAt }
+    const row = existing
+      ? // A discarded receipt sent again starts over, without the fields read before.
+        await tx.stagedReceipt.update({
+          where: { id: existing.id },
+          data: { ...data, amount: null, currency: null, receiptDate: null, merchantName: null, vatLines: Prisma.DbNull, paymentHint: null, bankTransactionId: null, attachmentId: null, expenseReportId: null, expenseLineId: null },
+          select: STAGED_SELECT,
+        })
+      : await tx.stagedReceipt.create({ data: { companyId, sha256, ...data }, select: STAGED_SELECT })
+    return { row, duplicate: false, usedObject }
+  })
 }
 
 export interface StageReceiptInput {
@@ -194,33 +248,24 @@ export async function stageReceipt(
   const expiresAt = new Date(now.getTime() + STAGED_RECEIPT_TTL_DAYS * DAY_MS)
   await purgeExpiredReceipts(companyId, now)
 
-  const outcome = await prisma.$transaction(async (tx) => {
-    // One staging of a content at a time in a company: a retried call waits, then finds the first one.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:staged-receipt:${companyId}:${sha256}`}))`
-    const existing = await tx.stagedReceipt.findUnique({ where: { companyId_sha256: { companyId, sha256 } }, select: STAGED_SELECT })
-    if (existing && existing.status !== 'discarded') {
-      if (!actor.seesAll && existing.uploadedById !== actor.userId) {
-        throw new ConflictError('Ce justificatif a déjà été déposé par un autre membre de la société.')
-      }
-      return { row: existing, duplicate: true }
+  // The object is written before its row, outside the transaction (a network
+  // call never holds the lock), only when the company has no file of this
+  // content yet; a second pass writes it if that file vanished meanwhile.
+  const meta = { contentType, sha256, fileName, expiresAt, size: input.bytes.length }
+  let pending: PendingObject | null = null
+  let outcome: StageOutcome | null = null
+  try {
+    if ((await prisma.receiptFile.count({ where: { companyId, sha256 } })) === 0) pending = await putReceiptObject(companyId, input.bytes, contentType, sha256)
+    outcome = await stageInTransaction(companyId, actor, input, meta, pending)
+    if (outcome === NEEDS_OBJECT) {
+      pending = await putReceiptObject(companyId, input.bytes, contentType, sha256)
+      outcome = await stageInTransaction(companyId, actor, input, meta, pending)
     }
-    const file = await tx.receiptFile.upsert({
-      where: { companyId_sha256: { companyId, sha256 } },
-      create: { companyId, sha256, contentType, size: input.bytes.length, content: Buffer.from(input.bytes) },
-      update: {},
-      select: { id: true },
-    })
-    const data = { fileId: file.id, fileName, contentType, size: input.bytes.length, source: input.source, status: 'staged', uploadedById: actor.userId, expiresAt }
-    const row = existing
-      ? // A discarded receipt sent again starts over, without the fields read before.
-        await tx.stagedReceipt.update({
-          where: { id: existing.id },
-          data: { ...data, amount: null, currency: null, receiptDate: null, merchantName: null, vatLines: Prisma.DbNull, paymentHint: null, bankTransactionId: null, attachmentId: null, expenseReportId: null, expenseLineId: null },
-          select: STAGED_SELECT,
-        })
-      : await tx.stagedReceipt.create({ data: { companyId, sha256, ...data }, select: STAGED_SELECT })
-    return { row, duplicate: false }
-  })
+  } finally {
+    // Not used (the file existed, another call wrote it first, or the transaction failed): the object goes.
+    if (pending && !(outcome && outcome !== NEEDS_OBJECT && outcome.usedObject)) await discardObject(pending)
+  }
+  if (!outcome || outcome === NEEDS_OBJECT) throw new ConflictError('Le justificatif n’a pas pu être enregistré : déposez-le de nouveau.')
 
   if (!outcome.duplicate) {
     await writeAuditLog('info', 'Receipt staged', {
@@ -250,7 +295,7 @@ export async function discardStagedReceipt(companyId: string, id: string, actor:
   if (row.status !== 'staged') throw new ConflictError('Ce justificatif est déjà classé : il ne peut plus être abandonné.')
   const updated = await prisma.stagedReceipt.updateMany({ where: { id, companyId, status: 'staged' }, data: { status: 'discarded', fileId: null } })
   if (updated.count === 0) throw new ConflictError('Ce justificatif vient d’être classé : il ne peut plus être abandonné.')
-  await prisma.receiptFile.deleteMany({ where: { companyId, stagedReceipts: { none: {} }, attachments: { none: {} } } })
+  await deleteUnreferencedReceiptFiles(companyId)
   await writeAuditLog('info', 'Staged receipt discarded', { action: 'RECEIPT_DISCARDED', companyId, metadata: { stagedReceiptId: id } })
   return stagedReceiptView(await findStagedReceipt(companyId, id, actor))
 }
