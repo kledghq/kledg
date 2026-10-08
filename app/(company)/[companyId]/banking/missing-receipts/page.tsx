@@ -23,6 +23,7 @@ import { plural } from '@/lib/utils/plural'
 import type { MissingReceipts, MissingReceipt } from '@/lib/banking/missing-receipts.service'
 import type { AiPromptTarget } from '@/lib/ai-assist/prompts'
 import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
+import { ReceiptDropZone } from '@/components/features/receipts/receipt-drop-zone'
 
 type Side = 'debit' | 'credit' | 'all'
 
@@ -185,7 +186,7 @@ export default function MissingReceiptsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Justificatifs"
-        description="Les opérations bancaires sans pièce justificative. Chaque écriture s'appuie sur une pièce, à conserver dix ans (Code de commerce, art. L123-22)&nbsp;: déposez-la dans votre banque, puis synchronisez."
+        description="Les opérations bancaires sans pièce justificative. Chaque écriture s'appuie sur une pièce, à conserver dix ans (Code de commerce, art. L123-22)&nbsp;: déposez-la ci-dessous, ou dans votre banque puis synchronisez."
         actions={
           can({ banking: ['reconcile'] }) ? (
             <Button variant="outline" onClick={syncReceipts} disabled={syncing} loading={syncing}>
@@ -195,6 +196,8 @@ export default function MissingReceiptsPage() {
           ) : null
         }
       />
+
+      <ReceiptDropZone companyId={companyId} canAttach={can({ banking: ['reconcile'] })} onAttached={() => setVersion((n) => n + 1)} />
 
       <Card>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

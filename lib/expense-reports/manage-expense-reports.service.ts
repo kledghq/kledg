@@ -625,6 +625,54 @@ export async function updateExpenseReport(companyId: string, id: string, input: 
   return getExpenseReport(companyId, id, actor)
 }
 
+/** A stored line as the body that recreates it (amounts in cents, its category kept). */
+function lineBodyOf(line: Prisma.ExpenseLineGetPayload<object>): ExpenseLineBody {
+  return {
+    kind: line.kind,
+    date: calendarDayOf(line.date) as string,
+    supplierName: line.supplierName,
+    label: line.label,
+    category: line.category as ExpenseCategory,
+    accountCode: line.accountCode,
+    amountInclTaxCents: cents(line.amountInclTax),
+    vatRateBp: line.vatRateBp,
+    vatCents: cents(line.vatAmount),
+    receiptKind: line.receiptKind,
+    receiptAttachmentId: line.receiptAttachmentId,
+    receiptReference: line.receiptReference,
+    vehicleType: line.vehicleType as ExpenseLineBody['vehicleType'],
+    fiscalPower: line.fiscalPower,
+    electric: line.electric,
+    distanceKm: line.distanceKm,
+    mealTaker: line.mealTaker as MealTaker | null,
+  }
+}
+
+/**
+ * Adds lines at the end of a report the actor may edit (a brouillon of
+ * their own, or one a validator edits), dated within its period: the
+ * existing lines are kept as they are and every amount is computed again,
+ * like an edit (receipts filed from a photo, lib/receipts).
+ */
+export async function appendExpenseLines(companyId: string, id: string, lines: ExpenseLineBody[], actor: ExpenseActor, options: { source?: string } = {}): Promise<ExpenseReportDetail> {
+  const number = await prisma.$transaction(async (tx) => {
+    const report = await lockExpenseReport(tx, companyId, id, actor)
+    assertEditable(report, actor)
+    const current = await tx.expenseReport.findUniqueOrThrow({ where: { id }, select: { periodStart: true, periodEnd: true, lines: { orderBy: { position: 'asc' } } } })
+    const input = {
+      periodStart: calendarDayOf(current.periodStart) as string,
+      periodEnd: calendarDayOf(current.periodEnd) as string,
+      lines: [...current.lines.map(lineBodyOf), ...lines],
+    }
+    const prepared = await prepareLines(tx, companyId, report.claimantId, id, input)
+    await tx.expenseLine.deleteMany({ where: { reportId: id } })
+    await tx.expenseReport.update({ where: { id }, data: { ...amountData(prepared.totals), lines: { create: prepared.lines } } })
+    return report.number
+  }, TX_OPTIONS)
+  await writeAuditLog('info', `Expense report lines added: ${number}`, { action: 'UPDATE_EXPENSE_REPORT', companyId, metadata: { reportId: id, added: lines.length, source: options.source ?? 'web' } })
+  return getExpenseReport(companyId, id, actor)
+}
+
 export async function deleteExpenseReport(companyId: string, id: string, actor: ExpenseActor): Promise<{ id: string }> {
   const number = await prisma.$transaction(async (tx) => {
     const report = await lockExpenseReport(tx, companyId, id, actor)

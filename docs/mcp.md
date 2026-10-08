@@ -120,7 +120,7 @@ Sur les objets où un assistant aide (une transaction à rapprocher, un brouillo
 - **Annotations** (MCP `ToolAnnotations`), toujours les quatre :
   - lecture : `readOnlyHint` vrai, `destructiveHint` faux, `idempotentHint` vrai, `openWorldHint` faux ;
   - écriture : `readOnlyHint` faux ; `destructiveHint` vrai quand l'appel remplace ou supprime quelque chose qui existe (les montants d'une ligne, une évaluation, un brouillon, une écriture validée) et faux quand il ne fait qu'ajouter ; `idempotentHint` vrai quand le même appel répété ne change rien de plus ;
-  - `openWorldHint` vrai seulement pour les outils qui appellent un tiers : une banque (`sync_bank`, `sync_bank_data`, `upload_receipt`, `import_qonto_invoices`, `get_qonto_statements`, `list_qonto_receipts` et `get_file`) ou l'annuaire des entreprises (`lookup_siren`).
+  - `openWorldHint` vrai seulement pour les outils qui appellent un tiers : une banque (`sync_bank`, `sync_bank_data`, `upload_receipt`, `file_receipt`, `import_qonto_invoices`, `get_qonto_statements`, `list_qonto_receipts` et `get_file`), les fichiers de ChatGPT (`stage_receipt`) ou l'annuaire des entreprises (`lookup_siren`).
 
   Un test (`lib/mcp/__tests__/tool-metadata.test.ts`) vérifie titre, annotations, description et convention de montants de chaque outil, à chaque niveau d'accès.
 - **Fichiers** : `export_report` et `get_file` renvoient le fichier dans le résultat de l'outil, en ressource intégrée MCP (`type: "resource"`, `blob` en base64, `mimeType`, nom du fichier dans `_meta.fileName`), après un bloc texte JSON (nom, type, taille). Le fichier est produit ou lu par le même service que la route de téléchargement, après les mêmes contrôles. Kledg ne crée jamais de lien de téléchargement pour un assistant, ni lien public ni jeton dans une URL : l'`uri` (`kledg://...`) nomme le fichier sans pouvoir être ouverte, et les liens signés de Qonto ne sont jamais renvoyés. Au-delà de 5 Mo, l'outil refuse en français et l'utilisateur télécharge le fichier dans Kledg (`lib/mcp/file-result.ts`).
@@ -250,8 +250,11 @@ Ces outils préparent du travail qu'une personne vérifie dans Kledg. Ils passen
 | `record_tax_filing` | Enregistrer le dépôt d'une déclaration de TVA ou d'impôt sur les sociétés (date, montants), ou retirer cet enregistrement ; ne dépose ni ne paie | `entries:create` | Oui | Oui |
 | `save_depreciation_record` | Enregistrer l'amortissement d'une période (un enregistrement, pas une écriture) ou le lier à une écriture | `entries:create` (enregistrer ; `entries:update` pour remplacer), `entries:update` (lier) | Oui | Oui |
 | `prepare_opening_balances` | Soldes d'ouverture du premier exercice en **brouillon** au journal AN | `entries:create` | Non | Non |
+| `capture_receipt` | Ouvrir la vue de dépôt d'un justificatif (photo ou fichier), préremplie avec ce que l'assistant a lu sur la photo ; n'écrit rien | `expenses:submit` | Non | Oui |
+| `stage_receipt` | Déposer un justificatif (vue de dépôt, fichier joint dans ChatGPT par `openai/fileParams`, ou base64), une fois par contenu ; avec les champs lus, cherche aussi la transaction | `expenses:submit` | Non | Oui |
+| `file_receipt` | Classer un justificatif déposé : `match` (transaction trouvée, candidates ou aucune), `attach` (rattacher à la transaction : **toujours approuvé dans Kledg** à ce niveau), `expense` (ligne de note de frais en **brouillon**, après la réponse de l'utilisateur), `discard` | `banking:read`, `banking:reconcile` pour rattacher, `expenses:submit` pour la note de frais | Non | Oui |
 
-À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
+À ce niveau, rien de ce que crée un assistant n'est validé automatiquement : les écritures apparaissent en brouillon dans Kledg et doivent être validées par une personne. Les outils de justificatifs (`capture_receipt`, `stage_receipt`, `file_receipt`) sont de ce niveau mais passent par `registerFullControlTool` avec `level: 'write'` : mêmes contrôles d'accès que les brouillons, et le rattachement d'un justificatif à une transaction (envoyé à Qonto, ou compté comme fourni) attend l'approbation de l'utilisateur dans Kledg, comme une action à fort impact en mode validation ; avec le contrôle total, il suit le mode d'exécution ([justificatifs photographiés](justificatifs-photo.md)). `create_draft_expense_report` demandait auparavant le contrôle total : une note en brouillon ne compte nulle part tant qu'elle n'est ni soumise, ni validée, ni comptabilisée.
 
 ### Contrôle total (`kledg:admin`)
 
@@ -367,7 +370,7 @@ Chaque appel d'un outil de brouillons (sauf un aperçu `dryRun`) écrit `MCP_WRI
 
 ### Vues interactives
 
-Dans Claude et ChatGPT, les états financiers (`get_balance_sheet`, `get_income_statement`, `get_trial_balance`), les flux et la trésorerie (`get_tiers_flows`, `get_group_view`, `get_group_treasury`), les listes à traiter (`list_entries`, `list_bank_transactions`, `list_missing_receipts`), les factures et notes de frais (`get_invoice`, `get_expense_report`) et l'organigramme du groupe (`get_group_structure`) s'affichent en tableau, graphique ou fiche dans la conversation (extension MCP Apps). Leurs boutons passent par les mêmes outils : droits, approbation dans Kledg et journal d'audit inchangés. Les clients en texte seul reçoivent la même réponse qu'avant. Fonctionnement et sécurité : [mcp-views.md](mcp-views.md).
+Dans Claude et ChatGPT, les états financiers (`get_balance_sheet`, `get_income_statement`, `get_trial_balance`), les flux et la trésorerie (`get_tiers_flows`, `get_group_view`, `get_group_treasury`), les listes à traiter (`list_entries`, `list_bank_transactions`, `list_missing_receipts`), les factures et notes de frais (`get_invoice`, `get_expense_report`) et l'organigramme du groupe (`get_group_structure`) s'affichent en tableau, graphique ou fiche dans la conversation (extension MCP Apps), et la vue de dépôt d'un justificatif photographié (`capture_receipt`, `stage_receipt`, `file_receipt`) montre la transaction trouvée ou la note de frais proposée. Leurs boutons passent par les mêmes outils : droits, approbation dans Kledg et journal d'audit inchangés. Les clients en texte seul reçoivent la même réponse qu'avant. Fonctionnement et sécurité : [mcp-views.md](mcp-views.md).
 
 ### Ce que le serveur ne fait pas
 
@@ -436,9 +439,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 231 | 190 | 41 |
-| Lectures (GET) | 183 | 155 | 28 |
-| Total | 414 | 345 | 69 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 236 | 195 | 41 |
+| Lectures (GET) | 184 | 155 | 29 |
+| Total | 420 | 350 | 70 |
 
 ### Exclusions
 
@@ -456,7 +459,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
-| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 10 (4) |
+| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 11 (4) |
 
 ### Table des routes
 
@@ -822,6 +825,12 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/reports/journal` | reports:read | `get_ledger_report` (L) |
 | `GET /api/reports/tiers-flows` | reports:read | `get_tiers_flows` (L) |
 | `GET /api/reports/trial-balance` | reports:read | `get_trial_balance` (L) |
+| `GET /api/receipts/staged` | expenses:submit | Exclu : aides de l'interface |
+| `POST /api/receipts/staged` | expenses:submit | `stage_receipt` (B) |
+| `DELETE /api/receipts/staged/[id]` | expenses:submit | `file_receipt` (B) ; Action discard. |
+| `POST /api/receipts/staged/[id]/attach` | banking:reconcile | `file_receipt` (B) ; Action attach, à fort impact : approuvée dans Kledg sans le contrôle total. |
+| `POST /api/receipts/staged/[id]/expense` | expenses:submit | `file_receipt` (B) ; Action expense, note de frais en brouillon. |
+| `POST /api/receipts/staged/[id]/match` | banking:read | `file_receipt` (B) ; Action match. |
 | `GET /api/rule-templates` | banking:read | `list_rule_templates` (L) |
 | `GET /api/rule-templates/[id]` | banking:read | `list_rule_templates` (L) |
 | `POST /api/rule-templates/[id]/accounts` | ledger:manage | `add_rule_from_template` (CT) ; Option createMissingAccounts de l'outil. |

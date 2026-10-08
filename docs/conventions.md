@@ -353,6 +353,7 @@ it must hold for every code path, by the database (trigger in a migration).
   | GitHub (updates) | `updates-read`, `updates-write` | administrator |
   | SIREN directory | `siren-lookup` | administrator |
   | Uploads parsed on the server (FEC, CSV, Excel, statements) | `import` | user |
+  | Receipts staged from an assistant or the Justificatifs page | `receipt-upload` | user |
   | Generated documents (FEC, PDF, Excel) | `export` | user |
   | MCP full control | `mcp-full-control` | user |
   | Approval of an action prepared by an assistant | `ai-action-approval` | user |

@@ -49,6 +49,7 @@ const TOOL_LABELS: Record<string, string> = {
   archive_company: 'Archiver une société',
   restore_company: 'Restaurer une société',
   upload_receipt: 'Envoyer un justificatif à Qonto',
+  file_receipt: 'Rattacher un justificatif à une transaction',
   bulk_reconcile: 'Rapprocher des transactions',
   sync_bank_data: "Actualiser et appliquer les règles d'affectation",
   create_rule: "Créer une règle d'affectation automatique",

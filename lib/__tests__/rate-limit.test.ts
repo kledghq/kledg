@@ -111,6 +111,8 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/qonto/test-connection/route.ts': /limitBankCalls\(/,
   'app/api/qonto/verify/route.ts': /guardBankConnect\(/,
   'lib/invoices/import-qonto-invoices.service.ts': /limitBankCalls\(/,
+  'lib/receipts/stage-receipt.service.ts': /enforceRateLimit\('receipt-upload'/,
+  'lib/receipts/file-receipt.service.ts': /limitBankCalls\(/,
   'lib/invoices/read-invoice-attachment.service.ts': /limitBankCalls\(/,
   'lib/invoices/create-in-qonto.service.ts': /limitBankCalls\(/,
   'lib/simple/upload-receipt.service.ts': /limitBankCalls\(/,

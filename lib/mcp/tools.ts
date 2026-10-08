@@ -54,6 +54,7 @@ import { registerTrainingReadTools } from '@/lib/mcp/training-tools'
 import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
+import { registerReceiptTools } from '@/lib/mcp/receipts-tools'
 import { auditDraftWrite } from '@/lib/mcp/drafts/define'
 import { registerLedgerReadTools } from '@/lib/mcp/ledger-read-tools'
 import { registerCompanySettingsTools } from '@/lib/mcp/company-settings-tools'
@@ -817,6 +818,9 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   // Draft-level tools of the recent features (budgets, subscriptions, year-end
   // work, expense reports, approval of the accounts): lib/mcp/drafts.
   registerDraftTools(server, access, guard)
+
+  // Receipts photographed in the assistant (docs/justificatifs-photo.md): capture view, staging, filing.
+  registerReceiptTools(server, access, guard)
 
   server.registerTool(
     'create_draft_entry',

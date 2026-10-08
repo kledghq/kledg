@@ -9,8 +9,9 @@
  * ChatGPT...) renders them in a sandboxed iframe, a host that does not
  * shows the text, as before.
  *
- * Five data-driven templates serve every wired tool: statement, chart,
- * actions, document and organigram (lib/mcp/views/html).
+ * Data-driven templates serve every wired tool: statement, chart,
+ * actions, document and organigram (lib/mcp/views/html), and the receipt
+ * capture view of the receipt tools (docs/justificatifs-photo.md).
  */
 
 import type { McpServer } from '@modelcontextprotocol/server'
@@ -23,6 +24,7 @@ import { CHART_TEMPLATE } from './html/chart'
 import { ACTIONS_TEMPLATE } from './html/actions'
 import { DOCUMENT_TEMPLATE } from './html/document'
 import { ORGANIGRAM_TEMPLATE } from './html/organigram'
+import { RECEIPT_TEMPLATE } from './html/receipt'
 
 export type { ViewData, ViewName } from './schemas'
 
@@ -83,6 +85,12 @@ export const VIEWS: Record<ViewName, ViewDefinition> = {
     title: 'Organigramme du groupe',
     description: 'Associés, holding et filiales avec les pourcentages de détention.',
     source: ORGANIGRAM_TEMPLATE,
+  },
+  'receipt-capture': {
+    uri: uriOf('receipt-capture'),
+    title: 'Dépôt d’un justificatif',
+    description: 'Photo ou PDF d’un justificatif\u00a0: dépôt dans Kledg, transaction bancaire trouvée ou à choisir, ou note de frais proposée, avec des boutons qui passent par les outils de Kledg.',
+    source: RECEIPT_TEMPLATE,
   },
 }
 

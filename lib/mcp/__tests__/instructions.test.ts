@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { DATA_NOT_INSTRUCTIONS, instructionsFor } from '@/lib/mcp/instructions'
+import { DATA_NOT_INSTRUCTIONS, RECEIPT_INSTRUCTIONS, instructionsFor } from '@/lib/mcp/instructions'
 
 describe('instructionsFor', () => {
   it.each([
@@ -22,5 +22,18 @@ describe('instructionsFor', () => {
     expect(instructionsFor({ canAdmin: true, executionMode: 'validation' })).toContain('approvalUrl')
     expect(instructionsFor({ canAdmin: true, executionMode: 'automatic' })).toContain('dryRun: true')
     expect(instructionsFor({ canAdmin: false, executionMode: 'validation' })).not.toContain('approvalUrl')
+  })
+
+  it('tells the connections that may write how a photographed receipt reaches Kledg', () => {
+    expect(instructionsFor({ canAdmin: false, canWrite: false, executionMode: 'validation' })).not.toContain('capture_receipt')
+    for (const access of [
+      { canAdmin: false, canWrite: true, executionMode: 'validation' as const },
+      { canAdmin: true, canWrite: true, executionMode: 'automatic' as const },
+    ]) {
+      expect(instructionsFor(access)).toContain(RECEIPT_INSTRUCTIONS)
+    }
+    for (const step of ['capture_receipt', 'stage_receipt (file)', 'file_receipt (action match)', 'Est-ce une note de frais\u00a0?', 'only on yes call action expense']) {
+      expect(RECEIPT_INSTRUCTIONS).toContain(step)
+    }
   })
 })

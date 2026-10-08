@@ -28,7 +28,8 @@ import type { McpAccess } from '@/lib/mcp/company-access'
 import { VIEW_MIME_TYPE, VIEWS, VIEW_RESOURCE_META, registerKledgViews, viewHtml, viewMeta, withView, type ViewData, type ViewName } from '@/lib/mcp/views'
 import { VIEW_SCHEMAS } from '@/lib/mcp/views/schemas'
 import { DARK_TOKENS, LIGHT_TOKENS } from '@/lib/mcp/views/html/runtime'
-import { viewSamples, SAMPLE_ENTRIES, SAMPLE_MATCHES, SAMPLE_TRANSACTIONS } from './view-samples'
+import { viewSamples, SAMPLE_ENTRIES, SAMPLE_MATCHES, SAMPLE_RECEIPT_MATCH, SAMPLE_TRANSACTIONS } from './view-samples'
+import { receiptApprovalView, receiptCaptureForm, receiptDoneView, receiptMatchView } from '@/lib/mcp/views/receipt'
 import { bankTransactionsList, entriesList, missingReceiptsList } from '@/lib/mcp/views/builders'
 import { parseViewData } from '@/lib/mcp/views'
 
@@ -48,6 +49,9 @@ const WIRED: Record<string, ViewName> = {
   get_invoice: 'document',
   get_expense_report: 'document',
   get_group_structure: 'organigram',
+  capture_receipt: 'receipt-capture',
+  stage_receipt: 'receipt-capture',
+  file_receipt: 'receipt-capture',
 }
 
 function scriptsOf(html: string): string[] {
@@ -522,9 +526,12 @@ describe('MCP view wiring', () => {
       const metas = new Map<string, Record<string, unknown> | undefined>()
       registerKledgTools({ registerTool: (name: string, config: { _meta?: Record<string, unknown> }) => metas.set(name, config._meta) } as never, { user, caller, ...level } as McpAccess)
       const declared = [...metas].filter(([, meta]) => meta && (meta.ui as { resourceUri?: string } | undefined)?.resourceUri)
-      expect(Object.fromEntries(declared.map(([name, meta]) => [name, uris.get((meta!.ui as { resourceUri: string }).resourceUri)]))).toEqual(WIRED)
+      // The receipt tools are draft-level: a read-only connection does not have them.
+      const expected = level.canWrite ? WIRED : Object.fromEntries(Object.entries(WIRED).filter(([, view]) => view !== 'receipt-capture'))
+      expect(Object.fromEntries(declared.map(([name, meta]) => [name, uris.get((meta!.ui as { resourceUri: string }).resourceUri)]))).toEqual(expected)
       for (const [name, meta] of declared) {
-        expect(meta, name).toEqual(viewMeta(WIRED[name]))
+        // stage_receipt also declares the ChatGPT file params
+        expect(meta, name).toEqual(name === 'stage_receipt' ? { ...viewMeta(WIRED[name]), 'openai/fileParams': ['file'] } : viewMeta(WIRED[name]))
         expect(meta!['openai/outputTemplate'], name).toBe(VIEWS[WIRED[name]].uri)
       }
     }
@@ -544,7 +551,7 @@ describe('MCP view wiring', () => {
     registerKledgViews({ registerResource: (name: string, uri: string, config: Record<string, unknown>, read: never) => resources.push({ name, uri, config, read }) } as never)
     expect(resources.map((r) => r.uri).sort()).toEqual(NAMES.map((n) => VIEWS[n].uri).sort())
     for (const resource of resources) {
-      expect(resource.uri).toMatch(/^ui:\/\/kledg\/[a-z]+\.v\d+\.html$/)
+      expect(resource.uri).toMatch(/^ui:\/\/kledg\/[a-z-]+\.v\d+\.html$/)
       expect(resource.config.mimeType).toBe(VIEW_MIME_TYPE)
       const { contents } = await resource.read(new URL(resource.uri))
       expect(contents).toHaveLength(1)
@@ -631,5 +638,124 @@ describe('requests of the message buttons', () => {
       expect(line, line).not.toMatch(/\$\{\s*[\w.]*\.name\s*\}/)
       expect(line, line).not.toMatch(/\$\{\s*(t\.id|companyId)\s*\}/)
     }
+  })
+})
+
+describe('MCP receipt capture view', () => {
+  const companyId = 'cmp_atelier'
+  const ctxOf = (executionMode: 'validation' | 'automatic') => ({ executionMode, canAttach: true, canExpense: true })
+  const form = (executionMode: 'validation' | 'automatic' = 'validation') => receiptCaptureForm(companyId, ctxOf(executionMode), { amount: 43.5, date: '2026-10-03', merchant: 'Boulangerie du Marché' })
+  const asResult = (data: ViewData) => ({ content: [{ type: 'text', text: '{}' }], structuredContent: data })
+  const JPEG = [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]
+  const wait = () => new Promise((resolve) => setTimeout(resolve, 30))
+
+  function choose(view: ReturnType<typeof mount>, bytes: number[], name: string, type: string) {
+    const input = view.document.getElementById('k-pick') as HTMLInputElement
+    const file = new view.window.File([new Uint8Array(bytes)], name, { type })
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
+    input.dispatchEvent(new view.window.Event('change'))
+  }
+
+  it('sends the photo through stage_receipt with the fields, to the host origin only (KLEDG-R3-MCP-12)', async () => {
+    const view = mount('receipt-capture')
+    await view.flush()
+    expect(view.outbox.map((m, i) => [m.method, view.targets[i]])).toEqual([['ui/initialize', '*']])
+    await view.open(form())
+    expect(view.document.getElementById('k-camera')?.getAttribute('capture')).toBe('environment')
+    expect(view.document.getElementById('k-camera')?.getAttribute('accept')).toBe('image/*,application/pdf')
+    choose(view, JPEG, 'ticket.jpg', 'image/jpeg')
+    button(view.document, 'Envoyer à Kledg').click()
+    await wait()
+    const [stage] = view.requests('tools/call')
+    expect(stage.params).toEqual({
+      name: 'stage_receipt',
+      arguments: { companyId, amount: 43.5, date: '2026-10-03', currency: 'EUR', merchant: 'Boulangerie du Marché', contentBase64: Buffer.from(JPEG).toString('base64'), fileName: 'ticket.jpg', from: 'capture_view' },
+    })
+    expect(view.targets.slice(1).every((target) => target === HOST_ORIGIN)).toBe(true)
+
+    // A result from another origin is ignored; the host's answer is drawn.
+    await view.deliver({ jsonrpc: '2.0', id: stage.id, result: asResult(receiptDoneView(companyId, ctxOf('validation'), { kind: 'discarded', receipt: null, message: 'piège' })) }, 'https://attacker.example')
+    expect(view.text()).not.toContain('piège')
+    await view.reply(stage, asResult(receiptMatchView(companyId, ctxOf('validation'), SAMPLE_RECEIPT_MATCH)))
+    expect(view.text()).toContain('Transactions possibles')
+    const [context] = view.requests('ui/update-model-context')
+    expect(JSON.stringify(context.params)).toContain('stagedReceiptId sr_1')
+    expect(view.errors).toEqual([])
+  })
+
+  it('asks for the photo and the amount before sending, and refuses an HEIC it cannot convert', async () => {
+    const view = mount('receipt-capture')
+    await view.open(receiptCaptureForm(companyId, ctxOf('validation'), {}))
+    button(view.document, 'Envoyer à Kledg').click()
+    await view.flush()
+    expect(view.text()).toContain('Prenez la photo ou choisissez le fichier')
+    choose(view, JPEG, 'ticket.jpg', 'image/jpeg')
+    button(view.document, 'Envoyer à Kledg').click()
+    await view.flush()
+    expect(view.text()).toContain('Indiquez le montant TTC')
+    ;(view.document.getElementById('k-amount') as HTMLInputElement).value = '12,40'
+    ;(view.document.getElementById('k-date') as HTMLInputElement).value = '2026-10-03'
+    choose(view, [0, 0, 0, 0x18], 'IMG_0001.HEIC', 'image/heic')
+    button(view.document, 'Envoyer à Kledg').click()
+    await wait()
+    expect(view.text()).toContain('n’a pas pu être réduite dans cet assistant')
+    expect(view.requests('tools/call')).toHaveLength(0)
+  })
+
+  it('attaches after the approval in Kledg (validation mode): dry run, approval link, execution with the actionId', async () => {
+    const view = mount('receipt-capture')
+    await view.open(receiptMatchView(companyId, ctxOf('validation'), SAMPLE_RECEIPT_MATCH))
+    view.document.querySelectorAll<HTMLButtonElement>('button[data-action="Rattacher"]')[0].click()
+    await view.flush()
+    const [dry] = view.requests('tools/call')
+    expect(dry.params).toEqual({ name: 'file_receipt', arguments: { companyId, action: 'attach', stagedReceiptId: 'sr_1', transactionId: 't_31' } })
+    const candidate = SAMPLE_RECEIPT_MATCH.candidates[0]
+    const preview = { receipt: { id: 'sr_1', fileName: 'ticket-boulangerie.jpg', contentType: 'image/jpeg', size: 182_340 }, transaction: candidate, destination: 'qonto' as const, alreadyAttached: false, effect: 'Le justificatif sera envoyé à Qonto sur cette transaction.' }
+    await view.reply(dry, asResult(receiptApprovalView(companyId, ctxOf('validation'), preview, { actionId: 'act_9', approvalUrl: 'http://localhost:3000/settings/ai-actions?action=act_9' })))
+    expect(view.text()).toContain('L’assistant ne peut pas approuver')
+    button(view.document, 'Approuver dans Kledg').click()
+    await view.flush()
+    expect(view.requests('ui/open-link')[0].params).toEqual({ url: 'http://localhost:3000/settings/ai-actions?action=act_9' })
+    button(view.document, 'Exécuter après approbation').click()
+    await view.flush()
+    const run = view.requests('tools/call')[1]
+    expect(run.params).toEqual({ name: 'file_receipt', arguments: { companyId, action: 'attach', stagedReceiptId: 'sr_1', transactionId: 't_31', actionId: 'act_9' } })
+    await view.reply(run, asResult(receiptDoneView(companyId, ctxOf('validation'), { kind: 'attached', receipt: null, message: 'Justificatif envoyé à Qonto et rattaché à la transaction.' })))
+    expect(view.text()).toContain('Justificatif rattaché')
+    expect(view.errors).toEqual([])
+  })
+
+  it('previews then confirms in automatic mode', async () => {
+    const view = mount('receipt-capture')
+    await view.open(receiptMatchView(companyId, ctxOf('automatic'), SAMPLE_RECEIPT_MATCH))
+    view.document.querySelectorAll<HTMLButtonElement>('button[data-action="Rattacher"]')[1].click()
+    await view.flush()
+    const [dry] = view.requests('tools/call')
+    expect(dry.params).toEqual({ name: 'file_receipt', arguments: { companyId, action: 'attach', stagedReceiptId: 'sr_1', transactionId: 't_32', dryRun: true } })
+    const candidate = SAMPLE_RECEIPT_MATCH.candidates[1]
+    await view.reply(dry, asResult(receiptApprovalView(companyId, ctxOf('automatic'), { receipt: { id: 'sr_1', fileName: 'x.jpg', contentType: 'image/jpeg', size: 1 }, transaction: candidate, destination: 'kledg', alreadyAttached: false, effect: 'Kledg conservera le justificatif.' }, { actionId: null, approvalUrl: null })))
+    button(view.document, 'Confirmer : rattacher').click()
+    await view.flush()
+    expect(view.requests('tools/call')[1].params).toEqual({ name: 'file_receipt', arguments: { companyId, action: 'attach', stagedReceiptId: 'sr_1', transactionId: 't_32' } })
+  })
+
+  it('creates the expense report from the proposal, and shows the server error inline', async () => {
+    const view = mount('receipt-capture')
+    await view.open(receiptMatchView(companyId, ctxOf('validation'), { ...SAMPLE_RECEIPT_MATCH, outcome: 'none', candidates: [], reason: 'no_candidate' }))
+    expect(view.text()).toContain('Est-ce une note de frais ?')
+    button(view.document, 'Créer la note de frais').click()
+    await view.flush()
+    const [call] = view.requests('tools/call')
+    expect(call.params).toEqual({ name: 'file_receipt', arguments: { companyId, action: 'expense', stagedReceiptId: 'sr_1' } })
+    await view.reply(call, { isError: true, content: [{ type: 'text', text: 'Justificatif en USD : une note de frais est en euros.' }] })
+    expect(view.text()).toContain('une note de frais est en euros')
+    expect(view.text()).toContain('Créer la note de frais')
+  })
+
+  it('hides the attach button from a member who cannot reconcile', async () => {
+    const view = mount('receipt-capture')
+    await view.open(receiptMatchView(companyId, { executionMode: 'validation', canAttach: false, canExpense: true }, SAMPLE_RECEIPT_MATCH))
+    expect(view.document.querySelectorAll('button[data-action="Rattacher"]')).toHaveLength(0)
+    expect(view.text()).toContain('Rattachement réservé')
   })
 })
