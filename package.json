@@ -144,7 +144,8 @@
       "@babel/core": ">=7.29.6",
       "@humanfs/node": ">=0.16.8",
       "baseline-browser-mapping": ">=2.11.0",
-      "@vitest/mocker": "^4.1.11"
+      "@vitest/mocker": "^4.1.11",
+      "source-map-js": ">=1.2.2"
     },
     "onlyBuiltDependencies": [
       "@prisma/client",
