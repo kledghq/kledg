@@ -4,6 +4,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.4.1] - 2026-10-08
+
 ### Corrigé
 
 - Membres : quand la politique de l'instance refuse le retrait de membres, la page **Membres** affiche « Retirer » et « Quitter » désactivés avec son message, au lieu d'échouer au clic ; `manage_members` (action `remove`) est refusé dès l'essai à blanc, avant toute demande d'approbation. Les instances personnalisées n'ont plus à modifier ces fichiers.
