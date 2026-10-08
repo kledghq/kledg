@@ -378,14 +378,14 @@ describe.skipIf(!available)('rules library', () => {
       const key = await apiKey('admin')
       const added = await callTool(key, 'add_rule_from_template', { companyId: ids.aCompany, templateId: 'orange' })
       expect(added.ok, added.text).toBe(true)
-      expect(added.data).toMatchObject({ name: 'Orange (télécom)', entryLines: [expect.objectContaining({ accountCode: '6262' })] })
+      expect(added.data.result).toMatchObject({ name: 'Orange (télécom)', entryLines: [expect.objectContaining({ accountCode: '6262' })] })
       const twice = await callTool(key, 'add_rule_from_template', { companyId: ids.aCompany, templateId: 'orange' })
       expect(twice.ok).toBe(false)
       expect(twice.text).toContain('existe déjà')
 
       const copied = await callTool(key, 'copy_rules_from_company', { companyId: ids.aCompany, sourceCompanyId: ids.bCompany, ruleIds: [ids['b:rule:Abonnement Figma']], createMissingAccounts: true })
       expect(copied.ok, copied.text).toBe(true)
-      expect(copied.data.copied).toHaveLength(1)
+      expect(copied.data.result.copied).toHaveLength(1)
 
       // A connection granted company A only never reads B
       const onlyA = await apiKey('admin', { allCompanies: false, companyIds: [ids.aCompany] })

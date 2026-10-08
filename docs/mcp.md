@@ -23,7 +23,7 @@ Dans Kledg, les **Paramètres** du compte ont deux pages :
 - Les jetons d'accès sont des JWT de courte durée, renouvelés par un jeton de rafraîchissement (portée `offline_access`). À chaque requête, `/api/mcp` vérifie aussi que l'autorisation de l'utilisateur pour cet assistant existe toujours et quelles portées elle accorde : un jeton ne donne jamais plus que l'autorisation en cours.
 - L'assistant agit avec les droits de l'utilisateur qui l'a autorisé, société par société (mêmes rôles que l'interface), et seulement sur les sociétés choisies pour lui.
 - Une clé API agit avec les droits de son propriétaire, au niveau d'accès et sur les sociétés choisis pour elle.
-- Une clé API est limitée à 300 appels par minute. Une clé supprimée ou désactivée est refusée dès l'appel suivant ; sa date de dernière utilisation est mise à jour au plus une fois par minute.
+- Une clé API est limitée à 300 appels par minute, un assistant connecté par OAuth aussi (par utilisateur et par assistant ; au-delà, réponse 429 avec `Retry-After`). Les enregistrements de brouillons (`create_draft_entry` et les outils de brouillon) sont limités à 60 par minute et par utilisateur, et l'import d'un relevé (`import_statement`, aperçu compris) compte dans la limite des imports de l'interface (30 par 10 minutes). Une clé supprimée ou désactivée est refusée dès l'appel suivant ; sa date de dernière utilisation est mise à jour au plus une fois par minute.
 - Aucun niveau ne donne plus que vos rôles : le contrôle total permet seulement à l'assistant de faire ce que vous pouvez faire vous-même dans chaque société choisie.
 
 ## Choisir l'accès d'un assistant
@@ -267,7 +267,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `unreconcile_transaction` | Annuler un rapprochement (supprime le brouillon qu'il a créé ; refusé si l'écriture est validée ou l'exercice clôturé) | `banking:reconcile` | Oui |
 | `run_rules` | Exécuter les règles d'affectation sur les transactions à rapprocher | `banking:reconcile` | Oui |
 | `list_rules` | Règles d'affectation, avec conditions et lignes | `banking:read` | Non |
-| `create_rule`, `update_rule` | Créer ou remplacer une règle d'affectation | `ledger:manage` | Non |
+| `create_rule`, `update_rule` | Créer ou remplacer une règle d'affectation | `ledger:manage` | Oui avec « Créer automatiquement l'écriture » (`autoCreate`), appliquée sans clic à chaque actualisation |
 | `delete_rule` | Supprimer une règle d'affectation | `ledger:manage` | Oui |
 | `list_bank_accounts` | Connexions bancaires et comptes (identifiants pour `sync_bank` et `import_statement`) | `banking:read` | Non |
 | `create_bank_account` | Ajouter un compte bancaire manuel, alimenté par relevés | `banking:manage` | Non |
@@ -279,7 +279,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `generate_depreciation` | Générer les dotations de l'exercice (écritures validées, une par immobilisation) | `entries:create, validate` | Oui |
 | `close_fiscal_year` | Clôturer l'exercice : résultat en 120 / 129, exercice suivant, à-nouveaux, verrouillage définitif | `closing:execute` | Oui |
 | `allocate_result` | Affecter le résultat de l'exercice précédent (réserve légale, dividendes, autres réserves, report à nouveau) | `closing:execute` | Oui |
-| `export_fec` | FEC de l'exercice (contenu du fichier) et rapport de conformité | `reports:export` | Non |
+| `export_fec` | FEC de l'exercice (contenu du fichier, 5 Mo au plus comme `export_report`, dans la limite d'exports de l'utilisateur) et rapport de conformité | `reports:export` | Non |
 | `list_unlettered_lines` | Lignes non lettrées d'un compte de tiers (identifiants, montants, compte auxiliaire, solde progressif) et propositions de lettrage | `entries:read` | Non |
 | `letter_entry_lines` | Lettrer des lignes d'un compte de tiers : code suivant du compte et date du jour, débits égaux aux crédits, écritures validées, exercice ouvert | `entries:update` | Oui |
 | `unletter_entry_lines` | Délettrer un code d'un compte de tiers, dans un exercice ouvert | `entries:update` | Oui |
@@ -293,13 +293,13 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles de la société : enregistrer, appliquer, supprimer) | `settings:update` | Oui |
 | `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
 | `manage_bank_accounts` | Nom, compte 512 et synchronisation d'un compte bancaire, compte par défaut, comptes synchronisés d'une connexion, déconnexion d'une banque (identifiants supprimés, opérations gardées) | `banking:manage` | Oui (comptes synchronisés, déconnexion) |
-| `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui (annulation, rapprochement automatique) |
+| `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui, comme `run_rules` |
 | `delete_bank_transactions` | Supprimer des transactions bancaires | `banking:manage` | Oui |
 | `duplicate_rule` | Copier une règle d'affectation (désactivée) | `ledger:manage` | Non |
-| `add_rule_from_template` | Ajouter la règle d'un modèle de la bibliothèque, comptes rapprochés du plan de la société ; comptes manquants créés seulement avec `createMissingAccounts` ; refusé si la même règle existe, sauf `allowDuplicate` | `ledger:manage` | Non |
-| `copy_rules_from_company` | Copier des règles d'une autre société de l'utilisateur, comptes rapprochés du plan ; copies inactives par défaut, règles déjà présentes ignorées | `ledger:manage` ici, `banking:read` dans la société source | Non |
-| `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles), copier les justificatifs de Qonto | `banking:reconcile` | Non |
-| `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) | `banking:reconcile` | Non |
+| `add_rule_from_template` | Ajouter la règle d'un modèle de la bibliothèque, comptes rapprochés du plan de la société ; comptes manquants créés seulement avec `createMissingAccounts` ; refusé si la même règle existe, sauf `allowDuplicate` | `ledger:manage` | Oui avec `autoCreate` |
+| `copy_rules_from_company` | Copier des règles d'une autre société de l'utilisateur, comptes rapprochés du plan ; copies inactives par défaut, règles déjà présentes ignorées | `ledger:manage` ici, `banking:read` dans la société source | Oui pour des copies actives (`enabled`), qui gardent `autoCreate` |
+| `sync_bank_data` | Synchroniser une intégration ou toutes, actualiser (synchronisation puis règles « Créer automatiquement l'écriture »), copier les justificatifs de Qonto | `banking:reconcile` | Oui pour l'actualisation (`refresh`), comme `run_rules` |
+| `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) ; l'aperçu donne la transaction et le fichier (nom, type, taille, SHA-256) | `banking:reconcile` | Oui |
 | `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée, reprendre la création dans Qonto d'une facture sans réponse de Qonto ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
 | `import_qonto_invoices` | Importer les clients et les factures de Qonto (idempotent) | `entries:create` et `banking:read` | Oui |
 | `delete_tiers` | Supprimer un client ou un fournisseur sans facture | `entries:delete` | Oui |
@@ -343,6 +343,7 @@ En mode validation, les outils à fort impact ne font rien tant que vous ne les 
 L'action en attente est :
 
 - liée à votre compte, à la connexion (assistant ou clé API), à l'outil, à la société et aux arguments de l'aperçu : avec d'autres arguments, un autre outil ou une autre société elle est refusée ; présentée par une autre connexion ou un autre utilisateur, elle est introuvable. La création d'une société (`create_company`) n'a pas encore de société : son action n'est liée qu'à votre compte, à la connexion, à l'outil et aux arguments, et la page l'affiche comme « Nouvelle société » ;
+- liée aussi aux **données** que vous avez vues : Kledg garde une empreinte de l'aperçu et des données visées (écritures et leurs lignes, facture et ses lignes, règles d'affectation, note de frais), recalculée juste avant l'exécution. Si l'assistant ou quelqu'un d'autre a modifié ces données entre-temps (un brouillon réécrit avec `update_draft_entry` ou `update_draft_invoice`, une règle changée avec `update_rule`...), l'action est refusée (« Les données ont changé depuis l'approbation ») et ne pourra plus s'exécuter : il faut la préparer et l'approuver de nouveau. Les numéros indicatifs de l'aperçu, qui avancent seuls, ne comptent pas ;
 - valable 30 minutes, pour l'approuver puis l'exécuter ;
 - exécutée une seule fois : deux exécutions simultanées n'agissent qu'une fois, une seconde est refusée, une action refusée ne s'exécute jamais.
 

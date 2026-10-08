@@ -3,6 +3,7 @@ import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
+vi.mock('@/lib/rate-limit', () => ({ enforceRateLimit: vi.fn() }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/accounting/entry-guards', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/accounting/entry-guards')>()),
@@ -58,8 +59,8 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   unreconcile_transaction: true,
   run_rules: true,
   list_rules: false,
-  create_rule: false,
-  update_rule: false,
+  create_rule: true,
+  update_rule: true,
   delete_rule: true,
   list_bank_accounts: false,
   create_bank_account: false,
@@ -88,10 +89,10 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   bulk_reconcile: true,
   delete_bank_transactions: true,
   duplicate_rule: false,
-  add_rule_from_template: false,
-  copy_rules_from_company: false,
-  sync_bank_data: false,
-  upload_receipt: false,
+  add_rule_from_template: true,
+  copy_rules_from_company: true,
+  sync_bank_data: true,
+  upload_receipt: true,
   manage_invoice: true,
   import_qonto_invoices: true,
   delete_tiers: true,
@@ -156,6 +157,16 @@ const DRAFT_TOOLS = [
 
 const user = { id: 'u1', email: 'a@b.c', name: null, role: 'user' }
 const caller = { kind: 'apiKey' as const, apiKeyId: 'k1' }
+
+describe('list_fiscal_years', () => {
+  // KLEDG-R3-MCP-12: the right of its routes (GET /api/companies/[id]/fiscal-years), entries:read.
+  it('checks entries:read, like its routes', () => {
+    const source = readFileSync(path.resolve(__dirname, '../tools.ts'), 'utf8')
+    const tool = source.slice(source.indexOf("'list_fiscal_years'"), source.indexOf('server.registerTool(', source.indexOf("'list_fiscal_years'")))
+    expect(tool).toContain("await guard.require(companyId, { entries: ['read'] })")
+    expect(tool).not.toContain("reports: ['read']")
+  })
+})
 
 describe('registerKledgTools', () => {
   it('registers read tools as read-only', () => {

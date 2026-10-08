@@ -10,9 +10,10 @@
  * app/api/integrations/** and app/api/simple/expenses/[id]/receipt.
  */
 
+import { createHash } from 'crypto'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { ValidationError } from '@/lib/accounting/errors'
+import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { forAssistant, routeBody } from '@/lib/mcp/euros'
 import { limitBankCalls } from '@/lib/banking/guard'
@@ -21,7 +22,7 @@ import { selectBankAccount } from '@/lib/banking/select-bank-account.service'
 import { AutoReconcileBodySchema, autoReconcile } from '@/lib/services/banking/reconciliation-service'
 import { BulkTransactionsSchema, deleteTransactions, reconcileTransactions, unreconcileTransactions } from '@/lib/transactions/bulk-transactions.service'
 import { applyRuleToTransaction } from '@/lib/transactions/rule-executor'
-import { duplicateRule } from '@/lib/transactions/manage-rules.service'
+import { duplicateRule, findRule } from '@/lib/transactions/manage-rules.service'
 import { SyncCompanyIntegrationsSchema, SyncIntegrationSchema, syncCompanyIntegration, syncCompanyIntegrations } from '@/lib/integrations/sync-company-integrations.service'
 import { RefreshCompanyBodySchema, refreshCompany } from '@/lib/tasks/refresh-company'
 import { syncQontoAttachments } from '@/lib/integrations/providers/qonto/sync-attachments'
@@ -30,6 +31,7 @@ import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { isoDate } from './resolve'
 import { decodeBase64File, receiptTypeOf } from './files'
+import { rulesState } from './fingerprint'
 
 const transactionIds = z.array(z.string().min(1).max(64)).min(1).max(500).describe('Transaction ids, from list_bank_transactions.')
 
@@ -98,7 +100,7 @@ const manageBankAccountsTool = fullControlTool({
 const bulkReconcileTool = fullControlTool({
   name: 'bulk_reconcile',
   title: 'Rapprocher en masse',
-  description: `Reconciliation of several transactions, like the Transactions and Rapprochement pages: action mark_reconciled marks transactionIds reconciled without an entry; action unreconcile undoes their reconciliation (deletes the draft entries it created, refused per transaction when the entry is validated); action auto_match matches the entries of the BQ journal with unreconciled transactions of the same amount, side and date within a day, over a period; action apply_rule applies the assignment rule ruleId to transactionId (a draft entry, reconciled at once; 409 if already reconciled). Failures are reported per transaction. ${ACTS_AS_USER} Actions unreconcile and auto_match are high impact: ${TWO_STEP}`,
+  description: `Reconciliation of several transactions, like the Transactions and Rapprochement pages: action mark_reconciled marks transactionIds reconciled without an entry; action unreconcile undoes their reconciliation (deletes the draft entries it created, refused per transaction when the entry is validated); action auto_match matches the entries of the BQ journal with unreconciled transactions of the same amount, side and date within a day, over a period; action apply_rule applies the assignment rule ruleId to transactionId (a draft entry, reconciled at once; 409 if already reconciled). Failures are reported per transaction. ${ACTS_AS_USER} Every action is high impact, like run_rules: ${TWO_STEP}`,
   input: {
     action: z.enum(['mark_reconciled', 'unreconcile', 'auto_match', 'apply_rule']),
     transactionIds: transactionIds.optional(),
@@ -112,9 +114,21 @@ const bulkReconcileTool = fullControlTool({
   units: 'Dates as yyyy-mm-dd.',
   never: 'validates an entry or deletes a transaction.',
   confirmation: true,
-  highImpactActions: ['unreconcile', 'auto_match'],
+  // Reconciling, by rule or without an entry, follows the approval of run_rules (KLEDG-R3-MCP-10).
+  highImpactActions: ['mark_reconciled', 'unreconcile', 'auto_match', 'apply_rule'],
   destructive: true,
-  async preview({ companyId, action, transactionIds: ids, startDate, endDate }) {
+  targetState: ({ companyId, action, ruleId }) => (action === 'apply_rule' && ruleId ? rulesState(companyId, ruleId) : Promise.resolve(null)),
+  async preview({ companyId, action, transactionIds: ids, transactionId, ruleId, startDate, endDate }) {
+    if (action === 'apply_rule') {
+      if (!transactionId || !ruleId) throw new ValidationError('transactionId et ruleId sont requis pour appliquer une règle.')
+      const rule = await findRule(companyId, ruleId)
+      return {
+        action,
+        transactions: await transactionsOf(companyId, [transactionId]),
+        rule: { id: rule.id, name: rule.name, journalCode: rule.journalCode, entryLines: rule.entryLines.map((l) => ({ accountCode: l.accountCode, lineType: l.lineType, amountType: l.amountType, amountValue: l.amountValue })) },
+        effect: 'Écriture en brouillon créée par la règle, transaction rapprochée.',
+      }
+    }
     if (action === 'auto_match') {
       const where = {
         bankAccount: { bankConnection: { companyId } },
@@ -180,7 +194,7 @@ const duplicateRuleTool = fullControlTool({
 const syncBankDataTool = fullControlTool({
   name: 'sync_bank_data',
   title: 'Synchroniser les intégrations bancaires',
-  description: `Synchronizes with the bank providers, like the buttons of the Banque and Tâches pages: scope integration syncs one integration (integrationId, from get_bank_sync_status) and optionally some of its features; scope all_integrations syncs every active bank integration (maxDays of history, 1 to 365); scope refresh syncs the banks then runs the assignment rules (the Actualiser button of the tasks); scope qonto_receipts copies the receipts Qonto holds for the Qonto debits. Within the per-company limit of bank calls; a failing bank does not stop the others. Bank connections (sync_bank) are synchronized one by one. ${ACTS_AS_USER}`,
+  description: `Synchronizes with the bank providers, like the buttons of the Banque and Tâches pages: scope integration syncs one integration (integrationId, from get_bank_sync_status) and optionally some of its features; scope all_integrations syncs every active bank integration (maxDays of history, 1 to 365); scope refresh syncs the banks then runs the assignment rules marked autoCreate (the Actualiser button of the tasks); scope qonto_receipts copies the receipts Qonto holds for the Qonto debits. Within the per-company limit of bank calls; a failing bank does not stop the others. Bank connections (sync_bank) are synchronized one by one. ${ACTS_AS_USER} Scope refresh applies rules, like run_rules, so it is high impact: ${TWO_STEP}`,
   input: {
     scope: z.enum(['integration', 'all_integrations', 'refresh', 'qonto_receipts']),
     integrationId: z.string().max(64).optional(),
@@ -191,8 +205,26 @@ const syncBankDataTool = fullControlTool({
   amounts: 'none',
   never: 'stores credentials, connects a bank or validates an entry.',
   openWorld: true,
-  confirmation: false,
+  // The refresh runs the autoCreate rules: it follows the approval of run_rules (KLEDG-R3-MCP-10).
+  confirmation: true,
+  highImpactWhen: ({ scope }) => scope === 'refresh',
+  targetState: ({ companyId, scope }) => (scope === 'refresh' ? rulesState(companyId) : Promise.resolve(null)),
   idempotent: true,
+  async preview({ companyId, scope, maxDays }) {
+    const rules = await prisma.transactionRule.findMany({
+      where: { companyId, enabled: true, autoCreate: true },
+      select: { id: true, name: true },
+      orderBy: { priority: 'desc' },
+    })
+    const unreconciled = await prisma.bankTransaction.count({ where: { bankAccount: { bankConnection: { companyId } }, reconciled: false } })
+    return {
+      scope,
+      maxDays: maxDays ?? null,
+      autoCreateRules: rules,
+      unreconciledTransactions: unreconciled,
+      effect: 'Synchronisation des banques, puis écritures en brouillon créées par les règles «\u00a0Créer automatiquement l’écriture\u00a0» pour les transactions qui leur correspondent, rapprochées.',
+    }
+  },
   async execute({ companyId, scope, integrationId, features, maxDays }) {
     await limitBankCalls(companyId)
     if (scope === 'integration') {
@@ -212,7 +244,7 @@ const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
 const uploadReceiptTool = fullControlTool({
   name: 'upload_receipt',
   title: 'Envoyer un justificatif',
-  description: `Sends the receipt of a Qonto bank transaction (JPEG, PNG or PDF, base64, 5 MB at most) to Qonto and records its reference in Kledg, like the receipt button of the simple mode and of the transactions; other banks answer what to do instead. Within the per-company limit of bank calls. ${ACTS_AS_USER}`,
+  description: `Sends the receipt of a Qonto bank transaction (JPEG, PNG or PDF, base64, 5 MB at most) to Qonto and records its reference in Kledg, like the receipt button of the simple mode and of the transactions; other banks answer what to do instead. Within the per-company limit of bank calls. A file sent to Qonto cannot be taken back by Kledg: ${ACTS_AS_USER} ${TWO_STEP} The dry run shows the transaction and the file (name, type, size, SHA-256).`,
   input: {
     transactionId: z.string().min(1).max(64).describe('Transaction id, from list_bank_transactions or list_missing_receipts.'),
     fileName: z.string().min(1).max(200).describe('E.g. "facture-martin.pdf" (.pdf, .png, .jpg).'),
@@ -222,7 +254,19 @@ const uploadReceiptTool = fullControlTool({
   amounts: 'none',
   never: 'reconciles the transaction or books an entry.',
   openWorld: true,
-  confirmation: false,
+  // A write at Qonto that Kledg cannot undo, like the other Qonto writes (create_draft_invoice, import_qonto_invoices).
+  confirmation: true,
+  async preview({ companyId, transactionId, fileName, contentBase64 }) {
+    const bytes = decodeBase64File(contentBase64, MAX_RECEIPT_BYTES)
+    const type = receiptTypeOf(fileName)
+    const [transaction] = (await transactionsOf(companyId, [transactionId])).found as unknown[]
+    if (!transaction) throw new NotFoundError('Transaction introuvable')
+    return {
+      transaction,
+      file: { name: fileName, type, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') },
+      destination: 'Qonto',
+    }
+  },
   async execute({ companyId, transactionId, fileName, contentBase64 }) {
     const bytes = decodeBase64File(contentBase64, MAX_RECEIPT_BYTES)
     const file = new File([bytes as BlobPart], fileName, { type: receiptTypeOf(fileName) })

@@ -17,6 +17,8 @@ import { exportFec } from '@/lib/fec/export'
 import { validateFec } from '@/lib/fec/validator'
 import { FEC_FILE_NAME } from '@/lib/fec/format'
 import { day } from '@/lib/mcp/tool-result'
+import { MAX_MCP_FILE_BYTES, fileTooLargeMessage } from '@/lib/mcp/file-result'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { euros, isoDate, ownedFiscalYear } from './resolve'
@@ -185,7 +187,7 @@ const allocateResultTool = fullControlTool({
 const exportFecTool = fullControlTool({
   name: 'export_fec',
   title: 'Exporter le FEC',
-  description: `Exports the FEC (fichier des écritures comptables, LPF art. A47 A-1) of a fiscal year: the file name (SirenFECAAAAMMJJ.txt), its content (tab separated, validated entries only) and the compliance report of the file (errors and warnings). ${ACTS_AS_USER}`,
+  description: `Exports the FEC (fichier des écritures comptables, LPF art. A47 A-1) of a fiscal year: the file name (SirenFECAAAAMMJJ.txt), its content (tab separated, validated entries only) and the compliance report of the file (errors and warnings). A FEC above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB is refused, like export_report: the user downloads it from Kledg. Within the export limit of the user. ${ACTS_AS_USER}`,
   input: { fiscalYearId },
   permission: { reports: ['export'] },
   amounts: 'euros',
@@ -193,9 +195,13 @@ const exportFecTool = fullControlTool({
   idempotent: true,
   confirmation: false,
   readOnly: true,
-  async execute({ companyId, fiscalYearId }) {
+  async execute({ companyId, fiscalYearId }, ctx) {
+    // Same limits as export_report and the FEC route (app/api/fec/route.ts): the export rate limit and the size of a file sent to an assistant.
+    await enforceRateLimit('export', ctx.access.user.id)
     const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
     const fec = await exportFec(companyId, fiscalYear.id)
+    const size = Buffer.byteLength(fec.content, 'utf8')
+    if (size > MAX_MCP_FILE_BYTES) throw new ValidationError(fileTooLargeMessage(size))
     const report = validateFec(fec.content, { fileName: fec.fileName, closingDate: FEC_FILE_NAME.exec(fec.fileName)?.[2] })
     return { fileName: fec.fileName, entries: fec.entries, lines: fec.lines, report, content: fec.content }
   },

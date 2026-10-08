@@ -24,6 +24,7 @@ import {
 import { processTransactions } from '@/lib/services/transactions/transaction-processing-service'
 import { createRule, deleteRule, findRule, listRules, updateRule } from '@/lib/transactions/manage-rules.service'
 import { limitBankCalls } from '@/lib/banking/guard'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { createManualAccount, refreshConnection } from '@/lib/banking/connections.service'
 import {
   analyzeStatement,
@@ -34,6 +35,7 @@ import {
 import type { TabularOptions } from '@/lib/banking/import/types'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
+import { rulesState } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -162,6 +164,8 @@ const runRules = fullControlTool({
   never: 'validates the entries the rules create (drafts), or reconciles a transaction twice.',
   idempotent: true,
   confirmation: true,
+  // The dry run only counts: the rules themselves are bound to the approval (update_rule before the execution refuses it).
+  targetState: ({ companyId }) => rulesState(companyId),
   async preview({ companyId, transactionIds }) {
     const result = await processTransactions({ companyId, transactionIds, autoApply: false })
     return { processed: result.processed, matched: result.matched, wouldApply: result.applicable, errors: result.errors }
@@ -195,6 +199,11 @@ const ruleLine = z.object({
   vatAccount2Code: z.string().max(20).optional(),
   vatOnDebit: z.boolean().optional(),
 })
+
+/** Setting autoCreate makes the refresh apply a rule without a click: the approval of run_rules (KLEDG-R3-MCP-10). */
+export const AUTO_CREATE_STEP = `With autoCreate true (the rule is then applied without a click by every refresh), the call is high impact, like run_rules: ${TWO_STEP} Otherwise it runs at once.`
+
+export const AUTO_CREATE_EFFECT = "Avec «\u00a0Créer automatiquement l'écriture\u00a0», chaque actualisation applique la règle sans clic\u00a0: écriture en brouillon et transaction rapprochée."
 
 const ruleInput = {
   name: z.string().min(1).max(200),
@@ -250,12 +259,14 @@ const listRulesTool = fullControlTool({
 const createRuleTool = fullControlTool({
   name: 'create_rule',
   title: "Créer une règle d'affectation",
-  description: `Creates an assignment rule (règle d'affectation): conditions on bank transactions and the entry lines to book when they match (applied by run_rules). ${ACTS_AS_USER}`,
+  description: `Creates an assignment rule (règle d'affectation): conditions on bank transactions and the entry lines to book when they match (applied by run_rules). ${ACTS_AS_USER} ${AUTO_CREATE_STEP}`,
   input: ruleInput,
   permission: { ledger: ['manage'] },
   amounts: 'euros',
   never: 'runs the rule (run_rules does).',
-  confirmation: false,
+  confirmation: true,
+  highImpactWhen: ({ autoCreate }) => autoCreate === true,
+  preview: async (input) => ({ ruleToCreate: input, effect: AUTO_CREATE_EFFECT }),
   execute: async ({ companyId, ...input }) => summarizeRule(await createRule(companyId, input)),
   audit: (_args, rule) => ({ ruleId: rule.id, name: rule.name }),
 })
@@ -263,12 +274,15 @@ const createRuleTool = fullControlTool({
 const updateRuleTool = fullControlTool({
   name: 'update_rule',
   title: "Modifier une règle d'affectation",
-  description: `Replaces an assignment rule (règle d'affectation): its settings, all its conditions and all its entry lines (give the complete rule, as list_rules returns it). Entries already created stay. ${ACTS_AS_USER}`,
+  description: `Replaces an assignment rule (règle d'affectation): its settings, all its conditions and all its entry lines (give the complete rule, as list_rules returns it). Entries already created stay. ${ACTS_AS_USER} ${AUTO_CREATE_STEP}`,
   input: { ruleId: z.string().min(1).describe('Rule id, from list_rules.'), ...ruleInput },
   permission: { ledger: ['manage'] },
   amounts: 'euros',
   never: 'runs the rule (run_rules does).',
-  confirmation: false,
+  confirmation: true,
+  highImpactWhen: ({ autoCreate }) => autoCreate === true,
+  targetState: ({ companyId, ruleId }) => rulesState(companyId, ruleId),
+  preview: async ({ companyId, ruleId, ...input }) => ({ current: summarizeRule(await findRule(companyId, ruleId)), replacement: input, effect: AUTO_CREATE_EFFECT }),
   idempotent: true,
   execute: async ({ companyId, ruleId, ...input }) => summarizeRule(await updateRule(companyId, ruleId, input)),
   audit: ({ ruleId }) => ({ ruleId }),
@@ -284,6 +298,7 @@ const deleteRuleTool = fullControlTool({
   never: 'deletes the entries the rule created.',
   confirmation: true,
   destructive: true,
+  targetState: ({ companyId, ruleId }) => rulesState(companyId, ruleId),
   preview: async ({ companyId, ruleId }) => ({ ruleToDelete: summarizeRule(await findRule(companyId, ruleId)) }),
   execute: async ({ companyId, ruleId }) => ({ deleted: true, ...(await deleteRule(companyId, ruleId)) }),
   audit: ({ ruleId }, result) => ({ ruleId, name: result.name }),
@@ -405,7 +420,9 @@ const importStatementTool = fullControlTool({
   never: 'imports a transaction twice (exact duplicates are skipped) or reconciles the imported lines.',
   idempotent: true,
   confirmation: true,
-  async preview({ companyId, bankAccountId, fileName, contentBase64, options, keep }) {
+  // Every parse counts in the import limit of the user, like the import route (app/api/banking/import-statement/route.ts).
+  async preview({ companyId, bankAccountId, fileName, contentBase64, options, keep }, ctx) {
+    await enforceRateLimit('import', ctx.access.user.id)
     const analysis = await analyzeStatement({
       companyId,
       bankAccountId,
@@ -416,7 +433,8 @@ const importStatementTool = fullControlTool({
     })
     return analysis
   },
-  async execute({ companyId, bankAccountId, fileName, contentBase64, options, keep, allowErrors }) {
+  async execute({ companyId, bankAccountId, fileName, contentBase64, options, keep, allowErrors }, ctx) {
+    await enforceRateLimit('import', ctx.access.user.id)
     const result = await importStatement({
       companyId,
       bankAccountId,

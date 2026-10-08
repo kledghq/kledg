@@ -1693,6 +1693,8 @@ model McpPendingAction {
   argsHash   String
   /// The dry run shown to the user before they decide.
   preview    Json
+  /// SHA-256 of the state the user approved (dry run and target rows), checked again at execution.
+  fingerprint String?
   /// pending, approved, rejected, executing, executed, failed
   status     String    @default("pending")
   expiresAt  DateTime

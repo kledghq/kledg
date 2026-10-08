@@ -167,6 +167,7 @@ const HIGH_IMPACT: Record<string, Record<string, unknown>> = {
   manage_bank_accounts: { action: 'disconnect', connectionId: 'x' },
   bulk_reconcile: { action: 'unreconcile', transactionIds: ['x'] },
   delete_bank_transactions: ARGS.delete_bank_transactions,
+  upload_receipt: ARGS.upload_receipt,
   manage_invoice: ARGS.manage_invoice,
   import_qonto_invoices: ARGS.import_qonto_invoices,
   delete_tiers: ARGS.delete_tiers,

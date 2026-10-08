@@ -13,13 +13,14 @@
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { limitBankCalls } from '@/lib/banking/guard'
-import { fetchQontoFile } from '@/lib/integrations/providers/qonto/files'
+import { PROVIDER_FILE_BUDGET, fetchQontoFile, type FileBudget } from '@/lib/integrations/providers/qonto/files'
 import { getQontoCredentials } from '@/lib/integrations/providers/qonto/get-credentials'
 import { QontoInvoicing } from '@/lib/integrations/providers/qonto/invoicing'
 
 const NO_FILE = 'Aucun document n’est disponible pour cette facture.'
 
-export async function readInvoiceAttachment(companyId: string, invoiceId: string, fetchImpl?: typeof fetch) {
+/** `budget`: the most bytes read from Qonto (25 MB by default; an MCP tool passes its own 5 MB). */
+export async function readInvoiceAttachment(companyId: string, invoiceId: string, fetchImpl?: typeof fetch, budget: FileBudget = PROVIDER_FILE_BUDGET) {
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, companyId },
     select: { number: true, source: true, externalAttachmentId: true, attachmentFileName: true },
@@ -30,7 +31,7 @@ export async function readInvoiceAttachment(companyId: string, invoiceId: string
   const { login, secretKey } = await getQontoCredentials(companyId)
   const file = await new QontoInvoicing(login, secretKey).getAttachmentFile(invoice.externalAttachmentId)
   if (!file) throw new NotFoundError(NO_FILE)
-  const body = await fetchQontoFile(file.url, fetchImpl)
+  const body = await fetchQontoFile(file.url, fetchImpl, budget)
   const fileName = (file.file_name || invoice.attachmentFileName || `facture-${invoice.number}.pdf`).replace(/[^\w.\- ]+/g, '_')
   return { body, contentType: file.file_content_type || 'application/pdf', fileName }
 }

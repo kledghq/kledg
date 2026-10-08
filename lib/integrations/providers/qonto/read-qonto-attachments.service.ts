@@ -5,15 +5,18 @@
  * Invariant: Qonto is only queried with the stored credentials of the
  * company, for a transaction of the company; file URLs come from the stored
  * attachment or a fresh Qonto response, never from the request, and only
- * Qonto's file hosts are fetched (files.ts).
+ * Qonto's file hosts are fetched (files.ts). Every read asks Qonto, so it
+ * counts in the company's limit of bank calls (limitBankCalls), like the
+ * other user triggered Qonto calls.
  */
 
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
+import { limitBankCalls } from '@/lib/banking/guard'
 import { qontoClientFor } from './get-credentials'
-import { fetchQontoFile } from './files'
+import { PROVIDER_FILE_BUDGET, assertDeclaredFileSize, fetchQontoFile, type FileBudget } from './files'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -49,6 +52,7 @@ export async function listQontoTransactionAttachments(
 ) {
   if (!transactionRef) throw new ValidationError('Identifiant de transaction invalide.')
   const uuid = await qontoTransactionUuid(companyId, transactionRef)
+  await limitBankCalls(companyId)
   return (await qontoClientFor(companyId)).listTransactionAttachments(uuid, { page: query.page, perPage: query.per_page })
 }
 
@@ -101,9 +105,16 @@ export interface QontoReceipt {
 /**
  * The file of a receipt of the company (PDF or image). Qonto is asked for a
  * fresh signed URL (stored URLs expire after 30 minutes); the URL stored at
- * synchronization time is the fallback.
+ * synchronization time is the fallback. A file larger than `budget`
+ * (25 MB by default) is refused from Qonto's metadata when it gives the
+ * size, else as soon as the download passes it.
  */
-export async function readQontoReceipt(companyId: string, attachmentRef: string, transactionUuid?: string): Promise<QontoReceipt> {
+export async function readQontoReceipt(
+  companyId: string,
+  attachmentRef: string,
+  transactionUuid?: string,
+  budget: FileBudget = PROVIDER_FILE_BUDGET,
+): Promise<QontoReceipt> {
   const stored =
     (await prisma.attachment.findFirst({
       where: { ...attachmentWhere(attachmentRef), companyId },
@@ -118,6 +129,7 @@ export async function readQontoReceipt(companyId: string, attachmentRef: string,
     })) ?? (await unsyncedAttachment(companyId, attachmentRef, transactionUuid))
 
   const uuid = stored.transactionUuid || stored.bankTransaction?.externalTransactionId || null
+  await limitBankCalls(companyId)
   let fileUrl: string | null = null
   let contentType = stored.fileContentType
   let fileName = stored.fileName
@@ -126,6 +138,7 @@ export async function readQontoReceipt(companyId: string, attachmentRef: string,
     const { attachments } = await (await qontoClientFor(companyId)).listTransactionAttachments(uuid)
     const fresh = attachments?.find((a) => a.id === stored.externalAttachmentId)
     if (fresh?.url) {
+      assertDeclaredFileSize(fresh.file_size, budget)
       fileUrl = fresh.url
       contentType = fresh.file_content_type || contentType
       fileName = fresh.file_name || fileName
@@ -135,7 +148,7 @@ export async function readQontoReceipt(companyId: string, attachmentRef: string,
   fileUrl ??= stored.fileUrl
   if (!fileUrl) throw new NotFoundError(RECEIPT_NOT_FOUND)
   return {
-    body: await fetchQontoFile(fileUrl),
+    body: await fetchQontoFile(fileUrl, undefined, budget),
     contentType: contentType || 'application/pdf',
     fileName: fileName || 'justificatif',
   }

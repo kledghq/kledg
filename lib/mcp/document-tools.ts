@@ -14,7 +14,11 @@
  *   a fresh Qonto response, never from the arguments (fetchQontoFile checks
  *   Qonto's file hosts);
  * - Qonto's signed file URLs are never returned: the file itself travels in
- *   the result as an embedded resource (lib/mcp/file-result.ts).
+ *   the result as an embedded resource (lib/mcp/file-result.ts);
+ * - every call that reaches Qonto counts in the company's limit of bank
+ *   calls (limitBankCalls), and a file is refused above 5 MB from Qonto's
+ *   metadata, or cut as soon as its download passes 5 MB (MCP_FILE_BUDGET),
+ *   never read in full first.
  * The statement import of the POST route is a listing with the filters in
  * the body: get_qonto_statements covers both.
  */
@@ -24,12 +28,12 @@ import { z } from 'zod'
 import type { CompanyGuard } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
-import { fileResult } from '@/lib/mcp/file-result'
+import { MCP_FILE_BUDGET, documentMimeType, fileResult } from '@/lib/mcp/file-result'
 import type { Permission } from '@/lib/rbac/authorize'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { limitBankCalls } from '@/lib/banking/guard'
 import { qontoClientFor } from '@/lib/integrations/providers/qonto/get-credentials'
-import { fetchQontoFile } from '@/lib/integrations/providers/qonto/files'
+import { assertDeclaredFileSize, fetchQontoFile } from '@/lib/integrations/providers/qonto/files'
 import { listQontoStatements, StatementsBodySchema } from '@/lib/integrations/providers/qonto/list-qonto-statements.service'
 import { listQontoTransactionAttachments, readQontoReceipt } from '@/lib/integrations/providers/qonto/read-qonto-attachments.service'
 import { readInvoiceAttachment } from '@/lib/invoices/read-invoice-attachment.service'
@@ -108,6 +112,7 @@ export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
         await guard.require(companyId, BANKING_READ)
         if (statementId !== undefined) {
           if (!QONTO_ID.test(statementId)) throw new ValidationError(INVALID_STATEMENT)
+          await limitBankCalls(companyId)
           const { statement } = await (await qontoClientFor(companyId)).getStatement(statementId)
           return json({ statement: statementView(statement) })
         }
@@ -174,24 +179,26 @@ export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
         const base = `companies/${args.companyId}/files/${args.source}`
         if (args.source === 'bank_receipt') {
           if (!args.attachmentId) throw new ValidationError('attachmentId est requis pour un justificatif.')
-          const receipt = await readQontoReceipt(args.companyId, args.attachmentId, args.transactionUuid)
-          return fileResult({ content: receipt.body, fileName: receipt.fileName, contentType: receipt.contentType }, base, { source: args.source })
+          const receipt = await readQontoReceipt(args.companyId, args.attachmentId, args.transactionUuid, MCP_FILE_BUDGET)
+          return fileResult({ content: receipt.body, fileName: receipt.fileName, contentType: documentMimeType(receipt.contentType) }, base, { source: args.source })
         }
         if (args.source === 'invoice') {
           if (!args.invoiceId) throw new ValidationError('invoiceId est requis pour une facture.')
-          const file = await readInvoiceAttachment(args.companyId, args.invoiceId)
-          return fileResult({ content: file.body, fileName: file.fileName, contentType: file.contentType }, base, { source: args.source })
+          const file = await readInvoiceAttachment(args.companyId, args.invoiceId, undefined, MCP_FILE_BUDGET)
+          return fileResult({ content: file.body, fileName: file.fileName, contentType: documentMimeType(file.contentType) }, base, { source: args.source })
         }
         if (!args.statementId || !QONTO_ID.test(args.statementId)) throw new ValidationError(INVALID_STATEMENT)
+        await limitBankCalls(args.companyId)
         const { statement } = await (await qontoClientFor(args.companyId)).getStatement(args.statementId)
         if (!statement?.file?.file_url) throw new NotFoundError('Relevé non trouvé ou fichier non disponible')
         // Qonto file URLs are signed and valid for 30 minutes; they come from Qonto's answer, never from the arguments.
-        const body = await fetchQontoFile(statement.file.file_url)
+        assertDeclaredFileSize(statement.file.file_size, MCP_FILE_BUDGET)
+        const body = await fetchQontoFile(statement.file.file_url, undefined, MCP_FILE_BUDGET)
         return fileResult(
           {
             content: body,
             fileName: statement.file.file_name || `releve-${args.statementId}.pdf`,
-            contentType: statement.file.file_content_type || 'application/pdf',
+            contentType: documentMimeType(statement.file.file_content_type || 'application/pdf'),
           },
           base,
           { source: args.source, period: statement.period },

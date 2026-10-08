@@ -168,7 +168,7 @@ describe.skipIf(!available)('unique reconciliation match and the Rapprocher butt
     ids.internet = (await entry('2025-06-01', 'Internet', 'validated', [['606100', 50, 0], ['512000', 0, 50]])).id
     await entry('2025-07-20', 'Divers sur 512', 'validated', [['512', 500, 0], ['411', 0, 500]])
     await call(admin, 'reconcile_transaction', { transactionId: ids['PRLV INTERNET'], entryId: ids.internet })
-    ids.rule = JSON.parse((await call(admin, 'create_rule', rule('Fournitures', 'FOURNITURES'))).content![0].text).id
+    ids.rule = JSON.parse((await call(admin, 'create_rule', rule('Fournitures', 'FOURNITURES'))).content![0].text).result.id
     await call(admin, 'create_rule', rule('Bis', 'BIS'))
   }, 60_000)
 

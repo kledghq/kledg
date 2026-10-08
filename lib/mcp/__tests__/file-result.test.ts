@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
 
-import { MAX_MCP_FILE_BYTES, fileResult, fileTooLargeMessage } from '@/lib/mcp/file-result'
+import { MAX_MCP_FILE_BYTES, cleanName, documentMimeType, fileResult, fileTooLargeMessage } from '@/lib/mcp/file-result'
 import { exportQuery } from '@/lib/mcp/export-tools'
 
 describe('fileResult', () => {
@@ -48,5 +48,23 @@ describe('exportQuery', () => {
     expect(
       exportQuery({ companyId: 'c1', report: 'group', groupReport: 'ledger', fiscalYearId: 'fy1', groupFilters: { prefix: '6', companyId: 'c2', fiscalYearId: 'other' } }),
     ).toEqual({ report: 'ledger', fiscalYearId: 'fy1', prefix: '6' })
+  })
+})
+
+// KLEDG-R3-MCP-12: names and types of the documents a bank returns.
+describe('file names and document types', () => {
+  it('drops bidi overrides and zero width characters from a file name', () => {
+    expect(cleanName('facture\u202Efdp.exe')).toBe('facturefdp.exe')
+    expect(cleanName('re\u200Bcu\u2066.pdf')).toBe('recu.pdf')
+    expect(cleanName('../a\tb.pdf')).toBe('.._a_b.pdf')
+  })
+
+  it('keeps PDF, PNG and JPEG and turns any other declared type into application/octet-stream', () => {
+    expect(documentMimeType('application/pdf')).toBe('application/pdf')
+    expect(documentMimeType('IMAGE/PNG; charset=binary')).toBe('image/png')
+    expect(documentMimeType('image/jpeg')).toBe('image/jpeg')
+    for (const declared of ['text/html', 'image/svg+xml', 'application/x-msdownload', '', null]) {
+      expect(documentMimeType(declared)).toBe('application/octet-stream')
+    }
   })
 })

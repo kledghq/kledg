@@ -112,6 +112,9 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/invoices/read-invoice-attachment.service.ts': /limitBankCalls\(/,
   'lib/invoices/create-in-qonto.service.ts': /limitBankCalls\(/,
   'lib/simple/upload-receipt.service.ts': /limitBankCalls\(/,
+  'lib/integrations/providers/qonto/read-qonto-attachments.service.ts': /limitBankCalls\(/,
+  'app/api/qonto/statements/[id]/proxy/route.ts': /limitBankCalls\(/,
+  'lib/mcp/document-tools.ts': /limitBankCalls\(/,
   'lib/account/change-email.service.ts': /enforceRateLimit\('account-change-email'/,
   'lib/account/change-password.service.ts': /enforceRateLimit\('account-change-password'/,
   'lib/account/delete-account.service.ts': /enforceRateLimit\('account-delete'/,
@@ -125,6 +128,11 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/navigation/sidebar-preferences.service.ts': /enforceRateLimit\('sidebar-preferences'/,
   'app/api/users/route.ts': /createInstanceUser\(/,
   'lib/mcp/api-key.ts': /enforceRateLimit\('mcp-api-key'/,
+  'lib/mcp/auth.ts': /enforceRateLimit\('mcp-oauth'/,
+  'lib/mcp/drafts/define.ts': /enforceRateLimit\('mcp-write'/,
+  'lib/mcp/tools.ts': /enforceRateLimit\('mcp-write'/,
+  'lib/mcp/full-control/banking.ts': /enforceRateLimit\('import'/,
+  'lib/mcp/full-control/year-end.ts': /enforceRateLimit\('export'/,
   'app/(auth)/setup/actions.ts': /withinRateLimit\('setup'/,
 }
 

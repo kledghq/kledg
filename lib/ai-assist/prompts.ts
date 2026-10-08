@@ -49,13 +49,15 @@ export type AiPromptKind = AiPromptTarget['kind']
 export const MAX_QUOTED_LENGTH = 120
 
 /**
- * A value quoted as data: guillemets, quotes that could pass for them, line
- * breaks and control characters become spaces, spaces collapse, and the
- * value is cut to MAX_QUOTED_LENGTH characters. Always between « ».
+ * A value quoted as data: guillemets, quotes and marks that could pass for
+ * them (≪ ≫, 《 》, fullwidth quote), line breaks, control characters and
+ * invisible format characters (bidi overrides, zero width) become spaces,
+ * spaces collapse, and the value is cut to MAX_QUOTED_LENGTH characters.
+ * Always between « ».
  */
 export function quote(value: string | null | undefined): string {
   const clean = (value ?? '')
-    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u00ab\u00bb\u2039\u203a"\u201c\u201d\u201e`]/g, ' ')
+    .replace(/[\p{Cc}\p{Cf}\u2028\u2029\u00ab\u00bb\u2039\u203a"\u201c\u201d\u201e\u201f`\u226a\u226b\u300a\u300b\uff02]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   const cut = clean.length > MAX_QUOTED_LENGTH ? `${clean.slice(0, MAX_QUOTED_LENGTH - 1).trimEnd()}\u2026` : clean
@@ -63,7 +65,7 @@ export function quote(value: string | null | undefined): string {
 }
 
 /** An id as Kledg writes them (cuid, uuid, slug): anything else is dropped from the request. */
-function id(value: string): string {
+export function id(value: string): string {
   return /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : 'inconnu'
 }
 

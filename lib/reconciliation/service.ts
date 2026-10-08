@@ -29,6 +29,8 @@ export const MESSAGES = {
   accountNotFound: 'Compte introuvable',
   journalNotFound: 'Journal introuvable',
   entryNotFound: 'Écriture introuvable',
+  entryAlreadyLinked:
+    "Cette écriture est déjà rapprochée avec une autre transaction\u00a0: rechargez la liste, ou annulez d'abord l'autre rapprochement.",
 } as const
 
 type Client = Prisma.TransactionClient | typeof prisma
@@ -323,7 +325,10 @@ export const reconcileWithExistingEntrySchema = z.object({
 
 /**
  * Marks a transaction reconciled with an existing entry of the company, or
- * with no entry at all (pointage). 409 when it is already reconciled.
+ * with no entry at all (pointage). 409 when it is already reconciled, and
+ * when the entry is already linked to another transaction (one entry
+ * justifies one bank movement): the entry row is locked first, so two
+ * requests linking the same entry to two transactions cannot both pass.
  */
 export async function reconcileWithExistingEntry(companyId: string, transactionId: string, entryId: string | null) {
   await loadTransaction(companyId, transactionId)
@@ -333,11 +338,18 @@ export async function reconcileWithExistingEntry(companyId: string, transactionI
       MESSAGES.entryNotFound,
     )
   }
-  const claimed = await prisma.$executeRaw`
-    UPDATE "bank_transactions"
-    SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = ${entryId}, "updatedAt" = NOW()
-    WHERE "id" = ${transactionId} AND "reconciled" = false`
-  if (claimed === 0) throw new ConflictError(MESSAGES.alreadyReconciled)
+  await prisma.$transaction(async (db) => {
+    if (entryId) {
+      await db.$queryRaw`SELECT "id" FROM "accounting_entries" WHERE "id" = ${entryId} AND "companyId" = ${companyId} FOR UPDATE`
+      const linked = await db.bankTransaction.count({ where: { reconciledWith: entryId, reconciled: true, id: { not: transactionId } } })
+      if (linked > 0) throw new ConflictError(MESSAGES.entryAlreadyLinked)
+    }
+    const claimed = await db.$executeRaw`
+      UPDATE "bank_transactions"
+      SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = ${entryId}, "updatedAt" = NOW()
+      WHERE "id" = ${transactionId} AND "reconciled" = false`
+    if (claimed === 0) throw new ConflictError(MESSAGES.alreadyReconciled)
+  })
   return prisma.bankTransaction.findUniqueOrThrow({
     where: { id: transactionId },
     select: { id: true, reconciled: true, reconciledAt: true, reconciledWith: true },

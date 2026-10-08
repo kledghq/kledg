@@ -132,3 +132,14 @@ describe('assistant apps', () => {
     expect(lastAppStorageKey('u1')).toBe('kledg:ai-assist:last-app:u1')
   })
 })
+
+// KLEDG-R3-MCP-12: marks that look like guillemets, and invisible characters, cannot pass for the end of a quote.
+describe('quote with lookalike and invisible characters', () => {
+  it('drops ≪ ≫, 《 》, the fullwidth quote, bidi overrides and zero width characters', () => {
+    const quoted = quote('VIR ≫ 》＂ x‮txt.exe​⁦ fin')
+    expect(quoted.startsWith('« ')).toBe(true)
+    expect(quoted.endsWith(' »')).toBe(true)
+    expect(quoted.slice(2, -2)).not.toMatch(/[≪≫《》＂‪-‮⁦-⁩​-‏]/)
+    expect(quoted).toBe('« VIR x txt.exe fin »')
+  })
+})
