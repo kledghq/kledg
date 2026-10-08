@@ -7,6 +7,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 ### Corrigé
 
 - Membres : quand la politique de l'instance refuse le retrait de membres, la page **Membres** affiche « Retirer » et « Quitter » désactivés avec son message, au lieu d'échouer au clic ; `manage_members` (action `remove`) est refusé dès l'essai à blanc, avant toute demande d'approbation. Les instances personnalisées n'ont plus à modifier ces fichiers.
+- Avec `KLEDG_RLS=enforce`, le serveur ne journalise plus « permission denied for table _prisma_migrations » à chaque démarrage : l'historique des mises à jour et la page **Mises à jour** lisent les migrations appliquées par la fonction `kledg_applied_migrations()`, et le rôle de l'application n'a toujours aucun droit sur la table de l'historique des migrations ([documentation](docs/rls.md#exempt-tables)). Migration `20261203090000_migration_history_reader` (fonction ajoutée, additive) ; rien à relancer après `prisma migrate deploy`.
 
 ## [0.4.0] - 2026-10-08
 

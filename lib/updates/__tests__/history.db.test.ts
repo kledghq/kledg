@@ -2,7 +2,11 @@
  * Update history (lib/updates/history.ts) against PostgreSQL: one row per
  * version and commit, the previous version and the migrations finished since,
  * attribution to the administrator who installed it from the "Mises à jour"
- * page, one row under concurrent starts, and the paged listing. Skipped
+ * page, one row under concurrent starts, and the paged listing. Under
+ * KLEDG_RLS=enforce the application role has no right on
+ * "_prisma_migrations" (lib/rls/app-role.ts) and still reads the applied
+ * migrations through kledg_applied_migrations() (the update history and
+ * the "Mises à jour" page, lib/updates/migration-history.ts). Skipped
  * without the test database server.
  */
 
@@ -13,7 +17,7 @@ await vi.hoisted(async () => {
   useTestDatabase('update_history')
 })
 
-import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
+import { prepareTestDatabase, queryAsOwner, testDatabaseAvailable, TEST_APP_ROLE } from '@/lib/__tests__/helpers/test-db'
 import { rlsMode } from '@/lib/rls/mode'
 
 const available = await testDatabaseAvailable()
@@ -74,6 +78,8 @@ describe.skipIf(!available)('update history', () => {
          migration_name VARCHAR(255) NOT NULL, logs TEXT, rolled_back_at TIMESTAMPTZ,
          started_at TIMESTAMPTZ NOT NULL DEFAULT now(), applied_steps_count INTEGER NOT NULL DEFAULT 0)`,
     )
+    // As in a real database, where the table exists before `pnpm db:rls-role` revokes it from the application role.
+    if (rlsMode() === 'enforce') await queryAsOwner(DB, `REVOKE ALL ON TABLE "_prisma_migrations" FROM "${TEST_APP_ROLE}"`)
     ;({ prisma } = await import('@/lib/prisma'))
     history = await import('../history')
   })
@@ -120,7 +126,7 @@ describe.skipIf(!available)('update history', () => {
     expect(await prisma.instanceVersion.count()).toBe(1)
   })
 
-  it.skipIf(rlsMode() === 'enforce')(
+  it(
     'records a new commit with the previous version and the migrations finished since',
     async () => {
       await history.recordDeployedVersion({ env: env('1.3.0', SHA1), now: at('2026-10-02T10:00:00Z') })
@@ -144,6 +150,31 @@ describe.skipIf(!available)('update history', () => {
       expect(await prisma.instanceVersion.count()).toBe(2)
     },
   )
+
+  it('reads the applied migrations for the "Mises à jour" page, while the application role cannot touch the table under KLEDG_RLS=enforce', async () => {
+    await migration('20261102090000_b', '2026-10-05T08:01:00Z')
+    await migration('20261101090000_a', '2026-10-05T08:00:00Z')
+    await migration('20261103090000_rolled_back', '2026-10-05T08:02:00Z', true)
+    await migration('20261104090000_unfinished', null)
+    const { readAppliedMigrations } = await import('../migration-history')
+    expect(await readAppliedMigrations()).toEqual([
+      { name: '20261101090000_a', finishedAt: at('2026-10-05T08:00:00Z') },
+      { name: '20261102090000_b', finishedAt: at('2026-10-05T08:01:00Z') },
+    ])
+    if (rlsMode() !== 'enforce') return
+    const rights = await queryAsOwner<{ privilege: string; granted: boolean }>(
+      DB,
+      `SELECT p AS privilege, has_table_privilege($1, 'public._prisma_migrations', p) AS granted
+       FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) AS p`,
+      [TEST_APP_ROLE],
+    )
+    expect(rights.filter((r) => r.granted)).toEqual([])
+    await expect(prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations"`).rejects.toThrow(/permission denied/)
+    const { withSystemContext } = await import('@/lib/rls/context')
+    // Even the unrestricted system context of the application cannot write the history.
+    await expect(withSystemContext('version-history', () => prisma.$executeRaw`DELETE FROM "_prisma_migrations"`)).rejects.toThrow(/permission denied/)
+    expect(await readAppliedMigrations()).toHaveLength(2)
+  })
 
   it('attributes the version to the administrator who merged its commit from the updates page', async () => {
     await history.recordDeployedVersion({ env: env('1.3.0', SHA1), now: at('2026-10-02T10:00:00Z') })

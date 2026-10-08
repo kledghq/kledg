@@ -201,7 +201,14 @@ counters keyed by IP or user, `update_connection` the instance's GitHub
 connection and `instance_versions` its update history (instance
 administrators only, checked by the route).
 `_prisma_migrations` belongs to the migration tool (the application role
-gets no right on it).
+gets no right on it). The application reads the applied migrations (the
+update history recorded at server start, the "Mises à jour" page) through
+`kledg_applied_migrations()` (migration
+`20261203090000_migration_history_reader`, `lib/updates/migration-history.ts`):
+a `SECURITY DEFINER` function owned by the migration role that returns the
+name and end time of the migrations finished and not rolled back, nothing
+else. Its `EXECUTE` stays with `PUBLIC`, so an existing instance gets it with
+`prisma migrate deploy`, without running `pnpm db:rls-role` again.
 
 ### Triggers and integrity functions
 
@@ -233,7 +240,7 @@ otherwise.
 | Role | Used by | Rights |
 |---|---|---|
 | Owner (the role of `DATABASE_MIGRATION_URL`, else `DATABASE_URL_UNPOOLED`) | `prisma migrate deploy`, `pnpm db:rls-role` | owns the schema |
-| `kledg_app` (or the name given to `pnpm db:rls-role -- --role`) | the application with `KLEDG_RLS=enforce` (`KLEDG_DATABASE_URL`, else `DATABASE_URL`) | `SELECT, INSERT, UPDATE, DELETE` on the tables, sequences and functions; no DDL, no `BYPASSRLS`, nothing on `_prisma_migrations`, no `EXECUTE` on the owner-only `SECURITY DEFINER` functions (`kledg_purge_audit_logs`, `kledg_assert_fiscal_year_open`) |
+| `kledg_app` (or the name given to `pnpm db:rls-role -- --role`) | the application with `KLEDG_RLS=enforce` (`KLEDG_DATABASE_URL`, else `DATABASE_URL`) | `SELECT, INSERT, UPDATE, DELETE` on the tables, sequences and functions; no DDL, no `BYPASSRLS`, nothing on `_prisma_migrations` (it reads applied migrations through `kledg_applied_migrations()`), no `EXECUTE` on the owner-only `SECURITY DEFINER` functions (`kledg_purge_audit_logs`, `kledg_assert_fiscal_year_open`) |
 
 `pnpm db:rls-role` (`scripts/rls-role.ts`) creates the role if needed, grants
 it the rights above on the existing tables and, through `ALTER DEFAULT

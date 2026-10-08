@@ -5,9 +5,9 @@
  */
 
 import { actionRefusalMessage, isActionAllowed, type InstanceActor } from '@/lib/instance'
-import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getConnectionSummary, type ConnectionSummary } from './connection'
+import { readAppliedMigrations } from './migration-history'
 import {
   diffMigrations,
   fetchReleases,
@@ -37,13 +37,10 @@ export interface UpdateOverview {
   managementRefused: string | null
 }
 
-/** Migrations recorded as applied in this database (Prisma's own table). */
+/** Migrations recorded as applied in this database (Prisma's own table, through lib/updates/migration-history.ts). */
 async function appliedMigrations(): Promise<string[] | null> {
   try {
-    const rows = await prisma.$queryRaw<Array<{ migration_name: string }>>`
-      SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
-    `
-    return rows.map((r) => r.migration_name)
+    return (await readAppliedMigrations()).map((m) => m.name)
   } catch (error) {
     logger.warn('Could not read applied migrations', { error: error instanceof Error ? error.message : String(error) })
     return null

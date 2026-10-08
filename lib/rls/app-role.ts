@@ -15,13 +15,16 @@ export const DEFAULT_APP_ROLE = 'kledg_app'
 
 /**
  * SECURITY DEFINER functions the application role calls: the access
- * functions of the policies and the company identifier check
- * (lib/companies/identifiers.ts). Every other definer function is a trigger
+ * functions of the policies, the company identifier check
+ * (lib/companies/identifiers.ts) and the read of the applied migrations
+ * (lib/updates/migration-history.ts: names and end times only, the role
+ * keeps no right on "_prisma_migrations"). Every other definer function is a trigger
  * function or runs from one, or is a maintenance function for the owner
  * (kledg_purge_audit_logs): migration 20261029090000_definer_function_hardening
  * revokes EXECUTE on those from PUBLIC and the application role.
  */
 export const APP_CALLABLE_DEFINER_FUNCTIONS: readonly string[] = [
+  'kledg_applied_migrations',
   'kledg_company_identifier_taken',
   'kledg_group_subsidiary_ids',
   'kledg_rls_company_ids',
@@ -61,7 +64,8 @@ END $$`,
     `REVOKE CREATE ON SCHEMA public FROM "${role}"`,
     `GRANT USAGE ON SCHEMA public TO "${role}"`,
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${role}"`,
-    // The migration history belongs to the migration role only.
+    // The migration history belongs to the migration role only; the application
+    // reads applied migrations through kledg_applied_migrations() (SECURITY DEFINER).
     `DO $$ BEGIN
   IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
     REVOKE ALL ON TABLE public."_prisma_migrations" FROM "${role}";

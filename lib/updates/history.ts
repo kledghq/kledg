@@ -27,6 +27,7 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { withSystemContext } from '@/lib/rls/context'
 import { UPSTREAM } from './github'
 import { HISTORY_PAGE_SIZE } from './history-query'
+import { migrationsFinishedBetween } from './migration-history'
 import { getDeployedVersion, parseVersion } from './version'
 
 type Env = Record<string, string | undefined>
@@ -46,14 +47,8 @@ interface RecordOptions {
 /** Prisma migrations finished after `since` (and up to `until`), in the order they ran; null when unreadable. */
 async function migrationsBetween(since: Date, until: Date): Promise<string[] | null> {
   try {
-    const rows = await prisma.$queryRaw<Array<{ migration_name: string }>>`
-      SELECT migration_name FROM "_prisma_migrations"
-      WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL AND finished_at > ${since} AND finished_at <= ${until}
-      ORDER BY finished_at, migration_name
-    `
-    return rows.map((r) => r.migration_name)
+    return await migrationsFinishedBetween(since, until)
   } catch (error) {
-    // KLEDG_RLS=enforce: the application role has no right on the migration history.
     logger.warn('Update history: could not read the migration history', {
       error: error instanceof Error ? error.message : String(error),
     })

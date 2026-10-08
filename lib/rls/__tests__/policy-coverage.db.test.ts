@@ -17,7 +17,7 @@ await vi.hoisted(async () => {
 import { Client } from 'pg'
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import { grantTestAppRole, TEST_APP_ROLE } from '@/lib/__tests__/helpers/test-db'
-import { APP_CALLABLE_DEFINER_FUNCTIONS } from '@/lib/rls/app-role'
+import { APP_CALLABLE_DEFINER_FUNCTIONS, appRoleStatements } from '@/lib/rls/app-role'
 import { CHILD_TABLES, COMPANY_TABLES, DEFINER_TRIGGER_FUNCTIONS, RLS_EXEMPT_TABLES } from '@/lib/rls/tables'
 
 const available = await testDatabaseAvailable()
@@ -160,6 +160,7 @@ describe.skipIf(!available)('row level security: policy coverage', () => {
       'kledg_rls_company_ids',
       'kledg_company_identifier_taken',
       'kledg_group_subsidiary_ids',
+      'kledg_applied_migrations',
     ]
     const { rows } = await db.query<{ name: string; definer: boolean; config: string[] | null }>(
       `SELECT proname AS name, prosecdef AS definer, proconfig AS config FROM pg_proc WHERE proname = ANY($1)`,
@@ -170,6 +171,25 @@ describe.skipIf(!available)('row level security: policy coverage', () => {
       expect(row.definer, `${row.name} is not SECURITY DEFINER`).toBe(true)
       expect(row.config, row.name).toContain('search_path=public, pg_temp')
     }
+  })
+
+  it('gives the application role no right on the migration history, only the read of kledg_applied_migrations()', async () => {
+    await grantTestAppRole(db)
+    // The table exists before `pnpm db:rls-role` in a real database: its revocation, as the setup runs it.
+    for (const statement of appRoleStatements(TEST_APP_ROLE).filter((s) => s.includes('_prisma_migrations'))) await db.query(statement)
+    const { rows } = await db.query<{ privilege: string; granted: boolean }>(
+      `SELECT p AS privilege, has_table_privilege($1, 'public._prisma_migrations', p) AS granted
+       FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS p`,
+      [TEST_APP_ROLE],
+    )
+    expect(rows.filter((r) => r.granted).map((r) => r.privilege)).toEqual([])
+    const { rows: [reader] } = await db.query<{ app: boolean; result: string }>(
+      `SELECT has_function_privilege($1, 'kledg_applied_migrations()', 'EXECUTE') AS app,
+              pg_get_function_result('kledg_applied_migrations()'::regprocedure) AS result`,
+      [TEST_APP_ROLE],
+    )
+    // Names and end times only: no checksum, no logs.
+    expect(reader).toEqual({ app: true, result: 'TABLE(migration_name text, finished_at timestamp with time zone)' })
   })
 
   it('[KLEDG-SEC-013] pins the search_path of every SECURITY DEFINER function to public, then pg_temp', async () => {
