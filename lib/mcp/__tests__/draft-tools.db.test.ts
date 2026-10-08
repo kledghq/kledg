@@ -448,7 +448,7 @@ describe.skipIf(!available)('draft-level MCP tools', () => {
     it('answers the bank state and the deadlines of a company', async () => {
       const key = await apiKey('read')
       const bank = await call(key, 'get_bank_sync_status', { companyId: ids.aCompany })
-      expect(bank.data).toEqual({ connections: [], integrations: [] })
+      expect(bank.data).toEqual({ syncPaused: null, connections: [], integrations: [] })
       const deadlines = await call(key, 'list_tax_deadlines', { companyId: ids.aCompany, fiscalYearId: ids.aFy })
       expect(deadlines.ok, deadlines.text).toBe(true)
       expect(deadlines.data.fiscalYear).toMatchObject({ id: ids.aFy, year: 2025 })

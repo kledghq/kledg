@@ -452,6 +452,11 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
       record('training_reports', p, id('training_reports'))
       await prisma.payrollTaxYear.create({ data: { id: id('payroll_tax_years'), companyId, year: 2026 } })
       record('payroll_tax_years', p, id('payroll_tax_years'))
+      // Invitation of a member by email (migration 20261128090000)
+      await prisma.companyInvitation.create({
+        data: { id: id('company_invitations'), companyId, email: `invite-${p}@rls.test`, role: 'viewer', tokenHash: p.charCodeAt(0).toString(16).padStart(64, '0'), expiresAt: new Date('2099-01-01') },
+      })
+      record('company_invitations', p, id('company_invitations'))
     }
     return keys
   })
