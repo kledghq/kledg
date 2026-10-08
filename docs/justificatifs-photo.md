@@ -50,17 +50,40 @@ Chaque résultat de `capture_receipt`, `stage_receipt` et `file_receipt` porte l
 - Les trois outils sont de niveau brouillons (`kledg:write`), déclarés avec `fullControlTool` et `level: 'write'` (`lib/mcp/full-control/receipts.ts`, enregistrés par `lib/mcp/receipts-tools.ts`). Les droits sont vérifiés par `guard.require`, comme les outils de brouillons, et les appels comptent dans la limite des écritures de brouillons.
 - **Rattacher** agit hors des brouillons (chez Qonto, sans retour possible, ou un justificatif compté comme fourni) : c'est une action à fort impact. Sur une connexion de niveau brouillons, elle attend toujours l'approbation de l'utilisateur dans Kledg (aperçu, `actionId`, page d'approbation), même si la connexion est en mode automatique ; avec le contrôle total, elle suit le mode d'exécution de la connexion (`dryRun` puis exécution en mode automatique). L'approbation couvre le justificatif et la transaction (`targetState` : verrou de la société, lignes `staged_receipts` et `bank_transactions`) : une modification après l'approbation fait refuser l'exécution.
 - Un membre voit les justificatifs qu'il a déposés ; un membre qui rapproche la banque ou valide les notes de frais voit ceux de toute la société. Ceux d'un autre membre, ou d'une autre société, sont « introuvables ».
-- Journal d'audit : `RECEIPT_STAGED`, `RECEIPT_ATTACHED`, `RECEIPT_EXPENSE`, `RECEIPT_DISCARDED`, plus les entrées MCP habituelles (`MCP_FULL_CONTROL`, `MCP_FULL_CONTROL_PENDING`).
+- Journal d'audit : `RECEIPT_STAGED`, `RECEIPT_ATTACHED`, `RECEIPT_EXPENSE`, `RECEIPT_DISCARDED`, `RECEIPT_STORED_AT_QONTO`, plus les entrées MCP habituelles (`MCP_FULL_CONTROL`, `MCP_FULL_CONTROL_PENDING`).
 
 ## Stockage
 
-- `receipt_files` : les octets d'un justificatif que Kledg garde (JPEG, PNG ou PDF, 5 Mo au plus, une ligne par contenu dans une société, SHA-256). Contraintes en base : type, taille, empreinte.
+- `receipt_files` : un justificatif que Kledg garde (JPEG, PNG ou PDF, 5 Mo au plus, une ligne par contenu dans une société, SHA-256). Ses octets sont dans le stockage configuré (`storageDriver` : Vercel Blob privé, S3, dossier du serveur, ou la base dans `content` quand rien n'est configuré) sous la clé `storageKey`, `receipts/<société>/<aléatoire>` ; voir [configuration.md](configuration.md#stockage-des-justificatifs). Contraintes en base : type, taille, empreinte, octets à un seul endroit, clé dans le préfixe de la société. Chaque lecture vérifie la taille et le SHA-256 (`lib/receipts/receipt-file-store.ts`).
 - `staged_receipts` : le justificatif déposé, son fichier, son empreinte, qui l'a déposé, d'où (`view`, `file_param`, `base64`, `app`), les champs lus, son statut (`staged`, `attached`, `expense`, `discarded`) et où il est allé (transaction, pièce jointe, note de frais).
 - Les deux tables ont la sécurité au niveau des lignes (politiques `kledg_rls_*` sur `companyId`, [rls.md](rls.md)).
-- Un justificatif non classé (`staged` ou `discarded`) expire 30 jours après son dépôt : il est supprimé avec son fichier au dépôt suivant d'un justificatif de la société (`purgeExpiredReceipts`), sans tâche planifiée. Le fichier d'un justificatif rattaché à une autre banque ou joint à une note de frais reste, comme toute pièce justificative (Code de commerce art. L123-22 : conservation dix ans).
+- Un justificatif non classé (`staged` ou `discarded`) expire 30 jours après son dépôt : il est supprimé avec son fichier et l'objet stocké au dépôt suivant d'un justificatif de la société (`purgeExpiredReceipts`), sans tâche planifiée. Abandonner un justificatif, l'envoyer à Qonto ou supprimer la société supprime aussi l'objet. Le fichier d'un justificatif rattaché à une autre banque ou joint à une note de frais reste, comme toute pièce justificative (Code de commerce art. L123-22 : conservation dix ans).
 - Le même fichier déposé deux fois dans une société donne le même justificatif : un dépôt répété ne classe rien deux fois, et un justificatif déjà rattaché répond où il est.
 
-Migration : `20261201090000_receipt_capture` (additive).
+Migrations : `20261201090000_receipt_capture`, `20261202090000_receipt_object_storage` (additives). Les fichiers gardés dans la base avant le stockage d'objets se déplacent avec `pnpm receipts:migrate-storage` ([configuration.md](configuration.md#déplacer-les-justificatifs-existants)).
+
+## Qonto
+
+Vérifié le 2026-10-08 dans la référence de l'API Business de Qonto (les pages n'ont ni date ni journal des modifications) :
+
+| Besoin | Point d'accès | Clé API | Utilisé |
+| --- | --- | --- | --- |
+| Justificatif d'une transaction Qonto | `POST /v2/transactions/{id}/attachments` ([doc](https://docs.qonto.com/api-reference/business-api/expense-management/attachments-in-transactions/upload-an-attachment-to-a-transaction)) | oui | oui, au rattachement |
+| Fichier sans transaction, relisible | `POST /v2/supplier_invoices/bulk` ([doc](https://docs.qonto.com/api-reference/business-api/expense-management/supplier-invoices/create-supplier-invoices)), relu par `GET /v2/supplier_invoices/{id}` ([doc](https://docs.qonto.com/api-reference/business-api/expense-management/supplier-invoices/retrieve-a-supplier-invoice)) puis `GET /v2/attachments/{id}` | oui (tableau *Endpoints access* de [l'introduction à l'authentification](https://docs.qonto.com/get-started/business-api/authentication/introduction)) | sur option, voir ci-dessous |
+| Pièce jointe isolée | `POST /v2/attachments` ([doc](https://docs.qonto.com/api-reference/business-api/expense-management/attachments/upload-an-attachment)) | oui | non : la référence ne dit pas combien de temps Qonto garde une pièce reliée à rien |
+| Demande de remboursement, note de frais, boîte de réception des justificatifs | aucun ; `/v2/requests` ne crée que des demandes de virement ou de carte, par OAuth seulement | | non |
+| Supprimer une facture fournisseur | aucun (liste, création, lecture, refus, payée ou non payée) | | |
+
+Ce que Qonto permet est déclaré à un seul endroit, `QONTO_RECEIPT_CAPABILITIES` (`lib/integrations/providers/qonto/capabilities.ts`) : `storesTransactionReceipts`, `canStoreUnmatchedReceipts` (factures fournisseurs), `canStoreExpenseReports` (`false`).
+
+**Justificatifs des notes de frais envoyés à Qonto** (`lib/receipts/offload-to-qonto.service.ts`), désactivé par défaut, activé par l'exploitant avec `KLEDG_QONTO_EXPENSE_RECEIPTS=supplier_invoices` : Qonto range le fichier parmi les factures fournisseurs « à vérifier » (quelqu'un pourrait le prendre pour une facture à payer) et n'a aucun moyen de le supprimer. Activé, pour une société connectée à Qonto :
+
+1. seul le justificatif d'une ligne d'une note de frais **validée** part (un brouillon peut encore perdre la ligne) ;
+2. envoi par `POST /v2/supplier_invoices/bulk`, sans rapprochement automatique de Qonto (`skip_attachment_matcher`, un paiement personnel n'a pas de transaction), avec une clé d'idempotence dérivée de la société et du SHA-256 du fichier ; la réponse 200 peut porter une erreur par facture (`errors`), lue comme un refus ;
+3. relecture : la facture, sa pièce (`attachment_id`), puis le fichier, dont le SHA-256 doit être celui envoyé ;
+4. seulement alors, la pièce jointe de Kledg pointe vers la pièce de Qonto (`externalAttachmentId`, `providerData.qontoSupplierInvoiceId`) et Kledg supprime sa copie. Le proxy des justificatifs lit ensuite le fichier chez Qonto. Un refus, un fichier pas encore lisible ou différent laisse la copie de Kledg ; l'essai suivant recommence.
+
+L'envoi a lieu après la synchronisation bancaire quotidienne de la société (20 justificatifs au plus, dans la limite d'appels bancaires) et avec `pnpm receipts:migrate-storage --qonto`. Journal d'audit : `RECEIPT_STORED_AT_QONTO`.
 
 ## Limites
 
@@ -91,9 +114,13 @@ Migration : `20261201090000_receipt_capture` (additive).
 | `lib/receipts/openai-file.ts` | Téléchargement protégé des fichiers de ChatGPT |
 | `lib/receipts/stage-receipt.service.ts` | Dépôt, déduplication, expiration, abandon |
 | `lib/receipts/file-receipt.service.ts` | Recherche, rattachement, note de frais |
+| `lib/receipts/receipt-file-store.ts` | Octets des justificatifs dans le stockage configuré, vérification du SHA-256, suppression des objets |
+| `lib/storage/**` | Pilotes de stockage d'objets (Vercel Blob privé, S3, dossier) et choix par l'environnement |
+| `lib/receipts/migrate-receipt-storage.service.ts`, `scripts/migrate-receipt-storage.ts` | `pnpm receipts:migrate-storage` |
+| `lib/receipts/offload-to-qonto.service.ts`, `lib/integrations/providers/qonto/supplier-invoices.ts`, `lib/integrations/providers/qonto/capabilities.ts` | Justificatifs des notes de frais envoyés à Qonto |
 | `lib/mcp/full-control/receipts.ts` | Outils `capture_receipt`, `stage_receipt`, `file_receipt` |
 | `lib/mcp/views/receipt.ts`, `lib/mcp/views/html/receipt.ts` | Données et modèle de la vue `receipt-capture` |
 | `app/api/receipts/staged/**` | Routes de la page Justificatifs |
 | `components/features/receipts/receipt-drop-zone.tsx` | Zone « Déposer des justificatifs » |
 
-Tests : `lib/receipts/__tests__` (notation, octets, noms, SSRF, services contre PostgreSQL), `lib/mcp/__tests__/receipt-tools.db.test.ts` (outils par `/api/mcp`, approbation), `lib/mcp/__tests__/views.test.ts` (vue : origine, envoi, rattachement, note de frais), `app/api/__tests__/receipt-routes.db.test.ts`, `components/features/receipts/__tests__/receipt-drop-zone.test.tsx`, matrice des autorisations.
+Tests : `lib/receipts/__tests__` (notation, octets, noms, SSRF, services contre PostgreSQL ; `receipt-storage.db.test.ts` : stockage d'objets, suppression des objets, déplacement, envoi à Qonto), `lib/storage/__tests__/drivers.test.ts` (contrat des pilotes), `lib/integrations/providers/qonto/__tests__/supplier-invoices.test.ts`, `lib/mcp/__tests__/receipt-tools.db.test.ts` (outils par `/api/mcp`, approbation), `lib/mcp/__tests__/views.test.ts` (vue : origine, envoi, rattachement, note de frais), `app/api/__tests__/receipt-routes.db.test.ts`, `components/features/receipts/__tests__/receipt-drop-zone.test.tsx`, matrice des autorisations.

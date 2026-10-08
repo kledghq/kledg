@@ -32,10 +32,50 @@ Toutes les variables sont listées dans [`.env.example`](../.env.example).
 | `REVOLUT_API_URL`, `REVOLUT_CONSENT_URL` | Non | Remplacent l'URL de l'API et de la page d'autorisation Revolut Business. |
 | `PONTO_API_URL` | Non | URL de base de l'API Ponto. Défaut : `https://api.myponto.com`. |
 | `KLEDG_OPENAI_FILE_HOSTS` | Non | Noms d'hôtes exacts (séparés par des virgules) d'où Kledg accepte de télécharger un fichier joint dans ChatGPT (`stage_receipt`), en plus de `*.oaiusercontent.com`. Toujours en https, vers une adresse publique, sans redirection. Voir [justificatifs-photo.md](justificatifs-photo.md#sécurité). |
+| `KLEDG_STORAGE_DRIVER` | Non | Où Kledg garde les fichiers des justificatifs : `blob` (Vercel Blob privé), `s3` (stockage compatible S3), `fs` (dossier du serveur) ou `postgres` (dans la base). Par défaut, le premier configuré parmi Vercel Blob, S3 puis dossier, sinon la base. Voir [Stockage des justificatifs](#stockage-des-justificatifs). |
+| `BLOB_READ_WRITE_TOKEN`, `BLOB_STORE_ID` | Non | Magasin Vercel Blob **privé** des justificatifs. Sur Vercel, relier le magasin au projet ajoute `BLOB_STORE_ID` (accès par le jeton OIDC du projet) ; ailleurs, `BLOB_READ_WRITE_TOKEN`. |
+| `KLEDG_S3_BUCKET`, `KLEDG_S3_REGION`, `KLEDG_S3_ENDPOINT`, `KLEDG_S3_ACCESS_KEY_ID`, `KLEDG_S3_SECRET_ACCESS_KEY` | Non | Stockage compatible S3 des justificatifs (AWS S3, Cloudflare R2, MinIO, Scaleway). `KLEDG_S3_ENDPOINT` vide : AWS, avec `KLEDG_S3_REGION` obligatoire. Options : `KLEDG_S3_SESSION_TOKEN`, `KLEDG_S3_FORCE_PATH_STYLE`, `KLEDG_S3_SSE` (`AES256`, `aws:kms` avec `KLEDG_S3_SSE_KMS_KEY_ID`, ou `off`). |
+| `KLEDG_STORAGE_DIR` | Non | Dossier du serveur pour les justificatifs (un volume Docker, par exemple `/app/storage`). Refusé sur Vercel et les hébergeurs sans disque persistant. |
+| `KLEDG_STORAGE_MIGRATE` | Non | `on` : au démarrage du serveur, déplace en arrière-plan vers le stockage configuré les justificatifs qui n'y sont pas encore (comme `pnpm receipts:migrate-storage`), pour un hébergeur sans terminal. |
+| `KLEDG_QONTO_EXPENSE_RECEIPTS` | Non | `supplier_invoices` : les justificatifs des notes de frais validées d'une société connectée à Qonto sont envoyés à Qonto comme factures fournisseurs, puis Kledg supprime sa copie. Désactivé par défaut : voir [justificatifs-photo.md](justificatifs-photo.md#qonto). |
 | `NEXT_PUBLIC_DISABLE_SW` | Non | `true` désactive le service worker de l'application installable : les navigateurs qui l'avaient installé le désinscrivent et suppriment ses caches à la visite suivante. Lue à la construction (`pnpm build`) : reconstruisez puis redéployez après l'avoir changée. Voir [self-hosting.md](self-hosting.md#application-installable). |
 | `KLEDG_COMMIT`, `KLEDG_VERSION` | Non | Commit et version affichés sur la page **Mises à jour** (arguments de construction de l'image Docker, voir [self-hosting.md](self-hosting.md#docker)). Le commit déployé fourni par l'hébergeur passe avant : `VERCEL_GIT_COMMIT_SHA`, `RAILWAY_GIT_COMMIT_SHA`, `RENDER_GIT_COMMIT`, `CC_COMMIT_ID` (Clever Cloud), `SOURCE_COMMIT` (Coolify). |
 | `KLEDG_DEPLOYS_FROM_GITHUB` | Non | `true` quand l'hébergeur redéploie l'instance à chaque fusion sur la branche principale du dépôt GitHub (Fly.io avec GitHub Actions, Clever Cloud ou Coolify reliés à GitHub, webhook Dokploy) : la page **Mises à jour** propose alors la mise à jour en deux clics. Automatique sur Vercel, et sur Railway et Render quand le déploiement vient d'un commit. `false` la désactive partout. |
 | `SKIP_MIGRATIONS`, `KLEDG_BACKUP`, `KLEDG_BACKUP_DIR`, `KLEDG_BACKUP_KEEP` | Non | Image Docker : ne pas migrer au démarrage, ne pas sauvegarder la base avant une migration (`off`), dossier et nombre de sauvegardes gardées. Voir [self-hosting.md](self-hosting.md#docker). |
+
+## Stockage des justificatifs
+
+Les fichiers des justificatifs que Kledg garde lui-même (photos et PDF déposés depuis un assistant ou la page **Justificatifs**, voir [justificatifs-photo.md](justificatifs-photo.md#stockage)) vont dans un stockage d'objets, choisi par l'environnement (`lib/storage/config.ts`) :
+
+| Pilote | Choisi quand | Variables | Chiffrement au repos |
+| --- | --- | --- | --- |
+| `blob` (Vercel Blob) | `BLOB_READ_WRITE_TOKEN` ou `BLOB_STORE_ID` | magasin **privé** relié au projet (`BLOB_STORE_ID` et jeton OIDC) ou `BLOB_READ_WRITE_TOKEN` | celui de Vercel |
+| `s3` (AWS S3, R2, MinIO, Scaleway) | `KLEDG_S3_BUCKET` | `KLEDG_S3_*` ci-dessus | `x-amz-server-side-encryption` (`KLEDG_S3_SSE`) : `AES256` par défaut sur AWS, rien avec `KLEDG_S3_ENDPOINT` (MinIO le refuse sans KMS ; R2 et Scaleway chiffrent toujours) |
+| `fs` (dossier) | `KLEDG_STORAGE_DIR` | le dossier, sur un disque persistant | celui du disque |
+| `postgres` (base) | rien de configuré | aucune | celui de la base |
+
+`KLEDG_STORAGE_DRIVER` force le choix. Sur Railway, Render, Fly.io (sans volume) et Clever Cloud, le disque du conteneur est effacé à chaque déploiement : n'utilisez pas `fs`, prenez un bucket S3 (Cellar de Clever Cloud, Scaleway, R2 et Tigris de Fly.io sont compatibles S3) ou laissez les fichiers dans la base. Les règles communes :
+
+- **Jamais d'URL publique** : un magasin Vercel Blob public est refusé (chaque appel demande l'accès `private`), un fichier n'est jamais servi par une URL du stockage. Le navigateur et les assistants lisent un justificatif par les routes de Kledg (proxy des justificatifs, `get_file`), après la vérification des droits.
+- **Clés impossibles à deviner** : `receipts/<id de la société>/<24 octets aléatoires>`, jamais l'empreinte du fichier. La base refuse une clé hors du préfixe de sa société (contrainte `receipt_files_storage_check`).
+- **Déduplication** : une ligne `receipt_files` par contenu (SHA-256) dans une société, donc un seul objet.
+- **Lecture vérifiée** : la taille et le SHA-256 du fichier lu sont comparés à ceux de la ligne ; un objet modifié dans le stockage n'est jamais servi.
+- **Suppression** : abandonner un justificatif, l'expiration des justificatifs non classés (30 jours), l'envoi à Qonto et la suppression d'une société suppriment aussi les objets. L'archivage d'une société ne supprime rien.
+- Chaque fichier garde le pilote avec lequel il a été écrit (`receipt_files.storageDriver`) : après un changement de pilote, les anciens fichiers restent lisibles tant que leur stockage reste configuré.
+
+### Déplacer les justificatifs existants
+
+`pnpm receipts:migrate-storage` déplace vers le pilote configuré les fichiers qui n'y sont pas (au départ, ceux gardés dans la base avant le stockage d'objets) : pour chacun, il relit les octets, vérifie leur SHA-256, les écrit, les relit depuis le nouveau stockage, puis change la ligne en une seule mise à jour qui vide la colonne `content`. Un fichier qui ne correspond pas à son empreinte reste en place et est signalé. Le script reprend où il s'est arrêté et ne déplace rien deux fois (code de sortie 1 s'il reste des fichiers non déplacés).
+
+```bash
+pnpm receipts:migrate-storage --dry-run   # compte ce qui serait déplacé
+pnpm receipts:migrate-storage             # déplace tout
+pnpm receipts:migrate-storage --company <id> --limit 100
+```
+
+Il utilise l'environnement de l'instance (`DATABASE_URL` et les variables du stockage). Sur un hébergeur sans terminal (image Docker, Vercel), `KLEDG_STORAGE_MIGRATE=on` fait le même travail au démarrage du serveur, en arrière-plan ; retirez-la quand le journal du serveur n'affiche plus de ligne `Storage migration`. `KLEDG_STORAGE_DRIVER=postgres` suivi du script ramène les fichiers dans la base.
+
+Sauvegardes : avec un stockage d'objets, `pg_dump` ne contient plus les fichiers des justificatifs. Sauvegardez aussi le magasin, le bucket ou le dossier (versionnement du bucket, copie du volume Docker).
 
 ## Changer le secret
 

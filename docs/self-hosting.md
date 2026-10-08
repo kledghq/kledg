@@ -33,7 +33,7 @@ Quel que soit l'hébergeur, il vous faut les variables de [configuration.md](con
 
 ## Déploiement sur Vercel
 
-1. Cliquez sur **Déployer sur Vercel** dans le [README](../README.md). Vercel crée une copie du dépôt sur votre compte GitHub, le projet, une base Neon (variables `DATABASE_URL` et `DATABASE_URL_UNPOOLED`) reliée au projet. Resend n'est pas dans le bouton : tant que son domaine n'est pas vérifié, l'intégration reste en attente et bloque le déploiement ; ajoutez-le ensuite (voir [Emails](#emails)). Pour la base, choisissez la région **Frankfurt (eu-central-1)** (les fonctions de Kledg tournent à Francfort, `fra1`, voir `vercel.json`), désactivez l'option **Auth** (Neon Auth, inutile : Kledg a sa propre authentification) et gardez l'offre **Free**.
+1. Cliquez sur **Déployer sur Vercel** dans le [README](../README.md). Vercel crée une copie du dépôt sur votre compte GitHub, le projet, une base Neon (variables `DATABASE_URL` et `DATABASE_URL_UNPOOLED`) reliée au projet, et un magasin Vercel Blob **privé** pour les fichiers des justificatifs (`BLOB_STORE_ID`, voir [Stockage des justificatifs](configuration.md#stockage-des-justificatifs)). Resend n'est pas dans le bouton : tant que son domaine n'est pas vérifié, l'intégration reste en attente et bloque le déploiement ; ajoutez-le ensuite (voir [Emails](#emails)). Pour la base, choisissez la région **Frankfurt (eu-central-1)** (les fonctions de Kledg tournent à Francfort, `fra1`, voir `vercel.json`), désactivez l'option **Auth** (Neon Auth, inutile : Kledg a sa propre authentification) et gardez l'offre **Free**.
 2. Renseignez les deux variables demandées :
    - `BETTER_AUTH_SECRET` : générez-la avec `openssl rand -base64 32`. Gardez-la : la clé qui chiffre les identifiants bancaires en est dérivée.
    - `ADMIN_EMAIL` : votre email, seul autorisé à créer le compte administrateur.
@@ -238,6 +238,8 @@ services:
 export KLEDG_COMMIT=$(git rev-parse HEAD)
 docker compose up -d --build
 ```
+
+Les fichiers des justificatifs vont dans le volume `kledg-storage` (`KLEDG_STORAGE_DIR=/app/storage`). Pour un bucket compatible S3 à la place (Scaleway, Cloudflare R2, AWS S3, Garage), définissez `KLEDG_S3_BUCKET` et les autres `KLEDG_S3_*` : S3 l'emporte sur le volume. Une instance mise à jour depuis une version qui gardait les fichiers dans la base les déplace avec `KLEDG_STORAGE_MIGRATE=on`, à retirer ensuite. Voir [Stockage des justificatifs](configuration.md#stockage-des-justificatifs).
 
 Placez un reverse proxy (Caddy, nginx, Traefik) devant le port 3000 pour HTTPS et gardez `TRUST_PROXY_HOPS=1` ; sans proxy, mettez `TRUST_PROXY_HOPS=0`, sinon un client pourrait choisir son adresse IP. Pour une base existante, retirez le service `db` et définissez `DATABASE_URL`.
 
@@ -444,7 +446,7 @@ Lighthouse ne contrôle plus l'installabilité : le panneau **Manifest** le fait
 
 ## Sauvegardes
 
-Vos données comptables sont dans votre base PostgreSQL. Les bases managées ont leurs propres sauvegardes, dont la durée dépend de l'offre : historique de restauration et branches sur Neon, sauvegardes de Render Postgres et du service PostgreSQL de Railway, sauvegarde quotidienne du module PostgreSQL de Clever Cloud (sauf offre DEV). Fly Postgres n'est pas managé : ne comptez que sur les instantanés de son volume et sur vos `pg_dump`. Avec Docker, l'image sauvegarde la base avant chaque migration dans `/app/backups`.
+Vos données comptables sont dans votre base PostgreSQL. Les bases managées ont leurs propres sauvegardes, dont la durée dépend de l'offre : historique de restauration et branches sur Neon, sauvegardes de Render Postgres et du service PostgreSQL de Railway, sauvegarde quotidienne du module PostgreSQL de Clever Cloud (sauf offre DEV). Fly Postgres n'est pas managé : ne comptez que sur les instantanés de son volume et sur vos `pg_dump`. Avec Docker, l'image sauvegarde la base avant chaque migration dans `/app/backups`. Les fichiers des justificatifs gardés dans un stockage d'objets (Vercel Blob, bucket S3, volume `kledg-storage`) ne sont pas dans `pg_dump` : sauvegardez-les aussi.
 
 Dans tous les cas, planifiez un `pg_dump` régulier vers un stockage que vous contrôlez, hors de l'hébergeur, et essayez de temps en temps une restauration (`pg_restore`). Pensez aussi à l'export FEC annuel, que la loi vous impose de pouvoir produire.
 
