@@ -14,6 +14,7 @@
 - [Bibliothèque de règles](bibliotheque-de-regles.md) : règles prêtes à l'emploi pour les fournisseurs et paiements courants, avec leur TVA et ses sources, suggestions d'après les transactions, copie depuis une autre société ; format d'un modèle et contribution
 - [Lettrage et tiers](lettrage-et-tiers.md) : lettrage des comptes de tiers, balance auxiliaire, balance âgée, justificatifs manquants
 - [Factures et tiers](factures-et-tiers.md) : clients et fournisseurs, factures d'achat et de vente, comptabilisation, TVA sur les encaissements, règlements, import Qonto, facturation électronique
+- [Justificatifs photographiés](justificatifs-photo.md) : photo d'un ticket ou d'une facture dans Claude, ChatGPT ou sur la page Justificatifs, rattachée à la bonne transaction ou proposée en note de frais ; stockage, limites et sécurité
 - [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, validation, comptabilisation et remboursement
 - [Catégories simples](categories-simples.md) : mode simple, catégories en langage courant et leurs comptes, TVA récupérable, questions, dépenses à vérifier, règles apprises, validation par l'expert-comptable
 - [Abonnements](abonnements.md) : paiements récurrents détectés dans les opérations bancaires, rythme, coût annuel, prix modifié ou arrêt, ajout au budget

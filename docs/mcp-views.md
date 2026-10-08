@@ -80,6 +80,7 @@ Data-driven, one per shape (`lib/mcp/views/html`):
 | `actions` | columns, items with cells, entry lines, buttons; optional bulk action and refresh | `list_entries` (drafts: validate, delete), `list_bank_transactions` (reconcile with the unique match, else propose an entry or mark reconciled without entry), `list_missing_receipts` |
 | `document` | parties, facts, tables, totals, status | `get_invoice`, `get_expense_report` |
 | `organigram` | nodes by level, holders, officers, holdings with percentages | `get_group_structure` |
+| `receipt-capture` | the capture form (camera or file, amount, date, merchant), the matched or candidate transactions, the expense report proposal, the dry run to confirm or approve, the filed receipt | `capture_receipt`, `stage_receipt`, `file_receipt` ([justificatifs-photo.md](justificatifs-photo.md)) |
 
 The cash forecast tool (branch `cash-forecast`) is not on `main` yet. When
 it lands, wire it with `_meta: viewMeta('chart')` and a builder returning a
@@ -99,6 +100,22 @@ non-breaking spaces (`1 234,56 €`), dates `dd/mm/yyyy`. Tables have
 `caption` and `th` scopes; charts are `role="img"` with an `aria-label`
 summary and a "Voir les données" table; the Sankey is laid out at the view's real width, with the first column's labels on the left of their nodes, the last column's on the right and a middle node's above the flows, one slot per label so labels never overlap the flows or each other, and long names cut with an ellipsis (full text in the tooltip); the organigramme also writes each
 holder in words and lists the holdings in a table.
+
+## Receipt capture
+
+The `receipt-capture` template ([justificatifs-photo.md](justificatifs-photo.md))
+is the only one that sends data the user picked: the photo. It has two file
+inputs ("Prendre une photo" with `capture="environment"`, "Choisir un
+fichier"), reads the file with `FileReader`, and redraws a photo that is too
+large or not JPEG or PNG (an iPhone's HEIC) through `createImageBitmap` and
+a canvas into a JPEG of 2000 pixels at most under 5 MB: no URL is ever built
+(no `data:` or `blob:` image, the CSP stays the same). The bytes leave the
+view only as the base64 argument of `stage_receipt` through `tools/call`,
+to the host's origin once the handshake told it. Every result of the three
+tools is this view again, drawn with `api.show`; "Rattacher" starts with the
+dry run (automatic mode) or the pending action to approve in Kledg
+(validation mode, and always on a draft-level connection), like the
+actionable list.
 
 ## Rapprocher (unique match)
 
