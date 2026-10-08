@@ -77,6 +77,7 @@ export const COMPANY_TABLES: readonly string[] = [
   'revenue_account_settings',
   'training_reports',
   'payroll_tax_years',
+  'company_invitations',
 ]
 
 /** Child tables reachable through their parent (EXISTS policies): table -> [parent, foreign key]. */

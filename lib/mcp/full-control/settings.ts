@@ -2,8 +2,9 @@
  * Full control tools on the company settings (settings:update, like the
  * routes of app/api/companies/[id]/**): the company card and its options,
  * establishments, persons, shareholders, tax regimes and addresses, the
- * layout of the balance sheet and of the income statement; and the members
- * of the company (instance administrators only, like their adminRoute).
+ * layout of the balance sheet and of the income statement; the members of
+ * the company (instance administrators only, like their adminRoute) and its
+ * invitations (members:manage, like app/api/companies/[id]/invitations).
  * Every change of settings is high impact: it follows the execution mode
  * of the connection (approval in Kledg in validation mode).
  */
@@ -12,6 +13,7 @@ import { z } from 'zod'
 import { ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { assertActionAllowed } from '@/lib/instance'
+import { inviteMember, listInvitations, resendInvitation, revokeInvitation } from '@/lib/rbac/company-invitations.service'
 import { assistantInput, forAssistant, routeBody } from '@/lib/mcp/euros'
 import { UpdateCompanySchema, getCompanyById, updateCompany } from '@/lib/companies/manage-company.service'
 import { PaymentTermsBodySchema, getPaymentTerms, updatePaymentTerms } from '@/lib/companies/payment-terms.service'
@@ -362,9 +364,51 @@ const manageMembersTool = fullControlTool({
   audit: ({ action, memberId, role }, result) => ({ action, memberId: memberId ?? (result as { memberId?: string }).memberId ?? null, role: role ?? null }),
 })
 
+const manageInvitationsTool = fullControlTool({
+  name: 'manage_invitations',
+  title: 'Inviter des membres dans la société',
+  description: `Invitations of the company by email, like the Membres page (issue #13): action list returns the open invitations (email, role, expiry, whether expired, who invited; never the link); action invite sends an invitation to email with a role (companyAdmin, accountant or viewer, never more rights than the user's own role in the company); the person joins by opening the emailed link, valid 7 days and single use, with their account or one they create; action resend sends invitationId again with a new link (the old one stops working); action revoke cancels invitationId. The instance may refuse invitations. Changing a member's role or removing a member: manage_members (instance administrators). ${ACTS_AS_USER} Actions invite, resend and revoke are high impact: ${TWO_STEP}`,
+  input: {
+    action: z.enum(['list', 'invite', 'resend', 'revoke']),
+    email: z.string().trim().max(320).pipe(z.email('Email invalide.')).optional().describe('invite: the email of the person.'),
+    role: z.enum(COMPANY_ROLES).optional().describe('invite: the company role given on acceptance.'),
+    invitationId: z.string().max(64).optional().describe('resend and revoke: from action list.'),
+  },
+  permission: { members: ['manage'] },
+  amounts: 'none',
+  never: 'returns an invitation link, gives instance administration rights, or a role above the user\'s own.',
+  confirmation: true,
+  highImpactActions: ['invite', 'resend', 'revoke'],
+  async preview({ companyId, action, email, role, invitationId }) {
+    const invitations = await listInvitations(companyId)
+    if (action === 'invite') return { action, email: email ?? null, role: role ?? null, openInvitations: invitations.length }
+    return { action, invitation: invitationId ? (invitations.find((i) => i.id === invitationId) ?? null) : null }
+  },
+  async execute({ companyId, action, email, role, invitationId }, ctx) {
+    if (action === 'list') return { invitations: await listInvitations(companyId) }
+    const user = ctx.access.user
+    const inviter = { id: user.id, email: user.email, name: user.name ?? null, role: user.role }
+    if (action === 'invite') {
+      if (!email || !role) throw new ValidationError("L'email et le rôle sont requis pour inviter.")
+      const sent = await inviteMember({ companyId, email, role, inviter, inviterCan: ctx.can, source: 'mcp' })
+      // The link never goes to an assistant: without email delivery, the user copies it from the Membres page.
+      return { action, invitation: sent.invitation, emailSent: sent.emailSent }
+    }
+    if (!invitationId) throw new ValidationError('invitationId est requis pour cette action.')
+    if (action === 'resend') {
+      const sent = await resendInvitation({ companyId, invitationId, inviter, inviterCan: ctx.can, source: 'mcp' })
+      return { action, invitation: sent.invitation, emailSent: sent.emailSent }
+    }
+    return { action, ...(await revokeInvitation({ companyId, invitationId, source: 'mcp' })) }
+  },
+  audit: ({ action, invitationId, role }, result) =>
+    action === 'list' ? {} : { action, invitationId: invitationId ?? (result as { invitation?: { id: string } }).invitation?.id ?? null, role: role ?? null },
+})
+
 export function registerSettingsTools(register: RegisterTool) {
   register(updateCompanySettingsTool)
   register(manageCompanyRecordsTool)
   register(manageStatementLayoutTool)
   register(manageMembersTool)
+  register(manageInvitationsTool)
 }

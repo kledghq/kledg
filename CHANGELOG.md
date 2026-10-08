@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Ajouté
 
+- Membres : un administrateur de la société invite lui-même ses collaborateurs et son expert-comptable par email, avec le rôle de son choix (jamais plus de droits que le sien), sans passer par l'administrateur de l'instance. Le lien est valable 7 jours et ne sert qu'une fois ; l'invité accepte avec son compte ou en crée un. La page **Membres** liste les invitations en attente, qui se renvoient ou s'annulent ; outil MCP `manage_invitations`. L'instance peut désactiver les invitations, ou la création de compte depuis une invitation ([documentation](docs/membres-et-invitations.md)). Migration `20261128090000_company_invitations` (table ajoutée, additive).
 - Banque : la synchronisation bancaire d'une société en lecture seule (archivée, ou abonnement impayé sur une offre hébergée) est suspendue, quotidienne comme manuelle ; la page **Comptes bancaires** dit pourquoi, et elle reprend d'elle-même dès que la société redevient modifiable, en rattrapant les opérations depuis la dernière synchronisation ([documentation](docs/connexions-bancaires.md#société-en-lecture-seule)).
 
 ### Sécurité

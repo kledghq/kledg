@@ -363,6 +363,10 @@ async function seed() {
   for (const [userId, organizationId, role] of members) {
     await prisma.member.create({ data: { id: `m-${userId}`, userId, organizationId, role, createdAt: new Date() } })
   }
+  // A pending invitation of company A, so sending it again or revoking it is allowed by role (not a 404)
+  await prisma.companyInvitation.create({
+    data: { id: 'inv-a', companyId: ids.aCompany, email: 'pending@test.local', role: 'viewer', tokenHash: 'a'.repeat(64), expiresAt: new Date(Date.now() + 7 * 86_400_000) },
+  })
 }
 
 const ROUTE_MODULES = {
@@ -470,6 +474,9 @@ const ROUTE_MODULES = {
   integrationResources: () => import('@/app/api/integrations/[id]/resources/route'),
   integrationVerify: () => import('@/app/api/integrations/verify/route'),
   members: () => import('@/app/api/companies/[id]/members/route'),
+  invitations: () => import('@/app/api/companies/[id]/invitations/route'),
+  invitation: () => import('@/app/api/companies/[id]/invitations/[invitationId]/route'),
+  invitationResend: () => import('@/app/api/companies/[id]/invitations/[invitationId]/resend/route'),
   onboarding: () => import('@/app/api/companies/[id]/onboarding/route'),
   openingBalances: () => import('@/app/api/companies/[id]/opening-balances/route'),
   member: () => import('@/app/api/companies/[id]/members/[memberId]/route'),
@@ -769,6 +776,11 @@ const WRITES: Call[] = [
   { label: 'integration synced resources', route: 'integrationResources', method: 'POST', path: () => `/api/integrations/${ids.aIntegration}/resources`, params: p({ id: () => ids.aIntegration }), body: () => ({ resourceIds: [] }) },
   { label: 'verify bank credentials', route: 'integrationVerify', method: 'POST', path: () => '/api/integrations/verify', body: () => ({ companyId: A(), provider: 'QONTO', credentials: { login: 'l', secretKey: 's' } }) },
   { label: 'add member', route: 'members', method: 'POST', path: () => `/api/companies/${A()}/members`, params: p({ id: A }), body: () => ({ email: 'new@test.local', role: 'viewer' }) },
+  // Invitations (issue #13): members:manage, company administrators included; the list is a privileged read
+  { label: 'list invitations', route: 'invitations', method: 'GET', path: () => `/api/companies/${A()}/invitations`, params: p({ id: A }) },
+  { label: 'invite member', route: 'invitations', method: 'POST', path: () => `/api/companies/${A()}/invitations`, params: p({ id: A }), body: () => ({ email: 'invitee@test.local', role: 'viewer' }) },
+  { label: 'resend invitation', route: 'invitationResend', method: 'POST', path: () => `/api/companies/${A()}/invitations/inv-a/resend`, params: p({ id: A, invitationId: () => 'inv-a' }) },
+  { label: 'revoke invitation', route: 'invitation', method: 'DELETE', path: () => `/api/companies/${A()}/invitations/inv-a`, params: p({ id: A, invitationId: () => 'inv-a' }) },
   { label: 'remove member', route: 'member', method: 'DELETE', path: () => `/api/companies/${A()}/members/m-u-viewer`, params: p({ id: A, memberId: () => 'm-u-viewer' }) },
   { label: 'export FEC', route: 'fec', method: 'GET', path: () => `/api/fec?companyId=${A()}` },
   { label: 'hide onboarding checklist', route: 'onboarding', method: 'POST', path: () => `/api/companies/${A()}/onboarding`, params: p({ id: A }), body: () => ({ action: 'dismiss' }) },
@@ -1098,6 +1110,10 @@ const ACCOUNTANT_FORBIDDEN = new Set([
   'verify Qonto credentials',
   'add member',
   'remove member',
+  'list invitations',
+  'invite member',
+  'resend invitation',
+  'revoke invitation',
   'reset balance sheet layout',
   'create income statement line',
   'change member role',
@@ -1370,9 +1386,19 @@ describe.skipIf(!available)('authorization matrix', () => {
       expect(await prisma.company.count({ where: { id: ids.aCompany } })).toBe(1)
     })
 
-    it('cannot manage members (instance administrators only)', async () => {
+    it('cannot add a member directly nor change a role (instance administrators only)', async () => {
       expect((await call('companyAdmin', WRITES.find((c) => c.label === 'add member')!)).status).toBe(403)
       expect((await call('companyAdmin', WRITES.find((c) => c.label === 'change member role')!)).status).toBe(403)
+    })
+
+    it('invites members by email and manages the invitations (issue #13)', async () => {
+      for (const label of ['list invitations', 'invite member', 'resend invitation', 'revoke invitation']) {
+        await reseed()
+        expect((await call('companyAdmin', WRITES.find((c) => c.label === label)!)).status, label).toBeLessThan(300)
+      }
+      // Never the instance administrator role
+      const asAdmin = { ...WRITES.find((c) => c.label === 'invite member')!, body: () => ({ email: 'boss@test.local', role: 'admin' }) }
+      expect((await call('companyAdmin', asAdmin)).status).toBe(400)
     })
 
     it('manages the company settings', async () => {

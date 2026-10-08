@@ -85,6 +85,7 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   manage_company_records: true,
   manage_statement_layout: true,
   manage_members: true,
+  manage_invitations: true,
   manage_bank_accounts: true,
   bulk_reconcile: true,
   delete_bank_transactions: true,

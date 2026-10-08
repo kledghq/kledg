@@ -28,6 +28,12 @@ export const RATE_LIMITS = {
   'cron-keyless-period-lock': { window: 86_400, max: 2, message: 'Clôture automatique des périodes déjà lancée récemment.' },
   /** Welcome email of a member added to a company (lib/rbac/add-member-to-company.service.ts), per person. */
   'welcome-email': { window: 86_400, max: 3, message: "Trop d'emails de bienvenue envoyés à cette personne aujourd'hui." },
+  /** Invitations sent or sent again by a company administrator (lib/rbac/company-invitations.service.ts), per user. */
+  'member-invitation': { window: 3600, max: 20, message: "Trop d'invitations envoyées en une heure. Réessayez plus tard." },
+  /** Invitation emails received by one address, every company together, per address. */
+  'invitation-email': { window: 86_400, max: 5, message: "Trop d'invitations envoyées à cette adresse aujourd'hui. Réessayez demain." },
+  /** Acceptance attempts on the invitation page (app/(auth)/invitation), per client IP. */
+  'invitation-accept': { window: 900, max: 20, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Test email of the Configuration page, per administrator. */
   'test-email': { window: 3600, max: 5, message: "Trop d'emails de test en une heure. Réessayez plus tard." },
   /** Email change of one's account, per user. */

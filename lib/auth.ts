@@ -186,8 +186,9 @@ function createAuth() {
       if (isUserRouteOnlyPath(ctx.path)) {
         throw new APIError('FORBIDDEN', { message: 'Utilisez la page Utilisateurs de Kledg pour cette action.' })
       }
-      // Members and roles are managed by instance administrators through the
-      // app's own routes (app/api/companies/[id]/members). Better Auth's
+      // Members and roles are managed through the app's own routes: instance
+      // administrators (app/api/companies/[id]/members) and the invitations of
+      // company administrators (app/api/companies/[id]/invitations). Better Auth's
       // organization endpoints that change members, invitations, roles or
       // organizations are closed to everyone else.
       if (isOrganizationMutationPath(ctx.path)) {

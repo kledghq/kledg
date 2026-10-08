@@ -9,6 +9,7 @@ import {
   Copy,
   Loader2,
   Check,
+  Mail,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -52,7 +53,8 @@ import {
 } from '@/components/ui/dialog'
 import { HelpTip, PageHeader, useConfirm } from '@/components/shared'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
-import { AccessNotice } from '@/components/features/companies/company-access'
+import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
+import { grantableRoles, InvitationsCard, InviteMemberDialog } from '@/components/features/companies/member-invitations'
 
 type BaseRole = 'companyAdmin' | 'accountant' | 'viewer'
 
@@ -87,6 +89,12 @@ export default function CompanyMembersPage() {
   const companyId = params?.companyId as string
   const session = authClient.useSession()
   const isAdmin = session.data?.user?.role === 'admin'
+  // Company administrators (members:manage) invite by email (issue #13); roles and removals stay with instance administrators.
+  const { can } = useCompanyAccess()
+  const canInvite = can({ members: ['manage'] })
+  const invitableRoles = grantableRoles(can)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [invitationsVersion, setInvitationsVersion] = useState(0)
 
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -238,20 +246,40 @@ export default function CompanyMembersPage() {
         title="Membres"
         description="Les personnes qui ont accès à cette société et ce qu'elles peuvent faire."
         actions={
-          isAdmin ? (
-            <Button onClick={() => setAddOpen(true)}>
-              <UserPlus aria-hidden />
-              Ajouter un membre
-            </Button>
-          ) : null
+          <>
+            {canInvite ? (
+              <Button variant={isAdmin ? 'outline' : 'default'} onClick={() => setInviteOpen(true)}>
+                <Mail aria-hidden />
+                Inviter un membre
+              </Button>
+            ) : null}
+            {isAdmin ? (
+              <Button onClick={() => setAddOpen(true)}>
+                <UserPlus aria-hidden />
+                Ajouter un membre
+              </Button>
+            ) : null}
+          </>
         }
       />
 
-      {/* Members are managed by instance administrators only (POST /api/companies/[id]/members is an adminRoute) */}
+      {/* Direct additions, role changes and removals are instance administrator routes (adminRoute); invitations are companyRoute members:manage */}
       {!isAdmin && !session.isPending ? (
         <AccessNotice>
-          Seul un administrateur de l&apos;instance peut ajouter un membre, changer son rôle ou le retirer.
+          {canInvite
+            ? "Vous invitez des membres par email. Changer le rôle d'un membre ou le retirer est réservé à l'administrateur de l'instance."
+            : "Seuls les administrateurs de la société peuvent inviter un membre ; changer son rôle ou le retirer est réservé à l'administrateur de l'instance."}
         </AccessNotice>
+      ) : null}
+
+      {canInvite ? (
+        <InviteMemberDialog
+          companyId={companyId}
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          roles={invitableRoles}
+          onInvited={() => setInvitationsVersion((v) => v + 1)}
+        />
       ) : null}
 
       {isAdmin && (
@@ -461,6 +489,8 @@ export default function CompanyMembersPage() {
             </Table>
         </CardContent>
       </Card>
+
+      {canInvite ? <InvitationsCard companyId={companyId} refreshKey={invitationsVersion} /> : null}
 
       <Dialog
         open={createdCreds !== null}

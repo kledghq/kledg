@@ -196,6 +196,7 @@ model Company {
   revenueAccountSettings     RevenueAccountSetting[]
   trainingReports            TrainingReport[]
   payrollTaxYears            PayrollTaxYear[]
+  invitations                CompanyInvitation[]
 
   @@index([addressId])
   @@index([headquartersAddressId])
@@ -3023,4 +3024,34 @@ model PayrollTaxYear {
   @@unique([companyId, year])
   @@index([companyId])
   @@map("payroll_tax_years")
+}
+
+/// Invitation of a person to a company by its administrators (GitHub issue
+/// #13, lib/rbac/company-invitations.service.ts, docs/membres-et-invitations.md).
+/// The emailed link carries a random token; only its SHA-256 is stored. An
+/// invitation is open while it is neither accepted nor revoked and not
+/// expired; accepting it is single use (acceptedAt set once).
+model CompanyInvitation {
+  id           String    @id @default(cuid())
+  companyId    String
+  /// Lowercased address the link was sent to; only that account can accept.
+  email        String
+  /// companyAdmin, accountant or viewer (never the instance administrator role).
+  role         String
+  tokenHash    String    @unique
+  invitedById  String?
+  expiresAt    DateTime
+  lastSentAt   DateTime  @default(now())
+  sendCount    Int       @default(1)
+  acceptedAt   DateTime?
+  acceptedById String?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, email])
+  @@map("company_invitations")
 }

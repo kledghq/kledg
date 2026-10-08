@@ -292,6 +292,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `manage_company_records` | Établissements, personnes (création, rectification, effacement dans les limites de la conservation légale, RGPD art. 16 et 17), associés, régimes fiscaux, adresses | `settings:update` | Oui |
 | `manage_statement_layout` | Mise en page du bilan et du compte de résultat (lignes, retour au PCG, historique, modèles de la société : enregistrer, appliquer, supprimer) | `settings:update` | Oui |
 | `manage_members` | Ajouter un membre, changer son rôle, le retirer ; administrateurs de l'instance seulement, comme la page | `members:manage` et administrateur de l'instance | Oui |
+| `manage_invitations` | Lister les invitations en attente, inviter une personne par email avec un rôle (jamais plus de droits que le sien), renvoyer une invitation avec un nouveau lien, l'annuler ; le lien n'est jamais rendu à l'assistant | `members:manage` | Oui, sauf `list` |
 | `manage_bank_accounts` | Nom, compte 512 et synchronisation d'un compte bancaire, compte par défaut, comptes synchronisés d'une connexion, déconnexion d'une banque (identifiants supprimés, opérations gardées) | `banking:manage` | Oui (comptes synchronisés, déconnexion) |
 | `bulk_reconcile` | Pointer des transactions sans écriture, annuler leur rapprochement, rapprochement automatique avec le journal BQ, appliquer une règle à une transaction | `banking:reconcile` | Oui, comme `run_rules` |
 | `delete_bank_transactions` | Supprimer des transactions bancaires | `banking:manage` | Oui |
@@ -424,7 +425,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status`, `get_transaction_details`, `simulate_rule`, `list_rule_templates`, `get_qonto_statements`, `list_qonto_receipts`, `get_file` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `sync_bank_data`, `import_statement`, `reconcile_transaction`, `bulk_reconcile`, `run_rules`, `manage_bank_accounts`, `delete_bank_transactions`, `duplicate_rule`, `add_rule_from_template`, `copy_rules_from_company`... | Connecter une banque |
 | Écritures, plan comptable, journaux, exercices | `list_entries`, `get_entry`, `get_ledger_report`, `search_accounts`, `list_journals`, `list_fiscal_years` | `create_draft_entry`, `duplicate_entry`, `prepare_opening_balances` | `update_draft_entry`, `validate_entries`, `reverse_entry`, `delete_draft_entry`, `create_account`, `manage_accounts`, `create_journal`, `manage_journals`, `manage_fiscal_years`, `import_accounting_file` | Exports Excel du journal |
 | Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `generate_depreciation` | |
-| Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (administrateurs de l'instance) | Suppression définitive de société |
+| Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (administrateurs de l'instance), `manage_invitations` | Suppression définitive de société |
 | Création, archivage et restauration de société | `list_companies` (`includeArchived`), `lookup_siren` | | `create_company`, `archive_company`, `restore_company` | Suppression définitive |
 
 ## Inventaire de l'API
@@ -435,9 +436,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 228 | 187 | 41 |
-| Lectures (GET) | 182 | 154 | 28 |
-| Total | 410 | 341 | 69 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 231 | 190 | 41 |
+| Lectures (GET) | 183 | 155 | 28 |
+| Total | 414 | 345 | 69 |
 
 ### Exclusions
 
@@ -621,6 +622,10 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `DELETE /api/companies/[id]/members/[memberId]` | administrateur de l’instance | `manage_members` (CT) |
 | `GET /api/companies/[id]/members` | settings:read | `get_company_settings` (L) |
 | `POST /api/companies/[id]/members` | administrateur de l’instance | `manage_members` (CT) |
+| `GET /api/companies/[id]/invitations` | members:manage | `manage_invitations` (CT) |
+| `POST /api/companies/[id]/invitations` | members:manage | `manage_invitations` (CT) |
+| `DELETE /api/companies/[id]/invitations/[invitationId]` | members:manage | `manage_invitations` (CT) |
+| `POST /api/companies/[id]/invitations/[invitationId]/resend` | members:manage | `manage_invitations` (CT) |
 | `GET /api/companies/[id]/onboarding` | entries:read | Exclu : aides de l'interface |
 | `POST /api/companies/[id]/onboarding` | ledger:manage | Exclu : aides de l'interface |
 | `GET /api/companies/[id]/opening-balances` | entries:read | `list_fiscal_years` (L), `list_entries` (L) |

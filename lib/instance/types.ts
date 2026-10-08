@@ -18,8 +18,19 @@ export const INSTANCE_ACTIONS = [
   'change-appearance',
   /** Delete a company and all its data. */
   'delete-company',
-  /** Add a member to a company (account creation and welcome email). */
+  /**
+   * Add a member to a company: by an instance administrator (account
+   * creation and welcome email), or by email invitation from a company
+   * administrator (lib/rbac/company-invitations.service.ts).
+   */
   'invite-member',
+  /**
+   * Create one's account by accepting a company invitation (the invitee
+   * chooses a password on the invitation page). Refused: only people who
+   * already have an account can accept; the instance administrator creates
+   * the others' accounts. Checked with a null actor.
+   */
+  'invitation-sign-up',
   /** Administer users (create, ban, change roles) through Better Auth's admin endpoints. */
   'manage-users',
   /** Connect GitHub and install updates from the "Mises à jour" page. */
