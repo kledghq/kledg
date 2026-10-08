@@ -457,6 +457,14 @@ export async function seedTenants(prisma: PrismaClient): Promise<SeededKeys> {
         data: { id: id('company_invitations'), companyId, email: `invite-${p}@rls.test`, role: 'viewer', tokenHash: p.charCodeAt(0).toString(16).padStart(64, '0'), expiresAt: new Date('2099-01-01') },
       })
       record('company_invitations', p, id('company_invitations'))
+      // A receipt photographed in an assistant, staged with its stored file (migration 20261201090000)
+      const sha256 = p.charCodeAt(0).toString(16).padStart(64, '0')
+      await prisma.receiptFile.create({ data: { id: id('receipt_files'), companyId, sha256, contentType: 'image/jpeg', size: 4, content: Buffer.from([0xff, 0xd8, 0xff, 0xe0]) } })
+      record('receipt_files', p, id('receipt_files'))
+      await prisma.stagedReceipt.create({
+        data: { id: id('staged_receipts'), companyId, fileId: id('receipt_files'), sha256, fileName: 'ticket.jpg', contentType: 'image/jpeg', size: 4, source: 'view', expiresAt: new Date('2099-01-01') },
+      })
+      record('staged_receipts', p, id('staged_receipts'))
     }
     return keys
   })

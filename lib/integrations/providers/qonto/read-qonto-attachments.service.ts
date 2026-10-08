@@ -92,6 +92,7 @@ async function unsyncedAttachment(companyId: string, attachmentRef: string, tran
     fileName: 'justificatif',
     fileContentType: null as string | null,
     fileUrl: null as string | null,
+    receiptFileId: null as string | null,
     bankTransaction: null as { externalTransactionId: string } | null,
   }
 }
@@ -103,7 +104,9 @@ export interface QontoReceipt {
 }
 
 /**
- * The file of a receipt of the company (PDF or image). Qonto is asked for a
+ * The file of a receipt of the company (PDF or image). A receipt Kledg
+ * keeps itself (receiptFileId, lib/receipts) is read from the database.
+ * Otherwise Qonto is asked for a
  * fresh signed URL (stored URLs expire after 30 minutes); the URL stored at
  * synchronization time is the fallback. A file larger than `budget`
  * (25 MB by default) is refused from Qonto's metadata when it gives the
@@ -124,9 +127,19 @@ export async function readQontoReceipt(
         fileName: true,
         fileContentType: true,
         fileUrl: true,
+        receiptFileId: true,
         bankTransaction: { select: { externalTransactionId: true } },
       },
     })) ?? (await unsyncedAttachment(companyId, attachmentRef, transactionUuid))
+
+  // A receipt Kledg keeps itself (a photo filed for a bank without receipt API, the receipt of an expense line): no bank call.
+  if (stored.receiptFileId) {
+    const file = await prisma.receiptFile.findFirst({ where: { id: stored.receiptFileId, companyId }, select: { content: true, contentType: true, size: true } })
+    if (!file) throw new NotFoundError(RECEIPT_NOT_FOUND)
+    if (file.size > budget.maxBytes) throw budget.tooLarge(file.size)
+    const body = new Uint8Array(file.content)
+    return { body: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer, contentType: file.contentType, fileName: stored.fileName || 'justificatif' }
+  }
 
   const uuid = stored.transactionUuid || stored.bankTransaction?.externalTransactionId || null
   await limitBankCalls(companyId)

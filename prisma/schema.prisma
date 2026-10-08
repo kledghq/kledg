@@ -2151,7 +2151,7 @@ model ExpenseLine {
   /// Part of vatAmount the company recovers (lib/expense-reports/vat-recovery.ts).
   recoverableVat      Decimal            @default(0) @db.Decimal(15, 2)
   receiptKind         ExpenseReceiptKind @default(NONE)
-  /// A receipt already in Kledg (a Qonto attachment): Kledg stores no file.
+  /// A receipt already in Kledg: a Qonto attachment, or a photo whose file Kledg keeps (Attachment.receiptFileId).
   receiptAttachmentId String?
   /// Reference of a paper or emailed receipt kept by the company.
   receiptReference    String?

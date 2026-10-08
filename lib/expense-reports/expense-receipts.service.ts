@@ -1,9 +1,10 @@
 /**
- * Receipts of expense lines. Kledg has no file storage (docs/factures-et-
- * tiers.md, Pièce jointe): a line refers to a receipt already known to
- * Kledg, a Qonto attachment synchronized with the bank transactions
- * (attachments table), or carries the reference of a receipt the company
- * keeps (paper or email). The file is shown through the receipt proxy of
+ * Receipts of expense lines. A line refers to a receipt already known to
+ * Kledg: a Qonto attachment synchronized with the bank transactions
+ * (attachments table), or a photo filed from an assistant or the
+ * Justificatifs page whose file Kledg keeps (receiptFileId, lib/receipts,
+ * docs/justificatifs-photo.md); or it carries the reference of a receipt the
+ * company keeps (paper or email). The file is shown through the receipt proxy of
  * the bank transactions (GET /api/banking/attachments/[id]/proxy,
  * readQontoReceipt: the company's own Qonto key, Qonto file hosts only,
  * public addresses, no redirect, timeout, byte budget); the line keeps the
