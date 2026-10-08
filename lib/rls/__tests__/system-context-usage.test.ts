@@ -30,6 +30,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/rbac/company-invitations.service.ts': ['invitation-acceptance'],
   // Receipt files moved to the configured storage (script or KLEDG_STORAGE_MIGRATE=on at start): every company's files.
   'lib/receipts/migrate-receipt-storage.service.ts': ['storage-migration'],
+  // Removal of a member, or leaving a company, once the rules were checked in the user's context: another user's membership, grants and pending AI actions.
+  'lib/rbac/remove-member.service.ts': ['member-removal'],
 }
 
 function files(entry: string): string[] {

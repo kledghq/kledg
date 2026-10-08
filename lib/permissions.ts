@@ -11,9 +11,9 @@ import { defaultStatements, memberAc } from 'better-auth/plugins/organization/ac
  * - banking: read transactions, reconcile them, manage bank connections and credentials
  * - reports: read statements, export them (PDF, Excel, FEC)
  * - settings: company information, establishments, shareholders, report layouts
- * - members: company members: invitations by email (company administrators,
- *   docs/membres-et-invitations.md); direct additions, role changes and
- *   removals stay with instance administrators
+ * - members: company members: invitations by email and removals (company
+ *   administrators, docs/membres-et-invitations.md); direct additions and
+ *   role changes stay with instance administrators
  * - expenses: expense reports (notes de frais). submit = record and submit
  *   one's own reports; validate = see, edit, return and validate everyone's
  *   (docs/notes-de-frais.md). Posting and reimbursement use entries rights.

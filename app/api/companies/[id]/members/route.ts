@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { adminRoute, companyRoute, fromParam } from '@/lib/api/route'
 import { addMemberToCompany, COMPANY_ROLES } from '@/lib/rbac/add-member-to-company.service'
-import { listMembers } from '@/lib/rbac/manage-members.service'
+import { listMembersWithRemoval } from '@/lib/rbac/remove-member.service'
 import { assertActionAllowed } from '@/lib/instance'
 import { writeAuditLog } from '@/lib/audit'
 
@@ -12,10 +12,13 @@ const AddMemberSchema = z.object({
   role: z.enum(COMPANY_ROLES, { error: 'Rôle invalide.' }),
 })
 
-/** Members of the company with their role (any member may read them). */
+/**
+ * Members of the company with their role (any member may read them), and
+ * whether the signed-in user may remove each one, or why not.
+ */
 export const GET = companyRoute(
   { company: fromParam('id'), permission: { settings: ['read'] } },
-  async ({ companyId }) => NextResponse.json(await listMembers(companyId)),
+  async ({ companyId, user }) => NextResponse.json(await listMembersWithRemoval(companyId, user)),
 )
 
 /** Adds a member, creating the user when needed. Instance administrators only. Audited. */

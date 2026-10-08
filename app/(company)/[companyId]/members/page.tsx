@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   UserPlus,
-  Trash2,
+  UserMinus,
+  LogOut,
   Copy,
   Loader2,
   Check,
@@ -65,6 +66,10 @@ type Member = {
   name: string | null
   roles: string[]
   createdAt: string | Date
+  /** The member is the signed-in user ("Quitter la société"). */
+  self?: boolean
+  /** Whether the signed-in user may remove this member now, or why not (lib/rbac/member-removal-rules.ts). */
+  removal?: { allowed: true } | { allowed: false; reason: string }
 }
 
 type UserOption = {
@@ -87,9 +92,10 @@ function roleLabel(r: string): string {
 export default function CompanyMembersPage() {
   const params = useParams()
   const companyId = params?.companyId as string
+  const router = useRouter()
   const session = authClient.useSession()
   const isAdmin = session.data?.user?.role === 'admin'
-  // Company administrators (members:manage) invite by email (issue #13); roles and removals stay with instance administrators.
+  // Company administrators (members:manage) invite by email (issue #13) and remove members; role changes stay with instance administrators.
   const { can } = useCompanyAccess()
   const canInvite = can({ members: ['manage'] })
   const invitableRoles = grantableRoles(can)
@@ -201,21 +207,55 @@ export default function CompanyMembersPage() {
   }
 
   async function handleRemove(member: Member) {
-    const ok = await confirm({
-      title: `Retirer ${member.name ?? member.email}\u00a0?`,
-      description:
-        "Cette personne n'aura plus accès à la société. Son compte utilisateur est conservé et vous pourrez l'ajouter à nouveau.",
-      confirmLabel: 'Retirer',
-    })
+    const who = member.name ?? member.email
+    const ok = await confirm(
+      member.self
+        ? {
+            title: 'Quitter la société\u00a0?',
+            description: (
+              <div className="space-y-2">
+                <p>
+                  Vous n&apos;aurez plus accès à cette société, ni vos assistants IA et vos clés API pour elle. Vos actions IA
+                  en attente d&apos;approbation et les invitations que vous avez envoyées sont annulées.
+                </p>
+                <p>Ce que vous y avez saisi reste, à votre nom. Pour revenir, un administrateur devra vous inviter de nouveau.</p>
+              </div>
+            ),
+            confirmLabel: 'Quitter la société',
+          }
+        : {
+            title: `Retirer ${who} de la société\u00a0?`,
+            description: (
+              <div className="space-y-2">
+                <p>
+                  Son accès prend fin tout de suite{'\u00a0'}: cette personne ne voit plus la société, ses assistants IA et ses
+                  clés API non plus. Ses actions IA en attente d&apos;approbation et les invitations qu&apos;elle a envoyées
+                  sont annulées.
+                </p>
+                <p>
+                  Ses écritures, ses notes de frais et l&apos;historique restent, à son nom. Son compte est conservé{'\u00a0'}: vous
+                  pourrez l&apos;inviter de nouveau. Elle est prévenue par email si l&apos;envoi d&apos;emails est configuré.
+                </p>
+              </div>
+            ),
+            confirmLabel: 'Retirer',
+          },
+    )
     if (!ok) return
-    const memberId = member.id
     try {
       const res = await fetch(
-        `/api/companies/${companyId}/members/${memberId}`,
+        member.self ? `/api/companies/${companyId}/membership` : `/api/companies/${companyId}/members/${member.id}`,
         { method: 'DELETE' }
       )
       if (!res.ok) throw new Error((await res.json()).error || 'Erreur')
-      toast.success('Membre retiré')
+      if (member.self) {
+        toast.success('Vous avez quitté la société')
+        // No access left here: back to the companies the user still has.
+        router.push('/')
+        router.refresh()
+        return
+      }
+      toast.success(`${who} retiré·e de la société`)
       await load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erreur')
@@ -263,12 +303,12 @@ export default function CompanyMembersPage() {
         }
       />
 
-      {/* Direct additions, role changes and removals are instance administrator routes (adminRoute); invitations are companyRoute members:manage */}
+      {/* Direct additions and role changes are instance administrator routes (adminRoute); invitations and removals are companyRoute members:manage */}
       {!isAdmin && !session.isPending ? (
         <AccessNotice>
           {canInvite
-            ? "Vous invitez des membres par email. Changer le rôle d'un membre ou le retirer est réservé à l'administrateur de l'instance."
-            : "Seuls les administrateurs de la société peuvent inviter un membre ; changer son rôle ou le retirer est réservé à l'administrateur de l'instance."}
+            ? "Vous invitez des membres par email et retirez ceux qui n'ont pas plus de droits que vous. Changer le rôle d'un membre est réservé à l'administrateur de l'instance."
+            : "Seuls les administrateurs de la société peuvent inviter ou retirer un membre ; changer son rôle est réservé à l'administrateur de l'instance. Vous pouvez quitter la société."}
         </AccessNotice>
       ) : null}
 
@@ -412,7 +452,7 @@ export default function CompanyMembersPage() {
                 <TableRow>
                   <TableHead className="pl-5">Utilisateur</TableHead>
                   <TableHead>Rôle</TableHead>
-                  <TableHead className="w-14 pr-5">
+                  <TableHead className="w-28 pr-5">
                     <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
@@ -469,18 +509,20 @@ export default function CompanyMembersPage() {
                         )}
                       </TableCell>
                       <TableCell className="pr-5 text-right">
-                        {isAdmin && (
+                        {m.removal ? (
                           <Button
-                            size="icon-sm"
+                            size="sm"
                             variant="ghost"
                             onClick={() => handleRemove(m)}
-                            aria-label={`Retirer ${m.name ?? m.email}`}
-                            title="Retirer de la société"
+                            disabled={!m.removal.allowed}
+                            aria-label={m.self ? 'Quitter la société' : `Retirer ${m.name ?? m.email}`}
+                            title={m.removal.allowed ? (m.self ? 'Quitter la société' : 'Retirer de la société') : m.removal.reason}
                             className="text-muted-foreground hover:text-destructive"
                           >
-                            <Trash2 aria-hidden />
+                            {m.self ? <LogOut aria-hidden /> : <UserMinus aria-hidden />}
+                            {m.self ? 'Quitter' : 'Retirer'}
                           </Button>
-                        )}
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   )

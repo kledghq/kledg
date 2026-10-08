@@ -849,3 +849,63 @@ describe.skipIf(!available)('manage_invitations (issue #13)', () => {
     expect(await prisma.companyInvitation.count()).toBe(0)
   })
 })
+
+describe.skipIf(!available)('manage_members remove (company administrators)', () => {
+  beforeAll(async () => {
+    ;({ prisma } = await import('@/lib/prisma'))
+    mcp = (await import('@/app/api/mcp/route')) as unknown as Record<'POST', Handler>
+    ;({ createApiKeyWithGrant } = await import('@/lib/ai-access/create-api-key.service'))
+  }, 60_000)
+
+  beforeEach(seed)
+
+  it('removes a member after approval, and their own key loses the company at once', async () => {
+    const viewerKey = await apiKey('read', { allCompanies: true, companyIds: [] }, VIEWER)
+    const before = await call(viewerKey, 'list_journals', { companyId: ids.aCompany })
+    expect(before.ok, before.text).toBe(true)
+
+    const key = await apiKey('admin')
+    const { preview, result } = await confirmed(key, 'manage_members', { companyId: ids.aCompany, action: 'remove', memberId: `m-a-${VIEWER.id}` })
+    expect(preview.member).toMatchObject({ email: VIEWER.email, removal: { allowed: true } })
+    expect(result).toMatchObject({ action: 'remove', removed: true, self: false })
+    expect(await prisma.member.count({ where: { id: `m-a-${VIEWER.id}` } })).toBe(0)
+    expect(await prisma.auditLog.count({ where: { companyId: ids.aCompany, action: 'MEMBER_REMOVED' } })).toBe(1)
+
+    const after = await call(viewerKey, 'list_journals', { companyId: ids.aCompany })
+    expect(after.ok).toBe(false)
+    expect(after.text).toMatch(/Société introuvable/)
+  })
+
+  it('refuses an approved removal when the member changed since the approval', async () => {
+    const key = await apiKey('admin')
+    const args = { companyId: ids.aCompany, action: 'remove', memberId: `m-a-${VIEWER.id}` }
+    const dry = await call(key, 'manage_members', args)
+    expect(dry.ok, dry.text).toBe(true)
+    await approve(dry.data.actionId)
+    await prisma.member.update({ where: { id: `m-a-${VIEWER.id}` }, data: { role: 'accountant' } })
+    const done = await call(key, 'manage_members', { ...args, actionId: dry.data.actionId })
+    expect(done.ok).toBe(false)
+    expect(done.text).toMatch(/Les données ont changé/)
+    expect(await prisma.member.count({ where: { id: `m-a-${VIEWER.id}` } })).toBe(1)
+  })
+
+  it('is refused to a member without members:manage, and never removes the last administrator', async () => {
+    const viewerKey = await apiKey('admin', { allCompanies: true, companyIds: [] }, VIEWER)
+    const refused = await call(viewerKey, 'manage_members', { companyId: ids.aCompany, action: 'remove', memberId: `m-a-${OWNER.id}` })
+    expect(refused.ok).toBe(false)
+
+    const key = await apiKey('admin')
+    const args = { companyId: ids.aCompany, action: 'remove', memberId: `m-a-${OWNER.id}` }
+    const dry = await call(key, 'manage_members', args)
+    expect(dry.ok, dry.text).toBe(true)
+    expect(dry.data.preview.member.removal).toMatchObject({ allowed: false })
+    await approve(dry.data.actionId)
+    const done = await call(key, 'manage_members', { ...args, actionId: dry.data.actionId })
+    expect(done.ok).toBe(false)
+    expect(done.text).toMatch(/dernier administrateur/)
+    expect(await prisma.member.count({ where: { id: `m-a-${OWNER.id}` } })).toBe(1)
+    // Adding and changing roles stay with instance administrators
+    const add = await call(key, 'manage_members', { companyId: ids.aCompany, action: 'add', email: 'new@test.local', role: 'viewer' })
+    expect(add.text).toBe("Action réservée aux administrateurs de l'instance.")
+  })
+})

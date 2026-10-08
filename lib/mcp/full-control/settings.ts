@@ -3,8 +3,10 @@
  * routes of app/api/companies/[id]/**): the company card and its options,
  * establishments, persons, shareholders, tax regimes and addresses, the
  * layout of the balance sheet and of the income statement; the members of
- * the company (instance administrators only, like their adminRoute) and its
- * invitations (members:manage, like app/api/companies/[id]/invitations).
+ * the company (removal with members:manage, like
+ * app/api/companies/[id]/members/[memberId]; additions and role changes by
+ * instance administrators only, like their adminRoute) and its invitations
+ * (members:manage, like app/api/companies/[id]/invitations).
  * Every change of settings is high impact: it follows the execution mode
  * of the connection (approval in Kledg in validation mode).
  */
@@ -61,7 +63,8 @@ import {
   UpdateIncomeStatementLineSchema,
 } from '@/lib/reports/config/schemas'
 import { COMPANY_ROLES, addMemberToCompany } from '@/lib/rbac/add-member-to-company.service'
-import { listMembers, removeMember, updateMemberRole } from '@/lib/rbac/manage-members.service'
+import { updateMemberRole } from '@/lib/rbac/manage-members.service'
+import { listMembersWithRemoval, removeCompanyMember } from '@/lib/rbac/remove-member.service'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { companyLock, rowTargets } from './fingerprint'
@@ -319,28 +322,39 @@ const manageStatementLayoutTool = fullControlTool({
 const manageMembersTool = fullControlTool({
   name: 'manage_members',
   title: 'Gérer les membres de la société',
-  description: `Changes who may access the company, like the Membres page: action add gives a role (companyAdmin, accountant or viewer) to the user of an email (the account is created when needed), action update_role changes the role of memberId, action remove takes memberId out of the company (the user account stays). Instance administrators only, like the page. Members and their ids: get_company_settings section members. ${ACTS_AS_USER} ${TWO_STEP}`,
+  description: `Changes who may access the company, like the Membres page: action remove takes memberId out of the company (members:manage, like the page: never a member with more rights than the user's own, never an instance administrator, never the last member able to manage the members; the user's own memberId makes the user leave). It ends their access at once (their assistants and API keys lose the company, their AI actions waiting for approval there are cancelled, the invitations they sent are revoked); their account and what they recorded stay; they get an email notice unless notify is false. Instance administrators only: action add gives a role (companyAdmin, accountant or viewer) to the user of an email (the account is created when needed), action update_role changes the role of memberId. Members and their ids: get_company_settings section members. ${ACTS_AS_USER} ${TWO_STEP}`,
   input: {
     action: z.enum(['add', 'update_role', 'remove']),
     email: z.email('Email invalide.').optional().describe('add: the email of the person.'),
     name: z.string().max(200).optional().describe('add: the name, for a new account.'),
     role: z.enum(COMPANY_ROLES).optional().describe('add and update_role.'),
     memberId: z.string().max(64).optional().describe('update_role and remove.'),
+    notify: z.boolean().optional().describe('remove: false to send no email notice to the person removed (default true).'),
   },
   permission: { members: ['manage'] },
   amounts: 'none',
-  never: 'gives instance administration rights or deletes a user account.',
-  targetState: ({ companyId }) => [companyLock(companyId)],
+  never: 'gives instance administration rights, deletes a user account or what they recorded, or removes a member with more rights than the user.',
+  targetState: ({ companyId, memberId }) => [companyLock(companyId), ...rowTargets('member', companyId, memberId)],
+  // A removal writes as the system in its own transaction (lib/rbac/remove-member.service.ts), which checks the approved member there.
+  atomic: ({ action }) => action !== 'remove',
   confirmation: true,
   destructive: true,
   async preview({ companyId, action, email, role, memberId }, ctx) {
-    ctx.requireInstanceAdministrator()
-    const members = (await listMembers(companyId)) as Array<{ id: string }>
-    return { action, email: email ?? null, role: role ?? null, member: memberId ? (members.find((m) => m.id === memberId) ?? null) : null, membersBefore: members.length }
-  },
-  async execute({ companyId, action, email, name, role, memberId }, ctx) {
-    ctx.requireInstanceAdministrator()
+    if (action !== 'remove') ctx.requireInstanceAdministrator()
     const user = ctx.access.user
+    const members = await listMembersWithRemoval(companyId, { id: user.id, email: user.email, name: user.name ?? null, role: user.role })
+    const member = memberId ? (members.find((m) => m.id === memberId) ?? null) : null
+    return { action, email: email ?? null, role: role ?? null, member, membersBefore: members.length }
+  },
+  async execute({ companyId, action, email, name, role, memberId, notify }, ctx) {
+    const user = ctx.access.user
+    if (action === 'remove') {
+      if (!memberId) throw new ValidationError('memberId est requis pour cette action.')
+      const actor = { id: user.id, email: user.email, name: user.name ?? null, role: user.role }
+      const removed = await removeCompanyMember({ companyId, memberId, actor, notify, source: 'mcp' })
+      return { action, memberId, removed: true, self: removed.self, revokedGrants: removed.revokedGrants, cancelledActions: removed.cancelledActions, revokedInvitations: removed.revokedInvitations, emailSent: removed.emailSent }
+    }
+    ctx.requireInstanceAdministrator()
     if (action === 'add') {
       await assertActionAllowed('invite-member', { id: user.id, email: user.email, role: user.role })
       if (!email || !role) throw new ValidationError("L'email et le rôle sont requis pour ajouter un membre.")
@@ -353,18 +367,13 @@ const manageMembersTool = fullControlTool({
       return { action, memberId: added.memberId, userId: added.userId, createdUser: added.createdUser }
     }
     if (!memberId) throw new ValidationError('memberId est requis pour cette action.')
-    if (action === 'update_role') {
-      const updated = await updateMemberRole(companyId, memberId, role)
-      await writeAuditLog('info', "Rôle d'un membre modifié", {
-        action: 'MEMBER_ROLE_CHANGED',
-        companyId,
-        metadata: { memberId, userId: updated.userId, from: updated.previousRole, to: updated.roles[0], source: 'mcp' },
-      })
-      return { action, memberId, roles: updated.roles }
-    }
-    const removed = await removeMember(companyId, memberId)
-    await writeAuditLog('info', 'Membre retiré de la société', { action: 'MEMBER_REMOVED', companyId, metadata: { memberId, userId: removed.userId, role: removed.role, source: 'mcp' } })
-    return { action, memberId, removed: true }
+    const updated = await updateMemberRole(companyId, memberId, role)
+    await writeAuditLog('info', "Rôle d'un membre modifié", {
+      action: 'MEMBER_ROLE_CHANGED',
+      companyId,
+      metadata: { memberId, userId: updated.userId, from: updated.previousRole, to: updated.roles[0], source: 'mcp' },
+    })
+    return { action, memberId, roles: updated.roles }
   },
   audit: ({ action, memberId, role }, result) => ({ action, memberId: memberId ?? (result as { memberId?: string }).memberId ?? null, role: role ?? null }),
 })
@@ -372,7 +381,7 @@ const manageMembersTool = fullControlTool({
 const manageInvitationsTool = fullControlTool({
   name: 'manage_invitations',
   title: 'Inviter des membres dans la société',
-  description: `Invitations of the company by email, like the Membres page (issue #13): action list returns the open invitations (email, role, expiry, whether expired, who invited; never the link); action invite sends an invitation to email with a role (companyAdmin, accountant or viewer, never more rights than the user's own role in the company); the person joins by opening the emailed link, valid 7 days and single use, with their account or one they create; action resend sends invitationId again with a new link (the old one stops working); action revoke cancels invitationId. The instance may refuse invitations. Changing a member's role or removing a member: manage_members (instance administrators). ${ACTS_AS_USER} Actions invite, resend and revoke are high impact: ${TWO_STEP}`,
+  description: `Invitations of the company by email, like the Membres page (issue #13): action list returns the open invitations (email, role, expiry, whether expired, who invited; never the link); action invite sends an invitation to email with a role (companyAdmin, accountant or viewer, never more rights than the user's own role in the company); the person joins by opening the emailed link, valid 7 days and single use, with their account or one they create; action resend sends invitationId again with a new link (the old one stops working); action revoke cancels invitationId. The instance may refuse invitations. Removing a member: manage_members action remove; changing a role: manage_members (instance administrators). ${ACTS_AS_USER} Actions invite, resend and revoke are high impact: ${TWO_STEP}`,
   input: {
     action: z.enum(['list', 'invite', 'resend', 'revoke']),
     email: z.string().trim().max(320).pipe(z.email('Email invalide.')).optional().describe('invite: the email of the person.'),

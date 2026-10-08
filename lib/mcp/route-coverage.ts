@@ -199,6 +199,8 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'DELETE /api/companies/[id]/members/[memberId]': { tools: ['manage_members'] },
   'GET /api/companies/[id]/members': { tools: ['get_company_settings'] },
   'POST /api/companies/[id]/members': { tools: ['manage_members'] },
+  // Leaving a company is the user's own access, like the account routes; manage_members action remove with one's own memberId does it with members:manage.
+  'DELETE /api/companies/[id]/membership': { excluded: 'account' },
   'GET /api/companies/[id]/invitations': { tools: ['manage_invitations'] },
   'POST /api/companies/[id]/invitations': { tools: ['manage_invitations'] },
   'DELETE /api/companies/[id]/invitations/[invitationId]': { tools: ['manage_invitations'] },

@@ -9,6 +9,7 @@ import {
   changeEmailVerificationEmail,
   companyInvitationEmail,
   emailChangeNoticeEmail,
+  memberRemovedEmail,
   resetPasswordEmail,
   verifyEmailEmail,
   welcomeEmail,
@@ -123,5 +124,19 @@ describe('companyInvitationEmail (issue #13)', () => {
     expect(html).toContain('Atelier &lt;b&gt;Lumen&lt;/b&gt; &amp; Co')
     expect(html).toContain('Claire &quot;Admin&quot;')
     expect(html).not.toContain('"><img')
+  })
+})
+
+describe('memberRemovedEmail', () => {
+  it('tells the person which company they left and who removed them, that their work stays, escaped in the HTML', () => {
+    const message = memberRemovedEmail('paul@atelier.fr', { companyName: 'Atelier <b>Lumen</b>', removedByName: 'Claire "Admin"' }, 'https://kledg.example.com')
+    expect(message.to).toBe('paul@atelier.fr')
+    expect(message.subject).toBe('Votre accès à Atelier <b>Lumen</b> sur Kledg a pris fin')
+    expect(message.text).toContain('Claire "Admin" vous a retiré de la société Atelier <b>Lumen</b>')
+    expect(message.text).toContain('reste dans ses livres')
+    expect(message.html).toContain('Atelier &lt;b&gt;Lumen&lt;/b&gt;')
+    expect(message.html).toContain('Claire &quot;Admin&quot;')
+    expect(message.html).not.toContain('<b>Lumen</b>')
+    expect(`${message.subject}${message.text}${message.html}`).not.toMatch(/[\u2013\u2014]/)
   })
 })

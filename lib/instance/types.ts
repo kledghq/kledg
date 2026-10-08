@@ -31,6 +31,13 @@ export const INSTANCE_ACTIONS = [
    * the others' accounts. Checked with a null actor.
    */
   'invitation-sign-up',
+  /**
+   * Remove a member from a company, or leave one: by a member who manages
+   * the members of the company (lib/rbac/remove-member.service.ts), or by an
+   * instance administrator. Decided per actor (an instance administrator
+   * included): a refused actor neither removes a member nor leaves.
+   */
+  'remove-member',
   /** Administer users (create, ban, change roles) through Better Auth's admin endpoints. */
   'manage-users',
   /** Connect GitHub and install updates from the "Mises à jour" page. */
