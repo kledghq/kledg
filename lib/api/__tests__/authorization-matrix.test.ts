@@ -480,6 +480,7 @@ const ROUTE_MODULES = {
   onboarding: () => import('@/app/api/companies/[id]/onboarding/route'),
   openingBalances: () => import('@/app/api/companies/[id]/opening-balances/route'),
   member: () => import('@/app/api/companies/[id]/members/[memberId]/route'),
+  membership: () => import('@/app/api/companies/[id]/membership/route'),
   fec: () => import('@/app/api/fec/route'),
   balanceSheetPdf: () => import('@/app/api/companies/[id]/balance-sheet/export-pdf/route'),
   bankConnections: () => import('@/app/api/banking/connections/route'),
@@ -1099,6 +1100,9 @@ const OWN_PREFERENCES: Call[] = [
   { label: 'save own sidebar menu', route: 'sidebarPreferences', method: 'PUT', path: () => `/api/companies/${A()}/sidebar-preferences`, params: p({ id: A }), body: () => ({ hiddenItems: [], hiddenGroups: [] }) },
 ]
 
+/** The signed-in user leaves company A (any member; tested on its own, it ends the membership). */
+const LEAVE_COMPANY: Call = { label: 'leave company', route: 'membership', method: 'DELETE', path: () => `/api/companies/${A()}/membership`, params: p({ id: A }) }
+
 /** What the accountant must not do. */
 const ACCOUNTANT_FORBIDDEN = new Set([
   'delete company',
@@ -1396,6 +1400,18 @@ describe.skipIf(!available)('authorization matrix', () => {
       expect((await call('companyAdmin', WRITES.find((c) => c.label === 'change member role')!)).status).toBe(403)
     })
 
+    it('removes a member of the company, never one of company B, and never leaves it without an administrator', async () => {
+      await reseed()
+      expect((await call('companyAdmin', WRITES.find((c) => c.label === 'remove member')!)).status).toBe(200)
+      expect(await prisma.member.count({ where: { id: 'm-u-viewer' } })).toBe(0)
+      // Company B's member through company A's URL: not found
+      const foreign: Call = { label: 'remove foreign member', route: 'member', method: 'DELETE', path: () => `/api/companies/${A()}/members/m-u-member-b`, params: p({ id: A, memberId: () => 'm-u-member-b' }) }
+      expect((await call('companyAdmin', foreign)).status).toBe(404)
+      expect(await prisma.member.count({ where: { id: 'm-u-member-b' } })).toBe(1)
+      // The only company administrator cannot leave
+      expect((await call('companyAdmin', LEAVE_COMPANY)).status).toBe(409)
+    })
+
     it('invites members by email and manages the invitations (issue #13)', async () => {
       for (const label of ['list invitations', 'invite member', 'resend invitation', 'revoke invitation']) {
         await reseed()
@@ -1667,11 +1683,22 @@ describe.skipIf(!available)('authorization matrix', () => {
     })
   })
 
+  describe('leaving a company (any member, never the last administrator)', () => {
+    beforeAll(reseed)
+    it('anonymous 401, member of B 404, the viewer leaves', async () => {
+      expect((await call('anonymous', LEAVE_COMPANY)).status).toBe(401)
+      expect((await call('memberB', LEAVE_COMPANY)).status).toBe(404)
+      expect((await call('viewer', LEAVE_COMPANY)).status).toBe(200)
+      expect(await prisma.member.count({ where: { id: 'm-u-viewer' } })).toBe(0)
+      expect((await call('viewer', LEAVE_COMPANY)).status).toBe(404)
+    })
+  })
+
   describe('member of company B', () => {
     beforeAll(reseed)
     it.each([...WRITES, ...READS].map((c) => [c.label, c] as const))('%s on company A: 404', async (_label, c) => {
-      // Member routes and company deletion are reserved to instance administrators: 403 before any lookup
-      const adminOnly = (c.route === 'members' && c.method !== 'GET') || c.route === 'member' || c.label === 'delete company'
+      // Direct additions, role changes and company deletion are reserved to instance administrators: 403 before any lookup
+      const adminOnly = (c.route === 'members' && c.method !== 'GET') || (c.route === 'member' && c.method !== 'DELETE') || c.label === 'delete company'
       const expected = adminOnly ? 403 : 404
       expect((await call('memberB', c)).status).toBe(expected)
     })

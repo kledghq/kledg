@@ -28,6 +28,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/updates/history.ts': ['version-history'],
   // Invitation page: finds the invitation by the hash of its token (the invitee is not a member yet), then creates the membership.
   'lib/rbac/company-invitations.service.ts': ['invitation-acceptance'],
+  // Removal of a member, or leaving a company, once the rules were checked in the user's context: another user's membership, grants and pending AI actions.
+  'lib/rbac/remove-member.service.ts': ['member-removal'],
 }
 
 function files(entry: string): string[] {

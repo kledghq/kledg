@@ -32,6 +32,8 @@ export const RATE_LIMITS = {
   'member-invitation': { window: 3600, max: 20, message: "Trop d'invitations envoyées en une heure. Réessayez plus tard." },
   /** Invitation emails received by one address, every company together, per address. */
   'invitation-email': { window: 86_400, max: 5, message: "Trop d'invitations envoyées à cette adresse aujourd'hui. Réessayez demain." },
+  /** Members removed from a company, or companies left (lib/rbac/remove-member.service.ts), per user acting. */
+  'member-removal': { window: 3600, max: 30, message: 'Trop de membres retirés en une heure. Réessayez plus tard.' },
   /** Acceptance attempts on the invitation page (app/(auth)/invitation), per client IP. */
   'invitation-accept': { window: 900, max: 20, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Test email of the Configuration page, per administrator. */

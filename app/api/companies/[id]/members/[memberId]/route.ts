@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { adminRoute, fromParam } from '@/lib/api/route'
+import { adminRoute, companyRoute, fromParam } from '@/lib/api/route'
 import { COMPANY_ROLES } from '@/lib/rbac/add-member-to-company.service'
-import { removeMember, updateMemberRole } from '@/lib/rbac/manage-members.service'
+import { updateMemberRole } from '@/lib/rbac/manage-members.service'
+import { removeCompanyMember } from '@/lib/rbac/remove-member.service'
 import { writeAuditLog } from '@/lib/audit'
 
 const UpdateMemberSchema = z.object({
   role: z.enum(COMPANY_ROLES, { error: 'Rôle invalide.' }).optional(),
+})
+
+const RemoveMemberQuery = z.object({
+  /** notify=false: no email notice to the person removed. */
+  notify: z.enum(['true', 'false']).optional(),
 })
 
 /** Changes a member's role. Instance administrators only. Audited. */
@@ -21,14 +27,17 @@ export const PATCH = adminRoute({ company: fromParam('id'), body: UpdateMemberSc
   return NextResponse.json({ id: updated.id, roles: updated.roles })
 })
 
-/** Removes a member from the company (the user account stays). Instance administrators only. Audited. */
-export const DELETE = adminRoute({ company: fromParam('id') }, async ({ params, companyId }) => {
-  const memberId = params.memberId as string
-  const removed = await removeMember(companyId, memberId)
-  await writeAuditLog('info', 'Membre retiré de la société', {
-    action: 'MEMBER_REMOVED',
-    companyId,
-    metadata: { memberId, userId: removed.userId, role: removed.role },
-  })
-  return NextResponse.json({ ok: true })
-})
+/**
+ * Removes a member from the company (the user account and what they
+ * recorded stay): members:manage, never a member with more rights than the
+ * user's own, never an instance administrator, never the last member able
+ * to manage the members (lib/rbac/member-removal-rules.ts). Ends their
+ * access at once, rate limited, audited (lib/rbac/remove-member.service.ts).
+ */
+export const DELETE = companyRoute(
+  { company: fromParam('id'), permission: { members: ['manage'] }, query: RemoveMemberQuery },
+  async ({ params, companyId, user, query }) => {
+    const removed = await removeCompanyMember({ companyId, memberId: params.memberId as string, actor: user, notify: query.notify !== 'false' })
+    return NextResponse.json({ ok: true, ...removed })
+  },
+)

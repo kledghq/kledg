@@ -164,6 +164,26 @@ export function apiKeyCreatedEmail(
 }
 
 /**
+ * Notice to a person removed from a company (lib/rbac/remove-member.service.ts):
+ * their access ended; what they recorded stays in the company's books.
+ */
+export function memberRemovedEmail(to: string, removal: { companyName: string; removedByName: string | null }, appUrl: string): EmailMessage {
+  const who = removal.removedByName ? escapeHtml(removal.removedByName) : 'Un administrateur'
+  const whoText = removal.removedByName ?? 'Un administrateur'
+  return {
+    to,
+    subject: `Votre accès à ${removal.companyName} sur ${APP_NAME} a pris fin`,
+    html: layout(
+      `Accès à ${escapeHtml(removal.companyName)} retiré`,
+      `${who} vous a retiré de la société <strong>${escapeHtml(removal.companyName)}</strong> sur ${APP_NAME}. Vous n'y avez plus accès, ni vos assistants IA et vos clés API pour cette société. Ce que vous y avez saisi reste dans ses livres.`,
+      { label: `Ouvrir ${APP_NAME}`, url: appUrl },
+      "Votre compte et vos autres sociétés ne changent pas. Si vous pensez qu'il s'agit d'une erreur, contactez un administrateur de la société.",
+    ),
+    text: `${whoText} vous a retiré de la société ${removal.companyName} sur ${APP_NAME} : vous n'y avez plus accès. Ce que vous y avez saisi reste dans ses livres. ${appUrl}`,
+  }
+}
+
+/**
  * Invitation to a company (lib/rbac/company-invitations.service.ts). The
  * link carries the invitation's secret token; the company and inviter names
  * are escaped, the URL too (safeUrl).

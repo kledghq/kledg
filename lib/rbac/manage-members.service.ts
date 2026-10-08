@@ -1,7 +1,8 @@
 /**
  * Members of a company (Better Auth organization members): list, change the
- * role, remove; and the user search used to add one. Adding a member is
- * lib/rbac/add-member-to-company.service.ts. Every lookup is scoped by the
+ * role; and the user search used to add one. Adding a member is
+ * lib/rbac/add-member-to-company.service.ts, removing one (or leaving)
+ * lib/rbac/remove-member.service.ts. Every lookup is scoped by the
  * company: a member id of another company is a 404.
  *
  * A member holds one company role; the column stores a comma separated list
@@ -58,18 +59,6 @@ export async function updateMemberRole(companyId: string, memberId: string, role
 
   const updated = await prisma.member.update({ where: { id: member.id }, data: { role: nextRole }, select: { id: true } })
   return { id: updated.id, roles: [nextRole], userId: member.userId, previousRole: current ?? null }
-}
-
-/** Removes the member from the company (the user account stays); returns who it was, for the audit log. */
-export async function removeMember(companyId: string, memberId: string): Promise<{ userId: string; role: string }> {
-  const member = await prisma.member.findFirst({
-    where: { id: memberId, organization: { companyId } },
-    select: { userId: true, role: true },
-  })
-  if (!member) throw new NotFoundError(MEMBER_NOT_FOUND_MESSAGE)
-  const { count } = await prisma.member.deleteMany({ where: { id: memberId, organization: { companyId } } })
-  if (count === 0) throw new NotFoundError(MEMBER_NOT_FOUND_MESSAGE)
-  return member
 }
 
 export interface UserSearch {

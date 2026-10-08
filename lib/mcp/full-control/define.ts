@@ -163,6 +163,14 @@ export interface ConfirmedTool<S extends Shape, P, R> extends ToolBase<S, R> {
    * run alone is compared, before the execution only, when absent.
    */
   targetState?: (args: Args<S>, ctx: FullControlContext) => TargetRef[]
+  /**
+   * Whether this call runs in the single transaction of an approved action
+   * (ambient.ts; the default). False when the service writes as the system
+   * in its own transaction and checks the approved targets there itself
+   * (checkApprovedTargets), like create_company: a member's removal
+   * (lib/rbac/remove-member.service.ts).
+   */
+  atomic?: (args: Args<S>) => boolean
 }
 
 export type FullControlTool<S extends Shape, P, R> = DirectTool<S, R> | ConfirmedTool<S, P, R>
@@ -329,6 +337,7 @@ export function registerFullControlTool<S extends Shape, P, R>(
             actionId,
             preview: () => tool.preview(args, ctx),
             targetState: targetState && (() => targetState(args, ctx)),
+            atomic: tool.atomic ? tool.atomic(args) : undefined,
             execute: () => tool.execute(args, ctx),
             audit: audited && ((result: R) => audited(args, result)),
           }))
@@ -355,7 +364,8 @@ interface HighImpactCall<P, R> {
   targetState?: () => TargetRef[]
   /**
    * false: the service checks the generic targets itself, in its own
-   * transaction (create_company, whose rows are written as the system).
+   * transaction (create_company and a member's removal, whose rows are
+   * written as the system).
    * Otherwise generic targets make the execution one transaction (ambient.ts).
    */
   atomic?: boolean
