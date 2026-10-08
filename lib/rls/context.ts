@@ -52,6 +52,12 @@ export type SystemReason =
    * created, lib/rbac/company-invitations.service.ts.
    */
   | 'invitation-acceptance'
+  /**
+   * Receipt files moved to the configured storage, every company's (script
+   * `pnpm receipts:migrate-storage`, or KLEDG_STORAGE_MIGRATE=on at server
+   * start), lib/receipts/migrate-receipt-storage.service.ts.
+   */
+  | 'storage-migration'
   /** Command line scripts run by an operator (scripts/). */
   | 'script'
   /** Instance extensions of a fork (docs/extension-points.md), e.g. the demo's throwaway companies. */

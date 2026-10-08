@@ -28,6 +28,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/updates/history.ts': ['version-history'],
   // Invitation page: finds the invitation by the hash of its token (the invitee is not a member yet), then creates the membership.
   'lib/rbac/company-invitations.service.ts': ['invitation-acceptance'],
+  // Receipt files moved to the configured storage (script or KLEDG_STORAGE_MIGRATE=on at start): every company's files.
+  'lib/receipts/migrate-receipt-storage.service.ts': ['storage-migration'],
 }
 
 function files(entry: string): string[] {

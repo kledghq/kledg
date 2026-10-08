@@ -26,4 +26,10 @@ export async function register() {
   // its own failures, and the history route awaits the same promise.
   const { ensureVersionRecorded } = await import('@/lib/updates/history')
   void ensureVersionRecorded()
+  // KLEDG_STORAGE_MIGRATE=on: receipt files not on the configured storage
+  // move there in the background (lib/receipts/migrate-receipt-storage.service.ts),
+  // for hosts without a shell to run `pnpm receipts:migrate-storage`. Not
+  // awaited; failures are logged.
+  const { migrateReceiptStorageOnStart } = await import('@/lib/receipts/migrate-receipt-storage.service')
+  void migrateReceiptStorageOnStart().catch((error: unknown) => logger.error('Receipt storage migration failed', error))
 }
