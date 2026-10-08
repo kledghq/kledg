@@ -12,7 +12,9 @@
  *   action still runs (import_statement, update_company_settings);
  * - the single transaction keeps the services' semantics: a query error the
  *   service catches does not abort it, a failing inner $transaction rolls
- *   back to its savepoint, anything thrown rolls everything back.
+ *   back to its savepoint, anything thrown rolls everything back;
+ * - a side effect (an invitation email) runs after the commit, never after
+ *   a rollback.
  *
  * Skipped when the test database server is unreachable.
  */
@@ -287,6 +289,35 @@ describe.skipIf(!available)('approved actions in one transaction (KLEDG-R3-MCP-0
       })
       const names = (await prisma.tiers.findMany({ where: { companyId: ids.company, name: { in: ['Avant', 'Interne', 'Lot'] } }, select: { name: true } })).map((t) => t.name)
       expect(names.sort()).toEqual(['Avant', 'Lot'])
+    })
+
+    it('a side effect waits for the commit, and never runs when the action rolls back', async () => {
+      const { runAfterCommit } = await import('@/lib/approved-state/ambient')
+      const seen: string[] = []
+      await run(async () => {
+        await runAfterCommit(async () => {
+          seen.push(`sent, committed: ${await prisma.tiers.count({ where: { companyId: ids.company, name: 'Annoncé' } })}`)
+        })
+        await prisma.tiers.create({ data: { companyId: ids.company, kind: 'CUSTOMER', name: 'Annoncé', auxiliaryAccountNumber: 'AUX007' } })
+        expect(seen).toEqual([])
+      })
+      expect(seen).toEqual(['sent, committed: 1'])
+
+      await expect(
+        run(async () => {
+          await runAfterCommit(async () => {
+            seen.push('sent after a rollback')
+          })
+          throw new Error('rolled back')
+        }),
+      ).rejects.toThrow('rolled back')
+      expect(seen).toEqual(['sent, committed: 1'])
+
+      // Outside an approved action the side effect runs right away.
+      await runAfterCommit(async () => {
+        seen.push('direct')
+      })
+      expect(seen).toEqual(['sent, committed: 1', 'direct'])
     })
   })
 })

@@ -51,6 +51,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@
 import { COMPANY_ROLES, resetUnconfirmedAccount, type CompanyRoleName } from './add-member-to-company.service'
 import { ensureCompanyOrganization } from './ensure-company-organization.service'
 import { formatDateShort } from '@/lib/utils/date'
+import { inAmbientTransaction, runAfterCommit } from '@/lib/approved-state/ambient'
 
 /** Days an invitation link stays valid. */
 export const INVITATION_TTL_DAYS = 7
@@ -205,6 +206,24 @@ async function sendInvitationEmail(
   return (await isEmailEnabled()) ? { emailSent: true } : { emailSent: false, link: url }
 }
 
+/**
+ * The invitation email of an approved MCP action, sent after its commit
+ * (runAfterCommit). The result is known now: the link only when no email
+ * can carry it. A send that fails after the commit is logged; the inviter
+ * sees the invitation pending and can resend it.
+ */
+async function deferredInvitationEmail(
+  invitation: { companyId: string; email: string; role: string; expiresAt: Date },
+  token: string,
+  inviter: InvitationActor,
+): Promise<{ emailSent: boolean; link?: string }> {
+  const emailEnabled = await isEmailEnabled()
+  await runAfterCommit(async () => {
+    await sendInvitationEmail(invitation, token, inviter)
+  })
+  return emailEnabled ? { emailSent: true } : { emailSent: false, link: invitationUrl(token) }
+}
+
 export interface InviteInput {
   companyId: string
   email: string
@@ -266,12 +285,18 @@ export async function inviteMember(input: InviteInput): Promise<InviteResult> {
   })
 
   let delivery: { emailSent: boolean; link?: string }
-  try {
-    delivery = await sendInvitationEmail(created, token, input.inviter)
-  } catch (error) {
-    // Not delivered: nobody holds the link, the invitation is withdrawn.
-    await prisma.companyInvitation.delete({ where: { id: created.id } }).catch(() => undefined)
-    throw error
+  if (inAmbientTransaction()) {
+    // An approved MCP action: the email leaves once the invitation is
+    // committed (a rollback never leaves a dead link in a mailbox).
+    delivery = await deferredInvitationEmail(created, token, input.inviter)
+  } else {
+    try {
+      delivery = await sendInvitationEmail(created, token, input.inviter)
+    } catch (error) {
+      // Not delivered: nobody holds the link, the invitation is withdrawn.
+      await prisma.companyInvitation.delete({ where: { id: created.id } }).catch(() => undefined)
+      throw error
+    }
   }
 
   await writeAuditLog('info', 'Invitation envoyée', {
@@ -322,7 +347,9 @@ export async function resendInvitation(input: {
   })
   if (count === 0) throw new ConflictError(INVITATION_UNUSABLE_MESSAGE)
   const updated = await openInvitationOf(input.companyId, current.id)
-  const delivery = await sendInvitationEmail(updated, token, input.inviter)
+  const delivery = inAmbientTransaction()
+    ? await deferredInvitationEmail(updated, token, input.inviter)
+    : await sendInvitationEmail(updated, token, input.inviter)
   await writeAuditLog('info', 'Invitation renvoyée', {
     action: 'MEMBER_INVITATION_RESENT',
     companyId: input.companyId,

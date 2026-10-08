@@ -25,6 +25,7 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { Prisma, PrismaClient } from '@prisma/client'
+import { logger } from '@/lib/logger'
 
 type Tx = Prisma.TransactionClient
 
@@ -32,6 +33,8 @@ interface Ambient {
   tx: Tx
   /** Serializes the savepoints of top-level queries and service transactions. */
   queue: Promise<unknown>
+  /** Side effects outside the database (an email), run once the transaction committed. */
+  afterCommit: Array<() => Promise<void>>
 }
 
 const storage = new AsyncLocalStorage<{ ambient: Ambient; nested: boolean }>()
@@ -117,14 +120,27 @@ export function inAmbientTransaction(): boolean {
 }
 
 /**
+ * Runs `task` once the work it belongs to is durable: right away outside an
+ * ambient transaction, after the commit inside one (never if it rolls back),
+ * so an email never announces a row that a later failure undoes. A deferred
+ * task that fails is logged: the action itself already succeeded.
+ */
+export async function runAfterCommit(task: () => Promise<void>): Promise<void> {
+  const store = storage.getStore()
+  if (!store) return task()
+  store.ambient.afterCommit.push(task)
+}
+
+/**
  * Runs `fn` in one transaction of `client` (the base client, not the
  * proxy): `before(tx)` first (lock and check the approved targets), then
  * `fn`, every query of which goes to the same transaction.
  */
-export function runInAmbientTransaction<T>(client: PrismaClient, before: (tx: Tx) => Promise<void>, fn: () => Promise<T>): Promise<T> {
-  return client.$transaction(async (tx) => {
+export async function runInAmbientTransaction<T>(client: PrismaClient, before: (tx: Tx) => Promise<void>, fn: () => Promise<T>): Promise<T> {
+  const afterCommit: Array<() => Promise<void>> = []
+  const result = await client.$transaction(async (tx) => {
     await before(tx)
-    const ambient: Ambient = { tx, queue: Promise.resolve() }
+    const ambient: Ambient = { tx, queue: Promise.resolve(), afterCommit }
     return storage.run({ ambient, nested: false }, async () => {
       const result = await fn()
       // Queries started and not awaited by the service finish before the commit.
@@ -132,4 +148,8 @@ export function runInAmbientTransaction<T>(client: PrismaClient, before: (tx: Tx
       return result
     })
   }, AMBIENT_TX_OPTIONS)
+  for (const task of afterCommit) {
+    await task().catch((error: unknown) => logger.error('Tâche après validation de l\'action approuvée en échec', { error }))
+  }
+  return result
 }
