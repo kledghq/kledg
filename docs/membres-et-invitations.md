@@ -8,12 +8,92 @@ depuis une société.
 
 | Qui | Quoi | Où |
 |---|---|---|
-| Administrateur de l'instance | ajouter directement un membre (le compte est créé si besoin, email de bienvenue), changer un rôle, retirer un membre | `POST/PATCH/DELETE /api/companies/[id]/members` (`adminRoute`), outil MCP `manage_members` |
-| Membre qui a le droit `members:manage` (les administrateurs de la société, et l'administrateur de l'instance) | inviter une personne par email, lister les invitations en attente, les renvoyer, les annuler | `GET/POST /api/companies/[id]/invitations`, `DELETE /api/companies/[id]/invitations/[invitationId]`, `POST .../[invitationId]/resend` (`companyRoute`), outil MCP `manage_invitations` |
-| Tout membre | voir les membres et leurs rôles | `GET /api/companies/[id]/members` |
+| Administrateur de l'instance | ajouter directement un membre (le compte est créé si besoin, email de bienvenue), changer un rôle | `POST /api/companies/[id]/members`, `PATCH /api/companies/[id]/members/[memberId]` (`adminRoute`), outil MCP `manage_members` |
+| Membre qui a le droit `members:manage` (les administrateurs de la société, et l'administrateur de l'instance) | inviter une personne par email, lister les invitations en attente, les renvoyer, les annuler ; retirer un membre ([règles](#retrait-dun-membre)) | `GET/POST /api/companies/[id]/invitations`, `DELETE /api/companies/[id]/invitations/[invitationId]`, `POST .../[invitationId]/resend`, `DELETE /api/companies/[id]/members/[memberId]` (`companyRoute`), outils MCP `manage_invitations` et `manage_members` (action `remove`) |
+| Tout membre | voir les membres et leurs rôles, quitter la société | `GET /api/companies/[id]/members`, `DELETE /api/companies/[id]/membership` |
 
 Page **Membres** : bouton **Inviter un membre** (email et rôle), carte
-**Invitations en attente** avec **Renvoyer** et **Annuler**.
+**Invitations en attente** avec **Renvoyer** et **Annuler**, et sur chaque
+membre **Retirer** (sur sa propre ligne, **Quitter**), désactivé avec la
+raison quand le retrait n'est pas permis.
+
+## Retrait d'un membre
+
+Code : règles dans `lib/rbac/member-removal-rules.ts` (pures, aussi lues par
+la page), retrait dans `lib/rbac/remove-member.service.ts`.
+
+### Règles
+
+Un membre qui a `members:manage` dans la société retire un autre membre,
+sauf :
+
+- un membre qui a un droit que lui n'a pas dans la société (même règle que
+  le rôle d'une invitation : jamais plus de droits que les siens) ;
+- un administrateur de l'instance ;
+- le dernier membre capable de gérer les membres (rôle avec
+  `members:manage`, ou administrateur de l'instance non banni) : la société
+  n'aurait plus personne pour la gérer.
+
+Tout membre peut **quitter la société** (`DELETE /api/companies/[id]/membership`),
+sauf s'il est ce dernier membre. L'administrateur de l'instance retire
+n'importe quel membre : il a tous les droits et atteint toutes les sociétés.
+Un identifiant de membre d'une autre société répond 404, comme une société
+dont on n'est pas membre. Une société en lecture seule (archivée, ou refusée
+par la politique de l'instance) ne retire personne.
+
+La décision et les écritures se font dans une transaction, sous un verrou
+consultatif des membres de la société : deux administrateurs qui se retirent
+l'un l'autre en même temps ne peuvent pas réussir tous les deux. Refus :
+403 pour les droits, 409 pour le dernier administrateur.
+
+### Effets
+
+Le retrait coupe l'accès tout de suite :
+
+- les lignes `member` de la personne pour la société sont supprimées.
+  Chaque requête, chaque appel MCP et chaque politique de sécurité au
+  niveau des lignes ([rls.md](rls.md)) relit l'appartenance : ses sessions
+  ouvertes, ses clés API et ses assistants IA perdent la société à la
+  requête suivante ;
+- ses sessions dont l'organisation active était celle de la société la
+  perdent (`session.activeOrganizationId`) ;
+- les autorisations de ses assistants et de ses clés API sur la société
+  sont supprimées (`ai_access_grant_companies`) : être ajouté de nouveau ne
+  les rétablit pas. Une autorisation « toutes mes sociétés » reste, mais ne
+  donne que les sociétés dont la personne est membre ;
+- ses actions IA de la société en attente d'approbation, ou approuvées et
+  pas encore exécutées, sont annulées (statut `rejected`) ;
+- les invitations encore ouvertes qu'elle a envoyées pour la société sont
+  annulées : son autorité part avec son accès.
+
+Son compte n'est jamais supprimé, ni ce qu'elle a saisi : écritures, notes
+de frais, journal d'audit gardent son nom.
+
+Les écritures sont faites dans le contexte système `member-removal`
+([rls.md](rls.md)) : l'appartenance, les autorisations et les actions en
+attente d'un autre utilisateur ne s'écrivent que dans un contexte sans
+restriction. Les droits de l'appelant sont vérifiés avant, dans son propre
+contexte.
+
+### Avis, journal, limites
+
+- **Email** (`memberRemovedEmail`, `lib/email/templates.ts`) : la personne
+  retirée par quelqu'un d'autre est prévenue, sauf `notify=false`
+  (`DELETE .../members/[memberId]?notify=false`, ou `notify: false` de
+  l'outil MCP). Rien n'est envoyé quand elle quitte la société elle-même.
+  Un envoi qui échoue est journalisé et n'annule pas le retrait.
+- **Journal d'audit** de la société : `MEMBER_REMOVED`, avec l'auteur (la
+  personne connectée), la personne retirée (`userId`, `email`, `name`), son
+  rôle, `self` quand elle est partie d'elle-même, et le nombre
+  d'autorisations, d'actions IA et d'invitations annulées.
+- **Limite** (`lib/rate-limit.ts`) : `member-removal`, 30 retraits par heure
+  et par utilisateur.
+- **MCP** : `manage_members` action `remove` (`members:manage`, à fort
+  impact : approbation dans Kledg en mode validation). L'approbation couvre
+  la ligne du membre : un changement de rôle entre l'approbation et
+  l'exécution la refuse. Le retrait vérifie l'état approuvé dans sa propre
+  transaction (`atomic` de l'outil). Quitter la société ne passe pas par un
+  assistant (route exclue du serveur MCP).
 
 ## Invitations
 
@@ -74,13 +154,16 @@ rend inutilisables les liens en attente.
 
 ### Politique de l'instance
 
-Deux actions de `lib/instance/types.ts` ([extension-points.md](extension-points.md)) :
+Trois actions de `lib/instance/types.ts` ([extension-points.md](extension-points.md)) :
 
 - `invite-member` : refusée, aucune invitation ne part et les liens en
   attente ne servent plus (les ajouts directs par l'administrateur de
   l'instance sont refusés aussi).
 - `invitation-sign-up` : refusée, seul un compte existant peut accepter ;
   l'administrateur de l'instance crée les autres comptes.
+- `remove-member` : décidée pour la personne qui agit (l'administrateur de
+  l'instance compris) ; refusée, elle ne retire aucun membre et ne quitte
+  pas la société.
 
-Kledg autorise les deux. Une offre hébergée peut y ajouter ses propres
+Kledg autorise les trois. Une offre hébergée peut y ajouter ses propres
 limites (par exemple un nombre de membres par offre) dans sa politique.
