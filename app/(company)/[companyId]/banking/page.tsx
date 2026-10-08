@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Edit, Landmark, RefreshCw } from 'lucide-react'
+import { Edit, Landmark, PauseCircle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { logger } from '@/lib/logger'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableSkeleton } from '@/components/ui/table'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -62,6 +62,8 @@ export default function BankingPage() {
   const [syncing, setSyncing] = useState(false)
   const [accounts, setAccounts] = useState<BankAccountRow[]>([])
   const [connections, setConnections] = useState<BankConnectionRow[]>([])
+  /** Why the bank sync is paused (read-only company, issue #15), or null. */
+  const [syncPause, setSyncPause] = useState<{ reason: string; link?: { label: string; href: string } } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [editingAccount, setEditingAccount] = useState<BankAccountRow | null>(null)
   const [displayNameValue, setDisplayNameValue] = useState<string>('')
@@ -85,7 +87,9 @@ export default function BankingPage() {
       }
       setAccounts(((await accountsResponse.json()) as { accounts: BankAccountRow[] }).accounts ?? [])
       if (connectionsResponse.ok) {
-        setConnections(((await connectionsResponse.json()) as { connections: BankConnectionRow[] }).connections ?? [])
+        const data = (await connectionsResponse.json()) as { connections: BankConnectionRow[]; syncPause?: typeof syncPause }
+        setConnections(data.connections ?? [])
+        setSyncPause(data.syncPause ?? null)
       }
     } catch (err) {
       logger.error('Error loading bank accounts:', err)
@@ -204,8 +208,14 @@ export default function BankingPage() {
                 onClick={handleSync}
                 loading={syncing}
                 variant="outline"
-                disabled={!canReconcile}
-                title={canReconcile ? undefined : denied('synchroniser les comptes')}
+                disabled={!canReconcile || syncPause !== null}
+                title={
+                  syncPause
+                    ? 'Synchronisation suspendue\u00a0: la société est en lecture seule.'
+                    : canReconcile
+                      ? undefined
+                      : denied('synchroniser les comptes')
+                }
               >
                 <RefreshCw aria-hidden />
                 Synchroniser
@@ -235,6 +245,26 @@ export default function BankingPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
+      {syncPause && hasApiConnection ? (
+        <Alert>
+          <PauseCircle aria-hidden />
+          <AlertTitle>Synchronisation bancaire suspendue</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>{syncPause.reason}</p>
+            <p>
+              Aucune opération n&apos;est importée tant que la société est en lecture seule. La synchronisation reprendra
+              d&apos;elle-même dès qu&apos;elle sera de nouveau modifiable, en rattrapant les opérations depuis la dernière
+              synchronisation.
+            </p>
+            {syncPause.link ? (
+              <Link href={syncPause.link.href} className="text-link underline-offset-4 hover:underline">
+                {syncPause.link.label}
+              </Link>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <ConsentBanners companyId={companyId} accounts={accounts} />
 

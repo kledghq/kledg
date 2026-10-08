@@ -68,6 +68,7 @@ const ACCOUNTS = [
 ]
 
 let syncReply: { status: number; body: unknown }
+let syncPause: { reason: string; link?: { label: string; href: string } } | null
 let fetchMock: ReturnType<typeof vi.fn>
 const respond = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -76,11 +77,12 @@ beforeEach(() => {
   access.manage = true
   access.reconcile = true
   syncReply = { status: 200, body: { success: true, totalItemsSynced: 3, errors: [] } }
+  syncPause = null
   fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost')
     const method = init?.method ?? 'GET'
     if (url.pathname === '/api/banking/accounts') return respond(200, { accounts: ACCOUNTS })
-    if (url.pathname === '/api/banking/connections') return respond(200, { connections: [{ id: 'bc-a1', provider: 'QONTO', status: 'active', integration: { id: 'i1', provider: 'QONTO', status: 'active', name: 'Qonto' }, bankAccounts: [] }] })
+    if (url.pathname === '/api/banking/connections') return respond(200, { connections: [{ id: 'bc-a1', provider: 'QONTO', status: 'active', integration: { id: 'i1', provider: 'QONTO', status: 'active', name: 'Qonto' }, bankAccounts: [] }], syncPause })
     if (method === 'POST' && url.pathname === '/api/integrations/sync') return respond(syncReply.status, syncReply.body)
     if (method === 'PUT' && url.pathname === '/api/banking/accounts/a1') return respond(200, { ok: true })
     return respond(404, { error: 'unexpected' })
@@ -100,6 +102,17 @@ const statusOf = (name: string) => {
 }
 
 describe('banking page', () => {
+  it('says that the bank sync of a read-only company is paused, why, and that it resumes by itself (issue #15)', async () => {
+    syncPause = { reason: 'Abonnement impayé\u00a0: la société est en lecture seule.', link: { label: 'Choisir une offre', href: '/billing' } }
+    render(<BankingPage />)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Synchronisation bancaire suspendue')
+    expect(alert).toHaveTextContent(/Abonnement impayé\s: la société est en lecture seule\./)
+    expect(alert).toHaveTextContent("reprendra d'elle-même")
+    expect(within(alert).getByRole('link', { name: 'Choisir une offre' })).toHaveAttribute('href', '/billing')
+    expect(screen.getByRole('button', { name: /Synchroniser/ })).toBeDisabled()
+  })
+
   it('gives each account its synchronisation status', async () => {
     render(<BankingPage />)
     await screen.findByRole('list', { name: 'Comptes bancaires' })

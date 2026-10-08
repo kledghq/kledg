@@ -74,6 +74,8 @@ describe('rate limit policy', () => {
  */
 const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/companies/lookup/route.ts': /enforceRateLimit\('siren-lookup'/,
+  'lib/rbac/company-invitations.service.ts': /enforceRateLimit\('member-invitation'[\s\S]*enforceRateLimit\('invitation-email'/,
+  'app/(auth)/invitation/[token]/actions.ts': /withinRateLimit\('invitation-accept'/,
   'app/api/fec/route.ts': /enforceRateLimit\('export'/,
   'app/api/reports/journal/export-excel/route.ts': /enforceRateLimit\('export'/,
   'app/api/reports/aged-balance/export-excel/route.ts': /enforceRateLimit\('export'/,

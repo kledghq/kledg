@@ -7,6 +7,7 @@
 - [Conformité](conformite.md) : ce que Kledg garantit et ne garantit pas au regard du Code de commerce, du PCG, du FEC, de la facturation électronique et du RGPD, pour les utilisateurs et les auditeurs
 - [Conventions](conventions.md) : règles d'écriture du code, appliquées par le lint et les tests (en anglais)
 - [Mettre à jour son instance](self-hosting.md#mettre-à-jour)
+- [Membres et invitations](membres-et-invitations.md) : rôles d'une société, invitations par email des administrateurs de la société (lien à usage unique valable 7 jours), acceptation avec un compte existant ou nouveau, politique de l'instance
 - [Connexions bancaires](connexions-bancaires.md) : Qonto et Revolut Business en direct, Ponto pour les autres banques, import de fichiers
 - [Importer un relevé bancaire](importer-un-releve-bancaire.md) : CSV, Excel, OFX et camt.053 pour les banques sans synchronisation
 - [Règles d'affectation](regles-d-affectation.md) : quand une règle crée l'écriture d'une transaction

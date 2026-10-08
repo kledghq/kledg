@@ -1,8 +1,10 @@
 /**
- * Membres page: only an instance administrator manages the members of a
- * company (POST/PATCH/DELETE /api/companies/[id]/members are admin routes);
- * the others see the roles read only. fetch and the session are mocked; the
- * requests the page sends are asserted.
+ * Membres page: only an instance administrator adds a member directly,
+ * changes a role or removes a member (POST/PATCH/DELETE
+ * /api/companies/[id]/members are admin routes); a company administrator
+ * (members:manage) invites by email and manages the pending invitations
+ * (issue #13); the others see the roles read only. fetch, the session and
+ * the user's rights are mocked; the requests the page sends are asserted.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +12,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const session = vi.hoisted(() => ({ role: 'user' as string }))
+const access = vi.hoisted(() => ({ granted: {} as Record<string, string[]> }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ companyId: 'c1' }),
@@ -21,7 +24,16 @@ vi.mock('@/lib/auth-client', () => ({
   authClient: { useSession: () => ({ data: { user: { id: 'u-me', role: session.role } }, isPending: false }) },
 }))
 
+vi.mock('@/components/features/companies/company-access', async () => {
+  const { grants } = await import('@/lib/rbac/granted-permissions')
+  return {
+    useCompanyAccess: () => ({ roleLabel: '', can: (request: Record<string, string[]>) => grants(access.granted, request), denied: () => '' }),
+    AccessNotice: ({ children }: { children: React.ReactNode }) => <p role="note">{children}</p>,
+  }
+})
+
 import { toast } from 'sonner'
+import { allPermissions, grantedPermissions } from '@/lib/rbac/granted-permissions'
 import CompanyMembersPage from '../page'
 
 const MEMBERS = [
@@ -35,8 +47,13 @@ let fetchMock: ReturnType<typeof vi.fn>
 const respond = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
+const INVITATIONS = [
+  { id: 'inv1', email: 'expert@cabinet.fr', role: 'accountant', expiresAt: '2099-01-08T00:00:00Z', expired: false, lastSentAt: '2099-01-01T00:00:00Z', sendCount: 1, invitedBy: { name: 'Alice Martin', email: 'alice@atelier.fr' } },
+]
+
 beforeEach(() => {
   session.role = 'user'
+  access.granted = grantedPermissions(['viewer'], false)
   replies = {}
   fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost')
@@ -44,6 +61,7 @@ beforeEach(() => {
     if (replies[key]) return respond(replies[key].status ?? 200, replies[key].body)
     if (key === 'GET /api/companies/c1/members') return respond(200, MEMBERS)
     if (key === 'GET /api/users') return respond(200, [])
+    if (key === 'GET /api/companies/c1/invitations') return respond(200, { invitations: [] })
     return respond(404, { error: `unexpected ${key}` })
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -65,15 +83,78 @@ describe('members page', () => {
     expect(screen.getByText('bob')).toBeInTheDocument()
     expect(screen.getByText('Administrateur')).toBeInTheDocument()
     expect(screen.getByText('Comptable')).toBeInTheDocument()
-    expect(screen.getByText(/Seul un administrateur de l.instance peut ajouter un membre/)).toBeInTheDocument()
+    expect(screen.getByText(/Seuls les administrateurs de la société peuvent inviter un membre/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Ajouter un membre/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Inviter un membre/ })).not.toBeInTheDocument()
+    expect(sent('GET', '/api/companies/c1/invitations')).toHaveLength(0)
     expect(screen.queryByRole('button', { name: /Retirer/ })).not.toBeInTheDocument()
     // The user search is an administrator tool: never called for a member
     expect(sent('GET', '/api/users')).toHaveLength(0)
   })
 
+  it('lets a company administrator invite by email, with a role no higher than theirs (issue #13)', async () => {
+    access.granted = grantedPermissions(['companyAdmin'], false)
+    replies['POST /api/companies/c1/invitations'] = { status: 201, body: { emailSent: true, invitation: INVITATIONS[0] } }
+    const user = userEvent.setup()
+    render(<CompanyMembersPage />)
+    expect(await screen.findByText(/Vous invitez des membres par email/)).toBeInTheDocument()
+    // Direct additions, role changes and removals stay with instance administrators
+    expect(screen.queryByRole('button', { name: /Ajouter un membre/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Rôle de/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Inviter un membre/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Inviter un membre' })
+    await user.type(within(dialog).getByLabelText('Email'), 'expert@cabinet.fr')
+    await user.click(within(dialog).getByRole('combobox', { name: /Rôle/ }))
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Administrateur', 'Comptable', 'Lecture seule'])
+    await user.click(screen.getByRole('option', { name: 'Comptable' }))
+    await user.click(within(dialog).getByRole('button', { name: /Envoyer l.invitation/ }))
+
+    await waitFor(() => expect(sent('POST', '/api/companies/c1/invitations')).toHaveLength(1))
+    expect(JSON.parse(String(sent('POST', '/api/companies/c1/invitations')[0][1]?.body))).toEqual({ email: 'expert@cabinet.fr', role: 'accountant' })
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Invitation envoyée à expert@cabinet.fr'))
+  })
+
+  it('offers only the roles the inviter holds, and shows the link when no email can carry it', async () => {
+    // A custom role managing members with an accountant's rights: it may not make administrators
+    access.granted = { ...grantedPermissions(['accountant'], false), members: ['manage'] }
+    replies['POST /api/companies/c1/invitations'] = { status: 201, body: { emailSent: false, link: 'https://kledg.example/invitation/abc' } }
+    const user = userEvent.setup()
+    render(<CompanyMembersPage />)
+    await user.click(await screen.findByRole('button', { name: /Inviter un membre/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Inviter un membre' })
+    await user.click(within(dialog).getByRole('combobox', { name: /Rôle/ }))
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Comptable', 'Lecture seule'])
+    await user.click(screen.getByRole('option', { name: 'Lecture seule' }))
+    await user.type(within(dialog).getByLabelText('Email'), 'salarie@atelier.fr')
+    await user.click(within(dialog).getByRole('button', { name: /Envoyer l.invitation/ }))
+    expect(await screen.findByText('https://kledg.example/invitation/abc')).toBeInTheDocument()
+  })
+
+  it('lists the pending invitations, sends one again and revokes one after confirmation', async () => {
+    access.granted = allPermissions()
+    replies['GET /api/companies/c1/invitations'] = { body: { invitations: INVITATIONS } }
+    replies['POST /api/companies/c1/invitations/inv1/resend'] = { body: { emailSent: true, invitation: INVITATIONS[0] } }
+    replies['DELETE /api/companies/c1/invitations/inv1'] = { body: { id: 'inv1', revoked: true } }
+    const user = userEvent.setup()
+    render(<CompanyMembersPage />)
+    expect(await screen.findByText('expert@cabinet.fr')).toBeInTheDocument()
+    expect(screen.getByText('Invité·e par Alice Martin')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: "Renvoyer l'invitation de expert@cabinet.fr" }))
+    await waitFor(() => expect(sent('POST', '/api/companies/c1/invitations/inv1/resend')).toHaveLength(1))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Invitation renvoyée à expert@cabinet.fr'))
+
+    await user.click(screen.getByRole('button', { name: "Annuler l'invitation de expert@cabinet.fr" }))
+    const confirm = await screen.findByRole('alertdialog')
+    await user.click(within(confirm).getByRole('button', { name: "Annuler l'invitation" }))
+    await waitFor(() => expect(sent('DELETE', '/api/companies/c1/invitations/inv1')).toHaveLength(1))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Invitation annulée'))
+  })
+
   it('lets an administrator change a role', async () => {
     session.role = 'admin'
+    access.granted = allPermissions()
     replies['PATCH /api/companies/c1/members/m2'] = { body: { ok: true } }
     const user = userEvent.setup()
     render(<CompanyMembersPage />)
@@ -87,6 +168,7 @@ describe('members page', () => {
 
   it('removes a member only after confirmation', async () => {
     session.role = 'admin'
+    access.granted = allPermissions()
     replies['DELETE /api/companies/c1/members/m1'] = { status: 409, body: { error: 'La société doit garder au moins un administrateur.' } }
     const user = userEvent.setup()
     render(<CompanyMembersPage />)
@@ -105,6 +187,7 @@ describe('members page', () => {
 
   it('adds an existing user found by the search, with the role chosen', async () => {
     session.role = 'admin'
+    access.granted = allPermissions()
     replies['GET /api/users'] = { body: [{ id: 'u3', email: 'chloe@atelier.fr', name: 'Chloé Durand' }] }
     replies['POST /api/companies/c1/members'] = { status: 201, body: { welcomeEmailSent: true } }
     const user = userEvent.setup()
@@ -136,6 +219,7 @@ describe('members page', () => {
 
   it('tells an instance administrator why a company they opened has no member, and what to do', async () => {
     session.role = 'admin'
+    access.granted = allPermissions()
     replies['GET /api/companies/c1/members'] = { body: [] }
     render(<CompanyMembersPage />)
     expect(await screen.findByText(/vous ouvrez cette société sans en être membre/)).toBeInTheDocument()

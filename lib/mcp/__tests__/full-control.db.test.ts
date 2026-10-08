@@ -815,3 +815,37 @@ describe.skipIf(!available)('full control MCP tools', () => {
     for (const row of audited) expect((row.metadata as { assistant: { name: string } }).assistant.name).toBe('Claude')
   }, 120_000)
 })
+
+describe.skipIf(!available)('manage_invitations (issue #13)', () => {
+  beforeAll(async () => {
+    ;({ prisma } = await import('@/lib/prisma'))
+    mcp = (await import('@/app/api/mcp/route')) as unknown as Record<'POST', Handler>
+    ;({ createApiKeyWithGrant } = await import('@/lib/ai-access/create-api-key.service'))
+  }, 60_000)
+
+  beforeEach(seed)
+
+  it('lists at once, invites after approval with a role no higher than the user, and never returns the link', async () => {
+    const key = await apiKey('admin')
+    const list = await call(key, 'manage_invitations', { companyId: ids.aCompany, action: 'list' })
+    expect(list.ok, list.text).toBe(true)
+    expect(list.data.result.invitations).toEqual([])
+
+    const { result } = await confirmed(key, 'manage_invitations', { companyId: ids.aCompany, action: 'invite', email: 'expert@cabinet.fr', role: 'accountant' })
+    expect(result).toMatchObject({ action: 'invite', invitation: { email: 'expert@cabinet.fr', role: 'accountant' } })
+    expect(JSON.stringify(result)).not.toMatch(/\/invitation\/|tokenHash|"link"/)
+    const row = await prisma.companyInvitation.findFirstOrThrow({ where: { companyId: ids.aCompany } })
+    expect(row).toMatchObject({ email: 'expert@cabinet.fr', role: 'accountant', invitedById: OWNER.id })
+    expect(await prisma.auditLog.count({ where: { companyId: ids.aCompany, action: 'MEMBER_INVITED' } })).toBe(1)
+
+    const { result: revoked } = await confirmed(key, 'manage_invitations', { companyId: ids.aCompany, action: 'revoke', invitationId: row.id })
+    expect(revoked).toMatchObject({ action: 'revoke', revoked: true })
+  })
+
+  it('is refused to a member without members:manage', async () => {
+    const key = await apiKey('admin', { allCompanies: true, companyIds: [] }, VIEWER)
+    const refused = await call(key, 'manage_invitations', { companyId: ids.aCompany, action: 'list' })
+    expect(refused.ok).toBe(false)
+    expect(await prisma.companyInvitation.count()).toBe(0)
+  })
+})

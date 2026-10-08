@@ -73,7 +73,7 @@ function generatePassword(): string {
  * and tokens, pending assistant actions and reset tokens are removed, and
  * the address counts as confirmed by the welcome link, as for a new account.
  */
-async function resetUnconfirmedAccount(userId: string, name: string, password: string): Promise<void> {
+export async function resetUnconfirmedAccount(userId: string, name: string, password: string): Promise<void> {
   const hashed = await hashPassword(password)
   await prisma.$transaction(async (tx) => {
     await tx.session.deleteMany({ where: { userId } })

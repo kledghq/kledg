@@ -64,4 +64,8 @@ BoursoBank, Shine et toute autre banque : **Ajouter un compte bancaire** (nom, I
 
 `GET /api/cron/sync-banks` synchronise chaque jour toutes les connexions actives (Qonto, Revolut, Ponto), avec l'en-tête `Authorization: Bearer $CRON_SECRET`. Sur Vercel, `vercel.json` la planifie déjà. L'ancien chemin `/api/cron/sync-qonto` reste valable.
 
+### Société en lecture seule
+
+Une société archivée, ou que la politique de l'instance met en lecture seule (abonnement impayé ou contrat terminé sur une offre hébergée), ne reçoit plus d'opérations : la synchronisation quotidienne la saute, et la synchronisation manuelle, la connexion d'une banque et l'outil MCP `sync_bank_data` n'appellent pas la banque. La page **Comptes bancaires** affiche « Synchronisation bancaire suspendue » avec la raison, et `get_bank_sync_status` la donne dans `syncPaused`. Rien n'est enregistré pendant la pause : la date de dernière synchronisation reste celle d'avant. Dès que la société redevient modifiable, la synchronisation reprend d'elle-même et lit les opérations depuis cette date, si bien que la période suspendue est rattrapée (dans la limite de l'historique que la banque met à disposition). Code : `lib/banking/sync-pause.ts`.
+
 Kledg n'est affilié ni à Qonto, ni à Revolut, ni à Isabel Group (Ponto). Ce sont des marques de leurs titulaires respectifs.

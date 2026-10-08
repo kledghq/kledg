@@ -83,7 +83,11 @@ export async function refreshCompany(
       throw new Error('Encryption key not configured')
     }
 
-    const integrations = await prisma.integration.findMany({
+    // A read-only company is not synced (issue #15, lib/banking/sync-pause.ts).
+    const { bankSyncPause, bankSyncPausedMessage } = await import('@/lib/banking/sync-pause')
+    const pause = await bankSyncPause(companyId)
+
+    const integrations = pause ? [] : await prisma.integration.findMany({
       where: {
         companyId,
         status: 'active',
@@ -117,11 +121,13 @@ export async function refreshCompany(
       }
     }
 
-    results.bankSync = {
-      success: accountsSynced > 0,
-      message: `${plural(accountsSynced, 'compte synchronisé', 'comptes synchronisés')}`,
-      accountsSynced,
-    }
+    results.bankSync = pause
+      ? { success: false, message: bankSyncPausedMessage(pause), accountsSynced: 0 }
+      : {
+          success: accountsSynced > 0,
+          message: `${plural(accountsSynced, 'compte synchronisé', 'comptes synchronisés')}`,
+          accountsSynced,
+        }
   } catch (error) {
     logger.error(`Bank sync failed for company ${companyId}:`, error)
     results.bankSync = {

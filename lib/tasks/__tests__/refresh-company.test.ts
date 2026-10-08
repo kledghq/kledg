@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/prisma', async () => (await import('@/lib/__tests__/helpers/prisma-mock')).prismaModuleMock())
+// Writable company: the pause of read-only companies is covered by lib/banking/__tests__/sync-pause.db.test.ts
+vi.mock('@/lib/banking/sync-pause', () => ({ bankSyncPause: async () => null, bankSyncPausedMessage: () => '' }))
 vi.mock('@/lib/crypto/encryption-key', () => ({ getEncryptionKey: () => mocks.encryptionKey }))
 vi.mock('@/lib/accounting/fiscal-year-utils', () => ({ getActiveFiscalYear: vi.fn() }))
 vi.mock('@/lib/transactions/rule-service', () => ({

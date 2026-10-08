@@ -16,4 +16,10 @@ export interface SyncResult {
   matched?: number
   /** French reasons, safe to show (lib/banking/errors.ts). */
   errors: string[]
+  /**
+   * The company is read-only (archived, or refused writes by the instance
+   * policy): the bank was not called and nothing was recorded, the next sync
+   * once it is writable again catches up (lib/banking/sync-pause.ts).
+   */
+  paused?: boolean
 }

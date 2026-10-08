@@ -162,3 +162,28 @@ export function apiKeyCreatedEmail(
     text: `Une clé API « ${key.name} » a été créée sur votre compte ${APP_NAME} (accès : ${key.access}). ${expiry} Si ce n'est pas vous, révoquez-la et changez votre mot de passe : ${settingsUrl}`,
   }
 }
+
+/**
+ * Invitation to a company (lib/rbac/company-invitations.service.ts). The
+ * link carries the invitation's secret token; the company and inviter names
+ * are escaped, the URL too (safeUrl).
+ */
+export function companyInvitationEmail(
+  to: string,
+  invitation: { companyName: string; inviterName: string | null; roleLabel: string; expiresOn: string },
+  url: string,
+): EmailMessage {
+  const who = invitation.inviterName ? escapeHtml(invitation.inviterName) : 'Un administrateur'
+  const whoText = invitation.inviterName ?? 'Un administrateur'
+  return {
+    to,
+    subject: `Invitation à rejoindre ${invitation.companyName} sur ${APP_NAME}`,
+    html: layout(
+      `Rejoindre ${escapeHtml(invitation.companyName)}`,
+      `${who} vous invite à rejoindre la société <strong>${escapeHtml(invitation.companyName)}</strong> sur ${APP_NAME}, avec le rôle « ${escapeHtml(invitation.roleLabel)} ». Cette invitation est valable jusqu'au ${escapeHtml(invitation.expiresOn)} et ne sert qu'une fois.`,
+      { label: "Accepter l'invitation", url },
+      "Si vous n'attendiez pas cette invitation, ignorez cet email : sans ce lien, personne ne rejoint la société à votre place.",
+    ),
+    text: `${whoText} vous invite à rejoindre ${invitation.companyName} sur ${APP_NAME} (rôle : ${invitation.roleLabel}, valable jusqu'au ${invitation.expiresOn}) : ${url}`,
+  }
+}

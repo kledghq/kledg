@@ -46,6 +46,12 @@ export type SystemReason =
    * version to the administrator who installed it, lib/updates/history.ts.
    */
   | 'version-history'
+  /**
+   * The invitation page (no membership yet, possibly no session): the
+   * invitation is found by the hash of its token, then the membership is
+   * created, lib/rbac/company-invitations.service.ts.
+   */
+  | 'invitation-acceptance'
   /** Command line scripts run by an operator (scripts/). */
   | 'script'
   /** Instance extensions of a fork (docs/extension-points.md), e.g. the demo's throwaway companies. */

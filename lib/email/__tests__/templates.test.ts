@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   changeEmailVerificationEmail,
+  companyInvitationEmail,
   emailChangeNoticeEmail,
   resetPasswordEmail,
   verifyEmailEmail,
@@ -99,5 +100,28 @@ describe('[KLEDG-R3-INPUT-06] links in templates', () => {
     const { html } = welcomeEmail('a@example.fr', 'javascript:alert(1)')
     expect(html).not.toContain('javascript:')
     expect(html).toContain('href="#"')
+  })
+})
+
+describe('companyInvitationEmail (issue #13)', () => {
+  const invitation = { companyName: 'Atelier <b>Lumen</b> & Co', inviterName: 'Claire "Admin"', roleLabel: 'Comptable', expiresOn: '15/10/2026' }
+  const url = 'https://kledg.example.com/invitation/abc"><img src=x>'
+
+  it('names the company, the inviter, the role and the expiry, with the link in the button and in clear', () => {
+    const message = companyInvitationEmail('expert@cabinet.fr', invitation, 'https://kledg.example.com/invitation/abc')
+    expect(message.to).toBe('expert@cabinet.fr')
+    expect(message.subject).toBe('Invitation à rejoindre Atelier <b>Lumen</b> & Co sur Kledg')
+    expect(message.text).toContain('Comptable')
+    expect(message.text).toContain('15/10/2026')
+    expect(message.text).toContain('https://kledg.example.com/invitation/abc')
+    expect(message.html).toContain('href="https://kledg.example.com/invitation/abc"')
+  })
+
+  it('escapes the company name, the inviter name and the URL in the HTML', () => {
+    const { html } = companyInvitationEmail('expert@cabinet.fr', invitation, url)
+    expect(html).not.toContain('<b>Lumen</b>')
+    expect(html).toContain('Atelier &lt;b&gt;Lumen&lt;/b&gt; &amp; Co')
+    expect(html).toContain('Claire &quot;Admin&quot;')
+    expect(html).not.toContain('"><img')
   })
 })

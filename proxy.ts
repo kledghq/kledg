@@ -31,7 +31,8 @@ export async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request)
   const isAuthenticated = Boolean(sessionCookie)
 
-  const publicRoutes = ['/login', '/setup', '/forgot-password', '/reset-password']
+  // /invitation: the link of a company invitation, opened before the invitee has a session (lib/rbac/company-invitations.service.ts).
+  const publicRoutes = ['/login', '/setup', '/forgot-password', '/reset-password', '/invitation']
   // Plus the pages the instance policy opens (lib/instance/policy.ts, PUBLIC_PAGES).
   const isPublicRoute =
     publicRoutes.some(route => pathname === route || pathname.startsWith(route + '/')) ||

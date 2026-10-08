@@ -344,6 +344,9 @@ it must hold for every code path, by the database (trigger in a migration).
   | First-run setup | `setup` | client IP |
   | Crons called without `CRON_SECRET` (bank sync, period closing) | `cron-keyless`, `cron-keyless-period-lock` | instance |
   | Welcome email of a member added to a company | `welcome-email` (3 a day) | person added |
+  | Invitations sent or sent again by a company administrator | `member-invitation` (20 an hour) | user |
+  | Invitation emails received | `invitation-email` (5 a day) | address invited |
+  | Acceptance of an invitation | `invitation-accept` | client IP |
   | Email, password change, account deletion, chart colours and display mode | `account-*` | user |
   | Instance user management (role, ban, email, deletion) | `instance-users` | administrator |
   | Bank API calls (connect, refresh, sync, verify, Qonto) | `bank-api` through `limitBankCalls` / `guardBankConnect` | company |
