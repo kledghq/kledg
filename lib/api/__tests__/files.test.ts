@@ -33,7 +33,7 @@ describe('upload limits', () => {
   it('accepts a normal xlsx-like archive', async () => {
     const archive = zip('xl/worksheets/sheet1.xml', Buffer.from('<sheet>' + 'a'.repeat(1000) + '</sheet>'))
     expect(isZip(archive)).toBe(true)
-    await expect(assertSafeZip(archive)).resolves.toBeUndefined()
+    await expect(assertSafeZip(archive)).resolves.toEqual(['xl/worksheets/sheet1.xml'])
   })
 
   it('rejects zip bombs by their real inflated size and ratio (lib/api/__tests__/zip-bomb.test.ts covers lying headers)', async () => {

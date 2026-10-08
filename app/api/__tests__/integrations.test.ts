@@ -48,7 +48,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { syncIntegration } from '@/lib/integrations/sync'
 import { createBankProvider, type BankProvider } from '@/lib/banking/providers'
 import { BankAuthorizationError } from '@/lib/banking/errors'
-import { decrypt, encrypt } from '@/lib/integrations/encryption'
+import { decrypt, encrypt, integrationContext } from '@/lib/integrations/encryption'
 import { RateLimitError } from '@/lib/accounting/errors'
 import * as list from '../integrations/route'
 import * as one from '../integrations/[id]/route'
@@ -167,7 +167,7 @@ describe('POST /api/integrations', () => {
     const stored = args.data.credentials as Record<string, string>
     expect(stored.login).toBe('org-login')
     expect(stored.secretKey).not.toBe('super-secret-key')
-    expect(decrypt(stored.secretKey, KEY)).toBe('super-secret-key')
+    expect(decrypt(stored.secretKey, KEY, integrationContext('company-1', 'QONTO', 'secretKey'))).toBe('super-secret-key')
     expect(args.data).toMatchObject({
       companyId: 'company-1',
       credentialsEncrypted: true,
@@ -260,7 +260,7 @@ describe('GET /api/integrations/[id]/credentials', () => {
     db.integration.findFirst.mockResolvedValue({
       provider: 'QONTO',
       type: 'BANKING',
-      credentials: { login: 'org-login', secretKey: encrypt('my-long-secret-1234', KEY) },
+      credentials: { login: 'org-login', secretKey: encrypt('my-long-secret-1234', KEY, integrationContext('company-1', 'QONTO', 'secretKey')) },
       credentialsEncrypted: true,
     })
     const response = await call(credentials.GET, url, { id: 'int-1' })

@@ -4,16 +4,24 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
-### Corrigé
-
-- Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
-
 ### Sécurité
 
+- Import Excel (relevés bancaires et import comptable) : un petit fichier .xlsx ne peut plus saturer la mémoire ni bloquer le serveur. La lecture est bornée (1 000 000 de cellules, 256 colonnes, 100 000 lignes pour un relevé et 500 000 pour l'import comptable, 30 secondes), les cellules fusionnées, validations de données, mises en forme conditionnelles et noms définis ne sont plus lus, et un fichier au-delà des limites est refusé avec un message qui dit quoi faire. Un relevé CSV est limité à 100 000 lignes.
+- Import Excel : une archive .xlsx ambiguë (entrées cachées ou en double, données ajoutées avant ou après l'archive, ZIP64, noms non ASCII) est refusée comme « Fichier Excel invalide ou corrompu », pour que le contrôle de taille voie exactement ce que le lecteur décompresse.
+- Clôture automatique des périodes : sans `CRON_SECRET`, la route planifiée ne tourne plus qu'au plus 2 fois par jour pour toute l'instance, et une clôture ignorée pour la même raison qu'à la dernière exécution n'ajoute plus de ligne au journal d'audit.
+- Toutes les pages reçoivent leur politique de sécurité du contenu (CSP), y compris une adresse qui se termine par une extension d'image : seuls les vrais fichiers statiques (icônes, logo, fichiers de Next.js) en sont dispensés.
+- Page **Mises à jour** : l'installation ne fusionne que la branche `kledg-update` de votre propre dépôt vers sa branche par défaut (jamais une pull request ouverte depuis un fork avec une branche du même nom), et refuse une mise à jour modifiée entre la confirmation et la fusion. La page avertit quand le jeton GitHub donne accès à d'autres dépôts privés que celui de l'instance. Migration `20261126090000_update_connection_token_scope` (colonne ajoutée, additive).
+- Identifiants bancaires et jeton GitHub chiffrés : chaque valeur est désormais liée à sa société, sa banque et son champ (copiée ailleurs dans la base, elle ne s'ouvre plus) et une valeur tronquée est refusée. Les valeurs existantes restent lisibles et sont chiffrées de nouveau dans ce format au démarrage du serveur.
+- Workflow **Update from Kledg** (version 2) : les valeurs des étapes (version de Kledg, adresse du dépôt) passent par l'environnement au lieu d'être insérées dans le script, le nom de version est vérifié et `actions/checkout` est épinglé sur un commit. Un dépôt (copie ou fork) qui a l'ancienne version la reçoit à la prochaine préparation depuis la page **Mises à jour**.
+- Emails : les liens sont échappés et seuls des liens http(s) sont insérés. L'email « Votre accès à Kledg » n'est plus envoyé que lorsqu'un administrateur ajoute la personne à une société (une demande de réinitialisation, quelle que soit son adresse de retour, reçoit l'email de réinitialisation), et au plus 3 fois par jour à la même personne.
 - Unicité du SIREN, du SIRET et de l'identifiant d'URL des sociétés : la vérification passe par une seule fonction de la base, SIRET compris, qui ne voit plus seulement les sociétés de l'utilisateur. Une instance dont les clients partagent la base peut la limiter aux sociétés de chaque client et ajouter un suffixe aléatoire aux identifiants d'URL ([points d'extension](docs/extension-points.md#company-identifiers)). Rien ne change sur une instance standard, sauf les messages : « Une société avec le SIREN … existe déjà. » Migration `20261123090000_company_identifier_scope` (fonction remplacée, additive).
 - En-tête `Referrer-Policy: strict-origin` sur toutes les réponses : le référent ne porte plus que l'origine, même d'une page de l'instance à une autre, si bien que l'adresse d'une page (identifiant de la société, recherche) n'est lisible par aucun script ni service de mesure d'audience.
 - Une instance dont la politique exige la sécurité au niveau des lignes (point d'extension `requiresRowLevelSecurity`, [documentation](docs/extension-points.md)) refuse de démarrer et d'ouvrir la base sans `KLEDG_RLS=enforce`, avec un message qui nomme la variable. Sans effet sur une instance standard.
 - Limites de tentatives par adresse IP de `/setup` et des routes propres d'une instance : une adresse IPv6 compte pour son préfixe /64, que détient un seul abonné, au lieu de l'adresse exacte.
+
+### Corrigé
+
+- Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
 
 ## [0.3.1] - 2026-10-05
 

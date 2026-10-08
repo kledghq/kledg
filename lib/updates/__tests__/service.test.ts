@@ -70,6 +70,22 @@ describe('prepareUpdate', () => {
     expect(fake.calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ sha: 'filesha', message: 'Update the Kledg update workflow' })
   })
 
+  it('[KLEDG-R3-INPUT-06] upgrades a version 1 workflow (expressions inside scripts)', async () => {
+    const v1 = UPDATE_WORKFLOW.replace('# kledg-workflow-version: 2', '')
+    expect(v1).toContain('# BEGIN kledg-merge')
+    const fake = fakeGitHub({
+      ...workflowRoutes({ file: v1 }),
+      'PUT /repos/acme/compta/contents/.github/workflows/update-from-kledg.yml': { body: {} },
+    })
+    for (const conn of [copy, fork]) {
+      fake.calls.length = 0
+      await prepareUpdate(conn, 'releases')
+      const put = fake.calls.find((c) => c.method === 'PUT')
+      expect(put?.body).toMatchObject({ sha: 'filesha', message: 'Update the Kledg update workflow' })
+      expect(Buffer.from((put?.body as { content: string }).content, 'base64').toString()).toBe(UPDATE_WORKFLOW)
+    }
+  })
+
   it('explains the missing Workflows permission', async () => {
     fakeGitHub({
       ...workflowRoutes({ file: null }),
@@ -83,13 +99,13 @@ describe('prepareUpdate', () => {
 
   it('enables the workflow of a fork (Actions are disabled in new forks) and dispatches', async () => {
     const fake = fakeGitHub({
-      ...workflowRoutes({ file: 'old workflow', state: 'disabled_fork' }),
+      ...workflowRoutes({ state: 'disabled_fork' }),
       [`PUT ${WF}/enable`]: { status: 204 },
     })
     const result = await prepareUpdate(fork, 'releases')
     expect(result).toMatchObject({ mode: 'workflow', workflowInstalled: false })
     expect(fake.called('PUT', `${WF}/enable`)).toBe(true)
-    // A fork shares Kledg's history: its workflow is not rewritten.
+    // A current workflow is not rewritten (an older version is, see KLEDG-R3-INPUT-06 above).
     expect(fake.called('PUT', '/repos/acme/compta/contents/.github/workflows/update-from-kledg.yml')).toBe(false)
   })
 
@@ -128,7 +144,7 @@ describe('channel', () => {
 })
 
 describe('update pull request', () => {
-  const pull = { number: 7, title: 'Mise à jour Kledg v0.2.0', html_url: 'https://github.com/acme/compta/pull/7', head: { sha: SHA, ref: 'kledg-update' }, mergeable: true, mergeable_state: 'clean' }
+  const pull = { number: 7, title: 'Mise à jour Kledg v0.2.0', html_url: 'https://github.com/acme/compta/pull/7', head: { sha: SHA, ref: 'kledg-update', repo: { id: 42, full_name: 'Acme/Compta' } }, base: { ref: 'main', repo: { id: 42 } }, mergeable: true, mergeable_state: 'clean' }
 
   it('finds the pull request, its migrations and its Vercel preview', async () => {
     const fake = fakeGitHub({
@@ -172,6 +188,26 @@ describe('update pull request', () => {
   it('refuses to merge another pull request', async () => {
     fakeGitHub({ 'GET /repos/acme/compta/pulls/8': { body: { ...pull, number: 8, head: { sha: SHA, ref: 'feature' } } } })
     await expect(mergeUpdatePull(copy, 8, SHA)).rejects.toThrow("n'est pas une mise à jour Kledg")
+  })
+
+  it('[KLEDG-R3-INPUT-05] refuses a kledg-update branch of another repository or into another branch', async () => {
+    fakeGitHub({
+      'GET /repos/acme/compta/pulls/9': { body: { ...pull, number: 9, head: { ...pull.head, repo: { full_name: 'evil/kledg' } } } },
+      'GET /repos/acme/compta/pulls/10': { body: { ...pull, number: 10, head: { ...pull.head, repo: null } } },
+      'GET /repos/acme/compta/pulls/11': { body: { ...pull, number: 11, base: { ...pull.base, ref: 'release' } } },
+      // A fork renamed like the connected repository: same name, another repository id
+      'GET /repos/acme/compta/pulls/12': { body: { ...pull, number: 12, head: { ...pull.head, repo: { id: 99, full_name: 'acme/compta' } } } },
+      'GET /repos/acme/compta/pulls/13': { body: { ...pull, number: 13, head: { ...pull.head, repo: { full_name: 'acme/compta' } } } },
+    })
+    for (const n of [9, 10, 11, 12, 13]) await expect(mergeUpdatePull(copy, n, SHA)).rejects.toThrow("n'est pas une mise à jour Kledg")
+  })
+
+  it('[KLEDG-R3-INPUT-05] refuses a head pushed between the check and the merge', async () => {
+    fakeGitHub({
+      'GET /repos/acme/compta/pulls/7': { body: pull },
+      'PUT /repos/acme/compta/pulls/7/merge': { status: 409, body: { message: 'Head branch was modified. Review and try the merge again.' } },
+    })
+    await expect(mergeUpdatePull(copy, 7, SHA)).rejects.toThrow('a changé depuis votre confirmation')
   })
 
   it('explains a pull request GitHub will not merge', async () => {

@@ -97,7 +97,7 @@ export async function syncIntegration(
       options.provider ??
       createBankProvider(
         integration.provider,
-        openCredentials(integration.provider, integration.credentials, integration.credentialsEncrypted, encryptionKey),
+        openCredentials(integration.provider, integration.credentials, integration.credentialsEncrypted, encryptionKey, integration.companyId),
       )
   } catch (error) {
     // Credentials sealed with another instance key, or incomplete: the user reconnects

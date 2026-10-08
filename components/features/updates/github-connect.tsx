@@ -107,6 +107,15 @@ function ConnectedCard({ connection, onChange }: { connection: ConnectionSummary
           </Alert>
         )}
 
+        {connection.tokenReachesOtherRepos && (
+          <Alert>
+            <AlertTriangle />
+            <AlertDescription>
+              Ce jeton donne aussi accès à d&apos;autres dépôts que {connection.owner}/{connection.repo}. Sur GitHub, dans « Repository access », choisissez « Only select repositories » puis ce seul dépôt, et reconnectez GitHub.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm" disabled={busy}>

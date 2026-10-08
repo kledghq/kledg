@@ -28,7 +28,7 @@ export async function connectPonto(
   const provider = new PontoProvider({ ...credentials, fetch: options.fetch })
   const accounts = await provider.listAccounts()
 
-  const stored = sealCredentials('PONTO', credentials, encryptionKey) as Prisma.InputJsonValue
+  const stored = sealCredentials('PONTO', credentials, encryptionKey, companyId) as Prisma.InputJsonValue
   const existing = await prisma.integration.findFirst({
     where: { companyId, provider: 'PONTO', type: 'BANKING' },
     select: { id: true },

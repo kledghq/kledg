@@ -7,7 +7,7 @@
 import { prisma } from '@/lib/prisma'
 import { findOwned } from '@/lib/api/resources'
 import { getEncryptionKey } from '@/lib/crypto/encryption-key'
-import { decrypt } from '@/lib/integrations/encryption'
+import { decrypt, integrationContext } from '@/lib/integrations/encryption'
 import { logger } from '@/lib/logger'
 
 export interface MaskedCredentials {
@@ -23,13 +23,13 @@ export function maskSecret(secret: string | undefined): string | null {
 }
 
 /** The stored secret in clear, or undefined when there is none or it can no longer be read. */
-function readSecret(stored: unknown, encrypted: boolean, integrationId: string): string | undefined {
+function readSecret(stored: unknown, encrypted: boolean, integrationId: string, context: string): string | undefined {
   if (typeof stored !== 'string' || !stored) return undefined
   if (!encrypted) return stored
   const encryptionKey = getEncryptionKey()
   if (!encryptionKey) return undefined
   try {
-    return decrypt(stored, encryptionKey)
+    return decrypt(stored, encryptionKey, context)
   } catch (error) {
     // Sealed with another instance key: the form shows no hint and the user types a new secret
     logger.warn('[Integrations] Stored secret unreadable', { integrationId, error })
@@ -50,7 +50,13 @@ export async function readMaskedCredentials(companyId: string, integrationId: st
   const stored = (integration.credentials ?? {}) as Record<string, unknown>
   const ponto = integration.provider === 'PONTO'
   const loginValue = ponto ? stored.clientId : stored.login
-  const secret = readSecret(ponto ? stored.clientSecret : stored.secretKey, integration.credentialsEncrypted, integrationId)
+  const secretField = ponto ? 'clientSecret' : 'secretKey'
+  const secret = readSecret(
+    stored[secretField],
+    integration.credentialsEncrypted,
+    integrationId,
+    integrationContext(companyId, integration.provider, secretField),
+  )
 
   return {
     provider: integration.provider,

@@ -91,7 +91,7 @@ async function seed() {
         type: 'BANKING',
         name: 'Ponto',
         status: 'active',
-        credentials: sealCredentials('PONTO', { clientId: 'ponto-client', clientSecret: 'ponto-secret-never-returned' }, key) as object,
+        credentials: sealCredentials('PONTO', { clientId: 'ponto-client', clientSecret: 'ponto-secret-never-returned' }, key, company.id) as object,
         credentialsEncrypted: true,
         featureConfigs: { create: [{ feature: 'BANKING_ACCOUNTS' }, { feature: 'BANKING_TRANSACTIONS' }] },
       },

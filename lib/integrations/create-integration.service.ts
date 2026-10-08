@@ -44,7 +44,7 @@ export async function createIntegration(
   encryptionKey: string = requireEncryptionKey(),
 ): Promise<IntegrationView> {
   const { provider } = input
-  const storedCredentials = sealCredentials(provider, input.credentials, encryptionKey)
+  const storedCredentials = sealCredentials(provider, input.credentials, encryptionKey, companyId)
   const hasSecret = SECRET_FIELDS[provider].some((field) => typeof storedCredentials[field] === 'string')
   const features = [...new Set(input.features ?? [])]
 

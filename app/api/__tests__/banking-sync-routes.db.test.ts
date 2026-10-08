@@ -408,7 +408,7 @@ describe.skipIf(!available)('banking sync routes', () => {
       expect(second.integrationId).toBe(first.integrationId)
       expect(await prisma.integration.count({ where: { companyId: ids.aCompany, provider: 'PONTO' } })).toBe(1)
       const stored = await prisma.integration.findUniqueOrThrow({ where: { id: first.integrationId } })
-      expect(openCredentials('PONTO', stored.credentials, stored.credentialsEncrypted, key)).toEqual({ clientId: 'new-id', clientSecret: 'new-secret' })
+      expect(openCredentials('PONTO', stored.credentials, stored.credentialsEncrypted, key, ids.aCompany)).toEqual({ clientId: 'new-id', clientSecret: 'new-secret' })
       // The line synced twice is stored once
       expect(await prisma.bankTransaction.count({ where: { externalTransactionId: 'p1' } })).toBe(1)
     })

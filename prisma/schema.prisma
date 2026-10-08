@@ -1564,6 +1564,8 @@ model UpdateConnection {
   isFork         Boolean   @default(false)
   defaultBranch  String    @default("main")
   connectedById  String?
+  // The token listed another private repository at connection (null: not checked)
+  tokenReachesOtherRepos Boolean?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

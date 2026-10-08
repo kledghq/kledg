@@ -11,8 +11,9 @@ export async function register() {
   const { requiresRowLevelSecurity } = await import('@/lib/instance/policy')
   assertRequiredRlsMode(requiresRowLevelSecurity())
   // After a rotation of the auth secret, credentials sealed with the old one
-  // are sealed again with the new one (lib/crypto/reencrypt.ts). Nothing to do
-  // when no older secret is configured. A failure never blocks the start.
+  // are sealed again with the new one, and values in the legacy format are
+  // sealed again bound to their row (lib/crypto/reencrypt.ts). A failure
+  // never blocks the start.
   const { reencryptStoredSecrets } = await import('@/lib/crypto/reencrypt')
   const { logger } = await import('@/lib/logger')
   await reencryptStoredSecrets().catch((error: unknown) => logger.error('Secret rotation: re-encryption failed', error))

@@ -314,7 +314,10 @@ it must hold for every code path, by the database (trigger in a migration).
 - No unsanitized HTML: no `dangerouslySetInnerHTML` outside
   `components/ui/chart.tsx` (static CSS).
 - Uploads: `assertRequestSize` before reading, `assertFileSize`,
-  `assertSafeZip` for `.xlsx` (`lib/api/files.ts`).
+  `assertSafeZip` for `.xlsx` (`lib/api/files.ts`). Read an uploaded `.xlsx`
+  only through `loadWorkbook` and `readSheetRows` (`lib/api/xlsx.ts`): they
+  bound cells, rows, columns and time, and never let ExcelJS expand a range
+  cell by cell; never `row.values` or `eachRow({ includeEmpty: true })`.
 - **Rate limits** (tested by `lib/__tests__/rate-limit.test.ts`): every
   limit of Kledg's own code is a named rule of `RATE_LIMITS` in
   `lib/rate-limit.ts` (window, maximum, French message), applied with
@@ -327,6 +330,8 @@ it must hold for every code path, by the database (trigger in a migration).
   | Sign-in, password reset, account creation, OAuth registration and tokens | `authRateLimit` (`lib/auth-policy.ts`) | client IP |
   | API keys (MCP), 300 calls per minute | `mcp-api-key` (`lib/mcp/api-key.ts`: Better Auth verifies a key on first use and once a minute, so its row is not written on every call) | key |
   | First-run setup | `setup` | client IP |
+  | Crons called without `CRON_SECRET` (bank sync, period closing) | `cron-keyless`, `cron-keyless-period-lock` | instance |
+  | Welcome email of a member added to a company | `welcome-email` (3 a day) | person added |
   | Email, password change, account deletion, chart colours and display mode | `account-*` | user |
   | Instance user management (role, ban, email, deletion) | `instance-users` | administrator |
   | Bank API calls (connect, refresh, sync, verify, Qonto) | `bank-api` through `limitBankCalls` / `guardBankConnect` | company |
