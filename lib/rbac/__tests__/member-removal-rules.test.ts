@@ -69,7 +69,7 @@ describe('member removal rules', () => {
 
   it('writes French messages with non-breaking spaces and no dashes', () => {
     for (const message of [NOT_A_MANAGER_MESSAGE, INSTANCE_ADMIN_TARGET_MESSAGE, ABOVE_ACTOR_MESSAGE, LAST_MANAGER_MESSAGE, LAST_MANAGER_SELF_MESSAGE]) {
-      expect(message).not.toMatch(/[–—]/)
+      expect(message).not.toMatch(/[\u2013\u2014]/)
       expect(message).not.toMatch(/ [:;?!]/)
     }
   })
