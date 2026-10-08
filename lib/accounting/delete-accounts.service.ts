@@ -94,7 +94,7 @@ function blockingReason(nodes: Map<string, Node>, withLines: Set<string>, id: st
       return `Le compte enfant ${child.code} est un compte du PCG et ne peut pas être supprimé`
     }
     const reason = blockingReason(nodes, withLines, childId, seen)
-    if (reason) return `Le compte enfant ${child.code} ne peut pas être supprimé : ${reason}`
+    if (reason) return `Le compte enfant ${child.code} ne peut pas être supprimé : ${reason}`
   }
   return null
 }

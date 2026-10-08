@@ -109,7 +109,7 @@ describe('validateBalanceSheetBalance', () => {
     expect(validateBalanceSheetBalance({ actifTotal: 1234.56, passifTotal: 1234.5 })).toEqual({
       isValid: false,
       imbalance: 0.06,
-      error: "Le bilan n'est pas équilibré : écart de 0,06 € (Actif : 1 234,56 €, Passif : 1 234,50 €)",
+      error: "Le bilan n'est pas équilibré : écart de 0,06 € (Actif : 1 234,56 €, Passif : 1 234,50 €)",
     })
   })
 })

@@ -321,7 +321,7 @@ describe.skipIf(!available)('banking sync routes', () => {
       await debit('qonto-tx-2', { id: UUID(2) })
       stubReceipts({ [UUID(1)]: () => json({ message: 'Too many requests' }, 429) })
       const result = await syncQontoAttachments(ids.aCompany)
-      const message = 'Qonto limite le nombre de requêtes : la synchronisation des justificatifs a été interrompue. Réessayez dans quelques minutes.'
+      const message = 'Qonto limite le nombre de requêtes : la synchronisation des justificatifs a été interrompue. Réessayez dans quelques minutes.'
       expect(result).toEqual({
         success: false,
         created: 0,
@@ -340,7 +340,7 @@ describe.skipIf(!available)('banking sync routes', () => {
       stubReceipts()
       const response = await call('admin', syncAttachments, 'POST', '/api/banking/attachments/sync', { companyId: ids.aCompany })
       expect(response.status).toBe(404)
-      expect(response.json).toEqual({ error: "Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque." })
+      expect(response.json).toEqual({ error: "Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque." })
       expect(outbound).toEqual([])
     })
 
@@ -426,7 +426,7 @@ describe.skipIf(!available)('banking sync routes', () => {
       const response = await call('admin', connectPontoRoute, 'POST', '/api/banking/ponto', body())
       expect(response.status).toBe(502)
       expect(response.json).toEqual({
-        error: "Ponto refuse l'accès : vérifiez l'identifiant et le secret de l'intégration Ponto, ou renouvelez l'accès à votre banque.",
+        error: "Ponto refuse l'accès : vérifiez l'identifiant et le secret de l'intégration Ponto, ou renouvelez l'accès à votre banque.",
       })
       expect(response.text).not.toContain('ponto-client-xyz')
       expect(await prisma.integration.count({ where: { provider: 'PONTO' } })).toBe(0)

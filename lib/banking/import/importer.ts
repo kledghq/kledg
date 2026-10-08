@@ -127,7 +127,7 @@ export function selectAccountTransactions(parsed: ParseResult, account: TargetAc
       })
     } else if (mine.length < named.length) {
       const others = named.filter((n) => !mine.includes(n))
-      warnings.push(`Le fichier contient aussi ${pluralWord(others.length, 'le compte', 'les comptes')} ${others.join(', ')} : seules les opérations du compte sélectionné sont importées.`)
+      warnings.push(`Le fichier contient aussi ${pluralWord(others.length, 'le compte', 'les comptes')} ${others.join(', ')} : seules les opérations du compte sélectionné sont importées.`)
       transactions = transactions.filter((t) => !t.account || matches(clean(t.account)))
     }
   }
@@ -135,7 +135,7 @@ export function selectAccountTransactions(parsed: ParseResult, account: TargetAc
   const currency = account.currency.toUpperCase()
   transactions = transactions.filter((t) => {
     if (t.currency && t.currency.toUpperCase() !== currency) {
-      errors.push({ line: t.line, message: `Ligne ${t.line} : devise ${t.currency} différente de celle du compte (${currency}).` })
+      errors.push({ line: t.line, message: `Ligne ${t.line} : devise ${t.currency} différente de celle du compte (${currency}).` })
       return false
     }
     return true

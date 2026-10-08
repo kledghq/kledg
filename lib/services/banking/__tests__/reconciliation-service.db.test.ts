@@ -185,7 +185,7 @@ describe.skipIf(!available)('automatic bank reconciliation (PostgreSQL)', () => 
     expect(await svc.autoReconcile({ companyId: ids.company })).toMatchObject({
       matched: 0,
       unreconciledOrphanedCount: 0,
-      message: 'Aucun journal BQ : aucune écriture bancaire à rapprocher.',
+      message: 'Aucun journal BQ : aucune écriture bancaire à rapprocher.',
     })
   })
 

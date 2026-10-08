@@ -30,13 +30,13 @@ export function logoError(value: string): string | null {
   try {
     url = new URL(value)
   } catch {
-    return 'Logo invalide : importez une image ou indiquez une adresse https.'
+    return 'Logo invalide : importez une image ou indiquez une adresse https.'
   }
   if (url.protocol !== 'https:' || url.username || url.password || url.port) {
-    return 'Logo invalide : seules les adresses https sont acceptées.'
+    return 'Logo invalide : seules les adresses https sont acceptées.'
   }
   if (!allowedLogoHosts().includes(url.hostname.toLowerCase())) {
-    return "Logo refusé : importez l'image plutôt que d'indiquer une adresse externe."
+    return "Logo refusé : importez l'image plutôt que d'indiquer une adresse externe."
   }
   return null
 }

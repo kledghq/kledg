@@ -40,7 +40,7 @@ describe('LoginForm', () => {
     nav.search = new URLSearchParams({ redirect: '/alpha/entries?status=draft' })
     render(<LoginForm extra={<p>Bandeau de l’instance</p>} />)
     expect(screen.getByText('Bandeau de l’instance')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/forgot-password')
+    expect(screen.getByRole('link', { name: /^Mot de passe oublié\s\?$/ })).toHaveAttribute('href', '/forgot-password')
     await signIn()
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith('/alpha/entries?status=draft'))
     expect(auth.signIn).toHaveBeenCalledWith({ email: 'marie@acme.fr', password: 'secret-password' })

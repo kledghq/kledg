@@ -19,7 +19,7 @@ export const POST = companyRoute(
       nextFiscalYearId: result.nextFiscalYearId,
       result: result.result,
       warnings: result.warnings ?? [],
-      message: "Exercice clôturé : résultat porté au compte 12, écriture d'à-nouveaux passée sur l'exercice suivant.",
+      message: "Exercice clôturé : résultat porté au compte 12, écriture d'à-nouveaux passée sur l'exercice suivant.",
     })
   },
 )

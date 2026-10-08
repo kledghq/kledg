@@ -127,7 +127,7 @@ async function installWorkflow(conn: ActiveConnection, existingSha: string | nul
   } catch (error) {
     if (error instanceof GitHubError && (error.githubCode === 'forbidden' || error.githubCode === 'not_found')) {
       throw new ValidationError(
-        "Impossible d'ajouter le workflow de mise à jour à votre dépôt : le jeton doit avoir la permission Workflows (lecture et écriture).",
+        "Impossible d'ajouter le workflow de mise à jour à votre dépôt : le jeton doit avoir la permission Workflows (lecture et écriture).",
       )
     }
     throw error
@@ -341,7 +341,7 @@ export async function mergeUpstream(conn: ActiveConnection): Promise<InstallResu
     allow: [409],
   })
   if (status === 409) {
-    throw new ConflictError('Votre fork contient des modifications en conflit avec Kledg : synchronisez-le sur GitHub (Sync fork).')
+    throw new ConflictError('Votre fork contient des modifications en conflit avec Kledg : synchronisez-le sur GitHub (Sync fork).')
   }
   const { data } = await githubRequest<{ commit?: { sha?: string } }>(repoPath(conn.repository, 'branches', conn.defaultBranch), {
     token: conn.token,

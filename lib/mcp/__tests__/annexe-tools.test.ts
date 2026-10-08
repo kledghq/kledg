@@ -75,7 +75,7 @@ const VIEW: AnnexeView = {
   fiscalYear: { id: 'fy', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31', isClosed: true },
   annexe: {
     list: 'small',
-    listLabel: 'Petite entreprise : annexe simplifiée',
+    listLabel: 'Petite entreprise : annexe simplifiée',
     listSource: 'C. com. art. L123-16, PCG art. 811-9',
     required: true,
     category: 'small',

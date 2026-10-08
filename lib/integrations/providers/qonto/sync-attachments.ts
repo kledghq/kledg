@@ -119,7 +119,7 @@ export async function uploadQontoReceipt(companyId: string, transactionId: strin
     where: { companyId, provider: 'QONTO', status: 'active', type: 'BANKING' },
     select: { id: true },
   })
-  if (!integration) throw new NotFoundError("Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque.")
+  if (!integration) throw new NotFoundError("Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque.")
   const transaction = await prisma.bankTransaction.findFirst({
     where: { id: transactionId, bankAccount: { bankConnection: { companyId, provider: 'QONTO' } } },
     select: { id: true, externalTransactionId: true, providerData: true, attachments: { select: { id: true } } },
@@ -141,7 +141,7 @@ export async function syncQontoAttachments(companyId: string): Promise<Attachmen
     where: { companyId, provider: 'QONTO', status: 'active', type: 'BANKING' },
     select: { id: true },
   })
-  if (!integration) throw new NotFoundError("Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque.")
+  if (!integration) throw new NotFoundError("Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque.")
   const qonto = await qontoClientFor(companyId)
 
   let created = 0
@@ -182,7 +182,7 @@ export async function syncQontoAttachments(companyId: string): Promise<Attachmen
   }
 
   const errors: string[] = []
-  if (rateLimitReached) errors.push('Qonto limite le nombre de requêtes : la synchronisation des justificatifs a été interrompue. Réessayez dans quelques minutes.')
+  if (rateLimitReached) errors.push('Qonto limite le nombre de requêtes : la synchronisation des justificatifs a été interrompue. Réessayez dans quelques minutes.')
   if (failed > 0) errors.push(`Les justificatifs de ${plural(failed, 'transaction')} n'ont pas pu être lus chez Qonto.`)
   return {
     success: !rateLimitReached,

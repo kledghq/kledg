@@ -657,7 +657,7 @@ export default function ReconciliationPage() {
         onOpenChange={(open) => {
           if (!open) setUndoTarget(null)
         }}
-        title="Annuler le rapprochement ?"
+        title="Annuler le rapprochement ?"
         description={
           <>
             La transaction <strong>{undoTarget?.counterpartyName || undoTarget?.label || ''}</strong> redeviendra à traiter.

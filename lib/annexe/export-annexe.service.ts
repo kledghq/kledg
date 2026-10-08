@@ -19,7 +19,7 @@ export const MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8'
 export async function exportAnnexe(companyId: string, fiscalYearId: string, format: 'pdf' | 'md', access: GroupAccess | null, now?: Date): Promise<GeneratedFile> {
   const view = await getAnnexe(companyId, fiscalYearId, access, now)
   const missing = view.annexe.missing.map((m) => m.label)
-  if (missing.length > 0) throw new ValidationError(`Complétez d'abord : ${missing.join(' ; ')}.`).withDetails({ missing })
+  if (missing.length > 0) throw new ValidationError(`Complétez d'abord : ${missing.join(' ; ')}.`).withDetails({ missing })
   const doc = annexeDocument(view.annexe, view.company, view.fiscalYear)
   if (format === 'md') return { content: renderMarkdown(doc), fileName: `${doc.fileName}.md`, contentType: MARKDOWN_CONTENT_TYPE }
   return { content: await renderDocumentPdf(doc), fileName: `${doc.fileName}.pdf`, contentType: PDF_CONTENT_TYPE }

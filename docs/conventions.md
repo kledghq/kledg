@@ -129,8 +129,12 @@ hooks/                   client hooks
   journal holding entries) is a 409. Anti-pattern: `return NextResponse.json({ error: 'Missing required
   fields' }, { status: 400 })` or a `try/catch` in the handler.
 - **Messages shown to users are French** and say what to do
-  ("L'exercice 2025 est clôturé : ... Passez la correction sur l'exercice
-  ouvert."). Log messages and code are English.
+  ("L'exercice 2025 est clôturé : ... Passez la correction sur l'exercice
+  ouvert."). Log messages and code are English. French typography: a
+  no-break space (U+00A0, `\u00a0` in a string, `&nbsp;` in JSX text)
+  before ":", ";", "?" and "!" (enforced by
+  `lib/__tests__/design-system-guards.test.ts`; `scripts/french-spacing.ts`
+  fixes a file), and no em or en dash.
 - **Never leak internals**: unexpected errors become the generic 500 message
   (`INTERNAL_ERROR_MESSAGE`), the detail goes to the server log. Do not
   return `error.message` of a third-party or database error to the client.

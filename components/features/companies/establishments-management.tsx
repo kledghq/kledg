@@ -236,7 +236,7 @@ export function EstablishmentsManagement({ companyId }: EstablishmentsManagement
 
   async function handleDelete(establishment: Establishment) {
     const ok = await confirm({
-      title: `Supprimer l'établissement ${establishment.name || establishment.siret} ?`,
+      title: `Supprimer l'établissement ${establishment.name || establishment.siret} ?`,
       description: "L'établissement et son statut d'organisme de formation seront supprimés.",
       confirmLabel: 'Supprimer',
     })

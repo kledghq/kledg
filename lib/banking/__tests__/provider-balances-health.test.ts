@@ -113,7 +113,7 @@ describe('QontoProvider', () => {
     organizationResponse = () => json({ errors: [{ detail: 'API key super-secret-key revoked' }] }, 401)
     const health = await provider().getConnectionHealth()
     expect(health.error).toBe(
-      "Qonto refuse l'accès : vérifiez l'identifiant et la clé secrète de l'API, puis mettez-les à jour depuis la page Banque.",
+      "Qonto refuse l'accès : vérifiez l'identifiant et la clé secrète de l'API, puis mettez-les à jour depuis la page Banque.",
     )
     expect(health.error).not.toContain('super-secret-key')
   })
@@ -196,7 +196,7 @@ describe('RevolutProvider balances and health', () => {
 
   it('reports a revoked access with the French advice, and an unexpected failure with the generic message', async () => {
     const revoked = await revolut(() => json({ message: 'The access token oa_sand_access is revoked' }, 401)).getConnectionHealth()
-    expect(revoked.error).toBe("Revolut refuse l'accès : autorisez de nouveau Kledg dans Revolut Business.")
+    expect(revoked.error).toBe("Revolut refuse l'accès : autorisez de nouveau Kledg dans Revolut Business.")
     expect(revoked.consentExpiresAt).toEqual(new Date('2026-12-30T00:00:00Z'))
 
     const broken = await revolut(() => new Response('not json', { status: 200 })).getConnectionHealth()

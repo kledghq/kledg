@@ -122,7 +122,7 @@ const fiscalYearId = z
   .string()
   .optional()
   .describe('Fiscal year id, from list_fiscal_years. Defaults to the current fiscal year.')
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
 
 export function registerKledgTools(server: McpServer, access: McpAccess) {
   const { user, canWrite } = access
@@ -871,7 +871,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
         })
         const byCode = new Map(accounts.map((a) => [a.code, a.id]))
         const missing = codes.filter((c) => !byCode.has(c))
-        if (missing.length) return fail(`Comptes introuvables : ${missing.join(', ')}. Utilisez search_accounts.`)
+        if (missing.length) return fail(`Comptes introuvables : ${missing.join(', ')}. Utilisez search_accounts.`)
 
         const entry = await createAccountingEntry({
           companyId: args.companyId,
@@ -902,7 +902,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
           changes: { entryCreated: entry.id, status: 'draft' },
           reviewUrl: kledgPageUrl(args.companyId, 'entries'),
           message:
-            'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
+            'Écriture créée en brouillon : elle doit être validée dans Kledg, qui lui attribuera alors son numéro définitif.',
         })
       }),
   )

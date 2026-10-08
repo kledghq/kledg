@@ -116,7 +116,7 @@ function ConnectedCard({ connection, onChange }: { connection: ConnectionSummary
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Déconnecter GitHub ?</AlertDialogTitle>
+              <AlertDialogTitle>Déconnecter GitHub&nbsp;?</AlertDialogTitle>
               <AlertDialogDescription>
                 Kledg oublie le jeton. Les mises à jour restent possibles depuis GitHub. Supprimez aussi le jeton dans vos
                 réglages GitHub (Settings, Developer settings, Personal access tokens).
@@ -217,7 +217,7 @@ function ConnectForm({ detected, platform, onChange }: { detected: RepoRef | nul
           </li>
           <li>
             <p>
-              <span className="font-medium">4. Collez le jeton ci-dessous.</span> Il est vérifié puis chiffré ; il ne sera plus
+              <span className="font-medium">4. Collez le jeton ci-dessous.</span> Il est vérifié puis chiffré&nbsp;; il ne sera plus
               jamais affiché.
             </p>
           </li>

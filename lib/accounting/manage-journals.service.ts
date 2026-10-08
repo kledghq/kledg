@@ -95,7 +95,7 @@ export async function deleteJournal(companyId: string, id: string): Promise<void
   if (!journal) throw new NotFoundError(JOURNAL_NOT_FOUND)
   if (journal._count.accountingEntries > 0) {
     throw new ConflictError(
-      "Impossible de supprimer ce journal : des écritures comptables y sont liées. Supprimez d'abord les écritures ou réaffectez-les à un autre journal.",
+      "Impossible de supprimer ce journal : des écritures comptables y sont liées. Supprimez d'abord les écritures ou réaffectez-les à un autre journal.",
     )
   }
   await prisma.journal.deleteMany({ where: { id: journal.id, companyId } })

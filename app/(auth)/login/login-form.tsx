@@ -117,7 +117,7 @@ export function LoginForm({ extra }: { extra?: React.ReactNode }) {
                     href="/forgot-password"
                     className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline pointer-coarse:-my-3.5 pointer-coarse:py-3.5"
                   >
-                    Mot de passe oublié ?
+                    Mot de passe oublié&nbsp;?
                   </Link>
                 </div>
                 <Input

@@ -97,7 +97,7 @@ const DeadlineSettingsSchema = z.object({
     .number({ error: 'Le délai de clôture est un nombre de jours' })
     .int()
     .min(1, { error: `Le délai de clôture est compris entre 1 et ${PERIOD_AUTO_LOCK_MAX_DELAY} jours` })
-    .max(PERIOD_AUTO_LOCK_MAX_DELAY, { error: `Le délai de clôture est compris entre 1 et ${PERIOD_AUTO_LOCK_MAX_DELAY} jours : la période doit être clôturée avant la fin de la suivante (PCG art. 1031-4)` })
+    .max(PERIOD_AUTO_LOCK_MAX_DELAY, { error: `Le délai de clôture est compris entre 1 et ${PERIOD_AUTO_LOCK_MAX_DELAY} jours : la période doit être clôturée avant la fin de la suivante (PCG art. 1031-4)` })
     .default(20),
 })
 

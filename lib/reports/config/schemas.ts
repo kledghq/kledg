@@ -13,11 +13,11 @@ const text = (field: string) => z.string(invalid(field)).nullish()
 const codes = (field: string) => z.array(z.string(invalid(field)), invalid(field))
 const lineLabel = z.string({ error: 'Le libellé de la ligne est requis' }).min(1, 'Le libellé de la ligne est requis')
 const order = z.number(invalid('Ordre')).int(invalid('Ordre'))
-const balanceType = z.enum(['debit', 'credit', 'auto'], { error: 'Sens invalide : debit, credit ou auto' })
-const lineType = z.enum(['group', 'sum', 'line'], { error: 'Type de ligne invalide : group, sum ou line' })
-const displayType = z.enum(['net', 'brut_amort_net'], { error: "Type d'affichage invalide : net ou brut_amort_net" })
-const balanceSheetSection = z.enum(['actif', 'passif'], { error: 'Section invalide : actif ou passif' }).nullish()
-const incomeStatementSection = z.enum(['produits', 'charges'], { error: 'Section invalide : produits ou charges' }).nullish()
+const balanceType = z.enum(['debit', 'credit', 'auto'], { error: 'Sens invalide : debit, credit ou auto' })
+const lineType = z.enum(['group', 'sum', 'line'], { error: 'Type de ligne invalide : group, sum ou line' })
+const displayType = z.enum(['net', 'brut_amort_net'], { error: "Type d'affichage invalide : net ou brut_amort_net" })
+const balanceSheetSection = z.enum(['actif', 'passif'], { error: 'Section invalide : actif ou passif' }).nullish()
+const incomeStatementSection = z.enum(['produits', 'charges'], { error: 'Section invalide : produits ou charges' }).nullish()
 const flag = (field: string) => z.boolean(invalid(field)).optional()
 
 /** POST .../config/default: the variant whose layout is reset to the PCG default. */
@@ -76,12 +76,12 @@ export const BalanceSheetConfigActionSchema = z.discriminatedUnion(
       hideLabel: flag('Masquer le libellé'),
     }),
   ],
-  { error: 'Action inconnue : create_default ou create_line' },
+  { error: 'Action inconnue : create_default ou create_line' },
 )
 
 /** POST .../balance-sheet/config/history: a snapshot of a line, or the restore of one of its versions. */
 export const ConfigHistoryActionSchema = z.object({
-  action: z.enum(['create_snapshot', 'restore'], { error: 'Action inconnue : create_snapshot ou restore' }),
+  action: z.enum(['create_snapshot', 'restore'], { error: 'Action inconnue : create_snapshot ou restore' }),
   configId: z.string({ error: 'configId est requis' }).min(1, 'configId est requis'),
   version: z.number(invalid('Version')).int(invalid('Version')).optional(),
   changeReason: z.string(invalid('Motif')).optional(),
@@ -108,7 +108,7 @@ export const TemplateActionSchema = z.discriminatedUnion(
     }),
     z.object({ action: z.literal('apply'), templateId: z.string({ error: 'templateId est requis' }).min(1, 'templateId est requis') }),
   ],
-  { error: 'Action inconnue : create ou apply' },
+  { error: 'Action inconnue : create ou apply' },
 )
 
 /** POST .../income-statement/config/line */

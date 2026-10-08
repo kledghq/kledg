@@ -35,7 +35,7 @@ describe('parseCalendarDay', () => {
   })
 
   it('refuses a value that is not a date, naming the parameter', () => {
-    expect(() => parseCalendarDay('demain', 'Date de début')).toThrow('Date de début invalide : demain')
+    expect(() => parseCalendarDay('demain', 'Date de début')).toThrow('Date de début invalide : demain')
     expect(() => parseCalendarDay('2025-13-45T00:00:00Z', 'Date de fin')).toThrow(expect.objectContaining({ name: 'ValidationError' }))
   })
 })

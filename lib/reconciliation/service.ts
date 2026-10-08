@@ -24,7 +24,7 @@ import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
 import { bankLineOf, validateReconciliation, type BankSide, type FiscalYearPeriod } from './validation'
 
 export const MESSAGES = {
-  alreadyReconciled: 'Cette transaction est déjà rapprochée : rechargez la liste pour voir son écriture.',
+  alreadyReconciled: 'Cette transaction est déjà rapprochée\u00a0: rechargez la liste pour voir son écriture.',
   notReconciled: "Cette transaction n'est pas rapprochée.",
   transactionNotFound: 'Transaction introuvable',
   accountNotFound: 'Compte introuvable',
@@ -83,7 +83,7 @@ export async function resolveBankLedgerAccount(companyId: string, fiscalYearId: 
 }
 
 export const bankAccountMissingMessage = (year: number) =>
-  `Aucun compte bancaire 512 dans l'exercice ${year} : créez-le ou choisissez le compte bancaire par défaut dans les informations de la société.`
+  `Aucun compte bancaire 512 dans l'exercice ${year}\u00a0: créez-le ou choisissez le compte bancaire par défaut dans les informations de la société.`
 
 export interface GeneratedLine {
   accountId: string
@@ -278,7 +278,7 @@ export async function reconcileWithNewEntry(companyId: string, transactionId: st
   const outsideYear = accounts.filter((a) => a.fiscalYearId !== fiscalYear.id).map((a) => a.code)
   if (outsideYear.length > 0) {
     throw new ValidationError(
-      `Compte${outsideYear.length > 1 ? 's' : ''} ${outsideYear.join(', ')} hors de l'exercice ${fiscalYear.year} : choisissez les comptes de l'exercice de la date.`,
+      `Compte${outsideYear.length > 1 ? 's' : ''} ${outsideYear.join(', ')} hors de l'exercice ${fiscalYear.year}\u00a0: choisissez les comptes de l'exercice de la date.`,
     )
   }
 
@@ -377,12 +377,12 @@ export async function unreconcileTransaction(companyId: string, transactionId: s
         if (entry && entry.sourceBankTransactionId === transactionId) {
           if (entry.status !== 'draft') {
             throw new ConflictError(
-              `L'écriture n° ${entry.entryNumber} est validée : le rapprochement ne peut pas être annulé. Passez une écriture de contrepassation.`,
+              `L'écriture n° ${entry.entryNumber} est validée\u00a0: le rapprochement ne peut pas être annulé. Passez une écriture de contrepassation.`,
             )
           }
           if (entry.fiscalYear.isClosed) {
             throw new ConflictError(
-              `L'écriture n° ${entry.entryNumber} appartient à l'exercice ${entry.fiscalYear.year}, clôturé : le rapprochement ne peut pas être annulé.`,
+              `L'écriture n° ${entry.entryNumber} appartient à l'exercice ${entry.fiscalYear.year}, clôturé\u00a0: le rapprochement ne peut pas être annulé.`,
             )
           }
           // A fixed asset created with the entry (simple mode) goes with it, or the undo is refused

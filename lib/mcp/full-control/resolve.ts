@@ -12,7 +12,7 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { getFiscalYearForDate } from '@/lib/accounting/fiscal-year-utils'
 import { isoDateToUtc } from '@/lib/utils/date'
 
-export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
+export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : AAAA-MM-JJ')
 
 /** Amount in euros: a number or a decimal string, two decimals at most. */
 export const euros = z.union([z.number().min(0), z.string().regex(/^\d+(\.\d{1,2})?$/, 'Montant invalide')])
@@ -37,7 +37,7 @@ export async function accountIdsByCode(companyId: string, fiscalYearId: string, 
   const byCode = new Map(accounts.map((a) => [a.code, a.id]))
   const missing = unique.filter((c) => !byCode.has(c))
   if (missing.length) {
-    throw new ValidationError(`Comptes introuvables dans l'exercice : ${missing.join(', ')}. Utilisez search_accounts ou create_account.`)
+    throw new ValidationError(`Comptes introuvables dans l'exercice : ${missing.join(', ')}. Utilisez search_accounts ou create_account.`)
   }
   return byCode
 }

@@ -19,7 +19,7 @@ const SUGGESTION_SAMPLE = 500
 
 /** Body of POST /api/companies/[id]/onboarding. */
 export const OnboardingActionSchema = z.object({
-  action: z.enum(['dismiss', 'reopen'], { error: 'Action inconnue : dismiss ou reopen' }),
+  action: z.enum(['dismiss', 'reopen'], { error: 'Action inconnue : dismiss ou reopen' }),
 })
 export type OnboardingAction = z.infer<typeof OnboardingActionSchema>['action']
 

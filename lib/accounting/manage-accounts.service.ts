@@ -50,7 +50,7 @@ async function chartFiscalYearId(companyId: string, fiscalYearId?: string | null
 export async function targetChartFiscalYearId(companyId: string, fiscalYearId?: string | null): Promise<string> {
   if (!fiscalYearId) return (await ensureActiveFiscalYear(companyId)).id
   const fiscalYear = await prisma.fiscalYear.findFirst({ where: { id: fiscalYearId, companyId }, select: { id: true } })
-  if (!fiscalYear) throw new ValidationError("Exercice invalide : il n'appartient pas à cette société.")
+  if (!fiscalYear) throw new ValidationError("Exercice invalide : il n'appartient pas à cette société.")
   return fiscalYear.id
 }
 

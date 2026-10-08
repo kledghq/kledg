@@ -49,14 +49,14 @@ const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 const PENDING_ACTION_MESSAGES = {
-  unknown: "Action introuvable : appelez de nouveau l'outil sans actionId pour préparer une nouvelle action.",
+  unknown: "Action introuvable : appelez de nouveau l'outil sans actionId pour préparer une nouvelle action.",
   pending:
-    "Cette action attend encore l'accord de l'utilisateur : demandez-lui d'ouvrir le lien d'approbation dans Kledg, puis rappelez l'outil avec le même actionId.",
-  rejected: "L'utilisateur a refusé cette action dans Kledg : elle ne sera pas exécutée.",
+    "Cette action attend encore l'accord de l'utilisateur : demandez-lui d'ouvrir le lien d'approbation dans Kledg, puis rappelez l'outil avec le même actionId.",
+  rejected: "L'utilisateur a refusé cette action dans Kledg : elle ne sera pas exécutée.",
   done: "Cette action a déjà été exécutée. Pour la refaire, préparez une nouvelle action.",
-  expired: 'Cette action a expiré (30 minutes) : préparez une nouvelle action et faites-la approuver de nouveau.',
+  expired: 'Cette action a expiré (30 minutes) : préparez une nouvelle action et faites-la approuver de nouveau.',
   mismatch:
-    "Les arguments ne correspondent pas à l'action approuvée (outil, société ou paramètres différents) : rappelez l'outil avec exactement les arguments de l'aperçu.",
+    "Les arguments ne correspondent pas à l'action approuvée (outil, société ou paramètres différents) : rappelez l'outil avec exactement les arguments de l'aperçu.",
 } as const
 
 export interface ActionBinding {
@@ -213,7 +213,7 @@ export async function decideAction(
   const row = await prisma.mcpPendingAction.findFirst({ where: { id: actionId, userId } })
   if (!row) throw new NotFoundError('Action introuvable')
   if (row.status !== 'pending') throw new ConflictError('Cette action a déjà été traitée.')
-  if (row.expiresAt <= now) throw new ConflictError("Cette action a expiré : demandez à l'assistant de la préparer de nouveau.")
+  if (row.expiresAt <= now) throw new ConflictError("Cette action a expiré : demandez à l'assistant de la préparer de nouveau.")
   const status = decision === 'approve' ? 'approved' : 'rejected'
   const updated = await prisma.mcpPendingAction.updateMany({
     where: { id: row.id, userId, status: 'pending', expiresAt: { gt: now } },

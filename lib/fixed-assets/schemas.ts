@@ -45,7 +45,7 @@ export type UpdateFixedAssetInput = z.infer<typeof UpdateFixedAssetSchema>
 /** POST /api/fixed-assets/[id]/depreciation: the amount of one period, the plan's when absent. */
 export const SaveDepreciationRecordSchema = z.object({
   fiscalYearId: z.string({ error: "Choisissez l'exercice de l'amortissement" }).min(1, "Choisissez l'exercice de l'amortissement"),
-  periodType: z.enum(['month', 'year'], { error: "Type de période invalide : 'month' (mois) ou 'year' (exercice)" }),
+  periodType: z.enum(['month', 'year'], { error: "Type de période invalide : 'month' (mois) ou 'year' (exercice)" }),
   monthIndex: z.number(invalid('Mois')).int(invalid('Mois')).nullish(),
   amount: z.number(invalid('Montant')).nullish(),
   note: text('Note'),

@@ -135,8 +135,8 @@ const unreconcileTransactionTool = fullControlTool({
     if (!entry) return { ...base, effect: 'unmark', entry: null, warnings: [] }
     const created = entry.sourceBankTransactionId === transactionId
     const warnings: string[] = []
-    if (created && entry.status !== 'draft') warnings.push(`L'écriture n° ${entry.entryNumber} est validée : l'annulation sera refusée. Contre-passez-la.`)
-    if (created && entry.fiscalYear.isClosed) warnings.push(`L'exercice ${entry.fiscalYear.year} est clôturé : l'annulation sera refusée.`)
+    if (created && entry.status !== 'draft') warnings.push(`L'écriture n° ${entry.entryNumber} est validée : l'annulation sera refusée. Contre-passez-la.`)
+    if (created && entry.fiscalYear.isClosed) warnings.push(`L'exercice ${entry.fiscalYear.year} est clôturé : l'annulation sera refusée.`)
     return {
       ...base,
       effect: created ? 'delete_draft_entry' : 'unlink_entry',
@@ -388,7 +388,7 @@ const importInput = {
 
 function decodeStatement(contentBase64: string): Uint8Array {
   const text = contentBase64.replace(/\s+/g, '')
-  if (!/^[A-Za-z0-9+/_-]*={0,2}$/.test(text)) throw new ValidationError('Contenu du fichier invalide : encodez-le en base64.')
+  if (!/^[A-Za-z0-9+/_-]*={0,2}$/.test(text)) throw new ValidationError('Contenu du fichier invalide : encodez-le en base64.')
   const bytes = new Uint8Array(Buffer.from(text, 'base64'))
   if (bytes.length === 0) throw new ValidationError('Fichier vide.')
   assertFileSize({ size: bytes.length }, MAX_MCP_STATEMENT_BYTES)

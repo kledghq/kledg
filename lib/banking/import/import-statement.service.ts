@@ -123,7 +123,7 @@ export async function importStatement(file: StatementFile & { allowErrors?: bool
   if (fileLevel && !file.allowErrors) throw new ValidationError(`${fileLevel.message} Confirmez pour importer quand même.`)
   if (result.errors.length > 0 && !file.allowErrors) {
     throw new ValidationError(
-      `Le fichier contient ${plural(result.errors.length, 'ligne')} en erreur : corrigez la correspondance des colonnes ou confirmez l'import des lignes valides.`,
+      `Le fichier contient ${plural(result.errors.length, 'ligne')} en erreur : corrigez la correspondance des colonnes ou confirmez l'import des lignes valides.`,
     )
   }
   if (result.rows.length === 0) throw new ValidationError('Aucune opération à importer dans ce fichier.')

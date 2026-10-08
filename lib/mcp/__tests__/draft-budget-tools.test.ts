@@ -143,9 +143,9 @@ describe('draft budget tools', () => {
   })
 
   it('keeps the closed year refusal of the service', async () => {
-    vi.mocked(updateBudgetLine).mockRejectedValueOnce(new ConflictError("L'exercice 2025 est clôturé : son budget ne se modifie plus."))
+    vi.mocked(updateBudgetLine).mockRejectedValueOnce(new ConflictError("L'exercice 2025 est clôturé : son budget ne se modifie plus."))
     const result = await tools().get('update_budget_line')!({ companyId: 'c1', lineId: 'l1', label: 'X' })
-    expect(result).toEqual({ content: [{ type: 'text', text: "L'exercice 2025 est clôturé : son budget ne se modifie plus." }], isError: true })
+    expect(result).toEqual({ content: [{ type: 'text', text: "L'exercice 2025 est clôturé : son budget ne se modifie plus." }], isError: true })
     expect(writeAuditLog).not.toHaveBeenCalled()
   })
 

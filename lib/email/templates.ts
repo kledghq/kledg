@@ -40,9 +40,9 @@ export function resetPasswordEmail(to: string, url: string): EmailMessage {
       'Réinitialiser votre mot de passe',
       'Vous avez demandé à réinitialiser votre mot de passe. Ce lien est valable une heure.',
       { label: 'Choisir un nouveau mot de passe', url },
-      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : votre mot de passe reste inchangé.",
+      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : votre mot de passe reste inchangé.",
     ),
-    text: `Réinitialisez votre mot de passe ${APP_NAME} (lien valable une heure) : ${url}`,
+    text: `Réinitialisez votre mot de passe ${APP_NAME} (lien valable une heure) : ${url}`,
   }
 }
 
@@ -52,11 +52,11 @@ export function setupLinkEmail(to: string, url: string, ttlMinutes: number): Ema
     subject: `Votre lien d'installation ${APP_NAME}`,
     html: layout(
       'Créer le compte administrateur',
-      `Votre instance ${APP_NAME} est en ligne. Ce lien ouvre la création du compte administrateur ; il est valable ${ttlMinutes} minutes.`,
+      `Votre instance ${APP_NAME} est en ligne. Ce lien ouvre la création du compte administrateur ; il est valable ${ttlMinutes} minutes.`,
       { label: 'Créer mon compte', url },
-      "Si vous n'avez pas déployé Kledg, ignorez cet email : sans ce lien, personne ne peut créer le compte.",
+      "Si vous n'avez pas déployé Kledg, ignorez cet email : sans ce lien, personne ne peut créer le compte.",
     ),
-    text: `Créez le compte administrateur de votre instance ${APP_NAME} (lien valable ${ttlMinutes} minutes) : ${url}`,
+    text: `Créez le compte administrateur de votre instance ${APP_NAME} (lien valable ${ttlMinutes} minutes) : ${url}`,
   }
 }
 
@@ -66,11 +66,11 @@ export function testEmail(to: string, url: string): EmailMessage {
     subject: `Email de test ${APP_NAME}`,
     html: layout(
       'Les emails fonctionnent',
-      `Cet email de test confirme que votre instance ${APP_NAME} envoie ses emails : invitations, mots de passe oubliés et liens de vérification partiront de la même adresse.`,
+      `Cet email de test confirme que votre instance ${APP_NAME} envoie ses emails : invitations, mots de passe oubliés et liens de vérification partiront de la même adresse.`,
       { label: 'Ouvrir la configuration', url },
       "Vous l'avez demandé depuis la page Configuration de votre instance.",
     ),
-    text: `Email de test ${APP_NAME} : votre instance envoie ses emails. ${url}`,
+    text: `Email de test ${APP_NAME} : votre instance envoie ses emails. ${url}`,
   }
 }
 
@@ -84,7 +84,7 @@ export function verifyEmailEmail(to: string, url: string): EmailMessage {
       { label: "Confirmer l'adresse", url },
       "Si vous n'avez pas créé de compte, ignorez cet email.",
     ),
-    text: `Confirmez votre adresse email ${APP_NAME} : ${url}`,
+    text: `Confirmez votre adresse email ${APP_NAME} : ${url}`,
   }
 }
 
@@ -94,11 +94,11 @@ export function welcomeEmail(to: string, url: string): EmailMessage {
     subject: `Votre accès à ${APP_NAME}`,
     html: layout(
       `Bienvenue sur ${APP_NAME}`,
-      'Un administrateur vous a ouvert un accès. Choisissez votre mot de passe pour vous connecter. Ce lien est valable une heure ; passé ce délai, utilisez « Mot de passe oublié » sur la page de connexion.',
+      'Un administrateur vous a ouvert un accès. Choisissez votre mot de passe pour vous connecter. Ce lien est valable une heure ; passé ce délai, utilisez « Mot de passe oublié » sur la page de connexion.',
       { label: 'Choisir mon mot de passe', url },
       "Si vous n'attendiez pas cet accès, ignorez cet email.",
     ),
-    text: `Un accès ${APP_NAME} vous a été ouvert. Choisissez votre mot de passe : ${url}`,
+    text: `Un accès ${APP_NAME} vous a été ouvert. Choisissez votre mot de passe : ${url}`,
   }
 }
 
@@ -109,11 +109,11 @@ export function changeEmailVerificationEmail(to: string, url: string): EmailMess
     subject: `Confirmez votre nouvelle adresse email ${APP_NAME}`,
     html: layout(
       'Confirmer votre nouvelle adresse',
-      `Vous avez demandé à utiliser cette adresse pour votre compte ${APP_NAME}. Confirmez-la pour terminer le changement : vous vous connecterez ensuite avec elle.`,
+      `Vous avez demandé à utiliser cette adresse pour votre compte ${APP_NAME}. Confirmez-la pour terminer le changement : vous vous connecterez ensuite avec elle.`,
       { label: 'Confirmer la nouvelle adresse', url },
-      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : l'adresse du compte ne change pas.",
+      "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : l'adresse du compte ne change pas.",
     ),
-    text: `Confirmez votre nouvelle adresse email ${APP_NAME} : ${url}`,
+    text: `Confirmez votre nouvelle adresse email ${APP_NAME} : ${url}`,
   }
 }
 
@@ -128,6 +128,6 @@ export function emailChangeNoticeEmail(to: string, newEmail: string, profileUrl:
       { label: 'Ouvrir mon profil', url: profileUrl },
       "Si vous n'êtes pas à l'origine de cette demande, changez votre mot de passe et déconnectez les autres sessions depuis votre profil.",
     ),
-    text: `Un changement de l'adresse de votre compte ${APP_NAME} vers ${newEmail} a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profileUrl}`,
+    text: `Un changement de l'adresse de votre compte ${APP_NAME} vers ${newEmail} a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profileUrl}`,
   }
 }

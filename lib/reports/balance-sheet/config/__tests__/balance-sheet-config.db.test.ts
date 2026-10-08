@@ -100,11 +100,11 @@ describe.skipIf(!available)('balance sheet layout services', () => {
       expect(prefixes.accountCodes).toEqual(['53', '54'])
 
       await expect(line({ lineLabel: 'Inconnu', accountCodes: ['512000', '530000'], filterType: 'exact' })).rejects.toThrow(
-        'Comptes inconnus : 530000. Créez-les dans le plan comptable de la société ou corrigez les numéros.',
+        'Comptes inconnus : 530000. Créez-les dans le plan comptable de la société ou corrigez les numéros.',
       )
       // Excluded codes are checked with the same filter type.
       await expect(line({ lineLabel: 'Exclusions', accountCodes: ['512000'], excludedAccountCodes: ['999999'], filterType: 'exact' })).rejects.toThrow(
-        'Comptes inconnus : 999999',
+        'Comptes inconnus : 999999',
       )
     })
 
@@ -182,8 +182,8 @@ describe.skipIf(!available)('balance sheet layout services', () => {
 
     it('checks new codes with the stored filter type when none is given', async () => {
       const created = await line({ lineLabel: 'Disponibilités', accountCodes: ['512000'], filterType: 'exact' })
-      await expect(updateBalanceSheetLineConfig(created.id, ids.company, { accountCodes: ['530000'] })).rejects.toThrow('Comptes inconnus : 530000')
-      await expect(updateBalanceSheetLineConfig(created.id, ids.company, { excludedAccountCodes: ['999999'] })).rejects.toThrow('Comptes inconnus : 999999')
+      await expect(updateBalanceSheetLineConfig(created.id, ids.company, { accountCodes: ['530000'] })).rejects.toThrow('Comptes inconnus : 530000')
+      await expect(updateBalanceSheetLineConfig(created.id, ids.company, { excludedAccountCodes: ['999999'] })).rejects.toThrow('Comptes inconnus : 999999')
       // starts_with given with the codes: a prefix is accepted.
       const prefixed = await updateBalanceSheetLineConfig(created.id, ids.company, { accountCodes: ['53'], filterType: 'starts_with' })
       expect(prefixed).toMatchObject({ accountCodes: ['53'], filterType: 'starts_with', version: 2 })
@@ -191,7 +191,7 @@ describe.skipIf(!available)('balance sheet layout services', () => {
 
     it('answers 404 with a French hint for a line of another company or a missing one', async () => {
       const created = await line({ lineLabel: 'x' })
-      const message = 'Configuration introuvable : elle a peut-être été supprimée. Rechargez la page de configuration.'
+      const message = 'Configuration introuvable : elle a peut-être été supprimée. Rechargez la page de configuration.'
       await expect(updateBalanceSheetLineConfig(created.id, ids.other, { lineLabel: 'y' })).rejects.toThrow(message)
       await expect(updateBalanceSheetLineConfig('missing', ids.company, { lineLabel: 'y' })).rejects.toThrow(message)
     })

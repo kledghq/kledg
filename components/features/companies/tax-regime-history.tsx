@@ -298,7 +298,7 @@ export function TaxRegimeHistory({ companyId }: TaxRegimeHistoryProps) {
 
   async function handleDelete(id: string) {
     const ok = await confirm({
-      title: 'Supprimer ce régime ?',
+      title: 'Supprimer ce régime ?',
       description: "La période correspondante n'aura plus de régime enregistré dans l'historique.",
       confirmLabel: 'Supprimer',
     })

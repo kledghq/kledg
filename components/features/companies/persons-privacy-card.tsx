@@ -147,7 +147,7 @@ export function PersonsPrivacyCard({ companyId, canEdit }: PersonsPrivacyCardPro
       <ConfirmDialog
         open={toErase !== null}
         onOpenChange={(open) => !open && setToErase(null)}
-        title={toErase ? `Effacer ${toErase.firstName} ${toErase.name} ?` : 'Effacer la personne ?'}
+        title={toErase ? `Effacer ${toErase.firstName} ${toErase.name} ?` : 'Effacer la personne ?'}
         description="Sa fiche, ses coordonnées, sa photo, ses données de naissance et son adresse sont effacées. Le nom porté par les écritures et les notes de frais est conservé avec la comptabilité. Un associé ne peut être effacé qu’une fois sa participation retirée."
         confirmLabel="Effacer"
         loading={busy}

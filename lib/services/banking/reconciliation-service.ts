@@ -148,7 +148,7 @@ export async function autoReconcile(options: AutoReconciliationOptions): Promise
       message:
         unreconciledOrphanedCount > 0
           ? `${plural(unreconciledOrphanedCount, 'transaction dé-rapprochée', 'transactions dé-rapprochées')} (écriture supprimée). Aucun journal BQ.`
-          : 'Aucun journal BQ : aucune écriture bancaire à rapprocher.',
+          : 'Aucun journal BQ : aucune écriture bancaire à rapprocher.',
     }
   }
 

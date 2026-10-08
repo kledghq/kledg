@@ -11,7 +11,7 @@ export interface CorporateTaxSource {
 }
 
 export const CORPORATE_TAX_SOURCES = {
-  cgi39: { label: 'CGI, art. 39 (charges déductibles ; 2 : sanctions et pénalités ; 4 : dépenses somptuaires)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000053542680' },
+  cgi39: { label: 'CGI, art. 39 (charges déductibles ; 2 : sanctions et pénalités ; 4 : dépenses somptuaires)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000053542680' },
   cgi145: { label: 'CGI, art. 145 (régime des sociétés mères : 5 % du capital, titres nominatifs, deux ans)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000051203497' },
   cgi209: { label: 'CGI, art. 209, I (report en avant des déficits : 1 000 000 € majorés de 50 %)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042909650/' },
   cgi213: { label: 'CGI, art. 213 (l’impôt sur les sociétés et les taxes sur les véhicules ne sont pas déductibles)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006303491' },

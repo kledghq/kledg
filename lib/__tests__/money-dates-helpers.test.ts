@@ -43,7 +43,7 @@ describe('rates sent by an assistant', () => {
     expect(percentInput.safeParse(100).success).toBe(true)
     const refused = percentInput.safeParse(12.345)
     expect(refused.success).toBe(false)
-    expect(refused.error?.issues[0]?.message).toBe('Taux invalide : en pour cent avec deux décimales au plus.')
+    expect(refused.error?.issues[0]?.message).toBe('Taux invalide : en pour cent avec deux décimales au plus.')
   })
 })
 

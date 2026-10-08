@@ -9,9 +9,9 @@ import { prisma } from '@/lib/prisma'
 import { findOwned } from '@/lib/api/resources'
 import { IntegrationFeature } from '@/lib/integrations/types'
 
-const UNKNOWN_FEATURE = 'Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.'
+const UNKNOWN_FEATURE = 'Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.'
 
-const INVALID_CONFIG = 'Configuration invalide : un objet plat de 20 clés au plus, aux valeurs simples (texte de 500 caractères au plus, nombre, booléen).'
+const INVALID_CONFIG = 'Configuration invalide : un objet plat de 20 clés au plus, aux valeurs simples (texte de 500 caractères au plus, nombre, booléen).'
 
 /**
  * Options of a feature, stored as JSON: a flat object of at most 20 short

@@ -516,7 +516,7 @@ export function ApprovalForm({
           ) : null}
 
           {pack.priorDividendsRequired ? (
-            <Field label="Dépenses non déductibles (CGI art. 39, 4)" htmlFor="approval-nd" optional hint="Dépenses somptuaires à approuver ; 0 s'il n'y en a pas.">
+            <Field label="Dépenses non déductibles (CGI art. 39, 4)" htmlFor="approval-nd" optional hint="Dépenses somptuaires à approuver ; 0 s'il n'y en a pas.">
               <Controller
                 control={control}
                 name="nonDeductibleExpensesCents"

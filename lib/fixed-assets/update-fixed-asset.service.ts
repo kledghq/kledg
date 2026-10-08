@@ -18,7 +18,7 @@ const METHODS = ['linear', 'declining', 'none']
 /** Cents of a required amount: an empty value is refused like an invalid one. */
 function requiredCents(value: AmountInput, field: string): number {
   const cents = amountCents(value, field)
-  if (cents === null) throw new ValidationError(`${field} : montant invalide (deux décimales au plus)`)
+  if (cents === null) throw new ValidationError(`${field} : montant invalide (deux décimales au plus)`)
   return cents
 }
 
@@ -60,7 +60,7 @@ export function fixedAssetUpdateData(input: UpdateFixedAssetInput): Prisma.Fixed
   }
   if (input.depreciationMethod !== undefined && input.depreciationMethod !== null) {
     if (!METHODS.includes(input.depreciationMethod)) {
-      throw new ValidationError("Mode d'amortissement invalide : linear, declining ou none.")
+      throw new ValidationError("Mode d'amortissement invalide : linear, declining ou none.")
     }
     data.depreciationMethod = input.depreciationMethod
   }

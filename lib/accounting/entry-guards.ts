@@ -85,7 +85,7 @@ export function assertEntryWritableInFiscalYear(
   if (!fiscalYear) throw new NotFoundError('Exercice introuvable pour cette écriture')
   if (isFiscalYearClosed(fiscalYear)) {
     throw new ConflictError(
-      `L'exercice ${fiscalYear.year} est clôturé : aucune écriture ne peut y être ${ACTION_LABELS[action]}.`,
+      `L'exercice ${fiscalYear.year} est clôturé : aucune écriture ne peut y être ${ACTION_LABELS[action]}.`,
     )
   }
   const day = calendarDayOf(date)

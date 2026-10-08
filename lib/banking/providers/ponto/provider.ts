@@ -95,7 +95,7 @@ export class PontoProvider implements BankProvider {
 
   constructor(options: PontoClientOptions) {
     if (!options.clientId || !options.clientSecret) {
-      throw new ValidationError("Les identifiants Ponto sont incomplets : saisissez l'identifiant et le secret de l'intégration.")
+      throw new ValidationError("Les identifiants Ponto sont incomplets : saisissez l'identifiant et le secret de l'intégration.")
     }
     this.client = new PontoClient(options)
   }

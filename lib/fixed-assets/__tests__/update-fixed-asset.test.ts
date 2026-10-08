@@ -34,9 +34,9 @@ describe('fixedAssetUpdateData', () => {
   })
 
   it('refuses an acquisition value that is empty, negative or has three decimals', () => {
-    expect(() => fixedAssetUpdateData({ acquisitionValue: '' })).toThrow("Valeur d'acquisition : montant invalide (deux décimales au plus)")
-    expect(() => fixedAssetUpdateData({ acquisitionValue: '-5' })).toThrow("Valeur d'acquisition : montant invalide (deux décimales au plus)")
-    expect(() => fixedAssetUpdateData({ acquisitionValue: '10.001' })).toThrow("Valeur d'acquisition : montant invalide (deux décimales au plus)")
+    expect(() => fixedAssetUpdateData({ acquisitionValue: '' })).toThrow("Valeur d'acquisition : montant invalide (deux décimales au plus)")
+    expect(() => fixedAssetUpdateData({ acquisitionValue: '-5' })).toThrow("Valeur d'acquisition : montant invalide (deux décimales au plus)")
+    expect(() => fixedAssetUpdateData({ acquisitionValue: '10.001' })).toThrow("Valeur d'acquisition : montant invalide (deux décimales au plus)")
   })
 
   it('reads rates and coefficients as decimals and truncates the duration to whole years', () => {
@@ -60,7 +60,7 @@ describe('fixedAssetUpdateData', () => {
 
   it('checks the method and reads the dates', () => {
     expect(fixedAssetUpdateData({ depreciationMethod: 'declining' })).toEqual({ depreciationMethod: 'declining' })
-    expect(() => fixedAssetUpdateData({ depreciationMethod: 'fast' })).toThrow("Mode d'amortissement invalide : linear, declining ou none.")
+    expect(() => fixedAssetUpdateData({ depreciationMethod: 'fast' })).toThrow("Mode d'amortissement invalide : linear, declining ou none.")
     expect(fixedAssetUpdateData({ acquisitionDate: '2025-03-15', depreciationStartDate: '2025-04-01', disposalDate: '' })).toEqual({
       acquisitionDate: new Date('2025-03-15T00:00:00.000Z'),
       depreciationStartDate: new Date('2025-04-01T00:00:00.000Z'),

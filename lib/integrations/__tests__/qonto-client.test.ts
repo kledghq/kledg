@@ -230,7 +230,7 @@ describe('errors', () => {
     const error = await failure(() => json({ errors: [{ detail: 'Invalid key' }, { title: 'Forbidden org' }] }, 401))
     expect(error).toBeInstanceOf(BankAuthorizationError)
     expect(error.message).toBe(
-      "Qonto refuse l'accès : vérifiez l'identifiant et la clé secrète de l'API, puis mettez-les à jour depuis la page Banque.",
+      "Qonto refuse l'accès : vérifiez l'identifiant et la clé secrète de l'API, puis mettez-les à jour depuis la page Banque.",
     )
     expect(error.message).not.toContain(SECRET)
     expect(vi.mocked(logger.error)).toHaveBeenCalledWith('[Bank] Qonto API error', {
@@ -244,11 +244,11 @@ describe('errors', () => {
   it('maps 429 to a rate limit without logging, 404 and 5xx to their French messages', async () => {
     const limited = await failure(() => json({ message: 'slow down' }, 429))
     expect(limited).toBeInstanceOf(RateLimitError)
-    expect(limited.message).toBe('Qonto limite le nombre de requêtes : réessayez dans quelques minutes.')
+    expect(limited.message).toBe('Qonto limite le nombre de requêtes : réessayez dans quelques minutes.')
     expect(logger.error).not.toHaveBeenCalled()
 
     expect((await failure(() => json({ message: 'no such account' }, 404))).message).toBe(
-      "Qonto ne trouve pas l'élément demandé : actualisez la page puis réessayez.",
+      "Qonto ne trouve pas l'élément demandé : actualisez la page puis réessayez.",
     )
     expect((await failure(() => new Response('<html>Bad gateway</html>', { status: 502 }))).message).toBe(
       'Qonto est indisponible pour le moment. Réessayez dans quelques minutes.',

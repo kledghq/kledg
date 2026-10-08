@@ -75,7 +75,7 @@ export function OAuthConnectionsCard({
 
   async function revoke(consent: AssistantConsent) {
     const ok = await confirm({
-      title: `Révoquer l'accès de ${consent.name} ?`,
+      title: `Révoquer l'accès de ${consent.name}\u00a0?`,
       description:
         "L'assistant ne pourra plus lire ni écrire dans votre comptabilité, dès sa prochaine requête. Vous pourrez le reconnecter plus tard.",
       confirmLabel: 'Révoquer',

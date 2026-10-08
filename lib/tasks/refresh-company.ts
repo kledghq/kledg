@@ -25,7 +25,7 @@ export interface RefreshCompanyResult {
 
 const MAX_REPORTED_FAILURES = 10
 
-const RULE_FAILED = "Impossible d'appliquer la règle : une erreur inattendue est survenue."
+const RULE_FAILED = "Impossible d'appliquer la règle : une erreur inattendue est survenue."
 const RULES_FAILED = 'une erreur inattendue a interrompu les règles. Réessayez dans quelques minutes.'
 
 /**
@@ -125,7 +125,7 @@ export async function refreshCompany(
     logger.error(`Bank sync failed for company ${companyId}:`, error)
     results.bankSync = {
       success: false,
-      message: `Erreur lors de la synchronisation : ${errorReason(error)}`,
+      message: `Erreur lors de la synchronisation : ${errorReason(error)}`,
       accountsSynced: 0,
     }
   }
@@ -204,7 +204,7 @@ export async function refreshCompany(
     logger.error(`Rules execution failed for company ${companyId}:`, error)
     results.rulesExecution = {
       success: false,
-      message: `Erreur lors de l'exécution des règles : ${userMessage(error, RULES_FAILED)}`,
+      message: `Erreur lors de l'exécution des règles : ${userMessage(error, RULES_FAILED)}`,
       transactionsProcessed: 0,
       transactionsFailed: 0,
       transactionsSkipped: 0,

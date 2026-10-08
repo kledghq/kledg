@@ -18,7 +18,7 @@ export const LOCAL_TAX_SOURCES = {
   cgi1467: { label: 'CGI, art. 1467 (base de la CFE\u00a0: valeur locative des biens passibles de taxe foncière utilisés pour l’activité)', url: `${LEGIFRANCE}LEGIARTI000030060638` },
   cgi1477: { label: 'CGI, art. 1477 (déclarations 1447-C-SD et 1447-M-SD)', url: `${LEGIFRANCE}LEGIARTI000030752139` },
   cgi1478: { label: 'CGI, art. 1478, II (pas de CFE l’année de création, base réduite de moitié l’année suivante)', url: `${LEGIFRANCE}LEGIARTI000051202382` },
-  cgi1647D: { label: 'CGI, art. 1647 D (cotisation minimum ; exonération jusqu’à 5 000 € de chiffre d’affaires)', url: `${LEGIFRANCE}LEGIARTI000038686433` },
+  cgi1647D: { label: 'CGI, art. 1647 D (cotisation minimum ; exonération jusqu’à 5 000 € de chiffre d’affaires)', url: `${LEGIFRANCE}LEGIARTI000038686433` },
   cgi1647Bsexies: { label: 'CGI, art. 1647 B sexies (plafonnement de la CET en fonction de la valeur ajoutée)', url: `${LEGIFRANCE}LEGIARTI000048860242` },
   cgi1679quinquies: { label: 'CGI, art. 1679 quinquies (acompte de CFE du 15 juin, solde au 15 décembre)', url: `${LEGIFRANCE}LEGIARTI000033812199` },
   cgi1586ter: { label: 'CGI, art. 1586 ter à 1586 nonies (CVAE)', url: 'https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006069577/LEGISCTA000021576521/' },

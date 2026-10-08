@@ -131,7 +131,7 @@ export async function validateToken(token: string, target: RepoRef): Promise<Tok
   const missing = checks.filter((c) => c.required && !c.ok)
   if (missing.length) {
     throw new ValidationError(
-      `Permissions manquantes sur le jeton : ${missing.map((c) => c.label).join(', ')}. Modifiez le jeton sur GitHub (Repository permissions) puis réessayez.`,
+      `Permissions manquantes sur le jeton : ${missing.map((c) => c.label).join(', ')}. Modifiez le jeton sur GitHub (Repository permissions) puis réessayez.`,
     )
   }
 
@@ -146,7 +146,7 @@ export async function validateToken(token: string, target: RepoRef): Promise<Tok
 
 function requireKey(): string {
   const key = getEncryptionKey()
-  if (!key) throw new ValidationError("Clé de chiffrement absente : définissez BETTER_AUTH_SECRET ou ENCRYPTION_KEY.")
+  if (!key) throw new ValidationError("Clé de chiffrement absente : définissez BETTER_AUTH_SECRET ou ENCRYPTION_KEY.")
   return key
 }
 

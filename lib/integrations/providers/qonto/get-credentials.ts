@@ -17,9 +17,9 @@ export interface QontoCredentials {
   secretKey: string
 }
 
-export const QONTO_NOT_CONNECTED_MESSAGE = "Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque."
+export const QONTO_NOT_CONNECTED_MESSAGE = "Qonto n'est pas connecté pour cette société : connectez-le depuis la page Banque."
 const UNREADABLE_MESSAGE =
-  'La clé API Qonto enregistrée ne peut plus être lue : saisissez-la de nouveau depuis la page Banque.'
+  'La clé API Qonto enregistrée ne peut plus être lue : saisissez-la de nouveau depuis la page Banque.'
 
 export async function getQontoCredentials(companyId: string): Promise<QontoCredentials> {
   const encryptionKey = requireEncryptionKey()

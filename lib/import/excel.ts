@@ -57,7 +57,7 @@ export async function parseExcel(
   } catch (error) {
     // ExcelJS reasons are internal (zip and XML details): logged, not shown
     logger.warn('[import/excel] Unreadable workbook', error)
-    throw new ValidationError('Fichier Excel illisible : enregistrez-le au format .xlsx et réessayez.')
+    throw new ValidationError('Fichier Excel illisible : enregistrez-le au format .xlsx et réessayez.')
   }
   const worksheet = sheetName
     ? workbook.getWorksheet(sheetName)
@@ -216,7 +216,7 @@ export async function importExcel(
           credit: importAmountCents(l[defaultMapping.creditColumn]),
         }))
         if (amounts.some((a) => a.debit === null || a.credit === null)) {
-          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
+          result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
           continue
         }
         const fiscalYearId = await accounts.fiscalYearId(entryDate)
@@ -314,7 +314,7 @@ export async function importExcel(
 
     result.success = result.errors.length === 0
   } catch (error) {
-    result.errors.push(`Import interrompu : ${handleError(error).message}`)
+    result.errors.push(`Import interrompu : ${handleError(error).message}`)
     result.success = false
   }
 

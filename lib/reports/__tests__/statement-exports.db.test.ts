@@ -262,7 +262,7 @@ describe.skipIf(!available)('statements built from seeded entries', () => {
       const result = await validateBalanceSheetAgainstIncomeStatement(company.id, fy.id, 'simplified')
       expect(result.matches).toBe(false)
       expect(result.difference).toBe(0)
-      expect(result.errors).toEqual(["Le bilan n'est pas équilibré : écart de 50,00 €"])
+      expect(result.errors).toEqual(["Le bilan n'est pas équilibré : écart de 50,00 €"])
     })
   })
 

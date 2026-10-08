@@ -39,7 +39,7 @@ export type AddMemberResult = {
 function assertValidRole(role: string): asserts role is CompanyRoleName {
   if (!COMPANY_ROLES.includes(role as CompanyRoleName)) {
     throw new ValidationError(
-      `Rôle invalide. Valeurs acceptées : ${COMPANY_ROLES.join(', ')}`
+      `Rôle invalide. Valeurs acceptées : ${COMPANY_ROLES.join(', ')}`
     )
   }
 }
@@ -126,7 +126,8 @@ export async function addMemberToCompany(
       },
     })
     user = await prisma.user.findUnique({ where: { email } })
-    if (!user) throw new Error('Échec de la création de l\'utilisateur')
+    // Created then gone (deleted meanwhile): a French 409, never an untyped 500
+    if (!user) throw new ConflictError("Le compte de l'utilisateur n'a pas pu être créé\u00a0: réessayez.")
     await prisma.user.update({
       where: { id: user.id },
       data: { emailVerified: true },
@@ -157,7 +158,7 @@ export async function addMemberToCompany(
   // Validate each role is known.
   for (const r of roleList) {
     if (!(r in roles)) {
-      throw new ValidationError(`Rôle inconnu : ${r}`)
+      throw new ValidationError(`Rôle inconnu : ${r}`)
     }
   }
 

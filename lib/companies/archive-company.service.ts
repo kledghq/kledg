@@ -25,7 +25,7 @@ import type { CurrentUser } from '@/lib/session'
 import { companyWriteRefusal } from '@/lib/instance'
 
 export const ARCHIVED_COMPANY_MESSAGE =
-  "Cette société est archivée : elle est en lecture seule. Un administrateur de l'instance peut la restaurer depuis la page Sociétés."
+  "Cette société est archivée : elle est en lecture seule. Un administrateur de l'instance peut la restaurer depuis la page Sociétés."
 
 /** Filter of the companies shown in lists: archived ones are left out. */
 export const NOT_ARCHIVED = { archivedAt: null } as const
@@ -76,7 +76,7 @@ export async function deleteCompany(id: string, actor: Pick<CurrentUser, 'id' | 
           userId: actor.email || actor.id,
           action: 'COMPANY_DELETED',
           level: 'WARN',
-          message: `Société supprimée : ${company.name}`,
+          message: `Société supprimée : ${company.name}`,
           metadata: { companyId: company.id, name: company.name, siren: company.siren, actorId: actor.id },
         },
       })
@@ -97,13 +97,13 @@ export async function archiveCompany(id: string, actor: Pick<CurrentUser, 'id' |
   if (!company) throw new NotFoundError(COMPANY_NOT_FOUND_MESSAGE)
   if (!company.archivedAt) {
     await prisma.company.update({ where: { id }, data: { archivedAt: new Date(), archivedById: actor.id } })
-    await writeAuditLog('warn', `Société archivée : ${company.name}`, {
+    await writeAuditLog('warn', `Société archivée : ${company.name}`, {
       action: 'COMPANY_ARCHIVED',
       companyId: id,
       metadata: { companyId: id, actorId: actor.id },
     })
   }
-  return { success: true, message: 'Société archivée : elle est en lecture seule.' }
+  return { success: true, message: 'Société archivée : elle est en lecture seule.' }
 }
 
 /** Restores an archived company (idempotent). */
@@ -112,7 +112,7 @@ export async function restoreCompany(id: string, actor: Pick<CurrentUser, 'id' |
   if (!company) throw new NotFoundError(COMPANY_NOT_FOUND_MESSAGE)
   if (company.archivedAt) {
     await prisma.company.update({ where: { id }, data: { archivedAt: null, archivedById: null } })
-    await writeAuditLog('info', `Société restaurée : ${company.name}`, {
+    await writeAuditLog('info', `Société restaurée : ${company.name}`, {
       action: 'COMPANY_RESTORED',
       companyId: id,
       metadata: { companyId: id, actorId: actor.id, archivedAt: company.archivedAt.toISOString() },

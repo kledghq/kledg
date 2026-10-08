@@ -98,7 +98,7 @@ function assertRulePatternsValid(conditions: TransactionRuleConditionInput[]): v
   for (const [index, condition] of conditions.entries()) {
     if (condition.operator !== 'regex' || !condition.value) continue
     const compiled = compileRulePattern(condition.value)
-    if (!compiled.ok) throw new ValidationError(`Condition ${index + 1} : ${compiled.message}`)
+    if (!compiled.ok) throw new ValidationError(`Condition ${index + 1} : ${compiled.message}`)
   }
 }
 

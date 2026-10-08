@@ -300,7 +300,7 @@ const recordFilingTool = draftTool({
     return {
       changes: forAssistant(changes),
       reviewUrl: kledgPageUrl(args.companyId, page),
-      message: args.action === 'remove' ? 'Enregistrement du dépôt retiré.' : 'Dépôt enregistré : rien n’a été déposé ni payé par Kledg.',
+      message: args.action === 'remove' ? 'Enregistrement du dépôt retiré.' : 'Dépôt enregistré : rien n’a été déposé ni payé par Kledg.',
     }
   },
   audit: (args) => ({

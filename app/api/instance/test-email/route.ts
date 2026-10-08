@@ -10,9 +10,9 @@ import { assertSameOrigin } from '@/lib/api/same-origin'
 export const dynamic = 'force-dynamic'
 
 const NOT_CONFIGURED =
-  "Cette instance n'envoie pas d'emails : définissez RESEND_API_KEY (et EMAIL_FROM), puis redéployez."
+  "Cette instance n'envoie pas d'emails : définissez RESEND_API_KEY (et EMAIL_FROM), puis redéployez."
 const FAILED =
-  "Resend a refusé l'envoi. Tant que votre domaine n'est pas vérifié, Resend n'écrit qu'à l'adresse de votre compte Resend, depuis son expéditeur de test : vérifiez le domaine, puis EMAIL_FROM."
+  "Resend a refusé l'envoi. Tant que votre domaine n'est pas vérifié, Resend n'écrit qu'à l'adresse de votre compte Resend, depuis son expéditeur de test : vérifiez le domaine, puis EMAIL_FROM."
 
 /**
  * Sends a test email to the administrator asking for it, from the

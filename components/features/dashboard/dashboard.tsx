@@ -292,7 +292,7 @@ export function Dashboard({ companyId }: { companyId: string }) {
               </Button>
             }
             docsHref={docsUrl('fiscalYear')}
-            docsLabel="Qu'est-ce qu'un exercice ?"
+            docsLabel="Qu'est-ce qu'un exercice ?"
           />
         </>
       ) : layout.status === 'error' ? (

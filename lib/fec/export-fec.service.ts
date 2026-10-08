@@ -20,7 +20,7 @@ async function defaultFecFiscalYearId(companyId: string, now = new Date()): Prom
     orderBy: { year: 'desc' },
   })
   const current = fiscalYearContaining(fiscalYears, parisDayOf(now)) ?? fiscalYears[0]
-  if (!current) throw new NotFoundError("Aucun exercice : créez l'exercice avant d'exporter le FEC")
+  if (!current) throw new NotFoundError("Aucun exercice : créez l'exercice avant d'exporter le FEC")
   return current.id
 }
 

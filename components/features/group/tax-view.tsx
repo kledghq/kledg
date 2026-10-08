@@ -47,7 +47,7 @@ function GroupCorporateTaxSection() {
       {data ? <PerimeterNotes warnings={data.warnings} unreachable={data.unreachable} /> : null}
       <div className="grid gap-4 sm:grid-cols-2" aria-busy={report.loading || undefined}>
         <StatCard label="Impôt des sociétés lues" value={data ? <Amount value={totals.tax / 100} /> : '-'} hint="Impôt sur les sociétés et contribution sociale, moins les crédits" busy={report.loading} />
-        <StatCard label="Soldes à payer" value={data ? <Amount value={totals.balance / 100} /> : '-'} hint="Après les acomptes enregistrés ; négatif, un excédent à récupérer" busy={report.loading} />
+        <StatCard label="Soldes à payer" value={data ? <Amount value={totals.balance / 100} /> : '-'} hint="Après les acomptes enregistrés ; négatif, un excédent à récupérer" busy={report.loading} />
       </div>
       <Card aria-busy={report.loading || undefined}>
         <CardHeader>
@@ -199,7 +199,7 @@ function GroupTaxIntegrationSection() {
   return (
     <>
       <SectionIntro
-        description="Et si les sociétés formaient un groupe intégré ? Les conditions, le résultat d'ensemble, l'impôt du groupe face à la somme des impôts de chaque société."
+        description="Et si les sociétés formaient un groupe intégré ? Les conditions, le résultat d'ensemble, l'impôt du groupe face à la somme des impôts de chaque société."
         actions={<ExportButtons report="tax" extra={exportExtra} disabled={!data} />}
       />
       {sim ? <Notice>{sim.notice}</Notice> : null}
@@ -347,7 +347,7 @@ function GroupTaxIntegrationSection() {
           <CardTitle>
             <h2>Retraitements à saisir</h2>
           </CardTitle>
-          <CardDescription>Ce que les livres ne montrent pas. Saisissez le montant que votre expert-comptable retient&nbsp;: la simulation se met à jour. Positif, il s&apos;ajoute au résultat d&apos;ensemble ; négatif, il s&apos;en déduit.</CardDescription>
+          <CardDescription>Ce que les livres ne montrent pas. Saisissez le montant que votre expert-comptable retient&nbsp;: la simulation se met à jour. Positif, il s&apos;ajoute au résultat d&apos;ensemble&nbsp;; négatif, il s&apos;en déduit.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           {MANUAL_NEUTRALISATIONS.map((m) => (

@@ -25,7 +25,7 @@ export function decimalNumber(value: number | string | null | undefined, field: 
 export function amountCents(value: AmountInput, field: string): number | null {
   if (value === null || value === undefined || value === '') return null
   const cents = parseCents(value)
-  if (cents === null || cents < 0) throw new ValidationError(`${field} : montant invalide (deux décimales au plus)`)
+  if (cents === null || cents < 0) throw new ValidationError(`${field} : montant invalide (deux décimales au plus)`)
   return cents
 }
 

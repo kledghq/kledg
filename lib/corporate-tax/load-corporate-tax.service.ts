@@ -489,8 +489,8 @@ export async function buildCorporateTax(companyId: string, query: CorporateTaxQu
   const qualifyingCents = parent.qualifying.reduce((s, q) => s + q.dividendsCents, 0)
   const unanswered: string[] = []
   if (computation.eligibility.turnoverOk) {
-    if (capitalPaidUp === null) unanswered.push('Le capital est-il entièrement libéré ?')
-    if (naturalPersons75 === null) unanswered.push('Le capital est-il détenu à 75 % au moins par des personnes physiques, directement ou par des sociétés qui remplissent les mêmes conditions ?')
+    if (capitalPaidUp === null) unanswered.push('Le capital est-il entièrement libéré ?')
+    if (naturalPersons75 === null) unanswered.push('Le capital est-il détenu à 75 % au moins par des personnes physiques, directement ou par des sociétés qui remplissent les mêmes conditions ?')
   }
   const checks = corporateTaxChecks({
     drafts: { count: draftCount, numbers: drafts.map((x) => x.entryNumber) },

@@ -59,6 +59,6 @@ export function createBankProvider(
       })
     }
     default:
-      throw new ValidationError(`Fournisseur bancaire non pris en charge : ${provider}`)
+      throw new ValidationError(`Fournisseur bancaire non pris en charge : ${provider}`)
   }
 }

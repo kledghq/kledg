@@ -263,7 +263,7 @@ describe.skipIf(!available)('year-end work (PostgreSQL)', () => {
     const impairment = await provisions.createProvision(books.companyId, {
       category: 'RECEIVABLE',
       label: 'Créance douteuse Martin SA',
-      justification: 'Relances sans réponse, procédure collective probable : perte estimée à 50 % du hors taxe.',
+      justification: 'Relances sans réponse, procédure collective probable : perte estimée à 50 % du hors taxe.',
       accountCode: '491',
       tiersCode: 'C00001',
       openedOn: '2026-12-31',

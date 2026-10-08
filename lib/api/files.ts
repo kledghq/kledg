@@ -78,7 +78,7 @@ export async function assertSafeZip(buffer: Uint8Array, limits: ZipLimits = {}):
   const maxRatio = limits.maxRatio ?? MAX_XLSX_RATIO
   const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
   const invalid = () => new ValidationError('Fichier Excel invalide ou corrompu.')
-  const bomb = () => new ValidationError('Fichier Excel refusé : contenu décompressé trop volumineux.')
+  const bomb = () => new ValidationError('Fichier Excel refusé : contenu décompressé trop volumineux.')
   if (buffer.length < 22) throw invalid()
 
   // End of central directory: 22 bytes + up to 65535 bytes of comment.
@@ -93,7 +93,7 @@ export async function assertSafeZip(buffer: Uint8Array, limits: ZipLimits = {}):
   const entries = view.getUint16(eocd + 10, true)
   const cdOffset = view.getUint32(eocd + 16, true)
   if (entries === 0xffff || cdOffset === 0xffffffff) throw invalid() // ZIP64: not produced by Excel for sane files
-  if (entries > maxEntries) throw new ValidationError('Fichier Excel refusé : il contient trop de fichiers.')
+  if (entries > maxEntries) throw new ValidationError('Fichier Excel refusé : il contient trop de fichiers.')
 
   let total = 0
   let compressed = 0

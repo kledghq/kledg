@@ -34,7 +34,7 @@ export const DashboardLayoutBody = z.object({
     .array(
       z.object({
         id: WidgetIdField,
-        size: z.enum(WIDGET_SIZES, { error: 'Taille de widget inconnue : S, M ou L' }).optional(),
+        size: z.enum(WIDGET_SIZES, { error: 'Taille de widget inconnue : S, M ou L' }).optional(),
       }),
     )
     .max(MAX_LAYOUT_ITEMS, { error: `Un tableau de bord compte au plus ${MAX_LAYOUT_ITEMS} widgets` }),

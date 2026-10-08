@@ -263,7 +263,7 @@ export function tiersFlowsChart(companyId: string, report: TiersFlowsReport, kin
         ...(kind !== 'customers' ? [{ label: 'Fournisseurs', color: 'flow-supplier' as const }] : []),
       ],
     },
-    summary: `Diagramme des flux de l'exercice ${report.fiscalYear.year} : ${parts.join(', ')}.`,
+    summary: `Diagramme des flux de l'exercice ${report.fiscalYear.year}\u00a0: ${parts.join(', ')}.`,
     figures: [
       ...(kind !== 'suppliers' ? [{ label: 'Facturé aux clients', value: customers }] : []),
       ...(kind !== 'customers' ? [{ label: 'Facturé par les fournisseurs', value: suppliers }] : []),
@@ -290,7 +290,7 @@ export function groupFlowsChart(companyId: string, view: GroupView): ChartView {
   return {
     view: 'chart',
     title: `Flux entre les sociétés du groupe ${view.holding.name}`,
-    subtitle: `Exercice ${view.fiscalYear.year} : à gauche la société qui paie ou prête, à droite celle qui reçoit`,
+    subtitle: `Exercice ${view.fiscalYear.year}\u00a0: à gauche la société qui paie ou prête, à droite celle qui reçoit`,
     notice: INDICATIVE_NOTICE,
     chart: {
       kind: 'sankey',
@@ -299,7 +299,7 @@ export function groupFlowsChart(companyId: string, view: GroupView): ChartView {
       legend: kinds.map((k) => ({ label: MONEY_FLOW_LABELS[k], color: FLOW_COLORS[k] })),
     },
     summary: flows.length
-      ? `Diagramme des flux entre les sociétés du groupe sur l'exercice ${view.fiscalYear.year} : ${plural(flows.length, 'flux', 'flux')} pour ${euroText(total)} au total.`
+      ? `Diagramme des flux entre les sociétés du groupe sur l'exercice ${view.fiscalYear.year}\u00a0: ${plural(flows.length, 'flux', 'flux')} pour ${euroText(total)} au total.`
       : `Aucun flux entre les sociétés lues sur l'exercice ${view.fiscalYear.year}.`,
     figures: [
       { label: "Chiffre d'affaires combiné", value: view.combined.chiffreAffairesCents / 100 },
@@ -318,10 +318,10 @@ export function groupTreasuryChart(companyId: string, report: GroupTreasuryRepor
   return {
     view: 'chart',
     title: `Trésorerie du groupe ${report.holding.name}`,
-    subtitle: `Exercice ${report.fiscalYear.year} : solde des comptes 512 des sociétés lues, en fin de mois`,
+    subtitle: `Exercice ${report.fiscalYear.year}\u00a0: solde des comptes 512 des sociétés lues, en fin de mois`,
     chart: { kind: 'area', x: 'month', series: [{ name: 'Trésorerie comptable (512)', color: 'treasury', points }] },
     summary: last
-      ? `Trésorerie comptable du groupe par mois sur l'exercice ${report.fiscalYear.year} : ${euroText(last.y)} à fin ${last.x}${lowest ? `, au plus bas ${euroText(lowest.y)} (${lowest.x})` : ''}.`
+      ? `Trésorerie comptable du groupe par mois sur l'exercice ${report.fiscalYear.year}\u00a0: ${euroText(last.y)} à fin ${last.x}${lowest ? `, au plus bas ${euroText(lowest.y)} (${lowest.x})` : ''}.`
       : `Pas de trésorerie comptable sur l'exercice ${report.fiscalYear.year}.`,
     figures: report.totalsByCurrency.map((t) => ({ label: `Soldes bancaires (${t.currency})`, value: t.balanceCents / 100 })).slice(0, 4),
     ...(report.warnings.length && { warnings: report.warnings }),
@@ -385,7 +385,7 @@ export function entriesList(
     ? fullControl
       ? access.executionMode === 'validation'
         ? 'Valider ou supprimer passe par un aperçu, puis votre approbation dans Kledg\u00a0: l’assistant ne peut pas approuver.'
-        : 'Valider ou supprimer montre d’abord un aperçu ; rien ne change avant votre confirmation.'
+        : 'Valider ou supprimer montre d’abord un aperçu\u00a0; rien ne change avant votre confirmation.'
       : 'Les brouillons se valident dans Kledg (cette connexion n’a pas le contrôle total).'
     : undefined
   return {
@@ -482,7 +482,7 @@ export function bankTransactionsList(
           tool: 'reconcile_transaction',
           arguments: { companyId, transactionId: t.id, withoutEntry: true },
           highImpact: false,
-          confirm: 'Marquer cette transaction comme rapprochée sans écriture (pointage) ? À faire seulement si son écriture existe déjà ou n’est pas nécessaire. Cliquez à nouveau pour confirmer.',
+          confirm: 'Marquer cette transaction comme rapprochée sans écriture (pointage)\u00a0? À faire seulement si son écriture existe déjà ou n’est pas nécessaire. Cliquez à nouveau pour confirmer.',
         })
       }
     }
@@ -574,7 +574,7 @@ export function missingReceiptsList(companyId: string, access: Pick<McpAccess, '
         {
           kind: 'message' as const,
           label: 'Retrouver la pièce',
-          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${t.id} du ${formatIsoDateFr(t.date)} (${t.label ?? 'sans libellé'}${t.counterparty ? `, ${t.counterparty}` : ''}, ${euroText(t.amount)}) de la société ${companyId} : quel document chercher et auprès de qui${t.supplier ? ` (fournisseur reconnu\u00a0: ${t.supplier.name}${t.supplier.invoicesUrl ? `, factures sur ${t.supplier.invoicesUrl}` : ''})` : ''}.`,
+          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${t.id} du ${formatIsoDateFr(t.date)} (${t.label ?? 'sans libellé'}${t.counterparty ? `, ${t.counterparty}` : ''}, ${euroText(t.amount)}) de la société ${companyId}\u00a0: quel document chercher et auprès de qui${t.supplier ? ` (fournisseur reconnu\u00a0: ${t.supplier.name}${t.supplier.invoicesUrl ? `, factures sur ${t.supplier.invoicesUrl}` : ''})` : ''}.`,
         },
       ],
     })),
@@ -778,7 +778,7 @@ export function groupStructureOrganigram(companyId: string, report: GroupStructu
   return {
     view: 'organigram',
     title: `Structure du groupe ${report.holding.name}`,
-    subtitle: 'Associés, holding et sociétés détenues ; filiale au-delà de 50 %, participation de 10 à 50 % (Code de commerce, art. L233-1 et L233-2)',
+    subtitle: 'Associés, holding et sociétés détenues\u00a0; filiale au-delà de 50 %, participation de 10 à 50 % (Code de commerce, art. L233-1 et L233-2)',
     nodes: report.nodes.map((n) => ({
       id: n.id,
       label: n.label,

@@ -262,7 +262,7 @@ export function buildBalanceSheet(input: BuildBalanceSheetInput): BalanceSheetDa
       lineId: a.lineIds[0],
       issue: `Le compte ${a.code} correspond à plusieurs lignes (${a.lineIds
         .map((id) => byId.get(id)?.lineLabel ?? id)
-        .join(', ')}) : il n'est compté que dans la première.`,
+        .join(', ')}) : il n'est compté que dans la première.`,
       suggestion: 'Retirez ce compte de toutes les lignes sauf une.',
     })
   }
@@ -277,12 +277,12 @@ export function buildBalanceSheet(input: BuildBalanceSheetInput): BalanceSheetDa
     warnings.push(
       `Le compte ${a.code} (classe ${classOf(a.code)}) a un solde de ${formatCentsFr(
         a.debitCents - a.creditCents
-      )} : il ne figure ni au bilan ni au compte de résultat.`
+      )} : il ne figure ni au bilan ni au compte de résultat.`
     )
   }
   if (unmappedAccounts.length > 0) {
     warnings.push(
-      `${plural(unmappedAccounts.length, 'compte')} ${pluralWord(unmappedAccounts.length, "n'est rattaché", 'ne sont rattachés')} à aucune ligne du bilan : ${unmappedAccounts
+      `${plural(unmappedAccounts.length, 'compte')} ${pluralWord(unmappedAccounts.length, "n'est rattaché", 'ne sont rattachés')} à aucune ligne du bilan : ${unmappedAccounts
         .map((a) => a.code)
         .join(', ')}. Rattachez-les à une ligne ou rétablissez la configuration par défaut (bouton Configuration).`
     )
@@ -329,6 +329,6 @@ export function validateBalanceSheetBalance(balanceSheet: Pick<BalanceSheetData,
   return {
     isValid: false,
     imbalance: fromCents(imbalanceCents),
-    error: `Le bilan n'est pas équilibré : écart de ${formatCentsFr(imbalanceCents)} (Actif : ${formatCentsFr(actifCents)}, Passif : ${formatCentsFr(passifCents)})`,
+    error: `Le bilan n'est pas équilibré : écart de ${formatCentsFr(imbalanceCents)} (Actif : ${formatCentsFr(actifCents)}, Passif : ${formatCentsFr(passifCents)})`,
   }
 }

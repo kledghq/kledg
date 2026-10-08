@@ -86,7 +86,7 @@ export function buildChecklist(
   steps.push({
     id: 'chart',
     title: 'Plan comptable prêt',
-    why: 'Les comptes du plan comptable général et les journaux habituels sont créés : vos écritures s’y rangent.',
+    why: 'Les comptes du plan comptable général et les journaux habituels sont créés : vos écritures s’y rangent.',
     done: facts.accounts > 0 && facts.journals > 0,
     detail: facts.accounts > 0 ? `${plural(facts.accounts, 'compte', 'comptes')}, ${plural(facts.journals, 'journal', 'journaux')}` : null,
     action: { label: facts.accounts > 0 ? 'Voir le plan comptable' : 'Créer le plan comptable', href: `${base}/accounts/plan` },
@@ -96,7 +96,7 @@ export function buildChecklist(
   steps.push({
     id: 'bank',
     title: 'Connecter une banque ou importer un relevé',
-    why: 'Les opérations bancaires sont la source de la plupart des écritures : Kledg les reçoit, puis vous aide à les comptabiliser.',
+    why: 'Les opérations bancaires sont la source de la plupart des écritures : Kledg les reçoit, puis vous aide à les comptabiliser.',
     done: bankDone,
     detail: bankDone
       ? [
@@ -114,7 +114,7 @@ export function buildChecklist(
     steps.push({
       id: 'history',
       title: 'Reprendre l’historique',
-      why: 'Votre société existait avant Kledg : reprenez les soldes de l’exercice précédent pour que le bilan parte des bons chiffres.',
+      why: 'Votre société existait avant Kledg : reprenez les soldes de l’exercice précédent pour que le bilan parte des bons chiffres.',
       done,
       detail: done
         ? facts.openingEntries > 0
@@ -129,13 +129,13 @@ export function buildChecklist(
   steps.push({
     id: 'rule',
     title: 'Créer une première règle d’affectation',
-    why: 'Une règle comptabilise toute seule les opérations qui reviennent : loyer, abonnements, cotisations.',
+    why: 'Une règle comptabilise toute seule les opérations qui reviennent : loyer, abonnements, cotisations.',
     done: facts.rules > 0,
     detail:
       facts.rules > 0
         ? plural(facts.rules, 'règle', 'règles')
         : facts.ruleSuggestions.length > 0
-          ? `Libellés fréquents : ${facts.ruleSuggestions.map((s) => `${s.label} (${s.count} fois)`).join(', ')}`
+          ? `Libellés fréquents : ${facts.ruleSuggestions.map((s) => `${s.label} (${s.count} fois)`).join(', ')}`
           : null,
     action: {
       label: top && facts.rules === 0 ? `Créer la règle « ${top.label} »` : 'Créer une règle',

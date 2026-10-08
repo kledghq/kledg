@@ -149,7 +149,7 @@ export type AmountParseResult = { ok: true; cents: number | null } | { ok: false
 const SEPARATOR_SPACES = /[\s    ']/g
 
 export const AMOUNT_ERRORS = {
-  invalid: 'Montant invalide (exemple : 1 234,56)',
+  invalid: 'Montant invalide (exemple : 1 234,56)',
   decimals: 'Deux décimales au maximum',
   tooLarge: 'Montant trop élevé',
   negative: 'Le montant doit être positif',

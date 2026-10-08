@@ -14,9 +14,9 @@ import { TypedCredentials } from '@/lib/integrations/create-integration.service'
 export const VerifyBankCredentialsSchema = z.object({
   /** Providers whose credentials can be checked before saving (Revolut goes through OAuth). */
   provider: z
-    .string({ message: 'Choisissez le fournisseur : Qonto ou Ponto.' })
+    .string({ message: 'Choisissez le fournisseur : Qonto ou Ponto.' })
     .transform((value) => value.toUpperCase())
-    .pipe(z.enum(['QONTO', 'PONTO'], { message: 'Fournisseur non pris en charge : choisissez Qonto ou Ponto.' })),
+    .pipe(z.enum(['QONTO', 'PONTO'], { message: 'Fournisseur non pris en charge : choisissez Qonto ou Ponto.' })),
   credentials: TypedCredentials,
 })
 export type VerifyBankCredentialsInput = z.infer<typeof VerifyBankCredentialsSchema>

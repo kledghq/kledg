@@ -155,7 +155,7 @@ export default function TransactionsPage() {
       }
       const result = await response.json()
       if (!result.success) {
-        const detail = Array.isArray(result.errors) && result.errors.length > 0 ? ` : ${result.errors.join(', ')}` : ''
+        const detail = Array.isArray(result.errors) && result.errors.length > 0 ? `\u00a0: ${result.errors.join(', ')}` : ''
         toast.error(`La synchronisation a échoué${detail}`)
         return
       }

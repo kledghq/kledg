@@ -39,21 +39,21 @@ export function checkOpeningLines(lines: OpeningLineInput[]): OpeningCheck {
     const n = index + 1
     const code = line.accountCode.trim()
     if (!/^[1-5]\d*$/.test(code)) {
-      errors.push(`Ligne ${n} : le compte ${code || '(vide)'} n'est pas un compte de bilan (classes 1 à 5).`)
+      errors.push(`Ligne ${n} : le compte ${code || '(vide)'} n'est pas un compte de bilan (classes 1 à 5).`)
     }
-    if (seen.has(code)) errors.push(`Ligne ${n} : le compte ${code} apparaît deux fois, regroupez ses montants.`)
+    if (seen.has(code)) errors.push(`Ligne ${n} : le compte ${code} apparaît deux fois, regroupez ses montants.`)
     seen.add(code)
     if (!Number.isSafeInteger(line.debitCents) || !Number.isSafeInteger(line.creditCents) || line.debitCents < 0 || line.creditCents < 0) {
-      errors.push(`Ligne ${n} : montant invalide.`)
+      errors.push(`Ligne ${n} : montant invalide.`)
     } else if (line.debitCents > 0 && line.creditCents > 0) {
-      errors.push(`Ligne ${n} : un solde est soit au débit, soit au crédit.`)
+      errors.push(`Ligne ${n} : un solde est soit au débit, soit au crédit.`)
     }
     debitCents += Math.max(0, line.debitCents)
     creditCents += Math.max(0, line.creditCents)
   })
   if (filled.length < 2) errors.push('Saisissez au moins deux soldes (par exemple la banque et le capital).')
   if (debitCents !== creditCents) {
-    errors.push('Le total des débits doit égaler le total des crédits : le bilan d’ouverture doit être équilibré.')
+    errors.push('Le total des débits doit égaler le total des crédits : le bilan d’ouverture doit être équilibré.')
   }
   return { errors, debitCents, creditCents }
 }

@@ -287,7 +287,7 @@ export function adminRoute<TBody = undefined, TQuery = undefined>(
 
 function forbidden(userRoles: string[]): ForbiddenError {
   const label = userRoles.map((r) => ROLE_LABELS[r] ?? r).join(', ')
-  return new ForbiddenError(`Action non autorisée : votre rôle (${label}) ne permet pas cette opération.`)
+  return new ForbiddenError(`Action non autorisée : votre rôle (${label}) ne permet pas cette opération.`)
 }
 
 /** A route acting on one company: resolves it, then checks the user's role permission there. */

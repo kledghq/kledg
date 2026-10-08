@@ -173,7 +173,7 @@ export function ApiKeysCard({
 
   const revoke = async (key: ApiKey) => {
     const ok = await confirm({
-      title: `Révoquer la clé « ${key.name ?? 'Sans nom'} » ?`,
+      title: `Révoquer la clé « ${key.name ?? 'Sans nom'} »\u00a0?`,
       description:
         'Les outils qui utilisent cette clé (Claude, scripts) perdront immédiatement l\'accès. Une clé révoquée ne peut pas être réactivée\u00a0: il faudra en créer une nouvelle.',
       confirmLabel: 'Révoquer',
@@ -199,7 +199,7 @@ export function ApiKeysCard({
       <CardContent>
         {!loading && keys.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            Aucune clé API. Créez-en une ci-dessus si un outil vous la demande ; pour Claude ou ChatGPT, connectez-les
+            Aucune clé API. Créez-en une ci-dessus si un outil vous la demande&nbsp;; pour Claude ou ChatGPT, connectez-les
             depuis la page{' '}
             <Link href="/settings/assistants" className="text-link underline-offset-4 hover:underline">
               Assistants IA

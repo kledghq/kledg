@@ -54,9 +54,9 @@ export const OFX_MAX_DEPTH = 64
 export const OFX_MAX_TAG_LENGTH = 1024
 export const OFX_MAX_TEXT_LENGTH = 64 * 1024
 
-const OFX_TOO_DEEP = `Fichier OFX invalide : imbrication de plus de ${OFX_MAX_DEPTH} niveaux.`
-const OFX_TAG_TOO_LONG = 'Fichier OFX invalide : une balise dépasse la taille maximale.'
-const OFX_TEXT_TOO_LONG = 'Fichier OFX invalide : une valeur dépasse la taille maximale.'
+const OFX_TOO_DEEP = `Fichier OFX invalide : imbrication de plus de ${OFX_MAX_DEPTH} niveaux.`
+const OFX_TAG_TOO_LONG = 'Fichier OFX invalide : une balise dépasse la taille maximale.'
+const OFX_TEXT_TOO_LONG = 'Fichier OFX invalide : une valeur dépasse la taille maximale.'
 
 /**
  * Builds the element tree of an OFX body (SGML or XML).
@@ -69,7 +69,7 @@ const OFX_TEXT_TOO_LONG = 'Fichier OFX invalide : une valeur dépasse la taille 
  */
 function parseOfxTree(text: string): OfxNode {
   const start = text.search(/<OFX>/i)
-  if (start < 0) throw new ValidationError('Fichier OFX invalide : balise <OFX> introuvable.')
+  if (start < 0) throw new ValidationError('Fichier OFX invalide : balise <OFX> introuvable.')
   const body = text.slice(start)
   const root: OfxNode = { name: '#root', children: [] }
   const stack: OfxNode[] = [root]
@@ -175,11 +175,11 @@ export function parseOfx(text: string): OfxParse {
       // Some French banks write OFX amounts with a decimal comma
       const amountCents = rawAmount ? parseAmountCents(rawAmount, rawAmount.includes(',') && !rawAmount.includes('.') ? ',' : '.') : null
       if (!bookingDate) {
-        errors.push({ line: index, message: `Opération ${index} : date DTPOSTED « ${posted ?? ''} » illisible.` })
+        errors.push({ line: index, message: `Opération ${index} : date DTPOSTED « ${posted ?? ''} » illisible.` })
         continue
       }
       if (amountCents === null) {
-        errors.push({ line: index, message: `Opération ${index} : montant TRNAMT « ${rawAmount ?? ''} » illisible.` })
+        errors.push({ line: index, message: `Opération ${index} : montant TRNAMT « ${rawAmount ?? ''} » illisible.` })
         continue
       }
       if (amountCents === 0) continue

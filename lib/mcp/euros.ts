@@ -66,11 +66,11 @@ function percentField(schema: AnySchema): AnySchema {
  * (12,34 % is 1 234 basis points; 12,345 % is refused, never rounded).
  */
 export const percentInput = z
-  .number({ error: 'Taux invalide : un pourcentage est attendu' })
+  .number({ error: 'Taux invalide : un pourcentage est attendu' })
   .finite()
   .min(0)
   .max(100)
-  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) <= 1e-6, 'Taux invalide : en pour cent avec deux décimales au plus.')
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) <= 1e-6, 'Taux invalide : en pour cent avec deux décimales au plus.')
 
 /** Basis points of a rate in percent sent by an assistant (four decimals at most), or a French 400. */
 function basisPointsOf(percent: number, field: string): number {

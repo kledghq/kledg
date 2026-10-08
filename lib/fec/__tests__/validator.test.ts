@@ -86,7 +86,7 @@ describe('validateFec', () => {
   it('refuses an unbalanced entry and an unbalanced file', () => {
     const content = file(row({ Debit: '100,00' }), row({ CompteNum: '706000', Credit: '99,99' }))
     const text = messages(content)
-    expect(text).toContain('Écriture OD n° 1 non équilibrée : débit 100,00, crédit 99,99')
+    expect(text).toContain('Écriture OD n° 1 non équilibrée : débit 100,00, crédit 99,99')
     expect(text).toContain('Fichier non équilibré')
   })
 
@@ -102,7 +102,7 @@ describe('validateFec', () => {
   })
 
   it('refuses gaps in a global numbering', () => {
-    expect(messages(file(...balanced('1'), ...balanced('3')))).toContain('Numérotation non continue : rupture entre 1 et 3')
+    expect(messages(file(...balanced('1'), ...balanced('3')))).toContain('Numérotation non continue : rupture entre 1 et 3')
   })
 
   it('checks a per-journal numbering journal by journal', () => {

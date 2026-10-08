@@ -96,7 +96,7 @@ describe('PCG checks of a new fixed asset', () => {
     expect(await validateFixedAssetBeforeCreation(asset({ acquisitionValue: 0 }))).toEqual({
       valid: false,
       warnings: [],
-      errors: ["Validation coût d'acquisition échouée : Le prix d'achat doit être positif pour un actif acquis à titre onéreux"],
+      errors: ["Validation coût d'acquisition échouée : Le prix d'achat doit être positif pour un actif acquis à titre onéreux"],
     })
     await expect(createFixedAssetWithPCGValidation(asset({ acquisitionValue: -10 }))).rejects.toMatchObject({ statusCode: 400 })
   })
@@ -105,7 +105,7 @@ describe('PCG checks of a new fixed asset', () => {
     expect(await validateFixedAssetBeforeCreation(asset({ depreciationDuration: -1 }))).toEqual({
       valid: false,
       warnings: [],
-      errors: ["Validation plan d'amortissement échouée : La durée d'utilisation doit être positive (Art. 214-7)"],
+      errors: ["Validation plan d'amortissement échouée : La durée d'utilisation doit être positive (Art. 214-7)"],
     })
   })
 })

@@ -147,7 +147,7 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
     // Applied twice: one entry only, 409 with the reconciliation message
     expect(await executor.applyRule(ruleId, txId, ids.company)).toEqual({
       success: false,
-      error: 'Cette transaction est déjà rapprochée : rechargez la liste pour voir son écriture.',
+      error: 'Cette transaction est déjà rapprochée : rechargez la liste pour voir son écriture.',
       status: 409,
     })
     expect(await prisma.accountingEntry.count()).toBe(1)

@@ -116,7 +116,7 @@ export function GroupFlowsSection() {
           <CardTitle>
             <h2>Flux de l&apos;exercice</h2>
           </CardTitle>
-          <CardDescription>À gauche la société qui paie, à droite celle qui reçoit ; l&apos;épaisseur suit le montant.</CardDescription>
+          <CardDescription>À gauche la société qui paie, à droite celle qui reçoit&nbsp;; l&apos;épaisseur suit le montant.</CardDescription>
         </CardHeader>
         <CardContent className="px-2 sm:px-5">{data ? <FlowChart flows={period} names={names} /> : <Skeleton className="h-56 w-full" />}</CardContent>
       </Card>

@@ -45,7 +45,7 @@ export const RemunerationInputsSchema = z.object({
     .number({ error: 'Nombre de parts invalide' })
     .min(1, 'Au moins une part')
     .max(20, 'Nombre de parts trop élevé')
-    .refine((v) => Number.isInteger(v * 4), 'Les parts vont par quarts (1 ; 1,25 ; 1,5...)'),
+    .refine((v) => Number.isInteger(v * 4), 'Les parts vont par quarts (1 ; 1,25 ; 1,5...)'),
   /** Other net taxable income of the household (salaries after the 10 % deduction, pensions...), before this pay and these dividends. */
   otherIncomeCents: cents('Autres revenus invalides'),
   dividendTaxation: z.enum(DIVIDEND_TAXATIONS, { error: 'Imposition des dividendes inconnue' }),

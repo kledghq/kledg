@@ -133,7 +133,7 @@ describe.skipIf(!available)('report routes', () => {
     it('refuses an invalid date or a period outside every fiscal year with a French 400', async () => {
       const invalid = await call(routes.trialBalance.GET, 'GET', `/api/reports/trial-balance?companyId=${ids.company}&startDate=demain`)
       expect(invalid.status).toBe(400)
-      expect(await errorOf(invalid)).toBe('Date de début invalide : demain')
+      expect(await errorOf(invalid)).toBe('Date de début invalide : demain')
 
       const outside = await call(routes.grandLivre.GET, 'GET', `/api/reports/grand-livre?companyId=${ids.company}&startDate=2030-01-01`)
       expect(outside.status).toBe(400)
@@ -194,11 +194,11 @@ describe.skipIf(!available)('report routes', () => {
     it('validates the query with French messages and hides fiscal years of other companies', async () => {
       const missing = await call(routes.balanceSheet.GET, 'GET', '/x')
       expect(missing.status).toBe(400)
-      expect(await errorOf(missing)).toBe("fiscalYearId: fiscalYearId est requis : choisissez l'exercice")
+      expect(await errorOf(missing)).toBe("fiscalYearId: fiscalYearId est requis : choisissez l'exercice")
 
       const variant = await call(routes.incomeStatement.GET, 'GET', `/x?fiscalYearId=${ids.fy}&variant=abrege`)
       expect(variant.status).toBe(400)
-      expect(await errorOf(variant)).toBe('variant: Variante inconnue : complete ou simplified')
+      expect(await errorOf(variant)).toBe('variant: Variante inconnue : complete ou simplified')
 
       const foreign = await call(routes.compare.GET, 'GET', `/x?currentFiscalYearId=${ids.fy}&previousFiscalYearId=${ids.otherFy}`)
       expect(foreign.status).toBe(404)
@@ -255,7 +255,7 @@ describe.skipIf(!available)('report routes', () => {
 
       const unknownCode = await call(routes.bsLine.POST, 'POST', '/x', { lineLabel: 'x', accountCodes: ['999999'], filterType: 'exact' })
       expect(unknownCode.status).toBe(400)
-      expect(await errorOf(unknownCode)).toMatch(/^Comptes inconnus : 999999/)
+      expect(await errorOf(unknownCode)).toMatch(/^Comptes inconnus\u00a0: 999999/)
 
       const badType = await call(routes.bsLineId.PATCH, 'PATCH', '/x', { balanceType: 'both' }, { lineId: ids.bsLine })
       expect(badType.status).toBe(400)

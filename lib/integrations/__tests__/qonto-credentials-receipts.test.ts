@@ -34,7 +34,7 @@ const db = asPrismaMock(prisma)
 const KEY = 'c'.repeat(64)
 const OTHER_KEY = 'd'.repeat(64)
 const COMPANY = 'company-1'
-const UNREADABLE = 'La clé API Qonto enregistrée ne peut plus être lue : saisissez-la de nouveau depuis la page Banque.'
+const UNREADABLE = 'La clé API Qonto enregistrée ne peut plus être lue : saisissez-la de nouveau depuis la page Banque.'
 const TX_UUID = '0b7f1d64-5a8c-4b6e-9a51-3f1c2d3e4f50'
 
 const calls: URL[] = []

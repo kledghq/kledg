@@ -168,7 +168,7 @@ export class RevolutClient {
       return this.accessToken.value
     }
     if (!this.options.refreshToken) {
-      throw new BankAuthorizationError("Revolut n'est pas encore autorisé : terminez l'autorisation dans Revolut Business.")
+      throw new BankAuthorizationError("Revolut n'est pas encore autorisé : terminez l'autorisation dans Revolut Business.")
     }
     const tokens = await this.token({ grant_type: 'refresh_token', refresh_token: this.options.refreshToken })
     if (tokens.refresh_token) this.options.refreshToken = tokens.refresh_token

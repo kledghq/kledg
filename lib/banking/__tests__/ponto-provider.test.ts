@@ -146,7 +146,7 @@ describe('Ponto JSON:API responses', () => {
     const broken = fakePonto(() => json(pontoError('accountRecentlySynchronized', 'Synchronization refused'), 400))
     const error = await new PontoClient(options(broken.fetch)).listAccounts().catch((e: unknown) => e)
     expect(error).toBeInstanceOf(ExternalServiceError)
-    expect((error as Error).message).toBe('Ponto a synchronisé ce compte avec la banque il y a peu : réessayez dans quelques minutes.')
+    expect((error as Error).message).toBe('Ponto a synchronisé ce compte avec la banque il y a peu : réessayez dans quelques minutes.')
     expect((error as Error).message).not.toContain('Synchronization refused')
   })
 

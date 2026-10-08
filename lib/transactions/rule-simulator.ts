@@ -36,7 +36,7 @@ async function deductionShareToday(companyId: string): Promise<number | null> {
 }
 
 const RULE_NOT_FOUND_MESSAGE = 'Règle introuvable';
-const NO_LINES_MESSAGE = "La règle n'a aucune ligne d'écriture à simuler : ajoutez-en une.";
+const NO_LINES_MESSAGE = "La règle n'a aucune ligne d'écriture à simuler : ajoutez-en une.";
 
 type AccountDisplay = { code: string; label: string };
 

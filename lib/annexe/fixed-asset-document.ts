@@ -40,7 +40,7 @@ function cell<C extends string>(row: FormRow<C>, column: C): string {
   const amount = row.amounts[column]
   const code = row.codes[column]
   const value = amount === null ? 'non suivi' : eur(amount)
-  return code ? `${code} : ${value}` : value
+  return code ? `${code} : ${value}` : value
 }
 
 function table<C extends string>(rows: readonly FormRow<C>[], columns: readonly C[], labels: Record<C, string>): Block {
@@ -68,7 +68,7 @@ export function fixedAssetDocument(report: FixedAssetReport, company: { name: st
     { kind: 'heading', text: 'Contrôles' },
     {
       kind: 'list',
-      items: report.checks.map((c) => `${c.ok ? 'Concordant' : 'À vérifier'} : ${c.label} (écritures ${eur(c.booksCents)}, autre source ${eur(c.otherCents)})${c.message ? `. ${c.message}` : ''}`),
+      items: report.checks.map((c) => `${c.ok ? 'Concordant' : 'À vérifier'} : ${c.label} (écritures ${eur(c.booksCents)}, autre source ${eur(c.otherCents)})${c.message ? `. ${c.message}` : ''}`),
     },
     ...(report.warnings.length > 0 ? [{ kind: 'list' as const, items: report.warnings }] : []),
     {

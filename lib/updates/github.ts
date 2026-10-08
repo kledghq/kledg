@@ -43,7 +43,7 @@ export interface RepoRef {
 
 function assertRepo({ owner, repo }: RepoRef): void {
   if (!isValidOwner(owner) || !isValidRepo(repo)) {
-    throw new GitHubError('invalid_repo', 'Nom de dépôt GitHub invalide (attendu : propriétaire/dépôt).', 400)
+    throw new GitHubError('invalid_repo', 'Nom de dépôt GitHub invalide (attendu : propriétaire/dépôt).', 400)
   }
 }
 
@@ -125,7 +125,7 @@ function missingPermission(headers: Headers): string | null {
 /** Maps a GitHub HTTP error to a French message (never includes the token). */
 export function errorFromResponse(status: number, headers: Headers, githubMessage?: string): GitHubError {
   if (status === 401) {
-    return new GitHubError('unauthorized', 'Jeton GitHub refusé : il est invalide, expiré ou révoqué. Créez-en un nouveau.', 400, status)
+    return new GitHubError('unauthorized', 'Jeton GitHub refusé : il est invalide, expiré ou révoqué. Créez-en un nouveau.', 400, status)
   }
   if ((status === 403 || status === 429) && (headers.get('x-ratelimit-remaining') === '0' || headers.has('retry-after'))) {
     return new GitHubError('rate_limited', 'Limite de requêtes GitHub atteinte. Réessayez dans quelques minutes.', 429, status)
@@ -135,8 +135,8 @@ export function errorFromResponse(status: number, headers: Headers, githubMessag
     return new GitHubError(
       'forbidden',
       permission
-        ? `Le jeton GitHub n'a pas la permission nécessaire : ${permission}. Modifiez le jeton sur GitHub puis reconnectez-le.`
-        : "GitHub refuse l'opération : vérifiez les permissions du jeton et les réglages du dépôt.",
+        ? `Le jeton GitHub n'a pas la permission nécessaire : ${permission}. Modifiez le jeton sur GitHub puis reconnectez-le.`
+        : "GitHub refuse l'opération : vérifiez les permissions du jeton et les réglages du dépôt.",
       400,
       status,
     )
@@ -150,7 +150,7 @@ export function errorFromResponse(status: number, headers: Headers, githubMessag
     )
   }
   if (status === 409) {
-    return new GitHubError('conflict', 'GitHub signale un conflit : la branche a changé ou ne peut pas être fusionnée automatiquement.', 409, status)
+    return new GitHubError('conflict', 'GitHub signale un conflit : la branche a changé ou ne peut pas être fusionnée automatiquement.', 409, status)
   }
   if (status === 422) {
     const detail = githubMessage && githubMessage.length < 200 ? ` (${githubMessage})` : ''

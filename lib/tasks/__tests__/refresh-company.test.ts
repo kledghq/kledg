@@ -49,15 +49,15 @@ describe('refreshCompany error messages', () => {
     const { bankSync } = await refreshCompany('company-1')
     expect(bankSync).toEqual({
       success: false,
-      message: `Erreur lors de la synchronisation : ${UNEXPECTED_BANK_ERROR_MESSAGE}`,
+      message: `Erreur lors de la synchronisation : ${UNEXPECTED_BANK_ERROR_MESSAGE}`,
       accountsSynced: 0,
     })
   })
 
   it('keeps the French advice of a bank provider error', async () => {
-    db.integration.findMany.mockRejectedValue(new BankAuthorizationError("Qonto refuse l'accès : vérifiez la clé."))
+    db.integration.findMany.mockRejectedValue(new BankAuthorizationError("Qonto refuse l'accès : vérifiez la clé."))
     const { bankSync } = await refreshCompany('company-1')
-    expect(bankSync.message).toBe("Erreur lors de la synchronisation : Qonto refuse l'accès : vérifiez la clé.")
+    expect(bankSync.message).toBe("Erreur lors de la synchronisation : Qonto refuse l'accès : vérifiez la clé.")
   })
 
   it('reports a missing encryption key without its English detail', async () => {
@@ -71,7 +71,7 @@ describe('refreshCompany error messages', () => {
     vi.mocked(getActiveFiscalYear).mockRejectedValue(new Error(RAW_DETAIL))
     const result = await refreshCompany('company-1')
     expect(result.rulesExecution).toMatchObject({ success: false, transactionsProcessed: 0 })
-    expect(result.rulesExecution.message).toMatch(/^Erreur lors de l'exécution des règles : /)
+    expect(result.rulesExecution.message).toMatch(/^Erreur lors de l'exécution des règles\u00a0: /)
     expect(JSON.stringify(result)).not.toContain('ECONNREFUSED')
   })
 })
@@ -92,7 +92,7 @@ describe('refreshCompany rules step', () => {
         case 'ok':
           return { success: true, entryId: 'e1' }
         case 'fails':
-          return { success: false, error: "Certains comptes de la règle n'existent pas dans l'exercice 2026 : 606100", status: 400 }
+          return { success: false, error: "Certains comptes de la règle n'existent pas dans l'exercice 2026 : 606100", status: 400 }
         case 'taken':
           return { success: false, error: 'Cette transaction est déjà rapprochée.', status: 409 }
         default:
@@ -112,8 +112,8 @@ describe('refreshCompany rules step', () => {
     })
     // An unexpected error is reported in French, never with its own message
     expect(rulesExecution.failures).toEqual([
-      { transactionId: 'fails', error: "Certains comptes de la règle n'existent pas dans l'exercice 2026 : 606100" },
-      { transactionId: 'throws', error: "Impossible d'appliquer la règle : une erreur inattendue est survenue." },
+      { transactionId: 'fails', error: "Certains comptes de la règle n'existent pas dans l'exercice 2026 : 606100" },
+      { transactionId: 'throws', error: "Impossible d'appliquer la règle : une erreur inattendue est survenue." },
     ])
     // A rule without "Créer automatiquement l'écriture" stays a suggestion
     expect(mocks.applyRule).not.toHaveBeenCalledWith('r2', expect.anything(), expect.anything())

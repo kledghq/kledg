@@ -640,7 +640,7 @@ export default function ChartOfAccountsPage() {
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Supprimer les comptes inconnus au PCG ?</AlertDialogTitle>
+                    <AlertDialogTitle>Supprimer les comptes inconnus au PCG&nbsp;?</AlertDialogTitle>
                     <AlertDialogDescription>
                       Les comptes qui ne font pas partie du PCG et qui n&apos;ont aucune écriture seront
                       supprimés définitivement. Les comptes qui ont des écritures sont conservés.

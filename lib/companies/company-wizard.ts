@@ -112,7 +112,7 @@ export function checkFirstFiscalYear(input: {
   if (input.isFirst) {
     if (endDate > periodEnd(startDate, FIRST_FISCAL_YEAR_MAX_MONTHS)) {
       errors.push(
-        `Le premier exercice ne peut pas dépasser ${FIRST_FISCAL_YEAR_MAX_MONTHS} mois (usage admis par les greffes) : choisissez une clôture au plus tard le ${formatIsoDateFr(periodEnd(startDate, FIRST_FISCAL_YEAR_MAX_MONTHS))}.`,
+        `Le premier exercice ne peut pas dépasser ${FIRST_FISCAL_YEAR_MAX_MONTHS} mois (usage admis par les greffes) : choisissez une clôture au plus tard le ${formatIsoDateFr(periodEnd(startDate, FIRST_FISCAL_YEAR_MAX_MONTHS))}.`,
       )
     } else if (input.subjectToCorporateTax && endDate > `${Number(startDate.slice(0, 4)) + 1}-12-31`) {
       warnings.push(
@@ -121,7 +121,7 @@ export function checkFirstFiscalYear(input: {
     }
     if (months < 12 && errors.length === 0) {
       warnings.push(
-        `Premier exercice court (${months} mois) : c'est possible, il n'existe pas de durée minimale. La société établira ses premiers comptes annuels plus tôt.`,
+        `Premier exercice court (${months} mois) : c'est possible, il n'existe pas de durée minimale. La société établira ses premiers comptes annuels plus tôt.`,
       )
     }
     if (input.foundationDate && isRealIsoDate(input.foundationDate) && startDate < input.foundationDate) {

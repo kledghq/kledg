@@ -106,7 +106,7 @@ export function computeOpeningEntry(balancesAfterClosing: ClosingAccountBalance[
   }
   if (total !== 0) {
     throw new OpeningEntryImbalanceError(
-      `Les soldes des comptes de bilan ne s'équilibrent pas (écart de ${(total / 100).toFixed(2)} €) : l'écriture d'à-nouveaux ne peut pas être générée.`
+      `Les soldes des comptes de bilan ne s'équilibrent pas (écart de ${(total / 100).toFixed(2)} €) : l'écriture d'à-nouveaux ne peut pas être générée.`
     )
   }
   return lines

@@ -106,7 +106,7 @@ function PeriodLockRow({ companyId, fiscalYear, onLocked }: { companyId: string;
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Clôturer la période jusqu'au ${formatIsoDateFr(through)} ?`}
+        title={`Clôturer la période jusqu'au ${formatIsoDateFr(through)} ?`}
         description="Aucune écriture datée de cette période ne pourra plus être créée ni validée. Les écritures en brouillon de la période doivent être validées ou supprimées avant. Une période clôturée ne se rouvre pas."
         confirmLabel="Clôturer la période"
         loading={submitting}

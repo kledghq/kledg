@@ -21,14 +21,14 @@ export type CalendarDay = string
 
 /** Midnight UTC of a calendar day: how entry dates are stored. */
 export function dayToDate(day: CalendarDay): Date {
-  if (!isIsoDate(day)) throw new ValidationError(`Date invalide : ${day}`)
+  if (!isIsoDate(day)) throw new ValidationError(`Date invalide : ${day}`)
   return isoDateToUtc(day)
 }
 
 /** Entry date to store (midnight UTC), from what an API, a form or a service passes. */
 export function toEntryDate(value: Date | string | null | undefined, field = 'Date'): Date {
   const day = calendarDayOf(value)
-  if (!day) throw new ValidationError(`${field} invalide : utilisez le format AAAA-MM-JJ`)
+  if (!day) throw new ValidationError(`${field} invalide : utilisez le format AAAA-MM-JJ`)
   return dayToDate(day)
 }
 

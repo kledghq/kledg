@@ -26,7 +26,7 @@ export async function guardWrite(request: NextRequest, user: InstanceActor): Pro
 export function requireGitHubDeploy(): void {
   if (!getDeployedVersion().deploysFromGitHub) {
     throw new ValidationError(
-      "Cette instance n'est pas redéployée depuis GitHub : mettez-la à jour avec les commandes indiquées sur la page.",
+      "Cette instance n'est pas redéployée depuis GitHub : mettez-la à jour avec les commandes indiquées sur la page.",
     )
   }
 }

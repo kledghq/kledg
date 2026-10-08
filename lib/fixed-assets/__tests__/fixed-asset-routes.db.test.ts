@@ -168,7 +168,7 @@ describe.skipIf(!available)('fixed asset routes', () => {
       { id: ids.fixedAsset },
     )
     expect(badAmount.status).toBe(400)
-    expect((await badAmount.json()).error).toBe("Valeur d'acquisition : montant invalide (deux décimales au plus)")
+    expect((await badAmount.json()).error).toBe("Valeur d'acquisition : montant invalide (deux décimales au plus)")
 
     const badMethod = await call(routes.asset.PATCH, 'PATCH', `/api/fixed-assets/${ids.fixedAsset}`, { depreciationMethod: 'fast' }, { id: ids.fixedAsset })
     expect(badMethod.status).toBe(400)

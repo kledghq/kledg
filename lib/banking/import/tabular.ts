@@ -358,10 +358,10 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
   }
 
   if (mapping.date === undefined) {
-    errors.push({ line: 0, message: 'Colonne de date introuvable : choisissez-la dans la correspondance des colonnes.' })
+    errors.push({ line: 0, message: 'Colonne de date introuvable : choisissez-la dans la correspondance des colonnes.' })
   }
   if (!hasAmount(mapping)) {
-    errors.push({ line: 0, message: 'Colonne de montant introuvable : choisissez Montant, ou Débit et Crédit.' })
+    errors.push({ line: 0, message: 'Colonne de montant introuvable : choisissez Montant, ou Débit et Crédit.' })
   }
   if (errors.length > 0) return { transactions: [], errors, warnings, detection }
 
@@ -386,14 +386,14 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
 
     if (cellText(dateCell) === '') {
       if (rawAmounts.every((a) => a === '') || FOOTER.test(normalizeHeader(row.map(cellText).join(' ')))) return
-      errors.push({ line, message: `Ligne ${line} : date manquante.` })
+      errors.push({ line, message: `Ligne ${line} : date manquante.` })
       return
     }
 
     const bookingDate = dateCell instanceof Date ? parseCalendarDate(dateCell) : parseCalendarDate(cellText(dateCell), dateFormat)
     if (!bookingDate) {
       if (FOOTER.test(normalizeHeader(cellText(dateCell)))) return
-      errors.push({ line, message: `Ligne ${line} : date « ${cellText(dateCell)} » illisible (format attendu ${dateFormat}).` })
+      errors.push({ line, message: `Ligne ${line} : date « ${cellText(dateCell)} » illisible (format attendu ${dateFormat}).` })
       return
     }
     const valueCell = get(row, 'valueDate')
@@ -406,7 +406,7 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
     if (mapping.amount !== undefined && cellText(get(row, 'amount')) !== '') {
       amountCents = amountOf(get(row, 'amount'))
       if (amountCents === null) {
-        errors.push({ line, message: `Ligne ${line} : montant « ${cellText(get(row, 'amount'))} » illisible.` })
+        errors.push({ line, message: `Ligne ${line} : montant « ${cellText(get(row, 'amount'))} » illisible.` })
         return
       }
     } else {
@@ -415,15 +415,15 @@ export function parseTabular(rows: Cell[][], options: TabularOptions = {}, extra
       const debit = debitText === '' ? 0 : amountOf(get(row, 'debit'))
       const credit = creditText === '' ? 0 : amountOf(get(row, 'credit'))
       if (debit === null || credit === null) {
-        errors.push({ line, message: `Ligne ${line} : montant « ${debit === null ? debitText : creditText} » illisible.` })
+        errors.push({ line, message: `Ligne ${line} : montant « ${debit === null ? debitText : creditText} » illisible.` })
         return
       }
       if (debit !== 0 && credit !== 0) {
-        errors.push({ line, message: `Ligne ${line} : débit et crédit renseignés sur la même ligne.` })
+        errors.push({ line, message: `Ligne ${line} : débit et crédit renseignés sur la même ligne.` })
         return
       }
       if (debitText === '' && creditText === '') {
-        errors.push({ line, message: `Ligne ${line} : montant manquant.` })
+        errors.push({ line, message: `Ligne ${line} : montant manquant.` })
         return
       }
       amountCents = debit !== 0 ? -Math.abs(debit) : Math.abs(credit)

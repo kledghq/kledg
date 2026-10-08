@@ -94,7 +94,7 @@ describe('importCSV amounts', () => {
     const result = await importCSV({ companyId: 'c', content: csv })
 
     expect(result.entriesCreated).toBe(0)
-    expect(result.errors).toEqual(['Écriture AC2: montant invalide (exemple : 1 234,56)'])
+    expect(result.errors).toEqual(['Écriture AC2: montant invalide (exemple : 1 234,56)'])
     expect(mocks.createEntry).not.toHaveBeenCalled()
   })
 })

@@ -209,7 +209,7 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
   const removePayment = async (paymentId: string) => {
     const ok = await confirm({
       title: 'Retirer ce règlement de la facture ?',
-      description: 'Le règlement redevient disponible. Son écriture bancaire ne change pas ; une écriture de TVA exigible en brouillon est supprimée.',
+      description: 'Le règlement redevient disponible. Son écriture bancaire ne change pas ; une écriture de TVA exigible en brouillon est supprimée.',
       confirmLabel: 'Retirer le règlement',
       tone: 'default',
     })

@@ -100,7 +100,7 @@ const validateEntriesTool = fullControlTool({
       select: { ...ENTRY_SUMMARY_SELECT, fiscalYear: { select: GUARDED_FISCAL_YEAR_SELECT } },
     })
     const found = new Set(rows.map((r) => r.id))
-    const warnings: string[] = ids.filter((id) => !found.has(id)).map((id) => `${id} : ${ENTRY_NOT_FOUND}.`)
+    const warnings: string[] = ids.filter((id) => !found.has(id)).map((id) => `${id} : ${ENTRY_NOT_FOUND}.`)
     // Same order as validateEntries: date, then creation.
     rows.sort((a, b) => a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime())
     const next = new Map<string, number>()
@@ -110,7 +110,7 @@ const validateEntriesTool = fullControlTool({
       let problem: string | null = null
       if (row.status === 'validated') problem = `Déjà validée (n° ${row.entryNumber}).`
       else if (isFiscalYearClosed(row.fiscalYear)) problem = `Exercice ${row.fiscalYear.year} clôturé.`
-      else if (!summary.balanced) problem = 'Écriture déséquilibrée : débits et crédits diffèrent.'
+      else if (!summary.balanced) problem = 'Écriture déséquilibrée : débits et crédits diffèrent.'
       let numberToAssign: string | null = null
       if (!problem) {
         if (!next.has(row.fiscalYearId)) next.set(row.fiscalYearId, Number(await nextDefinitiveEntryNumber(row.fiscalYearId)))
@@ -118,7 +118,7 @@ const validateEntriesTool = fullControlTool({
         numberToAssign = String(n)
         next.set(row.fiscalYearId, n + 1)
       } else {
-        warnings.push(`Écriture ${row.entryNumber} : ${problem}`)
+        warnings.push(`Écriture ${row.entryNumber} : ${problem}`)
       }
       entries.push({ ...summary, fiscalYear: row.fiscalYear.year, numberToAssign, problem })
     }
@@ -133,7 +133,7 @@ const validateEntriesTool = fullControlTool({
       totalDebit: totalDebitCents / 100,
       entries,
       warnings,
-      note: "Numéros indicatifs : ils sont attribués à la validation, dans la suite de l'exercice, et peuvent avancer si une autre écriture est validée entre-temps.",
+      note: "Numéros indicatifs : ils sont attribués à la validation, dans la suite de l'exercice, et peuvent avancer si une autre écriture est validée entre-temps.",
     }
   },
   async execute({ companyId, entryIds }) {
@@ -177,17 +177,17 @@ const reverseEntryTool = fullControlTool({
     const fiscalYears = await prisma.fiscalYear.findMany({ where: { companyId }, select: GUARDED_FISCAL_YEAR_SELECT })
     const target = fiscalYearContaining(fiscalYears, reversalDay)
     const warnings: string[] = []
-    if (entry.status !== 'validated') warnings.push('Seule une écriture validée peut être contre-passée : un brouillon se modifie ou se supprime.')
+    if (entry.status !== 'validated') warnings.push('Seule une écriture validée peut être contre-passée : un brouillon se modifie ou se supprime.')
     if (entry.reversedBy) warnings.push(`Déjà contre-passée par l'écriture n° ${entry.reversedBy.entryNumber}.`)
     if (!target) warnings.push(`Aucun exercice ne couvre le ${reversalDay}.`)
-    else if (isFiscalYearClosed(target)) warnings.push(`L'exercice ${target.year} est clôturé : choisissez une date de l'exercice ouvert.`)
+    else if (isFiscalYearClosed(target)) warnings.push(`L'exercice ${target.year} est clôturé : choisissez une date de l'exercice ouvert.`)
     return {
       original: summary,
       reversal: {
         date: reversalDay,
         fiscalYear: target?.year ?? null,
         journal: summary.journal,
-        description: `Contre-passation de l'écriture n° ${entry.entryNumber}${entry.description ? ` : ${entry.description}` : ''}`,
+        description: `Contre-passation de l'écriture n° ${entry.entryNumber}${entry.description ? ` : ${entry.description}` : ''}`,
         status: 'validated',
         lines: summary.lines.map((l) => ({ ...l, debit: l.credit, credit: l.debit })),
       },
@@ -280,7 +280,7 @@ const deleteDraftEntryTool = fullControlTool({
     if (!entry) throw new NotFoundError(ENTRY_NOT_FOUND)
     const warnings =
       entry.status === 'validated'
-        ? [`L'écriture n° ${entry.entryNumber} est validée : la suppression sera refusée (PCG art. 1031-3). Utilisez reverse_entry.`]
+        ? [`L'écriture n° ${entry.entryNumber} est validée : la suppression sera refusée (PCG art. 1031-3). Utilisez reverse_entry.`]
         : []
     return { entryToDelete: summarize(entry), warnings }
   },

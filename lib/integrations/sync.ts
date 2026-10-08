@@ -39,7 +39,7 @@ import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { addUtcDays, todayUtc } from '@/lib/utils/date'
 
 const UNREADABLE_CREDENTIALS_MESSAGE =
-  'Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'
+  'Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'
 
 type IntegrationWithFeatures = Prisma.IntegrationGetPayload<{ include: { featureConfigs: true } }>
 
@@ -84,10 +84,10 @@ export async function syncIntegration(
     return { success: false, itemsSynced: 0, errors: ['Connexion bancaire introuvable'] }
   }
   if (integration.status !== 'active') {
-    return { success: false, itemsSynced: 0, errors: ["La connexion n'est pas active : terminez ou renouvelez l'autorisation depuis la page Banque."] }
+    return { success: false, itemsSynced: 0, errors: ["La connexion n'est pas active : terminez ou renouvelez l'autorisation depuis la page Banque."] }
   }
   if (!isBankProvider(integration.provider)) {
-    return { success: false, itemsSynced: 0, errors: [`Fournisseur non pris en charge : ${integration.provider}`] }
+    return { success: false, itemsSynced: 0, errors: [`Fournisseur non pris en charge : ${integration.provider}`] }
   }
 
   let provider: BankProvider
@@ -125,7 +125,7 @@ export async function syncIntegration(
       result.errors.push(...partial.errors)
     } catch (error) {
       const step = feature === IntegrationFeature.BANKING_ACCOUNTS ? 'Lecture des comptes' : 'Lecture des opérations'
-      result.errors.push(`${step} : ${errorReason(error)}`)
+      result.errors.push(`${step} : ${errorReason(error)}`)
     }
   }
 
@@ -224,7 +224,7 @@ async function syncAccounts(
       }
       result.itemsSynced++
     } catch (error) {
-      result.errors.push(`Compte ${account.name} : ${errorReason(error)}`)
+      result.errors.push(`Compte ${account.name} : ${errorReason(error)}`)
     }
   }
 
@@ -288,7 +288,7 @@ async function syncTransactions(
     } catch (error) {
       const reason = errorReason(error)
       logger.error('[Sync] Bank account sync failed', { resourceId: resource.id, reason })
-      result.errors.push(`Compte ${resource.name} : ${reason}`)
+      result.errors.push(`Compte ${resource.name} : ${reason}`)
       await prisma.bankAccount.update({ where: { id: bankAccount.id }, data: { lastSyncError: reason } })
     }
   }

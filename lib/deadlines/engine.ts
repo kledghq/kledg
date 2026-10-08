@@ -669,8 +669,8 @@ function trainingDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candi
       label: `Bilan pédagogique et financier de ${exerciceLabel(fy)}`,
       extendedDate: extendedDate ?? undefined,
       note: extendedDate
-        ? `Avant le 30 avril (Code du travail, art. R6352-23) ; campagne prolongée jusqu'au ${formatIsoDateFr(extendedDate)}.`
-        : "Avant le 30 avril (Code du travail, art. R6352-23) ; le ministère annonce chaque année une éventuelle prolongation.",
+        ? `Avant le 30 avril (Code du travail, art. R6352-23) ; campagne prolongée jusqu'au ${formatIsoDateFr(extendedDate)}.`
+        : "Avant le 30 avril (Code du travail, art. R6352-23) ; le ministère annonce chaque année une éventuelle prolongation.",
       projected: fy.projected,
     }
   })

@@ -91,7 +91,7 @@ export async function allocateResult(
   input: AllocationChoice & { date: string; userId?: string | null }
 ): Promise<{ entryId: string; entryNumber: string; plan: AllocationPlan }> {
   const day = calendarDayOf(input.date)
-  if (!day) throw new ValidationError("Date de l'assemblée invalide : utilisez le format AAAA-MM-JJ")
+  if (!day) throw new ValidationError("Date de l'assemblée invalide : utilisez le format AAAA-MM-JJ")
   return prisma.$transaction(
     async (tx) => {
       const fiscalYear = await lockFiscalYearRow(tx, fiscalYearId, companyId)

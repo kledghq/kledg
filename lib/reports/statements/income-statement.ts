@@ -209,7 +209,7 @@ export function buildIncomeStatement(input: BuildIncomeStatementInput): IncomeSt
   const unmappedAccounts = allocation.unmapped.map(toAccountBalance)
   if (unmappedAccounts.length > 0) {
     warnings.push(
-      `${plural(unmappedAccounts.length, 'compte')} ${pluralWord(unmappedAccounts.length, "n'est rattaché", 'ne sont rattachés')} à aucune ligne du compte de résultat : ${unmappedAccounts
+      `${plural(unmappedAccounts.length, 'compte')} ${pluralWord(unmappedAccounts.length, "n'est rattaché", 'ne sont rattachés')} à aucune ligne du compte de résultat : ${unmappedAccounts
         .map((a) => a.code)
         .join(', ')}. Rattachez-les à une ligne ou rétablissez la configuration par défaut (bouton Configuration).`
     )
@@ -218,7 +218,7 @@ export function buildIncomeStatement(input: BuildIncomeStatementInput): IncomeSt
     warnings.push(
       `Le compte ${a.code} correspond à plusieurs lignes (${a.lineIds
         .map((id) => byId.get(id)?.lineLabel ?? id)
-        .join(', ')}) : il n'est compté que dans la première.`
+        .join(', ')}) : il n'est compté que dans la première.`
     )
   }
 

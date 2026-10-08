@@ -58,21 +58,21 @@ export function validateEntryBalance(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     if (!line.accountId) {
-      errors.push(`Ligne ${i + 1} : compte obligatoire`)
+      errors.push(`Ligne ${i + 1} : compte obligatoire`)
     }
 
     const debit = parseCents(line.debit)
     const credit = parseCents(line.credit)
-    if (debit === null) errors.push(`Ligne ${i + 1} : montant au débit invalide (deux décimales au maximum)`)
-    if (credit === null) errors.push(`Ligne ${i + 1} : montant au crédit invalide (deux décimales au maximum)`)
+    if (debit === null) errors.push(`Ligne ${i + 1} : montant au débit invalide (deux décimales au maximum)`)
+    if (credit === null) errors.push(`Ligne ${i + 1} : montant au crédit invalide (deux décimales au maximum)`)
     if (debit === null || credit === null) continue
 
     // Negative amounts are allowed (e.g. overdraft), one side per line only.
     if (debit !== 0 && credit !== 0) {
-      errors.push(`Ligne ${i + 1} : une ligne ne peut pas être à la fois au débit et au crédit (non-compensation)`)
+      errors.push(`Ligne ${i + 1} : une ligne ne peut pas être à la fois au débit et au crédit (non-compensation)`)
     }
     if (debit === 0 && credit === 0) {
-      errors.push(`Ligne ${i + 1} : la ligne doit avoir un montant au débit ou au crédit`)
+      errors.push(`Ligne ${i + 1} : la ligne doit avoir un montant au débit ou au crédit`)
     }
     debits.push(debit)
     credits.push(credit)
@@ -84,7 +84,7 @@ export function validateEntryBalance(
 
   if (balanceCents !== BigInt(0)) {
     errors.push(
-      `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)}, écart ${formatCentsFr(balanceCents < BigInt(0) ? -balanceCents : balanceCents)}`
+      `L'écriture n'est pas équilibrée : débit ${formatCentsFr(debitCents)}, crédit ${formatCentsFr(creditCents)}, écart ${formatCentsFr(balanceCents < BigInt(0) ? -balanceCents : balanceCents)}`
     )
   }
 
@@ -287,15 +287,15 @@ export function validateAccountingEntry(entry: {
     const line = entry.lines[i]
 
     if (!validateAccountUsage(line.accountId)) {
-      errors.push(`Ligne ${i + 1} : compte invalide`)
+      errors.push(`Ligne ${i + 1} : compte invalide`)
     }
 
     if (!validateAmount(line.debit)) {
-      errors.push(`Ligne ${i + 1} : montant au débit invalide`)
+      errors.push(`Ligne ${i + 1} : montant au débit invalide`)
     }
 
     if (!validateAmount(line.credit)) {
-      errors.push(`Ligne ${i + 1} : montant au crédit invalide`)
+      errors.push(`Ligne ${i + 1} : montant au crédit invalide`)
     }
   }
 

@@ -169,19 +169,19 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
       ? await prisma.account.findMany({ where: { id: { in: mappedAccountIds }, companyId }, select: { id: true, code: true, label: true } })
       : []
     if (mappedAccounts.length !== new Set(mappedAccountIds).size) {
-      result.errors.push("Correspondance de comptes invalide : un compte choisi n'appartient pas à cette société.")
+      result.errors.push("Correspondance de comptes invalide : un compte choisi n'appartient pas à cette société.")
     }
     const mappedJournalIds = Object.values(journalMapping).filter((id): id is string => !!id)
     const mappedJournals = mappedJournalIds.length
       ? await prisma.journal.findMany({ where: { id: { in: mappedJournalIds }, companyId }, select: { id: true } })
       : []
     if (mappedJournals.length !== new Set(mappedJournalIds).size) {
-      result.errors.push("Correspondance de journaux invalide : un journal choisi n'appartient pas à cette société.")
+      result.errors.push("Correspondance de journaux invalide : un journal choisi n'appartient pas à cette société.")
     }
 
     if (result.refused.length > 0) {
       result.errors.push(
-        `${plural(result.refused.length, 'écriture refusée', 'écritures refusées')} : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.`,
+        `${plural(result.refused.length, 'écriture refusée', 'écritures refusées')} : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.`,
         // One message per distinct reason, with its count and first lines
         ...groupRefusals(result.refused),
       )
@@ -226,7 +226,7 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
   } catch (error) {
     const { message } = handleError(error)
     result.success = false
-    result.errors.push(`Import annulé, aucune écriture importée : ${message}`)
+    result.errors.push(`Import annulé, aucune écriture importée : ${message}`)
     logger.debug('[import/fec] Import failed', { companyId, error: error instanceof Error ? error.message : String(error) })
   }
 

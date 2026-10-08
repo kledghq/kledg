@@ -18,7 +18,7 @@ import { bankLedgerAccountsInUse, resolveBankAccountLedger, type LedgerAccountRe
 import { fromCents, toCents } from '@/lib/utils/money'
 import { calendarDayOf, endOfDay, isoDateToUtc } from '@/lib/utils/date'
 
-const PERIOD_MESSAGE = 'Période invalide : utilisez des dates au format aaaa-mm-jj.'
+const PERIOD_MESSAGE = 'Période invalide : utilisez des dates au format aaaa-mm-jj.'
 
 /** Query of GET /api/banking/reconciliation (companyId is read by the route's resolver). */
 export const ReconciliationQuerySchema = z.object({

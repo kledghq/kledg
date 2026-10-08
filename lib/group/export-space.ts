@@ -272,7 +272,7 @@ export function taxDoc(report: GroupTaxReport): ExportDoc {
       m.name,
       m.interestBp === null ? 'Société mère' : percentCell(m.interestBp),
       m.member ? 'Oui' : 'Non',
-      m.checks.map((c) => `${c.label} : ${CHECK_LABELS[c.status]}`).join(' ; '),
+      m.checks.map((c) => `${c.label}\u00a0: ${CHECK_LABELS[c.status]}`).join('\u00a0; '),
     ]),
     amountColumns: [],
   }

@@ -7,7 +7,7 @@
 import { z } from 'zod'
 import { qontoClientFor } from './get-credentials'
 
-const SORT_BY = z.enum(['period:asc', 'period:desc'], { error: 'Tri invalide : period:asc ou period:desc.' })
+const SORT_BY = z.enum(['period:asc', 'period:desc'], { error: 'Tri invalide : period:asc ou period:desc.' })
 const page = z.coerce.number().int().min(1).max(10_000)
 /** Qonto pages hold at most 100 statements: a larger size is clamped. */
 const pageSize = z.coerce

@@ -168,7 +168,7 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
     if (sameYear) {
       const { start, end } = fiscalYearDays(sameYear)
       return {
-        conflict: `le ${formatIsoDateFr(day)} n'appartient à aucun exercice : l'exercice ${planned.year} existe déjà, du ${formatIsoDateFr(start)} au ${formatIsoDateFr(end)}`,
+        conflict: `le ${formatIsoDateFr(day)} n'appartient à aucun exercice : l'exercice ${planned.year} existe déjà, du ${formatIsoDateFr(start)} au ${formatIsoDateFr(end)}`,
       }
     }
     // A new fiscal year must not overlap an existing one
@@ -231,7 +231,7 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
   for (const [k, set] of journalsByNumber) if (set.size > 1) perJournalYears.add(Number(k.split('\u0000')[0]))
   for (const year of [...perJournalYears].sort()) {
     warnings.push(
-      `Exercice ${year} : numérotation par journal (un même numéro dans plusieurs journaux). Les numéros sont importés préfixés par le code journal (ex. « VT-12 »).`,
+      `Exercice ${year} : numérotation par journal (un même numéro dans plusieurs journaux). Les numéros sont importés préfixés par le code journal (ex. « VT-12 »).`,
     )
   }
 
@@ -248,12 +248,12 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
     if (!g.number) { refuse("numéro d'écriture (EcritureNum) absent"); continue }
     if (g.invalidDate || !g.fiscalYear) { refuse(g.invalidDate ?? 'date invalide'); continue }
     const fy = g.fiscalYear as PlannedFiscalYear & { isClosed?: boolean }
-    if (fy.isClosed) { refuse(`l'exercice ${fy.year} est clôturé : aucune écriture ne peut y être importée`); continue }
+    if (fy.isClosed) { refuse(`l'exercice ${fy.year} est clôturé : aucune écriture ne peut y être importée`); continue }
 
     const entryNumber = perJournalYears.has(fy.year) ? `${g.journalCode}-${g.number}` : g.number
     const existing = fy.id ? ctx.existingNumbers.get(fy.id) : undefined
     if (existing?.has(entryNumber)) {
-      refuse(`le n° ${entryNumber} existe déjà dans l'exercice ${fy.year} (fichier déjà importé ?)`)
+      refuse(`le n° ${entryNumber} existe déjà dans l'exercice ${fy.year} (fichier déjà importé ?)`)
       continue
     }
     const used = usedNumbers.get(fy.year) ?? new Set<string>()
@@ -264,23 +264,23 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
     for (const line of g.lines) {
       const debit = parseFecAmount(line.Debit)
       const credit = parseFecAmount(line.Credit)
-      if (debit === null) problems.push(`ligne ${line.lineNumber} : débit « ${line.Debit} » illisible`)
-      if (credit === null) problems.push(`ligne ${line.lineNumber} : crédit « ${line.Credit} » illisible`)
+      if (debit === null) problems.push(`ligne ${line.lineNumber} : débit « ${line.Debit} » illisible`)
+      if (credit === null) problems.push(`ligne ${line.lineNumber} : crédit « ${line.Credit} » illisible`)
       if (debit === null || credit === null) continue
       const accountCode = line.CompteNum.trim()
-      if (!accountCode) { problems.push(`ligne ${line.lineNumber} : numéro de compte (CompteNum) absent`); continue }
+      if (!accountCode) { problems.push(`ligne ${line.lineNumber} : numéro de compte (CompteNum) absent`); continue }
       if (debit !== 0 && credit !== 0) {
-        problems.push(`ligne ${line.lineNumber} : débit et crédit renseignés sur la même ligne`)
+        problems.push(`ligne ${line.lineNumber} : débit et crédit renseignés sur la même ligne`)
         continue
       }
       if (debit === 0 && credit === 0) { zeroLines++; continue }
 
       const letteringDay = text(line.DateLet) ? parseFecDay(line.DateLet) : null
-      if (text(line.DateLet) && !letteringDay) warnings.push(`Ligne ${line.lineNumber} : DateLet « ${line.DateLet} » invalide, ignorée`)
+      if (text(line.DateLet) && !letteringDay) warnings.push(`Ligne ${line.lineNumber} : DateLet « ${line.DateLet} » invalide, ignorée`)
       let currencyAmountCents: number | null = null
       if (text(line.Montantdevise)) {
         currencyAmountCents = parseFecAmount(line.Montantdevise)
-        if (currencyAmountCents === null) warnings.push(`Ligne ${line.lineNumber} : Montantdevise « ${line.Montantdevise} » illisible, ignoré`)
+        if (currencyAmountCents === null) warnings.push(`Ligne ${line.lineNumber} : Montantdevise « ${line.Montantdevise} » illisible, ignoré`)
       }
       planned.push({
         lineNumber: line.lineNumber,
@@ -297,12 +297,12 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
         currencyCode: currencyAmountCents === null ? null : text(line.Idevise),
       })
     }
-    if (problems.length > 0) { refuse(problems.join(' ; ')); continue }
+    if (problems.length > 0) { refuse(problems.join(' ; ')); continue }
     if (planned.length < 2) { refuse('moins de deux lignes avec un montant (partie double)'); continue }
     const debitTotal = sumCents(planned.map((l) => l.debitCents))
     const creditTotal = sumCents(planned.map((l) => l.creditCents))
     if (debitTotal !== creditTotal) {
-      refuse(`écriture non équilibrée : débit ${centsToFecAmount(debitTotal)}, crédit ${centsToFecAmount(creditTotal)}`)
+      refuse(`écriture non équilibrée : débit ${centsToFecAmount(debitTotal)}, crédit ${centsToFecAmount(creditTotal)}`)
       continue
     }
     if (used.has(entryNumber)) { refuse(`n° ${entryNumber} en double dans l'exercice ${fy.year}`); continue }
@@ -311,14 +311,14 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
     const first = g.lines[0]
     const day = parseFecDay(first.EcritureDate) as CalendarDay
     const dates = new Set(g.lines.map((l) => parseFecDay(l.EcritureDate)))
-    if (dates.size > 1) warnings.push(`Écriture ${label} : plusieurs dates d'écriture, la première (${formatIsoDateFr(day)}) est retenue`)
+    if (dates.size > 1) warnings.push(`Écriture ${label} : plusieurs dates d'écriture, la première (${formatIsoDateFr(day)}) est retenue`)
     const references = new Set(g.lines.map((l) => text(l.PieceRef)).filter(Boolean))
-    if (references.size > 1) warnings.push(`Écriture ${label} : plusieurs références de pièce, la première est retenue`)
+    if (references.size > 1) warnings.push(`Écriture ${label} : plusieurs références de pièce, la première est retenue`)
 
     const pieceDay = text(first.PieceDate) ? parseFecDay(first.PieceDate) : null
-    if (text(first.PieceDate) && !pieceDay) warnings.push(`Écriture ${label} : PieceDate « ${first.PieceDate} » invalide, date d'écriture retenue`)
+    if (text(first.PieceDate) && !pieceDay) warnings.push(`Écriture ${label} : PieceDate « ${first.PieceDate} » invalide, date d'écriture retenue`)
     const validDay = text(first.ValidDate) ? parseFecDay(first.ValidDate) : null
-    if (text(first.ValidDate) && !validDay) warnings.push(`Écriture ${label} : ValidDate « ${first.ValidDate} » invalide, date d'écriture retenue`)
+    if (text(first.ValidDate) && !validDay) warnings.push(`Écriture ${label} : ValidDate « ${first.ValidDate} » invalide, date d'écriture retenue`)
 
     const yearAccounts = accounts.get(fy.year) ?? new Map<string, string>()
     accounts.set(fy.year, yearAccounts)

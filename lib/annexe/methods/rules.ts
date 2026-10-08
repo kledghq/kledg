@@ -184,5 +184,5 @@ export function changeEntryLines(input: ChangeEntryInput, accountLabel: string):
 
 /** Description of the catch-up entry ("Changement de méthode : stocks au CMUP"). */
 export function changeEntryDescription(kind: ChangeKind, label: string): string {
-  return `${CHANGE_KIND_LABELS[kind]} : ${label}`.slice(0, 200)
+  return `${CHANGE_KIND_LABELS[kind]} : ${label}`.slice(0, 200)
 }

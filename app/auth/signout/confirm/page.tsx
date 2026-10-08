@@ -22,7 +22,7 @@ export default async function SignOutConfirmPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1>Se déconnecter de Kledg ?</h1>
+            <h1>Se déconnecter de Kledg&nbsp;?</h1>
           </CardTitle>
           <CardDescription>
             Vous êtes connecté avec {user.email}. Vous devrez saisir votre mot de passe pour revenir.

@@ -100,20 +100,20 @@ export class RateLimitError extends AccountingError {
 
 /** Refusal to delete a company that holds books (service check and trigger KLEDG_COMPANY_HAS_BOOKS, migration 20261011100000). */
 export const COMPANY_HAS_BOOKS_MESSAGE =
-  'Cette société a des écritures validées ou un exercice clôturé : ses livres doivent être conservés 10 ans (Code de commerce, art. L123-22). Archivez-la plutôt : elle passera en lecture seule et disparaîtra des listes.'
+  'Cette société a des écritures validées ou un exercice clôturé : ses livres doivent être conservés 10 ans (Code de commerce, art. L123-22). Archivez-la plutôt : elle passera en lecture seule et disparaîtra des listes.'
 
 /** Marker of the database error raised when a closed fiscal year would change (lib/accounting/fiscal-year-closure/lock.ts). */
 export const CLOSED_FISCAL_YEAR_MARKER = 'KLEDG_FISCAL_YEAR_CLOSED'
 
 export const CLOSED_FISCAL_YEAR_MESSAGE =
-  "L'exercice est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert."
+  "L'exercice est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert."
 
 /** A write in a closed fiscal year: 409. */
 export class ClosedFiscalYearError extends ConflictError {
   constructor(year?: number) {
     super(
       year
-        ? `L'exercice ${year} est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert.`
+        ? `L'exercice ${year} est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert.`
         : CLOSED_FISCAL_YEAR_MESSAGE
     )
     this.name = 'ClosedFiscalYearError'
@@ -215,7 +215,7 @@ export function handleError(error: unknown): { message: string; statusCode: numb
       case 'P2002':
         return { message: 'Un enregistrement avec ces informations existe déjà.', statusCode: 409 }
       case 'P2003':
-        return { message: 'Référence invalide : un élément lié est introuvable ou encore utilisé.', statusCode: 400 }
+        return { message: 'Référence invalide : un élément lié est introuvable ou encore utilisé.', statusCode: 400 }
       case 'P2025':
         return { message: 'Élément introuvable.', statusCode: 404 }
     }

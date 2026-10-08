@@ -21,7 +21,7 @@ import { accountCode } from '@/lib/api/zod-fields'
 async function targetFiscalYear(companyId: string, fiscalYearId?: string) {
   if (fiscalYearId) return ownedFiscalYear(companyId, fiscalYearId)
   const active = await getActiveFiscalYear(companyId)
-  if (!active) throw new ValidationError("Aucun exercice ouvert : créez d'abord l'exercice.")
+  if (!active) throw new ValidationError("Aucun exercice ouvert : créez d'abord l'exercice.")
   return active
 }
 
@@ -54,7 +54,7 @@ const createAccountTool = fullControlTool({
         select: { id: true, code: true },
       })
       const parent = candidates.sort((a, b) => b.code.length - a.code.length)[0]
-      if (!parent) throw new ValidationError(`Aucun compte parent pour ${code} : indiquez parentCode.`)
+      if (!parent) throw new ValidationError(`Aucun compte parent pour ${code} : indiquez parentCode.`)
       parentId = parent.id
     }
     const account = await createAccount(companyId, { code, label, parentId, fiscalYearId: fiscalYear.id })

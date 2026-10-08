@@ -267,7 +267,7 @@ describe('create_draft_entry errors', () => {
   })
 
   it('keeps the French message of a typed refusal', async () => {
-    const closed = "L'exercice 2026 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées."
+    const closed = "L'exercice 2026 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées."
     vi.mocked(assertEntryWritableInFiscalYear).mockImplementation(() => {
       throw new ConflictError(closed)
     })

@@ -82,7 +82,7 @@ describe('parseFecFile', () => {
 
   it('reports records with a wrong number of fields', () => {
     const parsed = parseFecFile(fec(row({}), 'OD\tbroken'))
-    expect(parsed.errors).toEqual([{ line: 3, message: '2 zones au lieu de 18 (séparateur dans un libellé ?)' }])
+    expect(parsed.errors).toEqual([{ line: 3, message: '2 zones au lieu de 18 (séparateur dans un libellé ?)' }])
   })
 
   it('refuses a file without the mandatory fields', () => {
@@ -159,7 +159,7 @@ describe('planFecImport', () => {
     const parsed = parseFecFile(decodeFecBytes(fixture('unbalanced-2024.txt')).text)
     const result = planFecImport(parsed.lines, ctx())
     expect(result.refused).toEqual([
-      { entry: 'VT n° 2', line: 14, reason: 'écriture non équilibrée : débit 1234567,89, crédit 1234567,88' },
+      { entry: 'VT n° 2', line: 14, reason: 'écriture non équilibrée : débit 1234567,89, crédit 1234567,88' },
     ])
   })
 
@@ -201,10 +201,10 @@ describe('planFecImport', () => {
     expect(result.entries).toEqual([])
     expect(result.refused.map((r) => `${r.entry}: ${r.reason}`)).toEqual([
       "OD n° 1: date d'écriture « 2025-13-01 » invalide (format AAAAMMJJ attendu)",
-      'OD n° 2: ligne 3 : débit et crédit renseignés sur la même ligne',
-      'OD n° 3: ligne 5 : débit « 1,005 » illisible ; ligne 6 : crédit « 1,005 » illisible',
+      'OD n° 2: ligne 3 : débit et crédit renseignés sur la même ligne',
+      'OD n° 3: ligne 5 : débit « 1,005 » illisible ; ligne 6 : crédit « 1,005 » illisible',
       'OD n° 4: moins de deux lignes avec un montant (partie double)',
-      'OD n° 5: ligne 8 : numéro de compte (CompteNum) absent',
+      'OD n° 5: ligne 8 : numéro de compte (CompteNum) absent',
     ])
   })
 
@@ -225,8 +225,8 @@ describe('planFecImport', () => {
       ctx({ fiscalYears, existingNumbers: new Map([['fy2025', new Set(['7'])]]) }),
     )
     expect(result.refused.map((r) => r.reason)).toEqual([
-      "l'exercice 2024 est clôturé : aucune écriture ne peut y être importée",
-      "le n° 7 existe déjà dans l'exercice 2025 (fichier déjà importé ?)",
+      "l'exercice 2024 est clôturé : aucune écriture ne peut y être importée",
+      "le n° 7 existe déjà dans l'exercice 2025 (fichier déjà importé ?)",
     ])
     expect(result.entries.map((e) => e.entryNumber)).toEqual(['8'])
     expect(result.fiscalYears).toEqual([

@@ -127,7 +127,7 @@ function AnswersForm({ view, companyId, onSaved }: { view: AnnexeView; companyId
     <Card>
       <CardHeader>
         <CardTitle>Informations à compléter</CardTitle>
-        <CardDescription>Ce que les comptes ne disent pas. Les montants viennent des écritures ; ici, seulement ce que vous seul savez.</CardDescription>
+        <CardDescription>Ce que les comptes ne disent pas. Les montants viennent des écritures&nbsp;; ici, seulement ce que vous seul savez.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={save} className="space-y-6" noValidate>
@@ -221,7 +221,7 @@ function AnswersForm({ view, companyId, onSaved }: { view: AnnexeView; companyId
 
           {!micro ? (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Effectif moyen" htmlFor="annexe-employees" hint="PCG art. 837-1 ; par défaut, celui de la page Approbation des comptes.">
+              <Field label="Effectif moyen" htmlFor="annexe-employees" hint="PCG art. 837-1 ; par défaut, celui de la page Approbation des comptes.">
                 <Input id="annexe-employees" type="number" inputMode="numeric" min={0} value={details.employees ?? ''} onChange={(e) => set('employees', e.target.value === '' ? null : Math.max(0, Math.trunc(Number(e.target.value))))} />
               </Field>
               <Field label="Crédits d'impôt" htmlFor="annexe-credits" hint="PCG art. 833-2">
@@ -361,7 +361,7 @@ export function AnnexePage({ companyId }: { companyId: string }) {
     <div className="space-y-6">
       <PageHeader
         title="Annexe des comptes"
-        description="Les notes que la catégorie de la société exige, établies à partir des écritures, des immobilisations, des provisions et du registre des méthodes ; à compléter de ce que les comptes ne disent pas."
+        description="Les notes que la catégorie de la société exige, établies à partir des écritures, des immobilisations, des provisions et du registre des méthodes ; à compléter de ce que les comptes ne disent pas."
         actions={
           data ? (
             <>

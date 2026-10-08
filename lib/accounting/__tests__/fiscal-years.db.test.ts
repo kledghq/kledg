@@ -216,7 +216,7 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       await expect(lock.assertFiscalYearOpen(ids.fy2025)).resolves.toBeUndefined()
       await expect(lock.assertFiscalYearOpen(ids.fy2024)).rejects.toMatchObject({
         statusCode: 409,
-        message: "L'exercice 2024 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert.",
+        message: "L'exercice 2024 est clôturé : ses écritures ne peuvent plus être créées, modifiées ni supprimées. Passez la correction sur l'exercice ouvert.",
       })
     })
 
@@ -320,8 +320,8 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       expect(result.canClose).toBe(false)
       expect(result.errors).toEqual([
         '1 écriture en brouillon doit être validée ou supprimée avant la clôture.',
-        "L'exercice contient déjà 1 écriture du journal de clôture (CL) : supprimez-la avant de clôturer.",
-        "L'exercice 2026 contient déjà 1 écriture d'à-nouveaux (journal AN) : supprimez-la pour que la clôture reporte les soldes.",
+        "L'exercice contient déjà 1 écriture du journal de clôture (CL) : supprimez-la avant de clôturer.",
+        "L'exercice 2026 contient déjà 1 écriture d'à-nouveaux (journal AN) : supprimez-la pour que la clôture reporte les soldes.",
       ])
     })
 
@@ -355,8 +355,8 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
 
       expect(result.canClose).toBe(true)
       expect(result.warnings).toEqual([
-        "Le compte 801000 (classe 8) a un solde de 1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
-        "Le compte 802000 (classe 8) a un solde de -1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
+        "Le compte 801000 (classe 8) a un solde de 1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
+        "Le compte 802000 (classe 8) a un solde de -1 500,50 € : il n'est pas reporté sur l'exercice suivant.",
       ])
     })
 

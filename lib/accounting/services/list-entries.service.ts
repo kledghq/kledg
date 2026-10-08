@@ -45,7 +45,7 @@ const amountBound = z
     if (value === undefined || value.trim() === '') return null
     const cents = parseCents(value.trim())
     if (cents === null) {
-      ctx.addIssue({ code: 'custom', message: `Montant invalide : ${value}. Saisissez un montant avec au plus deux décimales.` })
+      ctx.addIssue({ code: 'custom', message: `Montant invalide : ${value}. Saisissez un montant avec au plus deux décimales.` })
       return z.NEVER
     }
     return cents
@@ -56,7 +56,7 @@ const dayBound = z
   .string()
   .optional()
   .refine((value) => value === undefined || isIsoDate(value), {
-    error: (issue) => `Date invalide : ${String(issue.input)}. Utilisez le format aaaa-mm-jj.`,
+    error: (issue) => `Date invalide : ${String(issue.input)}. Utilisez le format aaaa-mm-jj.`,
   })
   .transform((value) => value ?? null)
 
@@ -77,7 +77,7 @@ export const ListEntriesQuerySchema = z
     cursor: z.string().optional(),
     journalId: z.string().optional(),
     status: z
-      .enum(['draft', 'validated', 'all'], { error: 'Statut invalide : utilisez draft ou validated.' })
+      .enum(['draft', 'validated', 'all'], { error: 'Statut invalide : utilisez draft ou validated.' })
       .optional()
       .transform((value) => (value === 'draft' || value === 'validated' ? value : null)),
     number: z.string().optional(),
