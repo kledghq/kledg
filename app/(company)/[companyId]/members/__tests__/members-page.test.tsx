@@ -1,10 +1,11 @@
 /**
- * Membres page: only an instance administrator adds a member directly,
- * changes a role or removes a member (POST/PATCH/DELETE
- * /api/companies/[id]/members are admin routes); a company administrator
- * (members:manage) invites by email and manages the pending invitations
- * (issue #13); the others see the roles read only. fetch, the session and
- * the user's rights are mocked; the requests the page sends are asserted.
+ * Membres page: only an instance administrator adds a member directly or
+ * changes a role (POST /api/companies/[id]/members and PATCH .../[memberId]
+ * are admin routes); a company administrator (members:manage) invites by
+ * email, manages the pending invitations (issue #13) and removes members;
+ * every member may leave. "Retirer" follows the answer of the API for each
+ * member (disabled with its reason). fetch, the session and the user's
+ * rights are mocked; the requests the page sends are asserted.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,10 +14,11 @@ import userEvent from '@testing-library/user-event'
 
 const session = vi.hoisted(() => ({ role: 'user' as string }))
 const access = vi.hoisted(() => ({ granted: {} as Record<string, string[]> }))
+const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ companyId: 'c1' }),
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => router,
   usePathname: () => '/c1/members',
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -83,7 +85,7 @@ describe('members page', () => {
     expect(screen.getByText('bob')).toBeInTheDocument()
     expect(screen.getByText('Administrateur')).toBeInTheDocument()
     expect(screen.getByText('Comptable')).toBeInTheDocument()
-    expect(screen.getByText(/Seuls les administrateurs de la société peuvent inviter un membre/)).toBeInTheDocument()
+    expect(screen.getByText(/Seuls les administrateurs de la société peuvent inviter ou retirer un membre/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Ajouter un membre/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Inviter un membre/ })).not.toBeInTheDocument()
     expect(sent('GET', '/api/companies/c1/invitations')).toHaveLength(0)
@@ -98,7 +100,7 @@ describe('members page', () => {
     const user = userEvent.setup()
     render(<CompanyMembersPage />)
     expect(await screen.findByText(/Vous invitez des membres par email/)).toBeInTheDocument()
-    // Direct additions, role changes and removals stay with instance administrators
+    // Direct additions and role changes stay with instance administrators
     expect(screen.queryByRole('button', { name: /Ajouter un membre/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: /Rôle de/ })).not.toBeInTheDocument()
 
@@ -166,23 +168,72 @@ describe('members page', () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Rôle mis à jour : Lecture seule'))
   })
 
-  it('removes a member only after confirmation', async () => {
-    session.role = 'admin'
-    access.granted = allPermissions()
-    replies['DELETE /api/companies/c1/members/m1'] = { status: 409, body: { error: 'La société doit garder au moins un administrateur.' } }
+  it('removes a member only after confirmation, saying what they lose and what stays', async () => {
+    access.granted = grantedPermissions(['companyAdmin'], false)
+    replies['GET /api/companies/c1/members'] = {
+      body: [
+        { ...MEMBERS[0], self: true, removal: { allowed: false, reason: 'Vous êtes le dernier administrateur de la société.' } },
+        { ...MEMBERS[1], self: false, removal: { allowed: true } },
+      ],
+    }
+    replies['DELETE /api/companies/c1/members/m2'] = { body: { ok: true } }
     const user = userEvent.setup()
     render(<CompanyMembersPage />)
-    await user.click(await screen.findByRole('button', { name: 'Retirer Alice Martin' }))
+    await user.click(await screen.findByRole('button', { name: 'Retirer bob@atelier.fr' }))
     const confirm = await screen.findByRole('alertdialog')
-    expect(within(confirm).getByText('Retirer Alice Martin ?')).toBeInTheDocument()
+    expect(within(confirm).getByText('Retirer bob@atelier.fr de la société ?')).toBeInTheDocument()
+    expect(within(confirm).getByText(/Son accès prend fin tout de suite/)).toBeInTheDocument()
+    expect(within(confirm).getByText(/assistants IA/)).toBeInTheDocument()
+    expect(within(confirm).getByText(/Ses écritures, ses notes de frais et l.historique restent, à son nom/)).toBeInTheDocument()
     await user.click(within(confirm).getByRole('button', { name: 'Annuler' }))
-    expect(sent('DELETE', '/api/companies/c1/members/m1')).toHaveLength(0)
+    expect(sent('DELETE', '/api/companies/c1/members/m2')).toHaveLength(0)
 
-    await user.click(screen.getByRole('button', { name: 'Retirer Alice Martin' }))
+    await user.click(screen.getByRole('button', { name: 'Retirer bob@atelier.fr' }))
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Retirer' }))
-    await waitFor(() => expect(sent('DELETE', '/api/companies/c1/members/m1')).toHaveLength(1))
-    // The refusal of the API is shown as it is
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('La société doit garder au moins un administrateur.'))
+    await waitFor(() => expect(sent('DELETE', '/api/companies/c1/members/m2')).toHaveLength(1))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('bob@atelier.fr retiré·e de la société'))
+  })
+
+  it('disables "Retirer" with the reason the API gives, and shows a refusal as it is', async () => {
+    access.granted = grantedPermissions(['companyAdmin'], false)
+    replies['GET /api/companies/c1/members'] = {
+      body: [
+        { ...MEMBERS[0], self: false, removal: { allowed: false, reason: "Un administrateur de l'instance ne peut être retiré de la société que par un administrateur de l'instance." } },
+        { ...MEMBERS[1], self: false, removal: { allowed: true } },
+      ],
+    }
+    replies['DELETE /api/companies/c1/members/m2'] = { status: 409, body: { error: "C'est le dernier administrateur de la société." } }
+    const user = userEvent.setup()
+    render(<CompanyMembersPage />)
+    const disabled = await screen.findByRole('button', { name: 'Retirer Alice Martin' })
+    expect(disabled).toBeDisabled()
+    expect(disabled).toHaveAttribute('title', "Un administrateur de l'instance ne peut être retiré de la société que par un administrateur de l'instance.")
+
+    await user.click(screen.getByRole('button', { name: 'Retirer bob@atelier.fr' }))
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Retirer' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("C'est le dernier administrateur de la société."))
+  })
+
+  it('lets a member leave the company after confirmation, then goes back to their companies', async () => {
+    replies['GET /api/companies/c1/members'] = {
+      body: [
+        { ...MEMBERS[0], self: false, removal: { allowed: false, reason: 'Seuls les administrateurs de la société peuvent retirer un membre.' } },
+        { ...MEMBERS[1], self: true, removal: { allowed: true } },
+      ],
+    }
+    replies['DELETE /api/companies/c1/membership'] = { body: { ok: true, self: true } }
+    const user = userEvent.setup()
+    render(<CompanyMembersPage />)
+    expect(await screen.findByRole('button', { name: 'Retirer Alice Martin' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Quitter la société' }))
+    const confirm = await screen.findByRole('alertdialog')
+    // The text matcher compares with whitespace collapsed: the non-breaking space reads as a space
+    expect(within(confirm).getByText('Quitter la société ?')).toBeInTheDocument()
+    expect(within(confirm).getByText(/Ce que vous y avez saisi reste, à votre nom/)).toBeInTheDocument()
+    await user.click(within(confirm).getByRole('button', { name: 'Quitter la société' }))
+    await waitFor(() => expect(sent('DELETE', '/api/companies/c1/membership')).toHaveLength(1))
+    expect(sent('DELETE', '/api/companies/c1/members/m2')).toHaveLength(0)
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/'))
   })
 
   it('adds an existing user found by the search, with the role chosen', async () => {
