@@ -377,6 +377,39 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
     })
   })
 
+  describe('expense reports: no self-validation while another validator exists (MCP)', () => {
+    it('manage_expense_report validate follows the rule of the page and the API', async () => {
+      const auto = await apiKey('admin', 'automatic', 'Notes de frais')
+      const { createExpenseReport, runExpenseWorkflow } = await import('@/lib/expense-reports/manage-expense-reports.service')
+      const actor = { userId: OWNER.id, userName: OWNER.name, canManage: true }
+      const report = await createExpenseReport(
+        ids.company,
+        {
+          periodStart: '2025-03-01',
+          periodEnd: '2025-03-31',
+          lines: [{ kind: 'EXPENSE', date: '2025-03-10', supplierName: 'Brasserie', label: 'Déjeuner client', category: 'RECEPTION', amountInclTaxCents: 5_500, vatRateBp: 1000, vatCents: null, receiptKind: 'INVOICE', electric: false }],
+        },
+        actor,
+      )
+      await runExpenseWorkflow(ids.company, report.id, { action: 'submit' }, actor)
+
+      // Another member with the validation right: the owner cannot validate their own report.
+      await prisma.user.create({ data: { id: 'u-accountant', email: 'accountant@test.local', name: 'Comptable' } })
+      await prisma.member.create({ data: { id: 'm-acc', userId: 'u-accountant', organizationId: 'org-a', role: 'accountant', createdAt: new Date() } })
+      const refused = await call(auto, 'manage_expense_report', { companyId: ids.company, action: 'validate', reportId: report.id })
+      expect(refused.ok).toBe(false)
+      expect(refused.text).toMatch(/Vous ne pouvez pas valider votre propre note de frais/)
+
+      // Alone again: allowed, and recorded as validated by its author.
+      await prisma.member.delete({ where: { id: 'm-acc' } })
+      const done = await ok(auto, 'manage_expense_report', { companyId: ids.company, action: 'validate', reportId: report.id })
+      expect(done.result.report.status).toBe('validated')
+      expect((await prisma.expenseReport.findUniqueOrThrow({ where: { id: report.id } })).selfValidated).toBe(true)
+      const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: 'VALIDATE_EXPENSE_REPORT', companyId: ids.company }, orderBy: { createdAt: 'desc' } })
+      expect(audit.metadata).toMatchObject({ reportId: report.id, selfValidated: true, source: 'mcp' })
+    })
+  })
+
   describe('KLEDG-R3-MCP-03: upload_receipt is high impact', () => {
     it('in validation mode, returns a dry run and an approval link, and sends nothing before the approval', async () => {
       const key = await apiKey('admin')

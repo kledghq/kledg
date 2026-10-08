@@ -127,6 +127,7 @@ Droit `expenses` (`lib/permissions.ts`) : `submit` pour tous les rôles, `valid
 
 - Un membre en lecture seule dépose ses propres notes : il ne voit que les siennes (« introuvable » pour celles des autres, sur les pages, l'API et le MCP). Un valideur voit toutes les notes de la société.
 - Valider demande un compte pour chaque ligne (la catégorie « Autre dépense » n'en a pas par défaut).
+- Séparation des tâches : l'auteur d'une note (l'utilisateur lié à son bénéficiaire) ne la valide pas tant qu'un autre membre de la société a le droit `expenses:validate` (administrateur ou comptable, compte non bloqué) : c'est lui qui la valide, sinon la validation est refusée (409). Seul valideur de la société (société d'une personne), l'auteur peut la valider, mais c'est enregistré : colonne `expense_reports.selfValidated`, champ `selfValidated` de la fiche (`GET /api/expense-reports/[id]`, `get_expense_report`), mention sur la fiche et `selfValidated: true` dans l'entrée `VALIDATE_EXPENSE_REPORT` du journal d'audit. La fiche d'une note soumise de son propre auteur valideur donne `ownValidation` (`refused` ou `sole-validator`). La règle est dans le service du workflow (`lib/expense-reports/self-validation.ts`) : page, API et outil MCP `manage_expense_report` la suivent. Rouvrir la note efface la mention.
 
 ## Comptabilisation
 

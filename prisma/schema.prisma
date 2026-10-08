@@ -2098,6 +2098,8 @@ model ExpenseReport {
   submittedById  String?
   validatedAt    DateTime?
   validatedById  String?
+  /// Validated by its own author, the company's only member with the validation right (lib/expense-reports/self-validation.ts).
+  selfValidated  Boolean             @default(false)
   /// Why a validator sent the report back to its author.
   returnNote     String?
   /// Draft entry created by posting (null: not posted). Deleting that draft brings the report back to validée.

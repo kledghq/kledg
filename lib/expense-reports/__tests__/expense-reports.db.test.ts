@@ -256,6 +256,45 @@ describe.skipIf(!available)('expense reports (PostgreSQL)', () => {
       expect((await reports.runExpenseWorkflow(books.companyId, report.id, { action: 'reopen' }, BOSS)).status).toBe('draft')
     })
 
+    it('lets the author validate their own report only as the company’s sole validator, and records it', async () => {
+      const own = await reports.createExpenseReport(books.companyId, { ...period, lines: [meal()] }, BOSS)
+      await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'submit' }, BOSS)
+      expect((await reports.getExpenseReport(books.companyId, own.id, BOSS)).ownValidation).toBe('sole-validator')
+      const validated = await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'validate' }, BOSS)
+      expect(validated).toMatchObject({ status: 'validated', selfValidated: true, ownValidation: null })
+      const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: 'VALIDATE_EXPENSE_REPORT', companyId: books.companyId }, orderBy: { createdAt: 'desc' } })
+      expect(audit.metadata).toMatchObject({ reportId: own.id, selfValidated: true })
+      expect(audit.message).toMatch(/by its own author/)
+      // Reopened, the mark goes with the validation.
+      expect((await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'reopen' }, BOSS)).selfValidated).toBe(false)
+    })
+
+    it('refuses the author’s own validation while another member may validate; that member validates it', async () => {
+      await addMember(books.companyId, 'u-admin', 'companyAdmin')
+      const ADMIN: ExpenseActor = { userId: 'u-admin', canManage: true }
+      const own = await reports.createExpenseReport(books.companyId, { ...period, lines: [meal()] }, BOSS)
+      await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'submit' }, BOSS)
+      expect((await reports.getExpenseReport(books.companyId, own.id, BOSS)).ownValidation).toBe('refused')
+      await expect(reports.runExpenseWorkflow(books.companyId, own.id, { action: 'validate' }, BOSS)).rejects.toThrow(
+        'Vous ne pouvez pas valider votre propre note de frais\u00a0: un autre membre de la société a le droit de la valider',
+      )
+      expect((await prisma.expenseReport.findUniqueOrThrow({ where: { id: own.id } })).status).toBe('SUBMITTED')
+      // Not the other validator's own report: no mark.
+      expect((await reports.getExpenseReport(books.companyId, own.id, ADMIN)).ownValidation).toBeNull()
+      const validated = await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'validate' }, ADMIN)
+      expect(validated).toMatchObject({ status: 'validated', selfValidated: false })
+      const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: 'VALIDATE_EXPENSE_REPORT', companyId: books.companyId }, orderBy: { createdAt: 'desc' } })
+      expect(audit.metadata).toMatchObject({ reportId: own.id, selfValidated: false })
+    })
+
+    it('does not count a banned member nor a member without the validation right as another validator', async () => {
+      await addMember(books.companyId, 'u-banned', 'companyAdmin')
+      await prisma.user.update({ where: { id: 'u-banned' }, data: { banned: true } })
+      const own = await reports.createExpenseReport(books.companyId, { ...period, lines: [meal()] }, BOSS)
+      await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'submit' }, BOSS)
+      expect((await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'validate' }, BOSS)).selfValidated).toBe(true)
+    })
+
     it('refuses to validate a line of category "Autre dépense" without an account', async () => {
       const report = await reports.createExpenseReport(books.companyId, { ...period, lines: [meal({ category: 'OTHER' })] }, EMPLOYEE)
       await reports.runExpenseWorkflow(books.companyId, report.id, { action: 'submit' }, EMPLOYEE)
