@@ -95,6 +95,45 @@ describe.skipIf(!available)('reencryptStoredSecrets', () => {
     expect(await reencryptStoredSecrets()).toEqual({ resealed: 0, unreadable: 0 })
   })
 
+  it('reports the values left in the legacy format, by kind, and warns at start-up until they are sealed again', async () => {
+    const crypto = await import('crypto')
+    const { countLegacySecrets, warnAboutLegacySecrets } = await import('@/lib/crypto/reencrypt')
+    const { logger } = await import('@/lib/logger')
+    const legacy = (text: string, key: string) => {
+      const iv = crypto.randomBytes(16)
+      const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(key, 'hex'), iv)
+      const body = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
+      return Buffer.concat([crypto.randomBytes(64), iv, cipher.getAuthTag(), body]).toString('base64')
+    }
+    expect(await countLegacySecrets()).toEqual({ total: 0, bankConnections: 0, integrationFields: 0, updateTokens: 0 })
+
+    await prisma.bankConnection.updateMany({ data: { secretKeyEncrypted: legacy('legacy-qonto', oldKey) } })
+    const integration = await prisma.integration.findFirstOrThrow()
+    // One field under a key nobody has any more: it stays legacy after the pass.
+    const lost = getEncryptionKey({ BETTER_AUTH_SECRET: 'lost-secret-0123456789abcdefghijklmnopqrstuvwxyz' })!
+    await prisma.integration.update({
+      where: { id: integration.id },
+      data: { credentials: { ...(integration.credentials as object), privateKey: legacy('private-key', oldKey), refreshToken: legacy('refresh', lost) } },
+    })
+    await prisma.updateConnection.updateMany({ data: { tokenEncrypted: legacy('github-token', oldKey) } })
+    expect(await countLegacySecrets()).toEqual({ total: 4, bankConnections: 1, integrationFields: 2, updateTokens: 1 })
+    vi.mocked(logger.warn).mockClear()
+    await warnAboutLegacySecrets()
+    expect(vi.mocked(logger.warn).mock.calls[0]?.[0]).toMatch(/legacy encryption format: 4 .*pnpm secrets:reencrypt/)
+
+    expect(await reencryptStoredSecrets()).toEqual({ resealed: 3, unreadable: 1 })
+    expect(await countLegacySecrets()).toEqual({ total: 1, bankConnections: 0, integrationFields: 1, updateTokens: 0 })
+
+    // Reconnected (sealed again by the app), nothing remains and nothing is logged.
+    await prisma.integration.update({
+      where: { id: integration.id },
+      data: { credentials: { ...((await prisma.integration.findFirstOrThrow()).credentials as object), refreshToken: encrypt('refresh', oldKey, revolutCtx('refreshToken')) } },
+    })
+    vi.mocked(logger.warn).mockClear()
+    expect((await warnAboutLegacySecrets()).total).toBe(0)
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
   it('seals every value again with the new key, once', async () => {
     process.env.BETTER_AUTH_SECRETS = `2:${NEW}`
     expect(await reencryptStoredSecrets()).toEqual({ resealed: 4, unreadable: 0 })

@@ -130,3 +130,51 @@ export async function reencryptStoredSecrets(): Promise<ReencryptResult | null> 
     ),
   )
 }
+
+/**
+ * Values still sealed in the legacy format (no context bound, readable only
+ * until Kledg 0.4, docs/configuration.md#ancien-format-de-chiffrement), by
+ * kind. The start-up pass above seals every value it can open again in v2:
+ * what remains is a value no configured key opens (the integration must be
+ * reconnected), or a pass that did not run (no instance key, another server
+ * holding the lock, an error in the log). Reads the format only (no key
+ * needed), across every company.
+ */
+export interface LegacySecretsReport {
+  total: number
+  /** BankConnection.secretKeyEncrypted (former Qonto connections). */
+  bankConnections: number
+  /** Secret fields of Integration.credentials. */
+  integrationFields: number
+  /** UpdateConnection.tokenEncrypted (the GitHub token of the updates page). */
+  updateTokens: number
+}
+
+export async function countLegacySecrets(): Promise<LegacySecretsReport> {
+  return withSystemContext('secret-rotation', async () => {
+    const legacy = (value: unknown) => typeof value === 'string' && value.length > 0 && isLegacySealed(value)
+    const connections = await prisma.bankConnection.findMany({ where: { secretKeyEncrypted: { not: '' } }, select: { secretKeyEncrypted: true } })
+    const integrations = await prisma.integration.findMany({ where: { credentialsEncrypted: true }, select: { provider: true, credentials: true } })
+    const updates = await prisma.updateConnection.findMany({ select: { tokenEncrypted: true } })
+    const bankConnections = connections.filter((row) => legacy(row.secretKeyEncrypted)).length
+    let integrationFields = 0
+    for (const row of integrations) {
+      const credentials = row.credentials && typeof row.credentials === 'object' ? (row.credentials as Record<string, unknown>) : {}
+      for (const field of SECRET_FIELDS[row.provider] ?? ['secretKey']) if (legacy(credentials[field])) integrationFields++
+    }
+    const updateTokens = updates.filter((row) => legacy(row.tokenEncrypted)).length
+    return { total: bankConnections + integrationFields + updateTokens, bankConnections, integrationFields, updateTokens }
+  })
+}
+
+/** Start-up check: warns in the log when legacy values remain after the re-encryption pass. */
+export async function warnAboutLegacySecrets(): Promise<LegacySecretsReport> {
+  const report = await countLegacySecrets()
+  if (report.total > 0) {
+    logger.warn(
+      `Secrets in the legacy encryption format: ${report.total} (bank connections ${report.bankConnections}, integration fields ${report.integrationFields}, update tokens ${report.updateTokens}). ` +
+        'Kledg 0.4 no longer reads them: run `pnpm secrets:reencrypt` (or restart the server) and reconnect the integrations it reports unreadable. See docs/configuration.md.',
+    )
+  }
+  return report
+}

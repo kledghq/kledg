@@ -36,7 +36,8 @@ export type SystemReason =
   | 'company-creation'
   /**
    * Re-encryption of the credentials sealed with an older auth secret, at
-   * server start, lib/crypto/reencrypt.ts.
+   * server start, and the count of values left in the legacy format (start
+   * up, Configuration page, script), lib/crypto/reencrypt.ts.
    */
   | 'secret-rotation'
   /**

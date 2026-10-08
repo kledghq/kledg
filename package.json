@@ -33,7 +33,8 @@
     "db:rls-role": "tsx scripts/rls-role.ts",
     "check:pcg-compliance": "tsx scripts/check-pcg-compliance.ts",
     "check:pcg-accounts": "tsx scripts/check-pcg-account-compliance.ts",
-    "generate:secret": "node scripts/generate-encryption-key.js"
+    "generate:secret": "node scripts/generate-encryption-key.js",
+    "secrets:reencrypt": "tsx scripts/reencrypt-secrets.ts"
   },
   "dependencies": {
     "@better-auth/api-key": "^1.7.7",

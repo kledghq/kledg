@@ -17,6 +17,10 @@ export async function register() {
   const { reencryptStoredSecrets } = await import('@/lib/crypto/reencrypt')
   const { logger } = await import('@/lib/logger')
   await reencryptStoredSecrets().catch((error: unknown) => logger.error('Secret rotation: re-encryption failed', error))
+  // Values still in the legacy format (unreadable by Kledg 0.4) are reported
+  // in the log; the Configuration page shows them to the administrator.
+  const { warnAboutLegacySecrets } = await import('@/lib/crypto/reencrypt')
+  await warnAboutLegacySecrets().catch((error: unknown) => logger.error('Secret rotation: legacy format check failed', error))
   // Update history (lib/updates/history.ts): records the running version when
   // it changed. Not awaited, so it never delays the first request; it logs
   // its own failures, and the history route awaits the same promise.
