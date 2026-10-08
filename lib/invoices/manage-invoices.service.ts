@@ -487,6 +487,8 @@ async function loadCompany(db: Db, companyId: string) {
 }
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const
+/** A transaction that waits for Qonto (20 s per call, lib/banking/http.ts) while it holds the invoice lock. */
+const QONTO_TX_OPTIONS = { maxWait: 10_000, timeout: 60_000 } as const
 
 export const AUTO_NUMBER_TYPED =
   'La numérotation automatique est active : Kledg donne le numéro quand la facture est comptabilisée. Pour une facture déjà émise ailleurs, choisissez « Enregistrer une facture déjà émise ».'
@@ -697,31 +699,34 @@ export async function updateInvoiceLineAccounts(companyId: string, id: string, i
 }
 
 export async function deleteInvoice(companyId: string, id: string): Promise<{ id: string }> {
-  // A draft created in Qonto is deleted there first, so Kledg and Qonto stay in step.
-  const qontoDraft = await prisma.invoice.findFirst({ where: { id, companyId, origin: 'QONTO', qontoDraft: true, entryId: null, externalId: { not: null } }, select: { externalId: true } })
-  if (qontoDraft?.externalId) {
-    const { deleteQontoDraft } = await import('./create-in-qonto.service')
-    await deleteQontoDraft(companyId, qontoDraft.externalId)
-  }
   const deleted = await prisma.$transaction(async (tx) => {
+    // The lock also checks an approved MCP action's invoice (KLEDG-R3-MCP-01)
     const current = await lockInvoice(tx, companyId, id)
     if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
     if (current.origin === 'AUTO' && current.number) {
       throw new ConflictError(
-        `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
+        `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
       )
     }
-    // A draft in Qonto has no number yet and was deleted in Qonto just above: deleting it in Kledg leaves no gap.
-    if (current.origin === 'QONTO' && current.qontoRequestedAt && !(current.qontoDraft && current.externalId)) {
+    const qontoDraft = current.origin === 'QONTO' && current.qontoDraft && current.externalId ? current.externalId : null
+    if (current.origin === 'QONTO' && current.qontoRequestedAt && !qontoDraft) {
       throw new ConflictError(
         current.externalId
-          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
-          : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
+          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
+          : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
       )
+    }
+    // A draft created in Qonto is deleted there first, so Kledg and Qonto stay in step: only once every
+    // check above passed, under the invoice lock, so a refusal never leaves a Kledg invoice whose Qonto
+    // draft is gone. A Qonto failure throws and rolls back: nothing changes in Kledg. It has no number
+    // yet: deleting it in Kledg leaves no gap.
+    if (qontoDraft) {
+      const { deleteQontoDraft } = await import('./create-in-qonto.service')
+      await deleteQontoDraft(companyId, qontoDraft)
     }
     await tx.invoice.delete({ where: { id } })
     return current
-  }, TX_OPTIONS)
+  }, QONTO_TX_OPTIONS)
   await writeAuditLog('info', `Invoice deleted: ${deleted.number ?? 'draft without number'}`, { action: 'DELETE_INVOICE', companyId, metadata: { invoiceId: id } })
   return { id }
 }
