@@ -52,8 +52,9 @@ import type { GroupAccess } from '@/lib/management-fees/access'
 import type { ExecutionMode } from '@/lib/ai-access/access'
 import { claimApprovedAction, createPendingAction, finishAction, releaseAction } from './pending-actions'
 import { STATE_CHANGED_MESSAGE, readTargets, stateFingerprint } from './fingerprint'
-import type { TargetRef } from '@/lib/approved-state/targets'
-import { ApprovedStateChangedError, runWithApprovedState } from '@/lib/approved-state/guard'
+import { isGenericTarget, type TargetRef } from '@/lib/approved-state/targets'
+import { ApprovedStateChangedError, checkApprovedTargets, runWithApprovedState } from '@/lib/approved-state/guard'
+import { runInAmbientTransaction } from '@/lib/approved-state/ambient'
 import { logger } from '@/lib/logger'
 import { TWO_STEP, stepFor } from './descriptions'
 
@@ -320,6 +321,12 @@ interface HighImpactCall<P, R> {
   preview: () => Promise<P>
   /** The rows the action acts on, part of the fingerprint the approval is bound to. */
   targetState?: () => TargetRef[]
+  /**
+   * false: the service checks the generic targets itself, in its own
+   * transaction (create_company, whose rows are written as the system).
+   * Otherwise generic targets make the execution one transaction (ambient.ts).
+   */
+  atomic?: boolean
   execute: () => Promise<R>
   /** Main ids written to the audit log with the action. */
   audit: ((result: R) => Record<string, unknown>) | null
@@ -387,9 +394,13 @@ async function highImpactCall<P, R>(call: HighImpactCall<P, R>): Promise<ToolRes
   // The services check each target again inside their own transaction,
   // under a lock of its rows (lib/approved-state/guard.ts): an edit landing
   // after the check above rolls the service's transaction back.
+  // Tools whose targets are generic rows (lib/approved-state/targets.ts) run in one transaction that starts by
+  // locking and checking them (ambient.ts); the others check their targets in their services' own transactions.
+  const atomic = call.atomic !== false && targets.some(({ ref }) => isGenericTarget(ref))
+  const execute = atomic ? () => runInAmbientTransaction(prisma, checkApprovedTargets, call.execute) : call.execute
   let result: R
   try {
-    const run = await runWithApprovedState(targets, call.execute)
+    const run = await runWithApprovedState(targets, execute)
     result = run.result
     if (run.unchecked.length > 0) logger.warn('MCP approved action: targets not checked inside a transaction', { tool, actionId, unchecked: run.unchecked })
   } catch (error) {
@@ -488,6 +499,9 @@ export function registerInstanceTool<S extends Shape, P, R>(
           args,
           actionId,
           preview: () => tool.preview(args, access),
+          // The user creating the company, locked inside the creation transaction (createCompanyRows)
+          targetState: () => [{ kind: 'lock', table: 'user', companyId: null, id: access.user.id }],
+          atomic: false,
           execute: () => tool.execute(args, access),
           audit: (result) => tool.audit(args, result).ids,
           auditCompany: (result) => tool.audit(args, result).companyId,

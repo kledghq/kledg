@@ -35,7 +35,7 @@ import {
 import type { TabularOptions } from '@/lib/banking/import/types'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
-import { ruleTargets } from './fingerprint'
+import { companyLock, rowTargets, ruleTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -120,6 +120,7 @@ const unreconcileTransactionTool = fullControlTool({
   permission: { banking: ['reconcile'] },
   amounts: 'none',
   never: 'deletes a validated entry or touches a closed fiscal year (refused).',
+  targetState: ({ companyId, transactionId }) => [companyLock(companyId), ...rowTargets('bank_transactions', companyId, transactionId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, transactionId }) {
@@ -264,6 +265,7 @@ const createRuleTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'euros',
   never: 'runs the rule (run_rules does).',
+  targetState: ({ companyId }) => [companyLock(companyId), ...ruleTargets(companyId)],
   confirmation: true,
   highImpactWhen: ({ autoCreate }) => autoCreate === true,
   preview: async (input) => ({ ruleToCreate: input, effect: AUTO_CREATE_EFFECT }),
@@ -419,6 +421,7 @@ const importStatementTool = fullControlTool({
   amounts: 'euros',
   never: 'imports a transaction twice (exact duplicates are skipped) or reconciles the imported lines.',
   idempotent: true,
+  targetState: ({ companyId, bankAccountId }) => [companyLock(companyId), { kind: 'lock', table: 'bank_accounts', companyId, id: bankAccountId }],
   confirmation: true,
   // Every parse counts in the import limit of the user, like the import route (app/api/banking/import-statement/route.ts).
   async preview({ companyId, bankAccountId, fileName, contentBase64, options, keep }, ctx) {

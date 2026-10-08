@@ -39,6 +39,8 @@ export class ApprovedStateChangedError extends ConflictError {
 }
 
 interface ApprovedState {
+  /** The approved targets, in their order. */
+  refs: TargetRef[]
   /** Hash of each target's approved state, by targetKey. */
   expected: Map<string, string>
   /** Companies whose whole rule set is approved: a rule outside it is not approved either. */
@@ -59,7 +61,7 @@ export async function runWithApprovedState<T>(
   states: Array<{ ref: TargetRef; state: unknown }>,
   fn: () => Promise<T>,
 ): Promise<{ result: T; unchecked: string[] }> {
-  const approved: ApprovedState = { expected: new Map(), ruleSets: new Set(), checked: new Set() }
+  const approved: ApprovedState = { refs: states.map(({ ref }) => ref), expected: new Map(), ruleSets: new Set(), checked: new Set() }
   for (const { ref, state } of states) {
     approved.expected.set(targetKey(ref), stateHash(state))
     if (ref.kind === 'rules') {
@@ -101,4 +103,15 @@ export async function checkApprovedState(db: Db, ref: TargetRef): Promise<void> 
   const current = stateHash(await loadTargetState(db, ref, { lock: true }))
   if (current !== expected) throw new ApprovedStateChangedError()
   approved.checked.add(key)
+}
+
+/**
+ * Inside the transaction `db`: locks and checks every approved target, in
+ * the order the tool lists them (the start of the single transaction of an
+ * action whose services take no lock of their own, ambient.ts).
+ */
+export async function checkApprovedTargets(db: Db): Promise<void> {
+  const approved = storage.getStore()
+  if (!approved) return
+  for (const ref of approved.refs) await checkApprovedState(db, ref)
 }

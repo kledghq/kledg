@@ -16,7 +16,7 @@ import { parseCents } from '@/lib/utils/money'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
-import { entryTargets } from './fingerprint'
+import { companyLock, entryTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -167,6 +167,7 @@ const reverseEntryTool = fullControlTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd.',
   never: 'deletes or edits the validated entry: it adds the reversing entry.',
+  targetState: ({ companyId, entryId }) => [companyLock(companyId), ...entryTargets(companyId, [entryId])],
   confirmation: true,
   destructive: true,
   async preview({ companyId, entryId, date }) {

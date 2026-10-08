@@ -705,15 +705,15 @@ export async function deleteInvoice(companyId: string, id: string): Promise<{ id
     if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
     if (current.origin === 'AUTO' && current.number) {
       throw new ConflictError(
-        `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
+        `La facture n° ${current.number} a reçu son numéro de la série : la supprimer laisserait un trou dans la numérotation (CGI ann. II art. 242 nonies A). Émettez un avoir pour l’annuler.`,
       )
     }
     const qontoDraft = current.origin === 'QONTO' && current.qontoDraft && current.externalId ? current.externalId : null
     if (current.origin === 'QONTO' && current.qontoRequestedAt && !qontoDraft) {
       throw new ConflictError(
         current.externalId
-          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
-          : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
+          ? `${invoiceName(current)} a été créée dans Qonto : annulez-la dans Qonto (par un avoir), Kledg reprendra son état à l’import.`
+          : 'Kledg attend la réponse de Qonto pour cette facture : reprenez la création avant de la supprimer, pour ne pas laisser dans Qonto une facture inconnue de Kledg.',
       )
     }
     // A draft created in Qonto is deleted there first, so Kledg and Qonto stay in step: only once every

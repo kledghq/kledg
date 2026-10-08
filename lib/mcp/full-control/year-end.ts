@@ -22,6 +22,7 @@ import { enforceRateLimit } from '@/lib/rate-limit'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { euros, isoDate, ownedFiscalYear } from './resolve'
+import { companyLock, fiscalYearTargets } from './fingerprint'
 
 const fiscalYearId = z.string().min(1).describe('Fiscal year id, from list_fiscal_years.')
 
@@ -34,6 +35,7 @@ const generateDepreciation = fullControlTool({
   amounts: 'euros',
   never: 'books an allowance twice or writes in a closed fiscal year.',
   idempotent: true,
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...fiscalYearTargets(companyId, fiscalYearId)],
   confirmation: true,
   async preview({ companyId, fiscalYearId }) {
     const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
@@ -73,6 +75,7 @@ const closeFiscalYearTool = fullControlTool({
   permission: { closing: ['execute'] },
   amounts: 'euros',
   never: 'closes a year with drafts, before its end date or after an open earlier year; and never reopens a year.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...fiscalYearTargets(companyId, fiscalYearId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, fiscalYearId }) {
@@ -151,6 +154,7 @@ const allocateResultTool = fullControlTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd.',
   never: 'allocates a result twice.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...fiscalYearTargets(companyId, fiscalYearId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, fiscalYearId, dividends, otherReserves }) {

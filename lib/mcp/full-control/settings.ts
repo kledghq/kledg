@@ -62,6 +62,7 @@ import { COMPANY_ROLES, addMemberToCompany } from '@/lib/rbac/add-member-to-comp
 import { listMembers, removeMember, updateMemberRole } from '@/lib/rbac/manage-members.service'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
+import { companyLock } from './fingerprint'
 
 const SETTINGS_SECTIONS = ['company', 'payment_terms', 'vat_settings', 'simple_mode', 'deadline_settings', 'invoice_numbering', 'cash_forecast'] as const
 
@@ -83,6 +84,7 @@ const updateCompanySettingsTool = fullControlTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, payment terms in days.',
   never: 'deletes the company, changes its members or touches the books.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   idempotent: true,
@@ -177,6 +179,7 @@ const manageCompanyRecordsTool = fullControlTool({
   amounts: 'none',
   units: 'Dates as yyyy-mm-dd, percentages in percent.',
   never: 'deletes the company or changes the books.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   async preview(args) {
@@ -253,6 +256,7 @@ const manageStatementLayoutTool = fullControlTool({
   permission: { settings: ['update'] },
   amounts: 'none',
   never: 'changes an account, an entry or the amounts of the books (only how the statements are presented).',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, statement, action, lineId, line, variant }) {
@@ -324,6 +328,7 @@ const manageMembersTool = fullControlTool({
   permission: { members: ['manage'] },
   amounts: 'none',
   never: 'gives instance administration rights or deletes a user account.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, action, email, role, memberId }, ctx) {

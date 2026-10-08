@@ -29,6 +29,7 @@ import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, isoDate, journalIdByCode, ownedFiscalYear } from './resolve'
 import { decodeBase64File } from './files'
+import { companyLock, rowTargets } from './fingerprint'
 
 async function chartFiscalYear(companyId: string, fiscalYearId?: string) {
   if (fiscalYearId) return ownedFiscalYear(companyId, fiscalYearId)
@@ -67,6 +68,7 @@ const manageAccountsTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'none',
   never: 'deletes a PCG account, an account holding entries or an account of a closed fiscal year.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...rowTargets('fiscal_years', companyId, fiscalYearId)],
   confirmation: true,
   highImpactActions: ['delete', 'delete_non_pcg'],
   destructive: true,
@@ -126,6 +128,7 @@ const manageJournalsTool = fullControlTool({
   permission: { ledger: ['manage'] },
   amounts: 'none',
   never: 'deletes a journal that holds entries.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   highImpactActions: ['delete'],
   destructive: true,
@@ -172,6 +175,7 @@ const manageFiscalYearsTool = fullControlTool({
   amounts: 'none',
   units: 'Dates as yyyy-mm-dd.',
   never: 'changes or deletes a closed fiscal year, deletes a fiscal year holding entries, or reopens a closed period.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...rowTargets('fiscal_years', companyId, fiscalYearId)],
   confirmation: true,
   highImpactActions: ['delete', 'lock_period'],
   destructive: true,
@@ -228,6 +232,7 @@ const importAccountingFileTool = fullControlTool({
   permission: { entries: ['create'], ledger: ['manage'] },
   amounts: 'none',
   never: 'imports into a closed fiscal year or deletes existing entries.',
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   async preview({ companyId, type, fileName, contentBase64, mapping }, ctx) {
     await enforceRateLimit('import', ctx.access.user.id)

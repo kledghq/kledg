@@ -30,10 +30,101 @@ export type TargetRef =
   | { kind: 'rule'; companyId: string; id: string }
   /** Every assignment rule of the company: the set run_rules and the refresh apply. */
   | { kind: 'rules'; companyId: string }
+  /** Any row of a table of TABLES, every column (its content is approved). */
+  | { kind: 'row'; table: TargetTable; companyId: string; id: string }
+  /**
+   * A stable parent row locked only to serialize (the company, a fiscal
+   * year, a bank account): its content is not approved, only its existence,
+   * so unrelated edits of the parent (a setting, a sync date) do not refuse
+   * the action. Used where the action creates rows that do not exist yet.
+   */
+  | { kind: 'lock'; table: TargetTable; companyId: string | null; id: string }
+  /**
+   * Every row of `table` under a parent (the entries of a fiscal year): a
+   * digest of their content, the rows locked FOR SHARE so they cannot be
+   * edited or deleted until the action ends.
+   */
+  | { kind: 'children'; table: TargetTable; companyId: string; column: string; id: string }
+
+/**
+ * Tables a generic target may name, with the condition that keeps a row in
+ * its company (`$2` is the company id). Identifiers are only ever taken from
+ * here, never from a request.
+ */
+export const TABLES = {
+  companies: { company: '"id" = $2', columns: ['id'] },
+  user: { company: null, columns: ['id'] },
+  fiscal_years: { company: '"companyId" = $2', columns: ['id'] },
+  accounts: { company: '"companyId" = $2', columns: ['id'] },
+  journals: { company: '"companyId" = $2', columns: ['id'] },
+  bank_connections: { company: '"companyId" = $2', columns: ['id'] },
+  bank_accounts: { company: '"bankConnectionId" IN (SELECT "id" FROM "bank_connections" WHERE "companyId" = $2)', columns: ['id'] },
+  bank_transactions: { company: '"companyId" = $2', columns: ['id'] },
+  accounting_entries: { company: '"companyId" = $2', columns: ['id', 'fiscalYearId'] },
+  entry_lines: { company: '"companyId" = $2', columns: ['id'] },
+  tiers: { company: '"companyId" = $2', columns: ['id'] },
+  budgets: { company: '"companyId" = $2', columns: ['id'] },
+  budget_lines: { company: '"budgetId" IN (SELECT "id" FROM "budgets" WHERE "companyId" = $2)', columns: ['id'] },
+  provisions: { company: '"companyId" = $2', columns: ['id'] },
+  investment_grants: { company: '"companyId" = $2', columns: ['id'] },
+  expense_claimants: { company: '"companyId" = $2', columns: ['id'] },
+  expense_category_rules: { company: '"companyId" = $2', columns: ['id'] },
+  management_fee_conventions: { company: '"companyId" = $2', columns: ['id'] },
+  fixed_assets: { company: '"companyId" = $2', columns: ['id'] },
+} as const
+
+export type TargetTable = keyof typeof TABLES
+
+/** Generic targets (row, lock, children): their actions run in one transaction (lib/approved-state/ambient.ts). */
+export function isGenericTarget(ref: TargetRef): boolean {
+  return ref.kind === 'row' || ref.kind === 'lock' || ref.kind === 'children'
+}
+
+function scopeOf(table: TargetTable, companyId: string | null): string {
+  const scope = TABLES[table].company
+  if (scope === null) return 'TRUE'
+  // A generic target of a company table always names its company.
+  return companyId === null ? 'FALSE' : scope
+}
+
+async function loadGeneric(db: Db, ref: Extract<TargetRef, { kind: 'row' | 'lock' | 'children' }>, lock: boolean): Promise<unknown> {
+  const table = ref.table
+  if (!(table in TABLES)) throw new Error(`Unknown target table ${table}`)
+  const where = scopeOf(table, ref.companyId)
+  // $2 only when the condition uses it (PostgreSQL refuses a parameter it cannot type)
+  const params = where.includes('$2') ? [ref.id, ref.companyId] : [ref.id]
+  if (ref.kind === 'children') {
+    if (!(TABLES[table].columns as readonly string[]).includes(ref.column)) throw new Error(`Unknown target column ${ref.column}`)
+    const parent = `"${ref.column}" = $1 AND ${where}`
+    if (lock) await db.$queryRawUnsafe(`SELECT "id" FROM "${table}" WHERE ${parent} ORDER BY "id" FOR SHARE`, ...params)
+    const rows = await db.$queryRawUnsafe<Array<{ digest: string; count: bigint }>>(
+      `SELECT md5(coalesce(string_agg(to_jsonb(t)::text, ',' ORDER BY t."id"), '')) AS digest, count(*) AS count FROM "${table}" t WHERE ${parent}`,
+      ...params,
+    )
+    return { digest: rows?.[0]?.digest ?? '', count: Number(rows?.[0]?.count ?? 0) }
+  }
+  // FOR NO KEY UPDATE: blocks edits of the row, not the inserts of rows that reference it.
+  const rows = await db.$queryRawUnsafe<Array<{ row: unknown }>>(
+    `SELECT to_jsonb(t) AS row FROM "${table}" t WHERE "id" = $1 AND ${where}${lock ? ' FOR NO KEY UPDATE' : ''}`,
+    ...params,
+  )
+  if (ref.kind === 'lock') return (rows?.length ?? 0) > 0
+  return rows?.[0]?.row ?? null
+}
 
 /** Unique name of a target. */
 export function targetKey(ref: TargetRef): string {
-  return ref.kind === 'rules' ? `rules:${ref.companyId}` : `${ref.kind}:${ref.companyId}:${ref.id}`
+  switch (ref.kind) {
+    case 'rules':
+      return `rules:${ref.companyId}`
+    case 'row':
+    case 'lock':
+      return `${ref.kind}:${ref.table}:${ref.companyId ?? ''}:${ref.id}`
+    case 'children':
+      return `children:${ref.table}:${ref.column}:${ref.companyId}:${ref.id}`
+    default:
+      return `${ref.kind}:${ref.companyId}:${ref.id}`
+  }
 }
 
 /** JSON as stored (Decimal, Date and other toJSON values serialized the same way). */
@@ -114,5 +205,9 @@ export async function loadTargetState(db: Db, ref: TargetRef, options: { lock?: 
       return (await loadRules(db, ref.companyId, ref.id, lock))[0] ?? null
     case 'rules':
       return loadRules(db, ref.companyId, undefined, lock)
+    case 'row':
+    case 'lock':
+    case 'children':
+      return loadGeneric(db, ref, lock)
   }
 }

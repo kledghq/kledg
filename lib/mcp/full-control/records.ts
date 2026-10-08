@@ -35,7 +35,7 @@ import { deleteFixedAsset } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { getFixedAsset } from '@/lib/fixed-assets/read-fixed-assets.service'
 import { deleteDepreciationRecord, postDepreciationRecord } from '@/lib/fixed-assets/manage-depreciation-records.service'
 import { fullControlTool, type RegisterTool } from './define'
-import { expenseReportTarget, invoiceTarget } from './fingerprint'
+import { companyLock, expenseReportTarget, invoiceTarget, rowTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, ownedFiscalYear } from './resolve'
 
@@ -113,6 +113,7 @@ const importQontoInvoicesTool = fullControlTool({
   amounts: 'euros',
   never: 'posts or validates the imported invoices, or changes anything in Qonto.',
   openWorld: true,
+  targetState: ({ companyId }) => [companyLock(companyId)],
   confirmation: true,
   idempotent: true,
   preview: async ({ since }) => ({ source: 'Qonto', since: since ?? null, note: 'Les factures déjà importées ne sont pas recréées.' }),
@@ -128,6 +129,7 @@ const deleteTiersTool = fullControlTool({
   permission: { entries: ['delete'] },
   amounts: 'none',
   never: 'deletes a tiers that has invoices, or an entry line.',
+  targetState: ({ companyId, tiersId }) => [companyLock(companyId), ...rowTargets('tiers', companyId, tiersId)],
   confirmation: true,
   destructive: true,
   preview: async ({ companyId, tiersId }) => ({ tiers: forAssistant(await getTiers(companyId, tiersId)) }),
@@ -147,6 +149,7 @@ const deleteBudgetItemsTool = fullControlTool({
   permission: { budgets: ['manage'] },
   amounts: 'euros',
   never: 'changes the books.',
+  targetState: ({ companyId, budgetId, lineId }) => [companyLock(companyId), ...rowTargets('budgets', companyId, budgetId), ...rowTargets('budget_lines', companyId, lineId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, kind, budgetId, lineId }) {
@@ -177,6 +180,7 @@ const deleteYearEndItemsTool = fullControlTool({
   actions: { delete_provision: { entries: ['delete'] }, delete_assessment: { entries: ['delete'] }, delete_grant: { entries: ['delete'] } },
   amounts: 'euros',
   never: 'deletes or changes a validated entry.',
+  targetState: ({ companyId, provisionId, grantId }) => [companyLock(companyId), ...rowTargets('provisions', companyId, provisionId), ...rowTargets('investment_grants', companyId, grantId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, action, provisionId, grantId, fiscalYearId }) {
@@ -265,6 +269,7 @@ const manageExpenseSettingsTool = fullControlTool({
   permission: { expenses: ['validate'] },
   amounts: 'none',
   never: 'changes an expense report or an entry.',
+  targetState: ({ companyId, claimantId, ruleId }) => [companyLock(companyId), ...rowTargets('expense_claimants', companyId, claimantId), ...rowTargets('expense_category_rules', companyId, ruleId)],
   confirmation: true,
   highImpactActions: ['delete_claimant', 'delete_rule'],
   destructive: true,
@@ -306,6 +311,7 @@ const manageConventionTool = fullControlTool({
   amounts: 'euros',
   units: 'Rates and shares in percent, dates as yyyy-mm-dd.',
   never: 'generates or posts an invoice.',
+  targetState: ({ companyId, conventionId }) => [companyLock(companyId), ...rowTargets('management_fee_conventions', companyId, conventionId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, action, conventionId, convention }, ctx) {
@@ -340,6 +346,7 @@ const autoLetterTool = fullControlTool({
   permission: { entries: ['update'] },
   amounts: 'euros',
   never: 'letters lines of a closed fiscal year or changes the amounts of an entry.',
+  targetState: ({ companyId, fiscalYearId }) => [companyLock(companyId), ...rowTargets('fiscal_years', companyId, fiscalYearId)],
   confirmation: true,
   destructive: false,
   async preview({ companyId, accountCode, fiscalYearId }) {
@@ -369,6 +376,7 @@ const manageFixedAssetTool = fullControlTool({
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, rates in percent, durations in years.',
   never: 'deletes or changes a validated depreciation entry.',
+  targetState: ({ companyId, fixedAssetId }) => [companyLock(companyId), ...rowTargets('fixed_assets', companyId, fixedAssetId)],
   confirmation: true,
   highImpactActions: ['delete'],
   destructive: true,
@@ -403,6 +411,7 @@ const manageDepreciationRecordTool = fullControlTool({
   actions: { post: { entries: ['create', 'validate'] }, delete: { entries: ['delete'] } },
   amounts: 'euros',
   never: 'deletes a validated entry or books in a closed fiscal year.',
+  targetState: ({ companyId, fixedAssetId }) => [companyLock(companyId), ...rowTargets('fixed_assets', companyId, fixedAssetId)],
   confirmation: true,
   destructive: true,
   async preview({ companyId, action, fixedAssetId, recordId }) {

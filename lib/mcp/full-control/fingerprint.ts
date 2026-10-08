@@ -22,7 +22,7 @@
 
 import { createHash } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { loadTargetState, normalizeState, targetKey, type TargetRef } from '@/lib/approved-state/targets'
+import { loadTargetState, normalizeState, targetKey, type TargetRef, type TargetTable } from '@/lib/approved-state/targets'
 import { canonicalJson } from './canonical-json'
 
 export { STATE_CHANGED_MESSAGE } from '@/lib/approved-state/guard'
@@ -72,3 +72,21 @@ export const expenseReportTarget = (companyId: string, id: string): TargetRef[] 
 /** Reference to one rule, or to every rule of the company. */
 export const ruleTargets = (companyId: string, ruleId?: string): TargetRef[] =>
   ruleId ? [{ kind: 'rule', companyId, id: ruleId }] : [{ kind: 'rules', companyId }]
+
+/**
+ * The company, locked to serialize (its content is not approved): every
+ * action whose targets are generic rows starts with it, so two approved
+ * actions of one company never interleave, and an action that creates rows
+ * (an import, a closing) holds a stable parent row.
+ */
+export const companyLock = (companyId: string): TargetRef => ({ kind: 'lock', table: 'companies', companyId, id: companyId })
+
+/** Rows of `table` named by the arguments, their content approved (none when the argument is absent). */
+export const rowTargets = (table: TargetTable, companyId: string, ids: Array<string | null | undefined> | string | null | undefined): TargetRef[] =>
+  [...new Set((Array.isArray(ids) ? ids : [ids]).filter((id): id is string => typeof id === 'string' && id.length > 0))].map((id) => ({ kind: 'row', table, companyId, id }))
+
+/** A fiscal year and every entry of it (a closing, the depreciation, the allocation of the result read them all). */
+export const fiscalYearTargets = (companyId: string, fiscalYearId: string | null | undefined): TargetRef[] =>
+  fiscalYearId
+    ? [...rowTargets('fiscal_years', companyId, fiscalYearId), { kind: 'children', table: 'accounting_entries', companyId, column: 'fiscalYearId', id: fiscalYearId }]
+    : []

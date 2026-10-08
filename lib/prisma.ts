@@ -11,6 +11,7 @@ import { enforceRlsOnPool } from './rls/pool'
 import { createRequestContextResolver } from './rls/request-context'
 import { verifyAppRole } from './rls/app-role'
 import { isolatePrismaBatches } from './rls/batching'
+import { ambientProperty } from './approved-state/ambient'
 
 /**
  * Prisma client over node-postgres, so Kledg runs on any PostgreSQL:
@@ -227,11 +228,16 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 
 /**
  * Lazily created on first use, so importing this module during `next build`
- * doesn't require database credentials.
+ * doesn't require database credentials. Inside the execution of an approved
+ * MCP action, every query goes to that action's single transaction
+ * (lib/approved-state/ambient.ts).
  */
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, property) {
     globalForPrisma.prisma ??= createPrismaClient()
+    // Inside the single transaction of an approved MCP action (lib/approved-state/ambient.ts)
+    const ambient = ambientProperty(property)
+    if (ambient !== undefined) return ambient
     const value = Reflect.get(globalForPrisma.prisma, property)
     return typeof value === 'function' ? value.bind(globalForPrisma.prisma) : value
   },
