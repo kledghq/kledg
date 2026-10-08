@@ -1,6 +1,8 @@
 # Connexions bancaires
 
-Kledg reçoit les opérations de vos comptes de trois façons, que vous pouvez combiner dans une même société (une connexion par fournisseur) :
+Le guide d'utilisation (choisir la méthode, étapes de connexion Qonto, Revolut et Ponto, compte 512, expiration de l'accès) est sur le site : [Connecter sa banque](https://www.kledg.com/fr/docs/connecter-sa-banque). Cette page décrit le fonctionnement technique : identifiants, données lues, règles des fournisseurs, synchronisation planifiée.
+
+Kledg reçoit les opérations de quatre façons, combinables dans une même société (une connexion par fournisseur) :
 
 | Banque | Connexion | Coût | Ce qu'il faut |
 |---|---|---|---|
@@ -9,56 +11,41 @@ Kledg reçoit les opérations de vos comptes de trois façons, que vous pouvez c
 | Autres banques françaises | Ponto (Isabel Group) | Environ 4 € par compte et par mois, facturés par Ponto | Un compte Ponto à votre nom |
 | Toute banque | Import de relevés (fichier) | Gratuit | Un export CSV, Excel, OFX ou camt.053 |
 
-Tout se fait depuis **Banque, Comptes bancaires, Connecter une banque**. Les identifiants (clé Qonto, clé privée et jeton Revolut, secret Ponto) sont chiffrés sur votre instance (`ENCRYPTION_KEY`, voir [Configuration](configuration.md)) et ne sont jamais réaffichés.
+Code : `lib/banking/providers` (`qonto.ts`, `revolut`, `ponto`), `lib/banking/connections.service.ts`, `lib/banking/ponto-connection.service.ts`, `lib/banking/revolut-connection.service.ts`, `lib/banking/sync-banks.service.ts`, `lib/banking/store-synced-transactions.service.ts`, `lib/banking/sync-rules.ts` (dédoublonnage, connexion directe prioritaire, délai d'actualisation Ponto), `lib/banking/consent.ts` (expiration de l'accès), `lib/banking/credentials.ts` (chiffrement). API : `app/api/banking/*` (connexions, `ponto`, `revolut`, `revolut/authorize`, `revolut/callback`, `manual-accounts`, `accounts/sync`, `connections/[id]/refresh`). Droits : lecture `banking:read`, connexion et identifiants `banking:manage` (Administrateur), actualisation Ponto `banking:reconcile`.
 
-Ensuite, associez chaque compte (IBAN) à son compte comptable de banque (classe 512) dans la liste des comptes : ses opérations y seront enregistrées.
+Page : **Banque, Comptes bancaires, Connecter une banque**. Les identifiants (clé Qonto, clé privée et jeton Revolut, secret Ponto) sont chiffrés sur l'instance (`ENCRYPTION_KEY`, voir [Configuration](configuration.md)) (`SECRET_FIELDS` : `secretKey` Qonto, `clientSecret` Ponto, `privateKey` et `refreshToken` Revolut) et ne sont jamais réaffichés ni renvoyés par l'API. Chaque compte (IBAN) est associé à un compte comptable de banque (512) ; ses opérations s'y enregistrent. Une transaction du fournisseur n'est stockée qu'une fois par compte bancaire (unicité `bankAccountId` + `externalTransactionId`) : une synchronisation relancée ne crée rien deux fois.
 
 ## Qonto (directe)
 
-1. Dans Qonto : Paramètres, Intégrations et partenaires, Clé API. Copiez l'identifiant et la clé secrète.
-2. Dans Kledg : Connecter une banque, Qonto, collez les deux valeurs.
-
-Kledg lit les comptes, les opérations (avec leur statut Qonto : les opérations en attente sont affichées mais jamais comptabilisées), les relevés et les justificatifs.
+Identifiant de l'organisation et clé secrète de l'API Qonto. Kledg lit les comptes, les opérations (avec leur statut Qonto : les opérations en attente sont affichées mais jamais comptabilisées), les relevés et les justificatifs.
 
 ## Revolut Business (directe)
 
-L'API Revolut Business est incluse dans les offres **Grow, Scale et Enterprise**, pas dans l'offre Basic ([offres incluant l'API](https://help.revolut.com/en-US/business/help/integrating-with-external-apps/revolut-business-api/question-using-revolut-business-api/)). Avec l'offre Basic, importez vos relevés Revolut (CSV ou OFX).
+L'API Revolut Business est incluse dans les offres **Grow, Scale et Enterprise**, pas dans l'offre Basic ([offres incluant l'API](https://help.revolut.com/en-US/business/help/integrating-with-external-apps/revolut-business-api/question-using-revolut-business-api/)).
 
-1. Dans Kledg : Connecter une banque, Revolut Business, **Générer le certificat**. Kledg crée une clé privée (chiffrée sur votre instance) et un certificat X.509 public.
-2. Dans Revolut Business : Paramètres, API, Business API, ajoutez un certificat. Collez le certificat et l'URL de redirection affichée par Kledg (`https://<votre instance>/api/banking/revolut/callback`, à l'identique). Revolut affiche un identifiant client (client ID).
-3. Dans Kledg : collez l'identifiant client et cliquez sur **Autoriser dans Revolut**. Revolut demande votre accord (lecture seule), puis revient sur Kledg.
-
-Kledg lit les comptes en euros actifs et les opérations terminées (`completed`) ; les opérations en attente, refusées ou annulées ne sont pas importées. L'autorisation dure **90 jours** (règle DSP2) : Kledg prévient 14 jours puis 3 jours avant, et le bouton **Autoriser de nouveau** la renouvelle.
-
-Pour tester avec le bac à sable Revolut : `REVOLUT_ENVIRONMENT=sandbox`.
+- **Générer le certificat** crée une clé privée (chiffrée sur l'instance) et un certificat X.509 public, à déclarer dans Revolut Business avec l'URL de redirection `https://<votre instance>/api/banking/revolut/callback`, à l'identique. Revolut renvoie un client ID ; **Autoriser dans Revolut** lance le consentement (lecture seule) puis revient sur le callback.
+- Kledg lit les comptes en euros actifs et les opérations terminées (`completed`) ; les opérations en attente, refusées ou annulées ne sont pas importées.
+- L'autorisation dure **90 jours** (règle DSP2) : Kledg prévient 14 jours puis 3 jours avant, et **Autoriser de nouveau** la renouvelle.
+- Bac à sable Revolut : `REVOLUT_ENVIRONMENT=sandbox`.
 
 Référence : [Revolut Business API](https://developer.revolut.com/docs/business/business-api).
 
 ## Autre banque : Ponto
 
-Pour les banques sans connexion directe (BNP Paribas, Société Générale, Crédit Agricole, Crédit Mutuel, CIC, LCL, La Banque Postale, Banque Populaire, Caisse d'Epargne...), Kledg passe par [Ponto](https://myponto.com), agrégateur agréé du groupe Isabel. Vous ouvrez **votre propre compte Ponto** : aucun contrat avec Kledg, Ponto vous facture directement (14 jours d'essai, puis environ 4 € par compte bancaire et par mois).
+Pour les banques sans connexion directe, Kledg passe par [Ponto](https://myponto.com), agrégateur agréé du groupe Isabel. Le compte Ponto est celui de l'utilisateur (aucun contrat avec Kledg), avec une **intégration personnalisée** (custom integration) ayant accès aux comptes ; Kledg reçoit son identifiant client et son secret client. La liste des banques vient de Ponto, avec un niveau de maturité : stable, bêta ou expérimental.
 
-1. Créez votre compte sur [Ponto](https://dashboard.myponto.com/).
-2. Dans Ponto, reliez votre banque (authentification forte de la banque).
-3. Dans Ponto, créez une **intégration personnalisée** (custom integration) nommée Kledg avec accès aux comptes. Ponto affiche un identifiant client et un secret client.
-4. Dans Kledg : Connecter une banque, choisissez votre banque dans la liste, collez l'identifiant et le secret.
-
-La liste des banques vient de Ponto, avec un niveau de maturité : stable, bêta ou expérimental. Gardez l'import de relevés sous la main pour une banque en bêta ou expérimentale.
-
-Fonctionnement :
-
-- Ponto actualise vos comptes auprès de la banque quatre fois par jour ; la synchronisation de Kledg lit ces données.
-- Le bouton **Actualiser** demande à Ponto d'interroger la banque tout de suite. Les conditions de Ponto l'autorisent seulement quand vous êtes présent, avec votre adresse IP réelle, et au plus toutes les 5 minutes par compte : Kledg applique ces règles. La tâche planifiée ne le fait jamais.
+- Ponto actualise les comptes auprès de la banque quatre fois par jour ; la synchronisation de Kledg lit ces données.
+- Le bouton **Actualiser** demande à Ponto d'interroger la banque tout de suite. Les conditions de Ponto l'autorisent seulement quand l'utilisateur est présent, avec son adresse IP réelle, et au plus toutes les 5 minutes par compte (`PONTO_REFRESH_INTERVAL_MS`) : Kledg applique ces règles. La tâche planifiée ne le fait jamais.
 - Seules les opérations comptabilisées par la banque sont importées. Ponto précise que les opérations en attente ne doivent pas servir à la comptabilité.
-- L'accès à la banque dure 90 ou 180 jours selon la banque. Kledg prévient 14 jours puis 3 jours avant ; une fois expiré, le compte apparaît « à jour jusqu'au » la date d'expiration. Renouvelez l'accès dans Ponto, puis actualisez.
+- L'accès à la banque dure 90 ou 180 jours selon la banque. Kledg prévient 14 jours puis 3 jours avant (`CONSENT_WARNING_DAYS`, `CONSENT_URGENT_DAYS`, date `authorizationExpirationExpectedAt` de Ponto) ; une fois expiré, le compte apparaît « à jour jusqu'au » la date d'expiration jusqu'au renouvellement dans Ponto.
 
-Si le même IBAN est relié à la fois en direct (Qonto ou Revolut) et via Ponto, Kledg garde la connexion directe : le compte Ponto apparaît « Synchronisé via Qonto » et n'importe plus rien.
+Si le même IBAN est relié à la fois en direct (Qonto ou Revolut) et via Ponto, Kledg garde la connexion directe : le compte Ponto pointe vers le compte direct (`supersededById`), apparaît « Synchronisé via Qonto » et n'importe plus rien.
 
 Références : [intégrations personnalisées Ponto](https://documentation.myponto.com/custom-integrations), [API Ponto](https://documentation.myponto.com/api).
 
 ## Banque sans connexion : import de relevés
 
-BoursoBank, Shine et toute autre banque : **Ajouter un compte bancaire** (nom, IBAN facultatif, compte comptable 512), puis importez ses relevés. Voir [Importer un relevé bancaire](importer-un-releve-bancaire.md).
+Un compte ajouté par **Ajouter un compte bancaire** (nom, IBAN facultatif, compte comptable 512) reçoit ses opérations par import. Voir [Importer un relevé bancaire](importer-un-releve-bancaire.md).
 
 ## Synchronisation planifiée
 

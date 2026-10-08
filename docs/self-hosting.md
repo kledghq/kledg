@@ -53,7 +53,7 @@ Kledg n'appelle aucun modèle d'IA lui-même. Votre assistant (Claude, ChatGPT, 
 2. Créez une clé API avec la permission « Sending access ».
 3. Définissez `RESEND_API_KEY` et `EMAIL_FROM="Kledg <compta@mail.votre-domaine.fr>"`.
 
-Sans Resend, Kledg reste utilisable : les emails sont écrits dans les logs du serveur et l'ajout d'un membre affiche un mot de passe temporaire à lui transmettre. En revanche, un utilisateur ne peut pas changer son adresse email depuis son profil, car la nouvelle adresse doit être confirmée par un lien envoyé par email ; seul un administrateur de l'instance peut alors changer sa propre adresse, après avoir saisi son mot de passe.
+Sans Resend, Kledg reste utilisable : les emails sont écrits dans les logs du serveur et l'ajout d'un membre affiche un mot de passe temporaire à lui transmettre. En revanche, un utilisateur ne peut pas changer son adresse email depuis son profil, car la nouvelle adresse doit être confirmée par un lien envoyé par email. Un administrateur de l'instance peut changer sa propre adresse, après avoir saisi son mot de passe, et celle des autres comptes depuis Paramètres, Instance, Utilisateurs (menu de la ligne, « Changer l'adresse email ») : aucun lien de confirmation n'est envoyé, la personne se connecte aussitôt avec la nouvelle adresse.
 
 ## Railway
 

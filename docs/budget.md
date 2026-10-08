@@ -1,5 +1,7 @@
 # Budget
 
+Le guide d'utilisation (créer le budget, lignes, éléments récurrents, comparaison avec le réel) est sur le site : [Le budget](https://www.kledg.com/fr/docs/le-budget). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Les charges et les produits prévus pour un exercice, mois par mois, comparés aux écritures validées de cet exercice. Code : `lib/budgets`, page `/budget` (États, Budget), outils MCP `list_budgets`, `get_budget`, `get_budget_report` et, avec l'accès brouillons, `create_budget`, `create_budget_line`, `update_budget_line`.
 
 ## Un budget par exercice

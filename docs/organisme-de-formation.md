@@ -1,12 +1,10 @@
 # Organisme de formation
 
-Ce que Kledg fait pour un organisme de formation professionnelle continue et
-pour toute société dont une partie des opérations est exonérée de TVA :
-établissements déclarés, mention d'exonération des factures, coefficient de
-déduction de la TVA, bilan pédagogique et financier (BPF) et taxe sur les
-salaires. **Kledg prépare** ; vous déposez le BPF sur Mon Activité Formation,
-vos déclarations fiscales et vos paiements sur impots.gouv.fr. Règles
-vérifiées le 5 octobre 2026 sur Légifrance, le BOFiP, impots.gouv.fr et
+Le guide d'utilisation (déclaration d'activité, mention d'exonération, coefficient de déduction, BPF et taxe sur les salaires expliqués, étapes) est sur le site : [Organisme de formation : TVA et bilan pédagogique](https://www.kledg.com/fr/docs/organisme-de-formation). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
+Périmètre : organismes de formation professionnelle continue et sociétés dont
+une partie des opérations est exonérée de TVA. Kledg prépare, ne dépose rien.
+Règles vérifiées le 5 octobre 2026 sur Légifrance, le BOFiP, impots.gouv.fr et
 service-public.gouv.fr.
 
 Pages : Société, Informations, Établissements (déclaration d'activité) ;

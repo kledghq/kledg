@@ -1,8 +1,10 @@
 # Approbation des comptes et dépôt au greffe
 
+Le guide d'utilisation (à quoi sert l'approbation, étapes, règles expliquées) est sur le site : [Approuver les comptes et les déposer au greffe](https://www.kledg.com/fr/docs/approuver-les-comptes). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Après la clôture, les associés approuvent les comptes de l'exercice et décident de l'affectation du résultat, puis la société dépose les comptes au greffe. Kledg prépare les documents de cette étape selon la forme juridique de la société, à partir des écritures, des informations de la société et de ses associés, et de ce que l'utilisateur renseigne. Code : `lib/approval` ; page Saisie, Approbation des comptes (`/approval`) ; routes `GET` et `PUT /api/companies/[id]/fiscal-years/[fiscalYearId]/approval`, `GET .../approval/documents/[document]?format=pdf|md` ; outils MCP `get_year_end_formalities` et, avec l'accès brouillons (droit `closing:execute`), `update_year_end_formalities`, qui renseigne les données (dates, catégorie de taille, mode de décision, votes, affectation proposée) sans jamais générer de document (voir [mcp.md](mcp.md)).
 
-Kledg n'invente rien : une donnée que la loi exige et que Kledg ne connaît pas (ville du greffe, date et lieu de l'assemblée, présence et votes, dividendes des trois exercices précédents...) est demandée dans le formulaire, et chaque document liste ce qui lui manque. Un document ne se génère que lorsque rien ne lui manque. Ces documents ont une portée juridique : faites-les relire par votre expert-comptable ou votre conseil.
+Kledg n'invente rien : une donnée que la loi exige et que Kledg ne connaît pas (ville du greffe, date et lieu de l'assemblée, présence et votes, dividendes des trois exercices précédents...) est demandée dans le formulaire, et chaque document liste ce qui lui manque. Un document ne se génère que lorsque rien ne lui manque.
 
 Textes vérifiés le 4 octobre 2026 sur la version consolidée du Code de commerce et du Code civil (données Légifrance du 1er octobre 2026).
 
@@ -34,7 +36,7 @@ Textes vérifiés le 4 octobre 2026 sur la version consolidée du Code de commer
 | Annexe des comptes annuels, ou informations à la suite du bilan | Toujours ; facultative pour une micro-entreprise (L123-16-1) | Notes selon la catégorie de taille, établies par `lib/annexe` avec leurs propres informations manquantes ([annexe](annexe-et-2054.md)). |
 | Liste du dépôt au greffe | Sociétés commerciales | Pièces, délai, canal, sanction. |
 
-Chaque document se télécharge en **PDF** (à signer) ou en **Markdown** (texte modifiable dans n'importe quel éditeur, ou à coller dans un traitement de texte). Les deux formats viennent du même contenu (`lib/approval/documents`).
+Chaque document se télécharge en PDF ou en Markdown ; les deux formats viennent du même contenu (`lib/approval/documents`).
 
 ### Les résolutions
 
@@ -47,7 +49,7 @@ Pas de résolution de **quitus** : aucune décision des associés ne peut étein
 
 ### Votes
 
-Une voix par part ou par action (les droits de vote double ne sont pas modélisés : saisissez les voix exprimées). Pour chaque résolution, l'utilisateur coche « à l'unanimité des présents et représentés » ou saisit les voix pour, contre et les abstentions ; Kledg applique la règle de la forme (tableau ci-dessus) et écrit « adoptée » ou « rejetée » avec le détail. Une SAS demande la règle de ses statuts (majorité, voix comptées, quorum, article) ; une SCI applique l'unanimité quand les statuts ne disent rien. Si l'approbation est rejetée, la délibération de refus se dépose au greffe dans le même délai (L232-22 II, L232-23 II).
+Une voix par part ou par action (les droits de vote double ne sont pas modélisés : les voix exprimées se saisissent). Pour chaque résolution, l'utilisateur coche « à l'unanimité des présents et représentés » ou saisit les voix pour, contre et les abstentions ; Kledg applique la règle de la forme (tableau ci-dessus) et écrit « adoptée » ou « rejetée » avec le détail. Une SAS demande la règle de ses statuts (majorité, voix comptées, quorum, article) ; une SCI applique l'unanimité quand les statuts ne disent rien. Si l'approbation est rejetée, la délibération de refus se dépose au greffe dans le même délai (L232-22 II, L232-23 II).
 
 ## Taille de la société
 

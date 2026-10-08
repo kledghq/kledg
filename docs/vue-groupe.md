@@ -1,5 +1,7 @@
 # Espace groupe
 
+Le guide d'utilisation (à quoi sert l'espace groupe, comment le lire, règles expliquées) est sur le site : [La vue groupe](https://www.kledg.com/fr/docs/la-vue-groupe). Cette page est la spécification technique des pages du groupe : adresses, règles de calcul, sources des données, droits, API et outils MCP.
+
 Une holding a son **espace groupe** (`/<holding>/group`), ouvert depuis le sélecteur de société (section **Groupes**) ou l'entrée **États, Vue groupe** de la holding. Il remplace le menu de la société par celui du groupe, comme si le groupe était une société :
 
 - le sélecteur affiche le groupe comme sélection courante : les **associés de la holding** en pile d'avatars (photo, à défaut les initiales ; une société avec son logo, à défaut ses initiales, en carré), du plus gros pourcentage au plus petit, trois au plus puis « +N », chacun nommé pour les lecteurs d'écran et dans son info-bulle (« Claire Vasseur, 60 % ») ; à défaut d'associé, le logo de la holding ; puis « Groupe <holding> » et le nombre de sociétés. Un associé sans nom, ou une société actionnaire que l'utilisateur ne lit pas, n'est pas montré ;
@@ -11,7 +13,7 @@ Une holding a son **espace groupe** (`/<holding>/group`), ouvert depuis le séle
 
 ## Cinq vues, chacune répond à une question
 
-Le premier espace groupe avait douze pages, une par tableau. Elles sont regroupées en cinq vues, chacune pour une question qu'un dirigeant de groupe ou son expert-comptable se pose. Une vue est un groupe du menu et chacune de ses pages une entrée, avec sa propre adresse (`GROUP_VIEWS`, `components/layout/group-nav-config.ts`) : pas d'onglets dans les pages.
+Les pages sont regroupées en cinq vues, chacune pour une question qu'un dirigeant de groupe ou son expert-comptable se pose. Une vue est un groupe du menu et chacune de ses pages une entrée, avec sa propre adresse (`GROUP_VIEWS`, `components/layout/group-nav-config.ts`) : pas d'onglets dans les pages.
 
 | Vue | Question | Pages |
 | --- | --- | --- |
@@ -29,7 +31,7 @@ Code : `lib/group` (purs et en centimes : `combine.ts`, `periods.ts`, `aggregate
 
 ## Organigramme
 
-Page Organigramme de Structure (`GET /api/group/structure`, `lib/group/structure.ts`, `get-group-structure.service.ts`), comme le schéma de l'ancienne application, réécrit :
+Page Organigramme de Structure (`GET /api/group/structure`, `lib/group/structure.ts`, `get-group-structure.service.ts`) :
 
 - **nœuds** : les personnes et les sociétés qui détiennent des parts (photo d'une personne, à défaut ses initiales), la holding, ses filiales (logo, forme juridique, premier dirigeant), et une filiale non lue sous la forme « Société non accessible » ;
 - **flèches** : du détenteur vers la société détenue, avec le pourcentage enregistré parmi les actionnaires de la société détenue ; entre deux sociétés, la catégorie : plus de 50 %, filiale (Code de commerce, art. L233-1), de 10 à 50 %, participation (art. L233-2) ;
@@ -145,7 +147,7 @@ Kledg cherche, dans les livres de chaque société lisible, ce qui concerne une 
 | Prêts et avances | 267, 168 | Idem |
 | Dividendes | 761 | Le tiers, sinon le libellé du compte, de la ligne ou de l'écriture (« Dividendes Filiale Nord 2025 ») |
 
-Un libellé reconnaît une société quand il contient son nom (accents, ponctuation et forme juridique ignorés, mots entiers, au moins trois lettres) ou son SIREN. Nommez vos sous-comptes d'après la filiale (« 455100 Compte courant Filiale Nord », « 261100 Titres Filiale Nord ») pour qu'ils soient reconnus.
+Un libellé reconnaît une société quand il contient son nom (accents, ponctuation et forme juridique ignorés, mots entiers, au moins trois lettres) ou son SIREN. Exemples de libellés reconnus : « 455100 Compte courant Filiale Nord », « 261100 Titres Filiale Nord ».
 
 ## Règles d’élimination
 
@@ -241,6 +243,10 @@ Chaque tableau a **Exporter en CSV** et **Exporter en Excel** (`GET /api/group/e
 
 Tous en lecture seule, avec `reports:read` dans la holding et dans chaque filiale lue. Un assistant n'atteint que les filiales de son autorisation : les autres sont comptées, ni lues ni nommées ([serveur MCP](mcp.md)).
 
-## Ce que l'ancienne application faisait autrement
+## Choix de conception
 
-L'ancienne application multipliait les soldes de chaque société par le pourcentage de détention et appelait le résultat « consolidation » ; son bilan « consolidé » additionnait les totaux mais renvoyait les lignes de la première société, et ignorait sans le dire une société aux dates d'exercice différentes. Ses éliminations étaient seulement détectées et affichées, jamais appliquées. Trois définitions de la holding s'y contredisaient (une case à cocher, un type de société, les actionnaires), et le périmètre comprenait toute société détenue à plus de 1 %, lue sans être membre. Sa page Entreprises du groupe listait toutes les sociétés de la base ; la liste des personnes du groupe et les statistiques du groupe ne vérifiaient pas l'accès à la holding ; la page des impôts du groupe parcourait toutes les sociétés de la base et écrivait des déclarations lors d'une simple lecture. Son schéma de la structure du capital (trois rangées, associés, holding, filiales, déplaçables à la souris) est repris dans l'organigramme de Structure, avec les niveaux de détention indirecte, les catégories, les dirigeants et les filiales non accessibles. Kledg garde une définition, vérifie chaque société, n'écrit rien depuis l'espace groupe et appelle chaque chiffre ce qu'il est : combiné, agrégé, indicatif.
+- **Une seule définition de la holding** (actionnaire « Société » de la filiale, voir [Le groupe](#le-groupe)), partagée avec les frais de gestion ; la case « holding » des informations de la société n'entre pas dans le périmètre.
+- **Chaque société est vérifiée** : le périmètre ne comprend que les filiales que l'utilisateur (ou l'assistant) peut lire, quel que soit le pourcentage, et aucune page ne liste les sociétés de la base hors de ce périmètre.
+- **Rien n'est écrit** depuis l'espace groupe, pas même à la lecture des échéances ou des impôts.
+- **Chaque chiffre porte son nom** : combiné (après éliminations appliquées), agrégé (somme sans élimination) ou indicatif (pourcentage indirect, perspectives, intégration fiscale). Le pourcentage de détention n'est jamais appliqué aux chiffres, et rien n'est appelé « consolidé » (voir la section Éliminations).
+- **Exercices** : une filiale aux dates d'exercice différentes est additionnée avec un avertissement, jamais ignorée en silence.

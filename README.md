@@ -90,6 +90,13 @@ Ouvrez http://localhost:3000 : vous arrivez sur `/setup`. Sans `RESEND_API_KEY`,
 | `pnpm db:migrate:dev` | Créer une migration après modification de `prisma/schema.prisma` |
 | `pnpm db:studio` | Explorer la base |
 
+## Documentation
+
+- **Guides d'utilisation** : sur le site, [www.kledg.com/fr/docs](https://www.kledg.com/fr/docs). Installer, créer sa société, connecter sa banque, rapprocher, déclarer la TVA et l'IS, clôturer : chaque fonctionnalité expliquée au dirigeant et à l'expert-comptable, avec les règles de droit qui s'appliquent.
+- **Documentation technique** : dans ce dépôt, [docs/](docs/README.md). Architecture, conventions, sécurité (RLS), configuration, auto-hébergement, serveur MCP, points d'extension, et le fonctionnement technique de chaque fonctionnalité (code, API, règles de calcul, droits).
+
+Une modification qui change ce que voit l'utilisateur met à jour le guide du site ; une modification du code met à jour la page technique de `docs/`.
+
 ## Avertissement
 
 Kledg est un outil d'aide à la tenue de comptabilité. Il ne remplace pas un expert-comptable : vérifiez vos états avant de les utiliser. Le logiciel est fourni sans garantie (voir la licence).

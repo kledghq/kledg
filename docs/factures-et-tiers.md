@@ -1,5 +1,7 @@
 # Factures et tiers
 
+Le guide d'utilisation (tiers, saisie d'une facture, numérotation des factures de vente, création dans Qonto, comptabilisation, règlements, TVA sur les encaissements, import Qonto, facturation électronique) est sur le site : [Les factures et les tiers](https://www.kledg.com/fr/docs/les-factures-et-les-tiers) et [Faire ses factures clients avec Qonto](https://www.kledg.com/fr/docs/factures-clients-avec-qonto). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Le journal des achats et des ventes : les clients et fournisseurs (tiers), les factures reçues et émises enregistrées avec leurs lignes et leur TVA par taux, leur comptabilisation, leurs règlements venus de la banque, et leur import depuis Qonto. Kledg **enregistre** les factures, il ne les émet pas et ne les envoie pas. Code : `lib/tiers`, `lib/invoices`, `lib/integrations/providers/qonto/invoicing.ts`.
 
 ## Tiers
@@ -132,8 +134,8 @@ La TVA d'une prestation de services est exigible à l'encaissement du prix ; la 
 - L'option se règle dans **Informations**, avec les régimes de TVA (`GET|PUT /api/companies/[id]/vat-settings`, droit `settings:update`) ; la page **Factures de vente** en montre le résumé avec un lien vers le réglage. Par défaut : TVA sur les encaissements. Les lignes d'écriture des règles d'affectation ont leur propre indicateur de TVA sur les débits, qui devrait reprendre ce réglage par défaut.
 - Sans option, la TVA des lignes « prestation » d'une facture de vente va au compte **44574 « TVA collectée en attente d'encaissement »**, subdivision du 4457 que la société crée dans son plan de comptes (Kledg le demande s'il manque). Le 44587 n'est pas utilisé : le PCG le réserve aux factures à établir.
 - À chaque règlement enregistré sur la facture, Kledg crée une **écriture en brouillon au journal OD**, datée du règlement et dans son exercice : 44574 au débit, 44571 au crédit, pour la TVA du règlement (TVA en attente x règlement / TTC, arrondie au centime ; le règlement qui solde la facture prend le reste, de sorte que les virements font exactement la TVA en attente). Retirer le règlement supprime ce brouillon.
-- Un règlement lettré à la main dans Lettrage, sans passer par la facture, ne déplace pas la TVA : passez l'écriture vous-même.
-- Achats : la TVA d'une prestation achetée à un fournisseur sous le régime des encaissements n'est déductible qu'une fois payée (CGI art. 271, I, 2). Kledg ne connaît pas le régime du fournisseur et passe la TVA au 44566 à la date de la facture : régularisez dans la déclaration de TVA si besoin. La page de la facture le rappelle.
+- Un règlement lettré à la main dans Lettrage, sans passer par la facture, ne déplace pas la TVA : l'écriture est à passer manuellement.
+- Achats : la TVA d'une prestation achetée à un fournisseur sous le régime des encaissements n'est déductible qu'une fois payée (CGI art. 271, I, 2). Kledg ne connaît pas le régime du fournisseur et passe la TVA au 44566 à la date de la facture ; la régularisation éventuelle se fait dans la déclaration de TVA. La page de la facture le rappelle.
 
 ## Règlements
 
@@ -143,7 +145,7 @@ Bloc **Règlements** de la fiche, `GET /api/invoices/[id]/payments/candidates`, 
 - Une ligne règle une seule facture, pour tout son montant, sans dépasser le reste à payer. Un virement qui règle plusieurs factures se lettre à la main dans Lettrage, avec toutes ses factures.
 - **Paiement partiel** : Kledg n'a pas de lettrage partiel ([lettrage et tiers](lettrage-et-tiers.md#lettrage)). Un règlement qui ne solde pas la facture est enregistré sans lettrage : la facture est « payée partiellement » et son reste dû se déduit des règlements enregistrés.
 - **Paiement complet** : dès que les règlements couvrent la facture, Kledg lettre la ligne de tiers de la facture avec les lignes des règlements par le service de lettrage (groupe équilibré, écritures validées, même exercice, code suivant du compte). Si ce n'est pas encore possible (écriture de la facture en brouillon, règlement sur l'exercice suivant), la facture est « payée », la raison est affichée et **Lettrer avec ses règlements** relance le lettrage plus tard. Un règlement sur l'exercice suivant se lettre avec les à-nouveaux dans Lettrage.
-- Une facture lettrée à la main dans Lettrage est « payée ». Pour retirer un règlement d'une facture lettrée, délettrez-la d'abord.
+- Une facture lettrée à la main dans Lettrage est « payée ». Retirer un règlement d'une facture lettrée exige de la délettrer d'abord.
 
 ## Import Qonto
 
@@ -158,12 +160,12 @@ Points d'accès utilisés, vérifiés dans la référence publique de l'API Busi
 | `GET /v2/supplier_invoices` | `supplier_invoice.read` | Factures d'achat : fournisseur, numéro, dates, statut, totaux, détail `taxes` (taux en pourcentage « 20 »), pièce ; pas de lignes |
 | `GET /v2/attachments/{id}` | `attachment.read` | Le PDF de la facture : lien signé valable 30 minutes |
 
-Non utilisés : Qonto ne publie pas de liste des fournisseurs (ils viennent des factures d'achat), et les points d'accès `/customers`, `/invoices`, `/payments`, `/vendors` et `/suppliers` qu'utilisait l'ancien client ne figurent pas dans la référence publique.
+Non utilisés : Qonto ne publie pas de liste des fournisseurs (ils viennent des factures d'achat). Les points d'accès `/customers`, `/invoices`, `/payments`, `/vendors` et `/suppliers` ne figurent pas dans la référence publique : Kledg ne les appelle pas.
 
 - **Idempotent** : un tiers est retrouvé par son identifiant Qonto, une facture par le sien ; relancer l'import ne crée rien deux fois. Un fournisseur sans identifiant connu est rapproché d'un tiers de même nom.
 - Factures de vente : une ligne Kledg par ligne Qonto ; la TVA par taux est celle du document quand Qonto la donne, et le total doit égaler le total du document au centime. Les brouillons et factures annulées sont ignorés ; une ligne avec remise, ou des montants qui ne tombent pas juste, écartent la facture avec la raison.
 - Factures d'achat : une ligne par taux, dont la base se déduit de la taxe (taxe / taux), le reste du total hors taxe allant au taux de 0 % s'il existe, sinon à la plus grosse base ; chaque base doit redonner sa taxe à un centime près. La TVA retenue est celle du document. Les factures rejetées ou écartées chez Qonto sont ignorées.
-- Une facture importée est un brouillon qui garde les montants du document : choisissez le compte de ses lignes (ou un compte par défaut sur le fournisseur), puis comptabilisez-la. Une facture déjà comptabilisée garde ses montants ; seul son statut Qonto est mis à jour.
+- Une facture importée est un brouillon qui garde les montants du document ; le compte de ses lignes (ou le compte par défaut du fournisseur) est requis pour la comptabiliser. Une facture déjà comptabilisée garde ses montants ; seul son statut Qonto est mis à jour.
 - **Pièce jointe** : Kledg ne stocke aucun fichier (il n'a pas de stockage de fichiers, les justificatifs bancaires fonctionnent de même). Il garde l'identifiant de la pièce et demande un lien frais à Qonto à chaque ouverture (`GET /api/invoices/[id]/attachment`) ; le lien n'est suivi que vers les hôtes de fichiers de Qonto, en https, vers une adresse publique, sans redirection, avec un délai et une taille maximale (`lib/integrations/providers/qonto/files.ts`).
 - Tests : l'API est simulée sur l'adresse du bac à sable Qonto de la configuration (`QONTO_ENVIRONMENT=sandbox`), sans réseau.
 
@@ -176,11 +178,10 @@ Non utilisés : Qonto ne publie pas de liste des fournisseurs (ils viennent des
 | 1er septembre 2026 | Toutes les entreprises assujetties à la TVA établies en France doivent pouvoir **recevoir** les factures électroniques de leurs fournisseurs assujettis établis en France, par une plateforme agréée de leur choix. Les grandes entreprises et les ETI **émettent** leurs factures électroniques et transmettent leurs données de transaction (ventes aux particuliers, opérations internationales) et de paiement (e-reporting). |
 | 1er septembre 2027 | Les PME et les microentreprises émettent à leur tour leurs factures électroniques et transmettent leurs données de transaction et de paiement. |
 
-Ce que cela veut dire pour une société qui tient ses comptes dans Kledg :
+Conséquences pour Kledg :
 
-- Choisissez une plateforme agréée (liste publiée par la DGFiP sur impots.gouv.fr) pour recevoir vos factures fournisseurs, et pour émettre vos factures de vente quand l'émission vous devient obligatoire. Le portail public de facturation n'est pas une plateforme d'échange entre entreprises (Chorus Pro reste celui des factures adressées au secteur public).
-- Kledg enregistre ensuite ces factures en comptabilité : saisie, import Qonto, ou, plus tard, import du fichier. **Kledg n'importe pas encore de fichier Factur-X, UBL ou CII.**
-- Les mentions de la réforme (SIREN du client, adresse de livraison si elle diffère, catégorie de l'opération, option pour le paiement de la TVA d'après les débits, CGI ann. II art. 242 nonies A, I, 1°, 7° bis, 8° bis et 11° bis) sont portées par le document émis par votre outil de facturation ou votre plateforme. Kledg garde celles dont la comptabilité a besoin.
+- La réception et l'émission passent par la plateforme agréée choisie par la société (liste DGFiP sur impots.gouv.fr ; Chorus Pro reste le portail du secteur public). Kledg enregistre ensuite les factures : saisie, import Qonto, plus tard import du fichier. **Kledg n'importe pas encore de fichier Factur-X, UBL ou CII.**
+- Les mentions de la réforme (SIREN du client, adresse de livraison si elle diffère, catégorie de l'opération, option pour le paiement de la TVA d'après les débits, CGI ann. II art. 242 nonies A, I, 1°, 7° bis, 8° bis et 11° bis) sont portées par le document émis par l'outil de facturation ou la plateforme. Kledg garde celles dont la comptabilité a besoin.
 
 Le modèle de facture de Kledg est déjà aligné sur la norme EN 16931, pour qu'un import électronique produise les mêmes données qu'une saisie :
 
@@ -208,8 +209,8 @@ L'écriture d'une facture reprise est celle que `postInvoice` crée dans l'exerc
 
 ## Limites
 
-- Kledg n'émet ni n'envoie de facture, et ne gère ni acompte, ni retenue de garantie, ni facture en devise. Il ne produit donc pas les mentions obligatoires d'une facture (CGI ann. II art. 242 nonies A, Code de commerce art. L441-9) : votre outil de facturation en a la charge.
-- Un avoir (381) n'enregistre pas la référence de la facture qu'il rectifie, que le document de l'avoir doit porter (BOI-TVA-DECLA-30-20-20-20) : indiquez-la dans le libellé.
-- Les factures de frais de gestion sont numérotées par Kledg dans la série de la convention. Supprimer un brouillon qui n'est pas le dernier de la série laisse un trou dans la numérotation (CGI ann. II art. 242 nonies A, I, 7°) : annulez plutôt une facture émise par un avoir.
+- Kledg n'émet ni n'envoie de facture, et ne gère ni acompte, ni retenue de garantie, ni facture en devise. Il ne produit donc pas les mentions obligatoires d'une facture (CGI ann. II art. 242 nonies A, Code de commerce art. L441-9), qui relèvent de l'outil de facturation.
+- Un avoir (381) n'enregistre pas la référence de la facture qu'il rectifie, que le document de l'avoir doit porter (BOI-TVA-DECLA-30-20-20-20) : à porter dans le libellé.
+- Les factures de frais de gestion sont numérotées par Kledg dans la série de la convention. Supprimer un brouillon qui n'est pas le dernier de la série laisse un trou dans la numérotation (CGI ann. II art. 242 nonies A, I, 7°) : une facture émise s'annule plutôt par un avoir.
 - Une facture d'achat importée de Qonto n'a qu'une ligne par taux : Qonto ne fournit pas les lignes des factures fournisseurs.
 - La TVA des achats de prestations sous le régime des encaissements est passée à la date de la facture (voir plus haut).

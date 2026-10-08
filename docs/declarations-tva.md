@@ -1,16 +1,18 @@
 # Déclarations de TVA
 
-Kledg **prépare** la déclaration de TVA de chaque période à partir des
-écritures validées : chaque montant sur sa ligne du formulaire officiel, avec
-le numéro de la case, les contrôles qui disent si les chiffres sont complets
-et ce qui reste à remplir à la main. **Vous déposez** la déclaration dans
-votre espace professionnel sur impots.gouv.fr : Kledg ne dépose rien, ne
-paie rien et ne transmet rien à l'administration.
+Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
+expliquées) est sur le site : [Les déclarations de TVA](https://www.kledg.com/fr/docs/les-declarations-de-tva).
+Cette page décrit le fonctionnement technique : code, API, règles de calcul,
+droits et limites d'implémentation.
+
+Kledg prépare la CA3 ou la CA12 d'une période depuis les écritures validées
+(lignes, cases, contrôles, lignes à remplir à la main). Kledg ne dépose rien,
+ne paie rien et ne transmet rien à l'administration.
 
 Page : États, Déclarations de TVA (`/<société>/declarations-tva`, mode
-expert). Code : `lib/vat-returns`. Remplace la partie TVA du module de
-déclarations de l'ancienne application, réécrite ; l'IS, la CFE et la CVAE
-n'en font pas partie.
+expert). Code : `lib/vat-returns`. L'IS, la CFE et la CVAE ont leurs
+propres modules ([impôt sur les sociétés](impot-societes.md),
+[impôts locaux](impots-locaux.md)).
 
 ## Quelle déclaration
 
@@ -266,7 +268,7 @@ un verrou par société et période et le verrou de l'exercice : un brouillon
 identique est gardé, un brouillon périmé (une écriture ajoutée depuis) est
 supprimé et préparé de nouveau, une liquidation validée n'est jamais
 modifiée (elle se corrige par contre-passation). Kledg ne valide jamais
-l'écriture : vous la validez une fois la déclaration déposée. Les lignes à
+l'écriture : elle se valide une fois la déclaration déposée. Les lignes à
 remplir à la main ne sont pas dans l'écriture.
 
 ## Dépôt enregistré

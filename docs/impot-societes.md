@@ -1,17 +1,19 @@
 # Impôt sur les sociétés
 
-Kledg **prépare** l'impôt sur les sociétés de chaque exercice à partir des
-écritures validées : le passage du résultat comptable au résultat fiscal,
-ligne par ligne avec la ligne du tableau officiel, les déficits reportables,
-l'impôt au taux réduit et au taux normal, la contribution sociale, le solde
-à payer, les acomptes de l'exercice suivant, les contrôles et ce qui reste à
-saisir à la main. **Vous déclarez et payez** sur impots.gouv.fr (déclaration
-2065-SD et sa liasse, relevés d'acompte 2571-SD et de solde 2572-SD) : Kledg
-ne dépose rien, ne paie rien et ne transmet rien à l'administration.
+Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
+expliquées) est sur le site : [L'impôt sur les sociétés](https://www.kledg.com/fr/docs/l-impot-sur-les-societes).
+Cette page décrit le fonctionnement technique : code, API, règles de calcul,
+droits et limites d'implémentation.
+
+Kledg calcule l'IS d'un exercice depuis les écritures validées (résultat
+fiscal, déficits, taux, contribution sociale, solde, acomptes suivants,
+contrôles, lignes à la main). Formulaires visés : 2065-SD et sa liasse,
+2571-SD, 2572-SD. Kledg ne dépose rien, ne paie rien et ne transmet rien à
+l'administration.
 
 Page : États, Impôt sur les sociétés (`/<société>/impot-societes`, mode
-expert). Code : `lib/corporate-tax`. Remplace la partie IS du module de
-déclarations de l'ancienne application, réécrite avec les barèmes en vigueur.
+expert). Code : `lib/corporate-tax`. Barèmes et règles en vigueur pour les
+exercices clos en 2026, avec leurs sources ci-dessous.
 
 ## Quelle société, quels formulaires
 

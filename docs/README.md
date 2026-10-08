@@ -1,37 +1,51 @@
 # Documentation
 
-- [Auto-hébergement](self-hosting.md) : déployer Kledg sur Vercel et Neon, ou ailleurs
-- [Configuration](configuration.md) : toutes les variables d'environnement
-- [Serveur MCP](mcp.md) : connecter Claude ou ChatGPT à votre instance
-- [Architecture](architecture.md) : organisation du code et principes
-- [Conformité](conformite.md) : ce que Kledg garantit et ne garantit pas au regard du Code de commerce, du PCG, du FEC, de la facturation électronique et du RGPD, pour les utilisateurs et les auditeurs
-- [Conventions](conventions.md) : règles d'écriture du code, appliquées par le lint et les tests (en anglais)
-- [Mettre à jour son instance](self-hosting.md#mettre-à-jour)
-- [Connexions bancaires](connexions-bancaires.md) : Qonto et Revolut Business en direct, Ponto pour les autres banques, import de fichiers
-- [Importer un relevé bancaire](importer-un-releve-bancaire.md) : CSV, Excel, OFX et camt.053 pour les banques sans synchronisation
-- [Règles d'affectation](regles-d-affectation.md) : quand une règle crée l'écriture d'une transaction
-- [Bibliothèque de règles](bibliotheque-de-regles.md) : règles prêtes à l'emploi pour les fournisseurs et paiements courants, avec leur TVA et ses sources, suggestions d'après les transactions, copie depuis une autre société ; format d'un modèle et contribution
-- [Lettrage et tiers](lettrage-et-tiers.md) : lettrage des comptes de tiers, balance auxiliaire, balance âgée, justificatifs manquants
-- [Factures et tiers](factures-et-tiers.md) : clients et fournisseurs, factures d'achat et de vente, comptabilisation, TVA sur les encaissements, règlements, import Qonto, facturation électronique
-- [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, validation, comptabilisation et remboursement
-- [Catégories simples](categories-simples.md) : mode simple, catégories en langage courant et leurs comptes, TVA récupérable, questions, dépenses à vérifier, règles apprises, validation par l'expert-comptable
-- [Abonnements](abonnements.md) : paiements récurrents détectés dans les opérations bancaires, rythme, coût annuel, prix modifié ou arrêt, ajout au budget
-- [Indicateurs financiers](indicateurs-financiers.md) : soldes intermédiaires de gestion, capacité d'autofinancement, besoin en fonds de roulement, trésorerie nette, délais de paiement et ratios, avec leurs comptes et les lignes des formulaires
-- [Budget](budget.md) : budget de l'exercice par compte et par mois, éléments récurrents, comparaison avec les écritures validées
-- [Prévision de trésorerie](prevision-tresorerie.md) : solde bancaire projeté sur 3, 6 ou 12 mois à partir des factures ouvertes, des échéances fiscales, des paiements récurrents, du budget et du rythme récent, seuil d'alerte sur le tableau de bord et l'accueil simple
-- [Provisions et subventions](provisions-et-subventions.md) : provisions pour risques et charges, dépréciations, créances douteuses, subventions d'investissement, travaux de clôture en brouillon, composition du capital
-- [Approbation des comptes](approbation-des-comptes.md) : selon la forme juridique, convocation, rapport de gestion, procès-verbal ou décision de l'associé unique avec l'affectation du résultat, feuille de présence, déclaration de confidentialité et dépôt au greffe, en PDF et en Markdown
-- [Annexe, méthodes comptables et formulaires 2054, 2055, 2033-C](annexe-et-2054.md) : annexe selon la catégorie de taille (informations à la suite du bilan d'une micro-entreprise, annexe simplifiée, annexe complète), registre des méthodes, changements de méthode et corrections d'erreurs avec leur écriture en brouillon, mouvements des immobilisations et des amortissements rapprochés du bilan et du registre, en PDF, Markdown et CSV
-- [Frais de gestion](frais-de-gestion.md) : conventions d'une holding avec ses filiales, coûts majorés d'une marge, clés de répartition, factures de vente et factures d'achat proposées
-- [Vue groupe](vue-groupe.md) : vue combinée d'une holding et de ses filiales, flux intragroupe et éliminations indicatives, trésorerie du groupe, tableau des filiales et participations
-- [Impôt sur les sociétés](impot-societes.md) : résultat fiscal depuis les écritures validées avec les lignes de la 2033-B ou de la 2058-A, déficits reportables, taux de 15 % et 25 %, contribution sociale, solde et acomptes de l'exercice suivant, écritures en brouillon, dépôt enregistré ; la déclaration et les paiements se font sur impots.gouv.fr
-- [Rémunération et dividendes](remuneration-dividendes.md) : simulation indicative, pas un conseil, de ce que garde le dirigeant associé d'une société à l'IS en rémunération, en dividendes ou en mixte, avec l'optimum, les cotisations, l'impôt sur les sociétés, la réserve légale, le PFU ou le barème, les sources ; scénarios enregistrés et dividendes proposés à l'approbation des comptes
-- [Organisme de formation](organisme-de-formation.md) : déclaration d'activité (DREETS), mention d'exonération des ventes de formation, coefficient de déduction de TVA (provisoire, définitif, régularisation avant le 25 avril), bilan pédagogique et financier (cadre C depuis les comptes), taxe sur les salaires
-- [Impôts locaux (CFE, CVAE)](impots-locaux.md) : CFE d'après l'avis d'imposition (acompte du 15 juin, solde, année de création, charge prévue au 63511, écritures en brouillon), CVAE calculée sur la valeur ajoutée des comptes aux taux de la loi en vigueur (0,28 % en 2026, supprimée en 2030), plafonnement de la CET
-- [Échéances et suivi des déclarations](echeances.md) : calendrier fiscal et juridique avec ses sources, statut de chaque échéance (à faire, déposée, payée, en retard, non due), enregistrement des dépôts et paiements sans double saisie
-- [Déclarations de TVA](declarations-tva.md) : préparation de la CA3 et de la CA12 depuis les écritures validées, lignes et cases du formulaire, contrôles, écriture de liquidation en brouillon, dépôt enregistré ; la déclaration se dépose sur impots.gouv.fr
-- [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions par défaut et personnalisation
-- [Mode simple](mode-simple.md) : affichage simple, standard ou expert par utilisateur, navigation et accueil du mode simple, vocabulaire sans jargon
-- [Modes d'affichage et menu personnalisé](modes-et-menu.md) : mode Standard (pages expertes, menu du quotidien), entrées et groupes du menu masqués par utilisateur et par société
+La documentation de Kledg est répartie en deux endroits :
 
-La documentation utilisateur (prise en main, import FEC, banque, clôture) est publiée sur [kledg.com](https://www.kledg.com).
+- **Les guides d'utilisation** sont sur le site : [www.kledg.com/fr/docs](https://www.kledg.com/fr/docs). Ils s'adressent au dirigeant et à l'expert-comptable : à quoi sert chaque fonctionnalité, les étapes dans l'interface, les règles de droit expliquées, les limites à connaître. Leur source est dans le dépôt du site (`content/docs/fr`).
+- **La documentation technique** est ici, dans `docs/` : architecture, conventions, sécurité, configuration, auto-hébergement, serveur MCP, et pour chaque fonctionnalité son fonctionnement technique (code, API, règles de calcul, droits, limites d'implémentation). Chaque page de fonctionnalité commence par un lien vers son guide.
+
+## Technique
+
+- [Architecture](architecture.md) : organisation du code et principes
+- [Conventions](conventions.md) : règles d'écriture du code, appliquées par le lint et les tests (en anglais)
+- [Design system](design-system.md) : jetons, composants et règles de l'interface (en anglais)
+- [Audit de l'interface](ui-audit.md) : audit de chaque écran, octobre 2026 (en anglais)
+- [Points d'extension](extension-points.md) : politique de l'instance et emplacements d'interface pour une instance personnalisée (en anglais)
+- [Isolation des sociétés dans la base (RLS)](rls.md) : politiques PostgreSQL, rôle applicatif, contextes système (en anglais)
+- [Configuration](configuration.md) : toutes les variables d'environnement
+- [Auto-hébergement](self-hosting.md) : déployer Kledg sur Vercel et Neon, ou ailleurs ; [mettre à jour son instance](self-hosting.md#mettre-à-jour)
+- [Serveur MCP](mcp.md) : outils, droits, journal d'audit, couverture des fonctionnalités et inventaire de l'API
+- [Vues MCP](mcp-views.md) : vues interactives renvoyées par les outils du serveur MCP
+- [Conformité](conformite.md) : mécanismes qui assurent la tenue de la comptabilité, le FEC et le RGPD
+
+## Fonctionnalités : fonctionnement technique
+
+Chaque page renvoie à son guide sur le site.
+
+- [Connexions bancaires](connexions-bancaires.md) : Qonto, Revolut Business, Ponto, synchronisation planifiée
+- [Importer un relevé bancaire](importer-un-releve-bancaire.md) : formats, détection, empreintes et doublons
+- [Règles d'affectation](regles-d-affectation.md) : application des règles, écritures créées
+- [Bibliothèque de règles](bibliotheque-de-regles.md) : modèles de règles, suggestions, copie depuis une autre société ; format d'un modèle et contribution
+- [Lettrage et tiers](lettrage-et-tiers.md) : lettrage, balance auxiliaire, balance âgée, justificatifs manquants
+- [Factures et tiers](factures-et-tiers.md) : tiers, factures, comptabilisation, TVA sur les encaissements, règlements, import Qonto
+- [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, comptabilisation
+- [Mode simple](mode-simple.md) : affichage simple, standard ou expert, navigation
+- [Modes d'affichage et menu personnalisé](modes-et-menu.md) : mode Standard, entrées et groupes du menu masqués
+- [Catégories simples](categories-simples.md) : catégories et comptes, propositions, règles apprises, validation
+- [Tableau de bord](tableau-de-bord.md) : widgets, sources de données, dispositions
+- [Abonnements](abonnements.md) : détection des paiements récurrents
+- [Budget](budget.md) : budget par compte et par mois, comparaison avec le réalisé
+- [Prévision de trésorerie](prevision-tresorerie.md) : solde bancaire projeté, sources de la prévision, seuil d'alerte
+- [Indicateurs financiers](indicateurs-financiers.md) : SIG, CAF, BFR, trésorerie nette, ratios, avec leurs comptes
+- [Provisions et subventions](provisions-et-subventions.md) : provisions, dépréciations, subventions d'investissement, travaux de clôture
+- [Approbation des comptes](approbation-des-comptes.md) : documents d'approbation selon la forme juridique, dépôt
+- [Annexe, méthodes comptables et formulaires 2054, 2055, 2033-C](annexe-et-2054.md) : annexe selon la catégorie de taille, registre des méthodes, tableaux des immobilisations et des amortissements
+- [Rémunération et dividendes](remuneration-dividendes.md) : simulation indicative rémunération, dividendes ou mixte, scénarios enregistrés
+- [Organisme de formation](organisme-de-formation.md) : exonération de TVA, coefficient de déduction, bilan pédagogique et financier, taxe sur les salaires
+- [Déclarations de TVA](declarations-tva.md) : CA3 et CA12, lignes et cases, liquidation
+- [Impôt sur les sociétés](impot-societes.md) : résultat fiscal, taux, acomptes, écritures
+- [Impôts locaux (CFE, CVAE)](impots-locaux.md) : CFE, CVAE, plafonnement
+- [Échéances et suivi des déclarations](echeances.md) : calendrier, statuts, dépôts et paiements
+- [Vue groupe](vue-groupe.md) : espace groupe d'une holding, flux et éliminations
+- [Frais de gestion](frais-de-gestion.md) : conventions entre une holding et ses filiales
