@@ -268,7 +268,7 @@ export function InvoiceNumberingCard({ companyId, today = new Date() }: { compan
                   label="Prochain numéro de facture"
                   htmlFor="numbering-next-invoice"
                   optional
-                  hint="Vous venez d’un autre outil ? Indiquez où reprend la séquence de la période en cours. Il ne peut que monter."
+                  hint="Vous venez d’un autre outil ? Indiquez où reprend la séquence de la période en cours, avant la première facture numérotée par Kledg. Il ne peut que monter, sans laisser de trou."
                 >
                   <Input id="numbering-next-invoice" inputMode="numeric" value={nextInvoice} onChange={(e) => setNextInvoice(e.target.value)} placeholder={String(sequenceOf(view, 'INVOICE', year))} />
                 </Field>

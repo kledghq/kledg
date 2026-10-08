@@ -18,6 +18,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { expenseActorOf } from '@/lib/expense-reports/actor'
 import { assignPriorDistances, computeReport, type LineInput } from '@/lib/expense-reports/amounts'
+import { withDeduction } from '@/lib/expense-reports/deduction'
 import { EXPENSE_LINE_CATEGORIES, type ExpenseCategory } from '@/lib/expense-reports/categories'
 import { matchCategoryRule } from '@/lib/expense-reports/category-rules'
 import { listCategoryRules } from '@/lib/expense-reports/manage-category-rules.service'
@@ -53,7 +54,7 @@ const input = {
         category: z
           .enum(EXPENSE_LINE_CATEGORIES as [ExpenseCategory, ...ExpenseCategory[]])
           .optional()
-          .describe('TRANSPORT, LODGING, MEALS, RECEPTION, FUEL, SUPPLIES, POSTAGE, GIFTS or OTHER. Omitted: the company’s keyword rules, else OTHER.'),
+          .describe('TRANSPORT, TOLLS_PARKING, LODGING, MEALS, RECEPTION, FUEL, SUPPLIES, POSTAGE, GIFTS or OTHER. Omitted: the company’s keyword rules, else OTHER.'),
         accountCode: z.string().max(20).optional().describe('Expense account (class 6); omitted: the category’s.'),
         amountPaid: z.number().min(0).max(1e9).describe('Amount paid, VAT included, in euros.'),
         vatRate: z.number().min(0).max(100).default(0).describe('VAT rate in percent shown on the receipt: 20, 10, 5.5, 2.1 or 0.'),
@@ -146,7 +147,6 @@ async function previewOf(args: Args, actor: ExpenseActor) {
     mealRulesOn(args.companyId, lines.map((l) => l.date)),
     loadMealRule(args.companyId, actor, { claimantId, day: args.periodEnd }),
   ])
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: args.companyId }, select: { isVatExempt: true } })
   const { rules } = await listCategoryRules(args.companyId)
   const inputs = assignPriorDistances(
     lines.map<LineInput>((l) => ({
@@ -164,7 +164,8 @@ async function previewOf(args: Args, actor: ExpenseActor) {
     })),
     {},
   )
-  const totals = computeReport(inputs, { vatExempt: company.isVatExempt })
+  // Franchise and coefficient de déduction on each line's day, as the report will record them
+  const totals = computeReport(await withDeduction(args.companyId, inputs), { vatExempt: false })
   return {
     periodStart: args.periodStart,
     periodEnd: args.periodEnd,

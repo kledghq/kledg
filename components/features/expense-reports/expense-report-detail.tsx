@@ -35,6 +35,8 @@ export interface ExpenseReportDetailData {
   own: boolean
   returnNote: string | null
   vatExempt: boolean
+  /** Coefficient de déduction of each year (CGI ann. II art. 205); null: full deduction. */
+  deductionPercentByYear?: Record<string, number | null>
   claimant: { id: string; name: string; kind: 'EMPLOYEE' | 'DIRIGEANT' | 'ASSOCIE'; auxiliaryAccountNumber: string; accountCode: string | null }
   totalInclTaxCents: number
   recoverableVatCents: number

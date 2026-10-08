@@ -62,13 +62,14 @@ describe('provisional and definitive coefficients', () => {
   })
 
   it('regularises the BOFiP example: 784 € x 50 % less 352,80 € deducted at 45 % is 39,20 €', () => {
-    expect(regularisationCents(78_400, 45, 50)).toBe(3_920)
+    // BOI-TVA-DED-20-10-40, example 3: "784 x 0,5 - 352,80 = 39,20 €"
+    expect(regularisationCents(78_400, 35_280, 50)).toBe(3_920)
     expect(incurredFromDeducted(35_280, 45)).toBe(78_400)
   })
 
   it('pays back VAT when the definitive coefficient is lower, whatever the size (BOI-TVA-DED-20-10-20 §460)', () => {
-    expect(regularisationCents(10_000, 60, 59)).toBe(-100)
-    expect(regularisationCents(10_000, 60, 60)).toBe(0)
+    expect(regularisationCents(10_000, 6_000, 59)).toBe(-100)
+    expect(regularisationCents(10_000, 6_000, 60)).toBe(0)
     expect(percentOf(-333, 50)).toBe(-167)
   })
 
@@ -126,5 +127,21 @@ describe('revenue of the coefficient de taxation (BOI-TVA-DED-20-10-20 §90 to �
 
   it('counts a negative balance (credit notes above sales) as nothing', () => {
     expect(classifyAccount(row('706', -5_000), [])).toMatchObject({ taxableCents: 0, exemptCents: 0, toClassifyCents: 0 })
+  })
+})
+
+// R3 QUAL-02: the regularisation compares the definitive coefficient with
+// the VAT actually deducted, not with the provisional coefficient recomputed
+// at the end of the year (CGI ann. II art. 207, I).
+describe('regularisation against the coefficient actually applied', () => {
+  it('first year without an estimate: 1 000 € deducted at 100 % early in the year, definitive 60 %: 400 € to pay back', () => {
+    const definitive = deductionPercent(100, 60)
+    // The VAT borne cannot be read back from the books (the coefficient moved): entered, 1 000 €
+    expect(regularisationCents(100_000, 100_000, definitive)).toBe(-40_000)
+  })
+
+  it('an estimate changed mid-year: 500 € deducted at 80 %, then 300 € at 50 %, definitive 55 %', () => {
+    // VAT borne entered: 625 € + 600 € = 1 225 €; deducted 800 €; 1 225 x 55 % = 673,75 €
+    expect(regularisationCents(122_500, 80_000, 55)).toBe(67_375 - 80_000)
   })
 })

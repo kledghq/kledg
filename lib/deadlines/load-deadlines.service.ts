@@ -98,6 +98,26 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
     WHERE e."companyId" = ${companyId} AND e."status" = 'validated' AND a."code" LIKE '70%'
     GROUP BY 1
   `
+  // Loi n° 2025-127, art. 38, 5° a (CGI art. 287, 3 from 2027): the thresholds compare "le chiffre d'affaires
+  // majoré des acquisitions taxables", the turnover plus the operations for which the company is liable under
+  // CGI art. 283, 2 to 2 decies. Read here: the services self-assessed on 4452 (a service counterpart, as the
+  // VAT return reads them, classify.ts), not the purchases of art. 283, 1 (44528). Whether the
+  // intra-Community acquisitions of goods count was not confirmed in the text: left out.
+  const selfAssessed = await prisma.$queryRaw<Array<{ year: number; cents: bigint }>>`
+    SELECT extract(year FROM e."date")::int AS year, round(sum(l."debit" - l."credit") * 100)::bigint AS cents
+    FROM "entry_lines" l
+    JOIN "accounting_entries" e ON e."id" = l."accountingEntryId"
+    JOIN "accounts" a ON a."id" = l."accountId"
+    WHERE e."companyId" = ${companyId} AND e."status" = 'validated'
+      AND a."code" LIKE '6%' AND (a."code" NOT LIKE '60%' OR a."code" LIKE '604%')
+      AND EXISTS (
+        SELECT 1 FROM "entry_lines" v JOIN "accounts" va ON va."id" = v."accountId"
+        WHERE v."accountingEntryId" = e."id" AND va."code" LIKE '4452%' AND va."code" NOT LIKE '44528%' AND v."credit" > 0
+      )
+    GROUP BY 1
+  `
+  const thresholdCents = new Map<number, number>()
+  for (const row of [...turnover, ...selfAssessed]) thresholdCents.set(row.year, (thresholdCents.get(row.year) ?? 0) + Number(row.cents))
   const local = localTaxes.map((row) => ({ year: row.year, cfeTotalCents: row.cfeTotal === null ? null : parseCents(row.cfeTotal), cfeAcompteCents: row.cfeAcompte === null ? null : parseCents(row.cfeAcompte) }))
   return {
     company: {
@@ -114,8 +134,8 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
         isVatExempt: r.isVatExempt,
         establishmentId: r.establishmentId,
       })),
-      // Chiffre d'affaires per calendar year: the threshold of the quarterly CA3 from 2027
-      turnoverCentsByYear: Object.fromEntries(turnover.map((row) => [row.year, Number(row.cents)])),
+      // Chiffre d'affaires majoré des acquisitions taxables per calendar year: the threshold of the quarterly CA3 from 2027
+      turnoverCentsByYear: Object.fromEntries(thresholdCents),
     },
     fiscalYears: fiscalYears.map((fy) => ({ id: fy.id, year: fy.year, startDate: day(fy.startDate), endDate: day(fy.endDate), isClosed: fy.isClosed })),
     settings: parseDeadlineSettings(company.deadlineSettings),

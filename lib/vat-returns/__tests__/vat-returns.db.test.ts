@@ -373,4 +373,43 @@ describe.skipIf(!available)('VAT returns (PostgreSQL)', () => {
     const year = await prisma.fiscalYear.findUniqueOrThrow({ where: { id: books.fiscalYearId } })
     expect(year.periodLockedThrough?.toISOString()).toBe('2026-08-31T00:00:00.000Z')
   })
+
+  // R3 QUAL-09: the automatic closing must not block the drafts Kledg prepares. PCG art. 1031-4 and
+  // BOI-BIC-DECLA-30-10-20-40 § 130 and 140: an operation of a closed period is booked on the first
+  // open day with its real date; a period is closed before the end of the following one.
+  it('prepares the settlement of a closed period on the first open day, and closes up to the day before a settlement draft', async () => {
+    const dateOf = async (id: string) => {
+      const e = await prisma.accountingEntry.findUniqueOrThrow({ where: { id }, select: { date: true, pieceDate: true } })
+      return [e.date.toISOString().slice(0, 10), e.pieceDate?.toISOString().slice(0, 10) ?? null]
+    }
+    // The drafts the earlier tests left in September and October are the user's: not this test's subject
+    for (const entry of await prisma.accountingEntry.findMany({ where: { companyId: books.companyId, status: 'draft', date: { lte: new Date('2026-11-30T00:00:00Z') } } })) {
+      await svc.deleteDraftEntry(books.companyId, entry.id)
+    }
+    // Filing first: October is closed with its filing, then its settlement is prepared, without deleting anything
+    const NOVEMBER = new Date('2026-11-10T09:00:00Z')
+    await book('VE', '2026-10-10', 'Facture octobre', [['411000', 600, 0], ['706000', 0, 500], ['445710', 0, 100]])
+    const october = await filing.recordVatFiling(books.companyId, { period: '2026-10', filedOn: '2026-11-10', amountDueCents: 10_000, creditCents: 0 }, { now: NOVEMBER, userId: USERS.owner.id })
+    expect(october.periodLock).toEqual({ locked: [{ fiscalYearId: books.fiscalYearId, through: '2026-10-31' }], skipped: [] })
+    const settled = await settle.prepareVatSettlement(books.companyId, '2026-10', { now: NOVEMBER })
+    expect(settled).toMatchObject({ status: 'created', reference: 'TVA-CA3-2026-10' })
+    expect(settled.message).toContain('01/11/2026')
+    // On the first open day, its real date as the date of the document
+    expect(await dateOf(settled.entryId as string)).toEqual(['2026-11-01', '2026-10-31'])
+    expect((await svc.validateEntries(books.companyId, [settled.entryId as string])).errors).toEqual([])
+
+    // Settlement first: the November draft, dated 30 November, does not stop the closing, which ends on 29 November
+    const DECEMBER = new Date('2026-12-10T09:00:00Z')
+    await book('VE', '2026-11-10', 'Facture novembre', [['411000', 1_200, 0], ['706000', 0, 1_000], ['445710', 0, 200]])
+    const november = await settle.prepareVatSettlement(books.companyId, '2026-11', { now: DECEMBER })
+    expect(november.status).toBe('created')
+    expect(await dateOf(november.entryId as string)).toEqual(['2026-11-30', null])
+    const novemberFiling = await filing.recordVatFiling(books.companyId, { period: '2026-11', filedOn: '2026-12-10', amountDueCents: 20_000, creditCents: 0 }, { now: DECEMBER, userId: USERS.owner.id })
+    expect(novemberFiling.periodLock).toEqual({ locked: [{ fiscalYearId: books.fiscalYearId, through: '2026-11-29' }], skipped: [] })
+    // The November return reads the October settlement dated 1 November as clearing October, not as an operation
+    const { view } = await load.buildVatReturn(books.companyId, '2026-11', DECEMBER)
+    expect(lineOf(view, '08')).toMatchObject({ base: 1_000, amount: 200 })
+    expect(view.checks.find((c) => c.id === 'balances')?.severity).toBe('ok')
+    expect((await svc.validateEntries(books.companyId, [november.entryId as string])).errors).toEqual([])
+  })
 })

@@ -10,6 +10,8 @@
  */
 
 import { logger } from '@/lib/logger'
+import { bankVatInEuros } from '@/lib/banking/bank-vat'
+import { toCents } from '@/lib/utils/money'
 
 export interface Account {
   id: string
@@ -411,19 +413,12 @@ export interface PreviewTransaction {
 
 /**
  * VAT detected by the bank on a transaction, read as the rule executor
- * reads it (lib/transactions/rule-executor.ts): the stored columns first,
- * then the provider payload; a negative rate (Qonto's "non standard") is
- * ignored. Null when the bank detected nothing.
+ * reads it (lib/banking/bank-vat.ts, one rule for every module): the stored
+ * columns first, then the provider payload, only what can be trusted on the
+ * amount paid. Null when the bank detected nothing usable.
  */
 export function transactionVatOf(tx: PreviewTransaction): { vatRate: number | null; vatAmount: number | null } | null {
-  const providerData = (tx.providerData ?? null) as { vat_rate?: number; vat_amount?: number; vat_amount_cents?: number } | null
-  const rawRate = tx.vatRate != null ? Number(tx.vatRate) : (providerData?.vat_rate ?? null)
-  const vatRate = rawRate != null && Number.isFinite(rawRate) && rawRate >= 0 ? rawRate : null
-  const vatAmount =
-    tx.vatAmount != null
-      ? Number(tx.vatAmount)
-      : (providerData?.vat_amount ?? (providerData?.vat_amount_cents != null ? providerData.vat_amount_cents / 100 : null))
-  return vatRate != null || vatAmount != null ? { vatRate, vatAmount } : null
+  return bankVatInEuros(tx, Math.abs(toCents(tx.amount) ?? 0))
 }
 
 /** Parses a JSON array passed in the URL by "Créer une règle à partir de cette transaction". */

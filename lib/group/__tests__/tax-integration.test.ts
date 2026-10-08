@@ -74,6 +74,38 @@ describe('who can be a member', () => {
     expect(interests.get('e')).toBe(5000)
   })
 
+  // R3 QUAL-08: CGI art. 223 A requires 95 % at least; an indirect holding is
+  // the product of the rates (BOI-IS-GPE-10-20-10 § 140), compared exactly.
+  it('refuses a holding of 94,996818 % (99,86 % x 95,13 %) that rounds to 95 %', () => {
+    const interests = integrationInterests('P', ['P', 'A', 'B'], [
+      { holderId: 'P', companyId: 'A', bp: 9986 },
+      { holderId: 'A', companyId: 'B', bp: 9513 },
+    ])
+    expect(interests.get('A')).toBe(9986)
+    // Shown rounded down at 94,99 %: not a member
+    expect(interests.get('B')).toBe(9499)
+    // Exactly 95 % through a chain is enough: 100 % x 95 %
+    const exact = integrationInterests('P', ['P', 'A', 'B'], [
+      { holderId: 'P', companyId: 'A', bp: 10000 },
+      { holderId: 'A', companyId: 'B', bp: 9500 },
+    ])
+    expect(exact.get('B')).toBe(9500)
+  })
+
+  it('leaves out a sub-subsidiary held at 94,996818 % from the simulation', () => {
+    const sim = simulateTaxIntegration(
+      input({
+        companies: [company('h'), company('a'), company('b')],
+        holdings: [
+          { holderId: 'h', companyId: 'a', bp: 9986 },
+          { holderId: 'a', companyId: 'b', bp: 9513 },
+        ],
+      }),
+    )
+    expect(sim.members.find((m) => m.companyId === 'b')).toMatchObject({ interestBp: 9499, member: false })
+    expect(sim.members.find((m) => m.companyId === 'a')).toMatchObject({ interestBp: 9986, member: true })
+  })
+
   it('leaves out a subsidiary under 95 %, one on other dates and one not liable to IS', () => {
     const sim = simulateTaxIntegration(
       input({

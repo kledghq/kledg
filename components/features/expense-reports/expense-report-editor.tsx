@@ -102,6 +102,8 @@ export interface ExpenseReportEditorProps {
   mileageBaselines?: Record<string, number>
   /** The company is under the VAT franchise (CGI art. 293 B): no VAT recovered. */
   vatExempt?: boolean
+  /** Coefficient de déduction of each year (CGI ann. II art. 205), for the preview; null or absent: full deduction. */
+  deductionPercentByYear?: Record<string, number | null>
 }
 
 export const emptyExpenseLine = (kind: 'EXPENSE' | 'MILEAGE', date: string): ExpenseFormLine => ({
@@ -148,7 +150,16 @@ export function lineInputsOf(lines: readonly ExpenseFormLine[]): LineInput[] {
  * typed, with the server's rules (lib/expense-reports/amounts.ts); the
  * server recomputes everything on save.
  */
-export function ExpenseReportEditor({ companyId, reportId, initial, canManage, canReadReceipts = false, mileageBaselines = {}, vatExempt = false }: ExpenseReportEditorProps) {
+export function ExpenseReportEditor({
+  companyId,
+  reportId,
+  initial,
+  canManage,
+  canReadReceipts = false,
+  mileageBaselines = {},
+  vatExempt = false,
+  deductionPercentByYear = {},
+}: ExpenseReportEditorProps) {
   const router = useRouter()
   const today = localDateToIso(new Date())
   const [claimants, setClaimants] = React.useState<ClaimantOption[] | null>(canManage ? null : [])
@@ -202,7 +213,8 @@ export function ExpenseReportEditor({ companyId, reportId, initial, canManage, c
     return () => window.removeEventListener('beforeunload', warn)
   }, [formState.isDirty, submitting])
 
-  const inputs = assignPriorDistances(lineInputsOf(lines ?? []), mileageBaselines)
+  // The coefficient de déduction of the line's year: the server applies the one of its day when saving
+  const inputs = assignPriorDistances(lineInputsOf(lines ?? []), mileageBaselines).map((line) => ({ ...line, deductionPercent: deductionPercentByYear[line.date.slice(0, 4)] ?? null }))
   const totals = computeReport(inputs, { vatExempt })
 
   // Meals of the exploitant at a company taxed at IR: the company side and the claimant's role, for the report's last day

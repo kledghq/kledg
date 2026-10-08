@@ -55,14 +55,15 @@ function Line({ label, value, hint, strong }: { label: string; value: React.Reac
 function InputsCard({ companyId, view, canWrite, onSaved }: { companyId: string; view: PayrollTaxView; canWrite: boolean; onSaved: () => void }) {
   const [employees, setEmployees] = React.useState<Employee[]>(view.data.employees)
   const [association, setAssociation] = React.useState(view.data.association)
-  const [ratio, setRatio] = React.useState(view.data.ratioPercent === null ? '' : String(view.data.ratioPercent))
+  const [ratio, setRatio] = React.useState(view.data.ratioPercent === null ? '' : String(view.data.ratioPercent).replace('.', ','))
   const [previous, setPrevious] = React.useState<number | null>(view.data.previousYearTaxCents)
   const [saving, setSaving] = React.useState(false)
 
   const save = async () => {
-    const ratioPercent = ratio.trim() === '' ? null : Number(ratio)
-    if (ratioPercent !== null && !(Number.isInteger(ratioPercent) && ratioPercent >= 0 && ratioPercent <= 100)) {
-      toast.error('Le rapport est un pourcentage entier de 0 à 100.')
+    const typed = ratio.trim().replace(',', '.')
+    const ratioPercent = typed === '' ? null : Number(typed)
+    if (ratioPercent !== null && !(/^\d{1,3}(\.\d{1,2})?$/.test(typed) && ratioPercent >= 0 && ratioPercent <= 100)) {
+      toast.error('Le rapport est un pourcentage de 0 à 100, avec deux décimales au plus.')
       return
     }
     setSaving(true)
@@ -113,8 +114,8 @@ function InputsCard({ companyId, view, canWrite, onSaved }: { companyId: string;
           </Button>
         ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Rapport d’assujettissement saisi" htmlFor="ts-ratio" optional hint="En pourcentage entier, pour une première année ou des recettes hors du champ de la TVA. Vide : d’après les comptes de l’année précédente.">
-            <Input id="ts-ratio" inputMode="numeric" value={ratio} onChange={(e) => setRatio(e.target.value)} disabled={!canWrite} />
+          <Field label="Rapport d’assujettissement saisi" htmlFor="ts-ratio" optional hint="Part des recettes sans droit à déduction, en pourcentage (10,4 par exemple), pour une première année ou des recettes hors du champ de la TVA. Vide : d’après les comptes de l’année précédente.">
+            <Input id="ts-ratio" inputMode="decimal" value={ratio} onChange={(e) => setRatio(e.target.value)} disabled={!canWrite} />
           </Field>
           <Field label="Taxe de l’année précédente" htmlFor="ts-previous" optional hint="Si Kledg ne la calcule pas : elle fixe la fréquence des relevés.">
             <AmountInput id="ts-previous" value={previous} onValueChange={setPrevious} disabled={!canWrite} />

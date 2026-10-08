@@ -95,6 +95,18 @@ export function vatOnBaseCents(baseCents: number, rateBp: number): number {
   return Number(divideRounded(BigInt(baseCents) * BigInt(rateBp), BigInt(10000)))
 }
 
+/**
+ * VAT included in an amount TTC at a rate in basis points: TTC x rate /
+ * (10 000 + rate), rounded half away from zero, signed (a refund gives the
+ * opposite of the payment). The one rule for a VAT read inside a TTC amount
+ * (simple mode, expense reports, the reconciliation templates); the base is
+ * TTC minus this VAT, so both always add up to the TTC.
+ */
+export function vatIncludedInCents(ttcCents: number, rateBp: number): number {
+  if (rateBp <= 0) return 0
+  return Number(divideRounded(BigInt(ttcCents) * BigInt(rateBp), BigInt(10000 + rateBp)))
+}
+
 export interface AmountLine {
   quantityThousandths: number
   unitPriceCents: number

@@ -209,8 +209,39 @@ describe.skipIf(!available)('deadline routes', () => {
       })
       if (status === 'validated') await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status, entryNumber: n } })
     }
-    const context = await loadDeadlineContext(ids.other)
+    let context = await loadDeadlineContext(ids.other)
     expect(context.company.turnoverCentsByYear).toEqual({ 2026: 110_000_050 })
+
+    // R3 QUAL-24: "le chiffre d'affaires majoré des acquisitions taxables" (loi n° 2025-127, art. 38, 5° a;
+    // CGI art. 287, 3 from 2027) adds the services self-assessed under art. 283, 2; not a purchase of art. 283, 1 (44528)
+    const account = (code: string, label: string) => prisma.account.create({ data: { companyId: ids.other, fiscalYearId: ids.otherFy, code, label } })
+    const [software, deductible, due, due2831, goods] = await Promise.all([
+      account('651100', 'Logiciels'),
+      account('445660', 'TVA déductible'),
+      account('445200', 'TVA due intracommunautaire'),
+      account('445280', 'TVA due, article 283-1'),
+      account('607000', 'Marchandises'),
+    ])
+    const selfAssessed = async (n: string, charge: string, vatDue: string, base: number) => {
+      const entry = await prisma.accountingEntry.create({
+        data: {
+          companyId: ids.other, journalId: journal.id, fiscalYearId: ids.otherFy, entryNumber: `BR-SA-${n}`, date: day('2026-05-31'),
+          lines: {
+            create: [
+              { accountId: charge, accountFiscalYearId: ids.otherFy, debit: base },
+              { accountId: deductible.id, accountFiscalYearId: ids.otherFy, debit: base / 5 },
+              { accountId: vatDue, accountFiscalYearId: ids.otherFy, credit: base / 5 },
+              { accountId: bank.id, accountFiscalYearId: ids.otherFy, credit: base },
+            ],
+          },
+        },
+      })
+      await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status: 'validated', entryNumber: `SA-${n}` } })
+    }
+    await selfAssessed('1', software.id, due.id, 1_000)
+    await selfAssessed('2', goods.id, due2831.id, 5_000)
+    context = await loadDeadlineContext(ids.other)
+    expect(context.company.turnoverCentsByYear).toEqual({ 2026: 110_100_050 })
   })
 
   it('answers 404 to a member of another company and 401 to an anonymous request', async () => {

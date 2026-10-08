@@ -103,6 +103,7 @@ export function EditExpenseReportPage({ companyId, reportId }: { companyId: stri
         canReadReceipts={can({ banking: ['read'] })}
         mileageBaselines={report.mileageBaselines}
         vatExempt={report.vatExempt}
+        deductionPercentByYear={report.deductionPercentByYear}
       />
     </div>
   )

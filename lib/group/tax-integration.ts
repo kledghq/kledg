@@ -201,38 +201,72 @@ export interface IntegrationSimulation {
   sources: Array<{ id: IntegrationSourceKey; label: string; url: string }>
 }
 
+/** An exact fraction (BigInt numerator and denominator, denominator > 0). */
+interface Ratio {
+  n: bigint
+  d: bigint
+}
+
+const gcd = (a: bigint, b: bigint): bigint => {
+  let x = a < BigInt(0) ? -a : a
+  let y = b
+  while (y !== BigInt(0)) [x, y] = [y, x % y]
+  return x === BigInt(0) ? BigInt(1) : x
+}
+const ratio = (n: bigint, d: bigint): Ratio => {
+  const g = gcd(n, d)
+  return { n: n / g, d: d / g }
+}
+const ZERO_RATIO: Ratio = { n: BigInt(0), d: BigInt(1) }
+const ONE_RATIO: Ratio = { n: BigInt(1), d: BigInt(1) }
+const addRatio = (a: Ratio, b: Ratio): Ratio => ratio(a.n * b.d + b.n * a.d, a.d * b.d)
+const mulRatio = (a: Ratio, b: Ratio): Ratio => ratio(a.n * b.n, a.d * b.d)
+const sameRatio = (a: Ratio, b: Ratio): boolean => a.n * b.d === b.n * a.d
+const minOne = (a: Ratio): Ratio => (a.n > a.d ? ONE_RATIO : a)
+/** The fraction in basis points, rounded down: 94,9968 % is 9 499, never 9 500. */
+const floorBp = (a: Ratio): number => Number((a.n * BigInt(10_000)) / a.d)
+/** At least 95 %, compared exactly: n / d >= 9 500 / 10 000. */
+const reachesThreshold = (a: Ratio): boolean => a.n * BigInt(10_000) >= BigInt(INTEGRATION_MIN_BP) * a.d
+
 /**
  * The parent's holding in each company through the members only (art. 223
  * A): the members are the companies held at 95 % at least that way, so the
- * two are found together, step after step until nothing changes. Exact
- * fractions, rounded to the basis point for the threshold.
+ * two are found together, step after step until nothing changes. An
+ * indirect holding is the product of the successive rates (BOI-IS-GPE-10-20-10
+ * § 140, "en multipliant entre eux les taux de détention successifs"), so
+ * 99,86 % x 95,13 % = 94,996818 %: below "95 % au moins" (§ 130). Exact
+ * fractions (BigInt), compared exactly with the threshold; the basis points
+ * returned are rounded down, so a holding shown at 95 % is one.
  */
 export function integrationInterests(parentId: string, companyIds: readonly string[], holdings: ReadonlyArray<{ holderId: string; companyId: string; bp: number }>): Map<string, number> {
-  const direct = new Map<string, Map<string, number>>()
+  const direct = new Map<string, Map<string, Ratio>>()
   for (const h of holdings) {
     if (h.bp <= 0 || h.holderId === h.companyId) continue
-    const row = direct.get(h.companyId) ?? new Map<string, number>()
-    row.set(h.holderId, (row.get(h.holderId) ?? 0) + h.bp / 10_000)
+    const row = direct.get(h.companyId) ?? new Map<string, Ratio>()
+    row.set(h.holderId, addRatio(row.get(h.holderId) ?? ZERO_RATIO, ratio(BigInt(Math.round(h.bp)), BigInt(10_000))))
     direct.set(h.companyId, row)
   }
   let members = new Set<string>([parentId])
-  let interest = new Map<string, number>([[parentId, 1]])
+  let interest = new Map<string, Ratio>([[parentId, ONE_RATIO]])
   for (let step = 0; step < 20; step++) {
-    const next = new Map<string, number>([[parentId, 1]])
+    const next = new Map<string, Ratio>([[parentId, ONE_RATIO]])
     for (const id of companyIds) {
       if (id === parentId) continue
-      let total = 0
-      for (const [holder, fraction] of direct.get(id) ?? []) if (members.has(holder)) total += fraction * (interest.get(holder) ?? 0)
-      next.set(id, Math.min(total, 1))
+      let total = ZERO_RATIO
+      for (const [holder, fraction] of direct.get(id) ?? []) if (members.has(holder)) total = addRatio(total, mulRatio(fraction, interest.get(holder) ?? ZERO_RATIO))
+      next.set(id, minOne(total))
     }
-    const nextMembers = new Set([parentId, ...companyIds.filter((id) => id !== parentId && Math.round((next.get(id) ?? 0) * 10_000) >= INTEGRATION_MIN_BP)])
-    const stable = nextMembers.size === members.size && [...nextMembers].every((id) => members.has(id)) && [...next].every(([id, v]) => Math.abs((interest.get(id) ?? 0) - v) < 1e-9)
+    const nextMembers = new Set([parentId, ...companyIds.filter((id) => id !== parentId && reachesThreshold(next.get(id) ?? ZERO_RATIO))])
+    const stable =
+      nextMembers.size === members.size &&
+      [...nextMembers].every((id) => members.has(id)) &&
+      [...next].every(([id, v]) => sameRatio(interest.get(id) ?? ZERO_RATIO, v))
     members = nextMembers
     interest = next
     if (stable) break
   }
   const result = new Map<string, number>()
-  for (const [id, v] of interest) if (id !== parentId) result.set(id, Math.round(v * 10_000))
+  for (const [id, v] of interest) if (id !== parentId) result.set(id, floorBp(v))
   return result
 }
 

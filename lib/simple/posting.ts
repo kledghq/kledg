@@ -7,8 +7,8 @@
  *    VAT rule (resolvePosting). The durable equipment question applies only
  *    above 500 € HT (BOI-BIC-CHG-20-30-10); below, the purchase is expensed.
  * 2. The VAT included in the amount is the VAT the bank read on the receipt
- *    when it gives a plausible one (at most 20 % of the base, CGI art. 278),
- *    else the category's rate applied to the amount (TTC x rate / (1 + rate),
+ *    when it can be trusted (lib/banking/bank-vat.ts: at most 20 % of the
+ *    base, CGI art. 278; zero only with a rate of 0 %), else the category's rate applied to the amount (TTC x rate / (1 + rate),
  *    rounded half up, lib/expense-reports/vat-recovery.ts).
  * 3. Expenses: the recoverable part follows the category's rule
  *    (recoverableVatByRule: passenger transport and staff lodging nothing,
@@ -18,11 +18,22 @@
  *    nothing for a franchise, CGI art. 293 B). The recoverable VAT goes to 44562 for
  *    a fixed asset, 44566 otherwise (PCG art. 944-44); the rest stays in the
  *    charge or the asset.
- * 4. Income: the collected VAT goes to 44571, unless the company is exempt.
+ * 4. Income: the collected VAT goes to 44571, unless the company is under
+ *    the franchise (CGI art. 293 B). A partly exempt company (coefficient de
+ *    déduction) collects VAT on its taxed sales like any other: the
+ *    coefficient limits what it deducts, never what it collects; an exempt
+ *    sale is the answer "Sans TVA".
  *    A refund of an expense (money in) takes back what the expense booked:
  *    the same lines on the credit side, the recovered VAT included.
  * 5. Movements that are not taxed operations (taxes paid, loans, transfers,
  *    salaries) and categories without VAT: one line for the whole amount.
+ *    Bank fees and payment commissions (rule `detected`, exempt unless the
+ *    bank opted, CGI art. 261 C, 1° and 260 B): the VAT the bank read is
+ *    deducted, none otherwise.
+ *    A service of a supplier established outside France (rule
+ *    `self-assessed`, CGI art. 259, 1° and 283, 2): the amount paid is the
+ *    price without VAT; the VAT at the category's rate is due on 4452 and
+ *    deducted on 44566, as the rules library templates book it.
  *
  * 6. A meal alone of the exploitant at a company taxed at the impôt sur le
  *    revenu (answer "alone" of the meal question, exploitantMeal set by the
@@ -35,6 +46,9 @@
  * so they sum exactly to the transaction amount. Amounts are integer cents.
  */
 
+import { trustedBankVatCents } from '@/lib/banking/bank-vat'
+import { vatOnBaseCents } from '@/lib/invoices/amounts'
+import { deductibleVatCents, selfAssessedSplit } from '@/lib/vat-deduction/share'
 import { recoverableVatByRule, vatIncludedCents, RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
 import { NON_DEDUCTIBLE_MEALS_ACCOUNT, splitExploitantMeal, type MealSplit } from '@/lib/expense-reports/exploitant-meals'
 import { EXPLOITANT_MEAL_ANSWER, type CategoryKind, type Posting, type Question, type SimpleCategory } from './categories'
@@ -51,9 +65,6 @@ export type Resolution =
 export const VAT_ON_ASSETS = '44562'
 export const VAT_DEDUCTIBLE = '44566'
 export const VAT_COLLECTED = '44571'
-
-/** Highest French rate (CGI art. 278): a VAT read by the bank above it is not trusted. */
-const MAX_RATE_PERCENT = 20
 
 /** Amount excluding VAT at a rate: what the 500 € HT threshold compares. */
 export function exclTaxCents(amountCents: number, rateBp: number, bankVatCents?: number | null): number {
@@ -89,11 +100,14 @@ export function resolvePosting(category: SimpleCategory, answers: Answers, amoun
   return { status: 'ready', posting: { ...category.posting, ...answer.posting }, answers: { [question.id]: answer.id }, question, kind: answer.kind ?? category.kind }
 }
 
-/** The VAT the bank read, when it is plausible: positive, below the amount, at most 20 % of the base (one cent of rounding). */
+/**
+ * The VAT the bank read, as bankVatCentsOf gives it (lib/banking/bank-vat.ts,
+ * the one plausibility rule): 0 when the receipt shows no VAT, a positive
+ * amount below the amount and at most 20 % of the base (one cent of
+ * rounding), null otherwise.
+ */
 export function plausibleBankVat(amountCents: number, bankVatCents?: number | null): number | null {
-  if (bankVatCents == null || !Number.isSafeInteger(bankVatCents) || bankVatCents <= 0 || bankVatCents >= amountCents) return null
-  const base = amountCents - bankVatCents
-  return bankVatCents * 100 <= base * MAX_RATE_PERCENT + 100 ? bankVatCents : null
+  return trustedBankVatCents(amountCents, bankVatCents == null ? null : { amountCents: bankVatCents, ratePercent: bankVatCents === 0 ? 0 : null })
 }
 
 export interface CounterpartLine {
@@ -124,7 +138,7 @@ export interface PostingInput {
   side: Side
   /** Absolute amount of the transaction, VAT included. */
   amountCents: number
-  /** VAT read by the bank on the receipt (Qonto), in cents. */
+  /** VAT read by the bank on the receipt (Qonto), in cents, as bankVatCentsOf trusts it: 0 when the receipt shows no VAT. */
   bankVatCents?: number | null
   /**
    * The company is exempt from VAT (franchise or exempt activity) or partly
@@ -133,6 +147,12 @@ export interface PostingInput {
    * Null: subject to VAT, full recovery.
    */
   recoveryRatio: number | null
+  /**
+   * The company is under the franchise en base (CGI art. 293 B): no VAT
+   * collected on its sales. Absent: it collects VAT on its taxed sales,
+   * whatever its coefficient de déduction.
+   */
+  franchise?: boolean
   /**
    * The operation is a meal alone of the exploitant of a company taxed at
    * the impôt sur le revenu, in this calendar year: the charge is split
@@ -166,11 +186,44 @@ export function buildPostingLines(input: PostingInput): PostingPlan {
   return input.exploitantMeal && kind === 'expense' && input.side === 'debit' ? withMealSplit(plan, input.amountCents, input.exploitantMeal.year) : plan
 }
 
-/** n x ratio rounded half away from zero, n >= 0. Ratios come from cent sums, rounded to 1e-6 here. */
-function share(n: number, ratio: number): number {
-  const millionths = Math.round(Math.min(Math.max(ratio, 0), 1) * 1_000_000)
-  return Math.floor((n * millionths * 2 + 1_000_000) / 2_000_000)
+
+/** Self-assessed VAT due (PCG art. 944-44, compte 4452 TVA due intracommunautaire): a service of a supplier established outside France. */
+export const VAT_SELF_ASSESSED = '4452'
+
+const DETECTED_NONE_NOTE = 'Opération exonérée (CGI art. 261 C, 1°)\u00a0: aucune TVA lue sur la facture'
+const SELF_ASSESSED_NOTE = 'TVA autoliquidée\u00a0: fournisseur établi hors de France (CGI art. 259, 1° et 283, 2)'
+
+const coefficientNote = (ratio: number) => `Coefficient de déduction provisoire\u00a0: ${Math.round(ratio * 100)} % de la TVA récupérable (CGI ann. II art. 206)`
+
+/**
+ * A service of a supplier established outside France: the amount paid is
+ * the price without VAT; the VAT at the category's rate on it is due on 4452
+ * and deducted on 44566 (the share of a coefficient de déduction, the rest
+ * in the charge), as the rules library books it (selfAssessedLine). The
+ * lines still sum to the amount paid.
+ */
+function selfAssessedPlan(input: PostingInput, line: (accountCode: string, cents: number, role: CounterpartLine['role']) => CounterpartLine): PostingPlan {
+  const { posting, side, amountCents } = input
+  const vatCents = vatOnBaseCents(amountCents, posting.vatRateBp > 0 ? posting.vatRateBp : SELF_ASSESSED_RATE_BP)
+  // Due in full, deducted at the coefficient, the rest in the charge (lib/vat-deduction/share.ts)
+  const split = selfAssessedSplit(vatCents, input.recoveryRatio)
+  const recoverable = split.deductibleCents
+  const vatNote = input.recoveryRatio !== null ? `${SELF_ASSESSED_NOTE}. ${coefficientNote(input.recoveryRatio)}` : SELF_ASSESSED_NOTE
+  const due: CounterpartLine =
+    side === 'debit'
+      ? { accountCode: VAT_SELF_ASSESSED, debitCents: 0, creditCents: split.dueCents, role: 'vat' }
+      : { accountCode: VAT_SELF_ASSESSED, debitCents: split.dueCents, creditCents: 0, role: 'vat' }
+  const vatAccount = posting.account.startsWith('2') ? VAT_ON_ASSETS : VAT_DEDUCTIBLE
+  return {
+    lines: [line(posting.account, amountCents + vatCents - recoverable, 'base'), ...(recoverable > 0 ? [line(vatAccount, recoverable, 'vat')] : []), due],
+    vatCents,
+    vatBookedCents: vatCents,
+    vatNote,
+  }
 }
+
+/** Standard rate self-assessed when the category has none (CGI art. 278). */
+const SELF_ASSESSED_RATE_BP = 2000
 
 const PASSENGER_VEHICLE_NOTE = 'Véhicule de tourisme : TVA non récupérable (CGI ann. II art. 206, IV, 2, 6°)'
 
@@ -182,13 +235,20 @@ function buildPlainPostingLines(input: PostingInput): PostingPlan {
     side === 'debit' ? { accountCode, debitCents: cents, creditCents: 0, role } : { accountCode, debitCents: 0, creditCents: cents, role }
   const single = (vatNote: string): PostingPlan => ({ lines: [line(posting.account, amountCents, 'base')], vatCents: 0, vatBookedCents: 0, vatNote })
 
-  if (posting.vatRateBp <= 0 || posting.vatRule === 'none' || kind === 'other') return single(RECOVERY_LABELS['no-vat'])
+  if (posting.vatRule === 'none' || kind === 'other') return single(RECOVERY_LABELS['no-vat'])
+  if (posting.vatRule === 'self-assessed') return selfAssessedPlan(input, line)
 
-  const vatCents = plausibleBankVat(amountCents, input.bankVatCents) ?? vatIncludedCents(amountCents, posting.vatRateBp)
-  if (vatCents <= 0) return single(RECOVERY_LABELS['no-vat'])
+  // Detected: only the VAT the bank read (an exempt operation taxed on option); otherwise the category's rate
+  const vatCents =
+    posting.vatRule === 'detected'
+      ? (plausibleBankVat(amountCents, input.bankVatCents) ?? 0)
+      : posting.vatRateBp <= 0
+        ? 0
+        : (plausibleBankVat(amountCents, input.bankVatCents) ?? vatIncludedCents(amountCents, posting.vatRateBp))
+  if (vatCents <= 0) return single(posting.vatRule === 'detected' ? DETECTED_NONE_NOTE : RECOVERY_LABELS['no-vat'])
 
   if (kind === 'income') {
-    if (input.recoveryRatio !== null) return { ...single('Société exonérée de TVA : pas de TVA collectée'), vatCents }
+    if (input.franchise) return { ...single('Franchise en base de TVA : pas de TVA collectée (CGI art. 293 B)'), vatCents }
     return {
       lines: [line(posting.account, amountCents - vatCents, 'base'), line(VAT_COLLECTED, vatCents, 'vat')],
       vatCents,
@@ -204,13 +264,14 @@ function buildPlainPostingLines(input: PostingInput): PostingPlan {
     vatNote = PASSENGER_VEHICLE_NOTE
   } else {
     // The receipt is taken as an invoice to the company: the accountant checks it when validating.
-    const recovery = recoverableVatByRule(posting.vatRule, { receiptKind: 'INVOICE', amountInclTaxCents: amountCents, vatCents, vatExempt: false })
+    const rule = posting.vatRule === 'detected' ? 'standard' : posting.vatRule
+    const recovery = recoverableVatByRule(rule, { receiptKind: 'INVOICE', amountInclTaxCents: amountCents, vatCents, vatExempt: false })
     recoverable = recovery.recoverableVatCents
     vatNote = RECOVERY_LABELS[recovery.reason]
   }
   if (input.recoveryRatio !== null && recoverable > 0) {
-    recoverable = share(recoverable, input.recoveryRatio)
-    vatNote = `Coefficient de déduction provisoire : ${Math.round(input.recoveryRatio * 100)} % de la TVA récupérable (CGI ann. II art. 206)`
+    recoverable = deductibleVatCents(recoverable, input.recoveryRatio)
+    vatNote = coefficientNote(input.recoveryRatio)
   }
   if (recoverable <= 0) return { ...single(vatNote), vatCents }
   const vatAccount = posting.account.startsWith('2') ? VAT_ON_ASSETS : VAT_DEDUCTIBLE

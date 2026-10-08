@@ -49,7 +49,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, ValidationError } from '@/lib/accounting/errors'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
-import { vatDeductionShareOn } from '@/lib/vat-deduction/coefficient'
+import { vatDeductionOn, type VatDeductionOnDay } from '@/lib/vat-deduction/coefficient'
 import { counterpartyOf } from '@/lib/reconciliation/prefill'
 import {
   bankAccountMissingMessage,
@@ -68,10 +68,11 @@ import { counterpartyKey } from '@/lib/subscriptions/detect'
 import { createFixedAssetInTx } from '@/lib/fixed-assets/create-fixed-asset.service'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { formatIsoDateFr, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
-import { EXPLOITANT_MEAL_ANSWER, findCategory, type Posting, type SimpleCategory } from './categories'
+import { EXPLOITANT_MEAL_ANSWER, findCategory, SUPPLIER_VAT, type Posting, type SimpleCategory } from './categories'
+import { supplierVatAnswerOf } from './foreign-suppliers'
 import { mealRulesOn, nonDeductibleMealsAccount } from '@/lib/expense-reports/meal-rule.service'
 import { mealSplitReason, NON_DEDUCTIBLE_MEALS_ACCOUNT } from '@/lib/expense-reports/exploitant-meals'
-import { buildPostingLines, isExploitantMeal, resolvePosting, VAT_COLLECTED, VAT_DEDUCTIBLE, VAT_ON_ASSETS, type Answers, type CounterpartLine } from './posting'
+import { buildPostingLines, isExploitantMeal, resolvePosting, VAT_COLLECTED, VAT_DEDUCTIBLE, VAT_ON_ASSETS, VAT_SELF_ASSESSED, type Answers, type CounterpartLine } from './posting'
 import { resolveLedgerAccounts } from './ledger-accounts'
 import { assetLifetimeFor, DEPRECIATION_EXPENSE_ACCOUNT } from './asset-lifetimes'
 import { accountantReviewRequired } from './simple-mode-settings.service'
@@ -176,18 +177,19 @@ interface PreparedAsset {
   expenseAccountId: string
 }
 
-/** The share of deductible VAT recovered on the day (provisional coefficient de déduction), null when the company deducts all of it. */
-async function recoveryRatioFor(companyId: string, day: string): Promise<number | null> {
-  return vatDeductionShareOn(companyId, day)
+/** The franchise and the share of deductible VAT recovered on the day (provisional coefficient de déduction). */
+async function deductionFor(companyId: string, day: string): Promise<VatDeductionOnDay> {
+  return vatDeductionOn(companyId, day)
 }
 
 /** A category books the same way every time, so a rule can repeat it. */
-function canLearn(category: SimpleCategory, posting: Posting, recoveryRatio: number | null): boolean {
+function canLearn(category: SimpleCategory, posting: Posting, franchise: boolean): boolean {
   // A refund reverses a charge and its VAT: rules book the charge side only
   if (category.kind === 'refund') return false
   if (category.question && !category.question.reusable) return false
   if (posting.vatRule === 'fuel' || posting.vatRule === 'gift') return false
-  if (recoveryRatio !== null && category.kind === 'income' && posting.vatRateBp > 0) return false
+  // A rule books the collected VAT of its rate: a company under the franchise collects none (CGI art. 293 B)
+  if (franchise && category.kind === 'income' && posting.vatRateBp > 0) return false
   return true
 }
 
@@ -204,7 +206,9 @@ async function prepareCategory(
 
   const amountCents = Math.abs(toCents(transaction.amount) ?? 0)
   const bankVatCents = bankVatCentsOf(transaction)
-  const resolution = resolvePosting(category, answers, amountCents, bankVatCents)
+  // A supplier the rules library knows to bill without French VAT answers the supplier question (lib/simple/foreign-suppliers.ts)
+  const withKnown = category.question?.id === SUPPLIER_VAT.id && !answers[SUPPLIER_VAT.id] ? { ...answers, [SUPPLIER_VAT.id]: supplierVatAnswerOf(transaction) } : answers
+  const resolution = resolvePosting(category, withKnown, amountCents, bankVatCents)
   if (resolution.status === 'pending') {
     throw new ValidationError(`Répondez d'abord à la question : ${resolution.question.text}`).withDetails({ question: resolution.question })
   }
@@ -212,8 +216,8 @@ async function prepareCategory(
 
   const side = normalizeSide(transaction.side)
   const mealQuestion = resolution.question?.id === EXPLOITANT_MEAL_ANSWER.questionId
-  const [recoveryRatio, mealRule] = await Promise.all([
-    recoveryRatioFor(companyId, day),
+  const [deduction, mealRule] = await Promise.all([
+    deductionFor(companyId, day),
     mealQuestion ? mealRulesOn(companyId, [day]).then((rules) => rules.get(day)!) : null,
   ])
   // At IR, who ate changes what is deductible: the meal question has no default
@@ -222,7 +226,7 @@ async function prepareCategory(
   }
   // A meal alone of the exploitant, at a company taxed at the impôt sur le revenu: only the frais supplémentaires are deductible
   const exploitantMeal = mealRule?.applies && isExploitantMeal(resolution.answers) ? { year: Number(day.slice(0, 4)) } : null
-  const plan = buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side, amountCents, bankVatCents, recoveryRatio, exploitantMeal })
+  const plan = buildPostingLines({ category, posting: resolution.posting, kind: resolution.kind, side, amountCents, bankVatCents, recoveryRatio: deduction.share, franchise: deduction.franchise, exploitantMeal })
   const nonDeductibleLine = plan.lines.find((l) => l.role === 'non-deductible')
 
   // Durable equipment: the asset line of the posting, with the category's depreciation accounts
@@ -254,7 +258,7 @@ async function prepareCategory(
   const name = displayNameOf(counterpartyOf(transaction), transaction.label)
   const description = transaction.label?.trim() || name
   const vatLabel = (line: CounterpartLine) =>
-    line.accountCode === VAT_COLLECTED ? 'TVA collectée' : line.accountCode === VAT_ON_ASSETS ? 'TVA sur immobilisation' : line.accountCode === VAT_DEDUCTIBLE ? 'TVA déductible' : 'TVA'
+    line.accountCode === VAT_COLLECTED ? 'TVA collectée' : line.accountCode === VAT_SELF_ASSESSED ? 'TVA autoliquidée due' : line.accountCode === VAT_ON_ASSETS ? 'TVA sur immobilisation' : line.accountCode === VAT_DEDUCTIBLE ? 'TVA déductible' : 'TVA'
   const lines: GeneratedLine[] = [
     { accountId: bank.id, ...bankLineOf({ amountCents, side }), description },
     ...plan.lines.map((line) => ({
@@ -289,7 +293,7 @@ async function prepareCategory(
     answers: Object.keys(resolution.answers).length ? resolution.answers : null,
     vatNote: plan.vatNote,
     mealNote: plan.mealSplit ? mealSplitReason(plan.mealSplit) : mealRule?.unknown && isExploitantMeal(resolution.answers) ? mealRule.explanation : null,
-    learnable: canLearn(category, resolution.posting, recoveryRatio) ? { category, posting: resolution.posting, codes } : null,
+    learnable: canLearn(category, resolution.posting, deduction.franchise) ? { category, posting: resolution.posting, codes } : null,
     asset,
     invoice: null,
   }
@@ -379,6 +383,26 @@ async function prepareRule(companyId: string, transactionId: string, ruleId: str
 function learnedRuleLines(learnable: NonNullable<Prepared['learnable']>): RuleInput['entryLines'] {
   const { category, posting, codes } = learnable
   const account = codes.get(posting.account) ?? posting.account
+  if (category.kind !== 'other' && posting.vatRule === 'self-assessed') {
+    // The rules library's self-assessed line (selfAssessedLine): 20 % on the amount, deductible and due
+    return [
+      {
+        accountCode: account,
+        lineType: 'auto',
+        amountType: 'full',
+        order: 0,
+        vatType: 'intracom',
+        vatRateSource: 'fixed',
+        vatRate: posting.vatRateBp / 100,
+        vatAccountCode: codes.get(VAT_DEDUCTIBLE) ?? VAT_DEDUCTIBLE,
+        vatAccount2Code: codes.get(VAT_SELF_ASSESSED) ?? VAT_SELF_ASSESSED,
+      },
+    ]
+  }
+  if (category.kind !== 'other' && posting.vatRule === 'detected') {
+    // The rules library's detected line (detectedVatLine): the VAT the bank read, none otherwise
+    return [{ accountCode: account, lineType: 'auto', amountType: 'full', order: 0, vatType: 'deductible', vatRateSource: 'transaction', vatAccountCode: codes.get(VAT_DEDUCTIBLE) ?? VAT_DEDUCTIBLE }]
+  }
   const recovers = posting.vatRateBp > 0 && (posting.vatRule === 'standard' || category.kind === 'income')
   if (category.kind === 'other' || !recovers) {
     return [{ accountCode: account, lineType: 'auto', amountType: 'full', order: 0 }]

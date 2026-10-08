@@ -7,6 +7,8 @@
 
 import type { EntryLine } from './types';
 import { toCents } from '@/lib/utils/money';
+import { trustedBankVatCents, trustedBankVatRate } from '@/lib/banking/bank-vat';
+import { deductibleVatCents } from '@/lib/vat-deduction/share';
 
 /**
  * Generic rule entry line interface for calculations
@@ -80,8 +82,8 @@ export function calculateLineAmount(
 
 /**
  * Calculates all amounts (HT, TTC, VAT) for a rule entry line.
- * When vatRateSource === 'transaction', uses transactionVat (e.g. Qonto): on privilégie le montant TVA
- * pour calculer le HT (HT = TTC - TVA). Le taux Qonto est ignoré s'il est < 0 (ex. -1 = taux non standard).
+ * When vatRateSource === 'transaction', uses transactionVat (e.g. Qonto) when it can be trusted
+ * (lib/banking/bank-vat.ts): the amount first (HT = TTC - TVA), else the rate, else the line's rate.
  *
  * @param line - Rule entry line
  * @param lineAmount - Base line amount (typically transaction amount = TTC)
@@ -97,24 +99,24 @@ export function calculateAmountsWithVAT(
   let amountTTC = lineAmount;
   let vatAmount = 0;
 
-  const useTransactionVat =
-    line.vatRateSource === 'transaction' &&
-    transactionVat &&
-    (transactionVat.vatAmount != null ||
-      (transactionVat.vatRate != null && Number(transactionVat.vatRate) >= 0));
-  // Taux transaction : ignoré si < 0 (Qonto renvoie -1 pour taux non standard)
-  const transactionRateValid =
-    transactionVat?.vatRate != null && Number(transactionVat.vatRate) >= 0;
+  // What the bank read, kept only when it can be trusted (lib/banking/bank-vat.ts, the rule simple mode applies too):
+  // an amount at most 20 % of the base, zero only with a rate of 0 %, a rate from 0 % to 20 %.
+  const reading =
+    line.vatRateSource === 'transaction' && transactionVat
+      ? {
+          ratePercent: transactionVat.vatRate != null && Number.isFinite(Number(transactionVat.vatRate)) ? Number(transactionVat.vatRate) : null,
+          amountCents: transactionVat.vatAmount != null ? toCents(Number(transactionVat.vatAmount)) : null,
+        }
+      : null;
+  const transactionRate = trustedBankVatRate(reading);
+  const transactionAmountCents = trustedBankVatCents(Math.abs(toCents(lineAmount) ?? 0), reading);
   const effectiveVatRate =
-    useTransactionVat && transactionRateValid
-      ? Number(transactionVat!.vatRate) / 100
+    transactionRate != null
+      ? transactionRate / 100
       : line.vatRate != null
         ? Number(line.vatRate) / 100
         : null;
-  const effectiveVatAmount =
-    useTransactionVat && transactionVat.vatAmount != null
-      ? Number(transactionVat.vatAmount)
-      : null;
+  const effectiveVatAmount = transactionAmountCents != null ? transactionAmountCents / 100 : null;
 
   if (line.vatType && line.vatType !== 'none' && (effectiveVatRate != null || effectiveVatAmount != null)) {
     if (effectiveVatAmount != null && effectiveVatAmount >= 0) {
@@ -247,9 +249,8 @@ export function calculateVATLineAmounts(
 
   // If company is VAT exempt, apply recovery ratio to deductible VAT
   if (vatRecoveryRatio !== null && vatRecoveryRatio !== undefined && vatType === 'deductible') {
-    // Apply ratio: only recover a portion of deductible VAT
-    const recoverableVat = vatAmount * vatRecoveryRatio;
-    vatDebit = recoverableVat;
+    // Only the coefficient's share is recovered, half up to the cent (lib/vat-deduction/share.ts)
+    vatDebit = deductibleVatCents(toCents(vatAmount) ?? 0, vatRecoveryRatio) / 100;
     return { vatDebit, vatCredit };
   }
 

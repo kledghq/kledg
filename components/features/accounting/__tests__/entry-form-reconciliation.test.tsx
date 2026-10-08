@@ -246,6 +246,18 @@ describe('EntryFormReconciliation', () => {
     expect(saveButton()).toBeEnabled()
   })
 
+  // R3: self-assessed VAT is due in full and deducted at the coefficient de déduction (lib/vat-deduction/share.ts)
+  it('self-assesses an intra-EU purchase at the coefficient of a partly exempt company', async () => {
+    const user = userEvent.setup()
+    renderForm(context({ transaction: { ...context().transaction, amountCents: 10000, vatDeductionShare: 0.6 }, bankLine: { debitCents: 0, creditCents: 10000 } }))
+    await chooseAccount(user, 0, '606100')
+    await user.click(screen.getByRole('button', { name: 'Achat intracommunautaire' }))
+    // 100,00 at 20 %: 20,00 due, 12,00 deducted, 8,00 in the charge (108,00)
+    expect(screen.getByLabelText('Débit de la ligne 1')).toHaveValue('108,00')
+    expect(screen.getByLabelText('Débit de la ligne 2')).toHaveValue('12,00')
+    expect(screen.getByLabelText('Crédit de la ligne 3')).toHaveValue('20,00')
+  })
+
   it('blocks saving when the company has no bank account', () => {
     renderForm(context({ bankAccount: null }))
     expect(screen.getAllByText(/Aucun compte bancaire 512/).length).toBeGreaterThan(0)

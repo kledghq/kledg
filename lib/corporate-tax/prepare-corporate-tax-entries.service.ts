@@ -25,6 +25,7 @@ import { ClosedFiscalYearError, ConflictError, NotFoundError } from '@/lib/accou
 import { createEntryInTx, deleteDraftEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
 import { ensureAccounts, ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
 import { lockFiscalYearRow } from '@/lib/accounting/fiscal-year-closure/lock'
+import { bookingDayInTx } from '@/lib/accounting/period-lock/booking-day'
 import { writeAuditLog } from '@/lib/audit'
 import type { GroupAccess } from '@/lib/management-fees/access'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
@@ -102,8 +103,10 @@ export async function writeDraft(companyId: string, plan: Planned, scope = 'corp
     const validated = existing.find((e) => e.status === 'validated')
     if (validated) return { status: 'validated' as const, reference: plan.reference, entryId: validated.id, entryNumber: validated.entryNumber }
     const asLines = (e: (typeof existing)[number]) => e.lines.map((l) => ({ code: l.account.code, debitCents: parseCents(l.debit) ?? 0, creditCents: parseCents(l.credit) ?? 0 }))
+    // A day in a closed period moves to the first open day, its real date kept as the document's (booking-day.ts)
+    const booking = await bookingDayInTx(tx, plan.fiscalYearId, plan.date)
     // Same lines on the same day: kept; a draft dated elsewhere (a payment day recorded since) is stale.
-    if (existing.length === 1 && sameLines(plan.lines, asLines(existing[0])) && existing[0].date.toISOString().slice(0, 10) === plan.date) {
+    if (existing.length === 1 && sameLines(plan.lines, asLines(existing[0])) && existing[0].date.toISOString().slice(0, 10) === booking.date) {
       return { status: 'unchanged' as const, reference: plan.reference, entryId: existing[0].id, entryNumber: existing[0].entryNumber }
     }
     for (const draft of existing) await deleteDraftEntryInTx(tx, companyId, draft.id)
@@ -113,7 +116,8 @@ export async function writeDraft(companyId: string, plan: Planned, scope = 'corp
       companyId,
       fiscalYearId: plan.fiscalYearId,
       journalId: journal.id,
-      date: new Date(`${plan.date}T00:00:00.000Z`),
+      date: new Date(`${booking.date}T00:00:00.000Z`),
+      ...(booking.pieceDate ? { pieceDate: booking.pieceDate } : {}),
       description: plan.description,
       reference: plan.reference,
       status: 'draft',

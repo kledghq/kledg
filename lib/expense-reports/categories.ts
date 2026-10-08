@@ -5,8 +5,8 @@
  * server share it.
  *
  * Accounts (PCG, classe 6):
- * - 6251 Voyages et déplacements: train, plane, taxi, tolls and the mileage
- *   allowances (indemnités kilométriques);
+ * - 6251 Voyages et déplacements: train, plane, taxi, tolls and parking,
+ *   and the mileage allowances (indemnités kilométriques);
  * - 6256 Missions: hotel and meals of a business trip;
  * - 6257 Réceptions: meals and receptions with customers or partners;
  * - 6061 Fournitures non stockables (eau, énergie): fuel;
@@ -17,6 +17,7 @@
 
 export type ExpenseCategory =
   | 'TRANSPORT'
+  | 'TOLLS_PARKING'
   | 'LODGING'
   | 'MEALS'
   | 'RECEPTION'
@@ -45,6 +46,16 @@ export const EXPENSE_CATEGORIES: Record<ExpenseCategory, CategoryDefinition> = {
     account: '6251',
     vatRule: 'passenger-transport',
     hint: 'TVA non récupérable sur le transport de personnes.',
+  },
+  // Tolls and parking are not passenger transport: their VAT is deductible by the user under the usual
+  // conditions (BOI-TVA-DED-40-40 § 30 for parking, § 330 for motorway tolls, the deduction being
+  // "strictement subordonnée à la mention par l'usager de son identification complète" on the receipt),
+  // as simple mode and the rules library book them
+  TOLLS_PARKING: {
+    label: 'Péages et parking',
+    account: '6251',
+    vatRule: 'standard',
+    hint: 'TVA récupérable avec le reçu de péage ou de parking complété au nom de la société.',
   },
   LODGING: {
     label: 'Hébergement (hôtel)',

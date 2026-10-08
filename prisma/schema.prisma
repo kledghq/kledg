@@ -2944,6 +2944,10 @@ model VatDeductionYear {
   /// VAT borne in the year on goods and services subject to the coefficient,
   /// entered when the books cannot give it; null: derived from 44562 and 44566.
   incurredVat              Decimal? @db.Decimal(15, 2)
+  /// First day the coefficient applied to the year's postings changed after
+  /// VAT was deducted in the year: the VAT borne must then be entered
+  /// (lib/vat-deduction/load-vat-deduction.service.ts). Null: unchanged.
+  coefficientChangedOn     DateTime? @db.Date
   note                     String?
   createdById              String?
   createdAt                DateTime @default(now())

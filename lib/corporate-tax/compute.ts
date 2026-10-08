@@ -149,6 +149,7 @@ const pick = (pair: readonly [string, string], negative: boolean) => (negative ?
 
 export function eligibilityOf(input: Pick<ComputeInput, 'turnoverCents' | 'duration' | 'capitalPaidUp' | 'naturalPersons75'>): ReducedRateEligibility {
   const turnoverAnnualCents = annualize(Math.max(input.turnoverCents, 0), input.duration)
+  // "inférieur ou égal à 10 000 000 €" for years opened from 1 January 2021 (BOI-IS-LIQ-20-10 § 1 and 10; "au plus", § 30)
   const turnoverOk = turnoverAnnualCents <= REDUCED_RATE_TURNOVER_CEILING_CENTS
   const answers = [input.capitalPaidUp, input.naturalPersons75]
   const eligible = !turnoverOk || answers.includes(false) ? false : answers.includes(null) ? null : true

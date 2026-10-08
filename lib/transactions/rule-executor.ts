@@ -24,6 +24,8 @@ import {
 } from './entry-line-calculator';
 import { AccountingError, ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors';
 import { toCents } from '@/lib/utils/money';
+import { bankVatInEuros } from '@/lib/banking/bank-vat';
+import { selfAssessedSplit } from '@/lib/vat-deduction/share';
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date';
 import { checkEntryDate } from '@/lib/reconciliation/validation';
 import {
@@ -246,29 +248,8 @@ export async function prepareRuleEntry(
     return fail(bankAccountMissingMessage(fiscalYear.year));
   }
 
-  const providerData = transaction.providerData as
-    | { vat_rate?: number; vat_amount?: number; vat_amount_cents?: number }
-    | null
-    | undefined;
-  const rawRate =
-    transaction.vatRate != null ? Number(transaction.vatRate) : providerData?.vat_rate ?? null;
-  const effectiveVatRate =
-    rawRate != null && rawRate >= 0 ? rawRate : null;
-  const effectiveVatAmount =
-    transaction.vatAmount != null
-      ? Number(transaction.vatAmount)
-      : providerData?.vat_amount ??
-        (providerData?.vat_amount_cents != null
-          ? providerData.vat_amount_cents / 100
-          : null);
-
-  const transactionVat =
-    effectiveVatRate != null || effectiveVatAmount != null
-      ? {
-          vatRate: effectiveVatRate,
-          vatAmount: effectiveVatAmount,
-        }
-      : null;
+  // The VAT the bank read, when it can be trusted (one rule for every module, lib/banking/bank-vat.ts)
+  const transactionVat = bankVatInEuros(transaction, Math.abs(toCents(transaction.amount) ?? 0));
 
   const transactionAmount = Math.abs(Number(transaction.amount));
   const transactionSide = normalizeSide(transaction.side);
@@ -471,16 +452,25 @@ function calculateEntryLines(
         vatAccountDebitId &&
         vatAccount2Id
       ) {
-        entryLines.push({
-          accountId: vatAccountDebitId,
-          debit: vatAmount,
-          credit: 0,
-          description: vatLineDescription(line.vatType, effectiveVatRate, 'deductible'),
-        });
+        // Self-assessed VAT: due in full, deducted at the coefficient de déduction, the rest in the cost
+        // (CGI ann. II art. 205; lib/vat-deduction/share.ts, the one rule for every posting)
+        const split = selfAssessedSplit(toCents(vatAmount) ?? 0, vatRecoveryRatio ?? null);
+        if (split.nonDeductibleCents > 0) {
+          if (mainLine.debit > 0) mainLine.debit += split.nonDeductibleCents / 100;
+          else if (mainLine.credit > 0) mainLine.credit += split.nonDeductibleCents / 100;
+        }
+        if (split.deductibleCents > 0) {
+          entryLines.push({
+            accountId: vatAccountDebitId,
+            debit: split.deductibleCents / 100,
+            credit: 0,
+            description: vatLineDescription(line.vatType, effectiveVatRate, 'deductible'),
+          });
+        }
         entryLines.push({
           accountId: vatAccount2Id,
           debit: 0,
-          credit: vatAmount,
+          credit: split.dueCents / 100,
           description: vatLineDescription(line.vatType, effectiveVatRate, 'due'),
         });
       } else {

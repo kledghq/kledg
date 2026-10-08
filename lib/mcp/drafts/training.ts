@@ -50,7 +50,7 @@ const prepareRegularisationTool = draftTool({
   name: 'prepare_vat_coefficient_regularisation',
   title: 'Préparer la régularisation du coefficient de déduction',
   summary:
-    'Prepares, as a DRAFT entry in the OD journal dated 31 March of the following year, the regularisation of the coefficient de déduction of a finished calendar year: complement of deduction (44566 / 758, CA3 line 21) or VAT to pay back (658 / 44566, CA3 line 15), VAT borne x (definitive - provisional). Reference COEF-TVA-<year>. Idempotent: unchanged, replaced, validated (nothing changed) or nothing.',
+    'Prepares, as a DRAFT entry in the OD journal dated 31 March of the following year, the regularisation of the coefficient de déduction of a finished calendar year: complement of deduction (44566 / 758, CA3 line 21) or VAT to pay back (658 / 44566, CA3 line 15), definitive coefficient x VAT borne - VAT actually deducted in the year (CGI ann. II art. 207, I). Reference COEF-TVA-<year>. Idempotent: unchanged, replaced, validated (nothing changed) or nothing.',
   never: 'validates the entry, files the return or pays.',
   amounts: 'euros',
   input: VatRegularisationBodySchema.shape,
@@ -106,7 +106,7 @@ const savePayrollTaxTool = draftTool({
   name: 'save_payroll_tax',
   title: 'Saisir les rémunérations de la taxe sur les salaires',
   summary:
-    'Records the taxe sur les salaires data of a calendar year the books cannot give: the annual base of each employee (euros; the remunerations retained for the CSG on activity income, without the 1,75 % abatement), association (abattement of CGI art. 1679 A), a rapport d’assujettissement entered in whole percent (null: from the books of the year before), the tax of the year before when Kledg does not hold it, a note. Replaces the year as a whole; the computation is then written for the deadline calendar. Read it with get_payroll_tax.',
+    'Records the taxe sur les salaires data of a calendar year the books cannot give: the annual base of each employee (euros; the remunerations retained for the CSG on activity income, without the 1,75 % abatement), association (abattement of CGI art. 1679 A), the share of the receipts without a right to deduct entered in percent, two decimals at most (ratioPercent, 10.4: liable above 10 %, CGI art. 231, 1; null: from the books of the year before), the tax of the year before when Kledg does not hold it, a note. Replaces the year as a whole; the computation is then written for the deadline calendar. Read it with get_payroll_tax.',
   never: 'files a relevé or a declaration, pays, or posts an entry (prepare_payroll_tax_entry prepares it as a draft).',
   amounts: 'euros',
   input: assistantShape(SavePayrollTaxBodySchema),

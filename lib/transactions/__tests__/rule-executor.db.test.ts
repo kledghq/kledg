@@ -286,6 +286,29 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
         ['445660', 1200, 0],
         ['512000', 0, 12000],
       ])
+
+      // Self-assessed VAT (R3): due in full on 4452, deducted at the coefficient, the rest in the charge.
+      // 100,00 of intra-EU goods at 20 %, coefficient 60 %: 20,00 due, 12,00 deducted, charge 108,00
+      const intracom = await rule('Achat UE', [{ accountCode: '607000', vatType: 'intracom', vatRate: '20', vatAccountCode: '445662', vatAccount2Code: '445200' }])
+      const euTx = await transaction('100.00', 'debit')
+      expect(await prepared(intracom, euTx)).toEqual([
+        ['607000', 10800, 0],
+        ['445662', 1200, 0],
+        ['445200', 0, 2000],
+        ['512000', 0, 10000],
+      ])
+      // The rule editor's preview books the same lines
+      const { simulateRuleFromData } = await import('@/lib/transactions/rule-simulator')
+      const preview = await simulateRuleFromData(
+        { entryLines: [{ accountCode: '607000', lineType: 'auto', amountType: 'full', order: 0, vatType: 'intracom', vatRate: 20, vatAccountCode: '445662', vatAccount2Code: '445200' }] },
+        { amount: -100, side: 'debit', label: 'CB' },
+        ids.company,
+      )
+      expect(preview.entryLines.map((l) => [l.account.code, toCents(l.debit), toCents(l.credit)])).toEqual([
+        ['607000', 10800, 0],
+        ['445662', 1200, 0],
+        ['445200', 0, 2000],
+      ])
     })
   })
 
