@@ -1,6 +1,6 @@
 # Lettrage et tiers
 
-Le guide d'utilisation (lettrer un compte, propositions, balances, justificatifs manquants, où trouver la facture, Proposer avec l'IA) est sur le site : [Lettrer ses comptes clients et fournisseurs](https://www.kledg.com/fr/docs/lettrer-ses-comptes-de-tiers). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation est sur le site : [Lettrer ses comptes clients et fournisseurs](https://www.kledg.com/fr/docs/lettrer-ses-comptes-de-tiers) (lettrer un compte, propositions, balances) et [Les justificatifs](https://www.kledg.com/fr/docs/les-justificatifs) (justificatifs manquants, où trouver la facture, Proposer avec l'IA). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Le lettrage, la balance auxiliaire, la balance âgée et les justificatifs manquants. Code : `lib/lettering` (règles et service), `lib/reports/third-parties` (balances), `lib/banking/missing-receipts.service.ts`, `lib/companies/payment-terms.service.ts`.
 
