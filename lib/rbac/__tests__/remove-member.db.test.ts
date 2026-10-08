@@ -16,7 +16,9 @@
  * - audit entry, email notice (none with notify=false or when leaving),
  *   instance policy 'remove-member', read-only company;
  * - two administrators removing each other at once: one succeeds;
- * - the members list says, per member, whether the viewer may remove them.
+ * - the members list says, per member, whether the viewer may remove them,
+ *   and carries the instance policy's refusal ('remove-member') on every
+ *   member, leaving included, when the policy refuses the viewer.
  * Runs under KLEDG_RLS=enforce too. Skipped when the test database server is
  * unreachable.
  */
@@ -35,6 +37,8 @@ const state = await vi.hoisted(async () => {
     emailEnabled: true,
     mails: [] as Array<{ to: string; subject: string; text: string; html: string }>,
     refused: new Set<string>(),
+    /** Users the instance policy refuses 'remove-member', the others keep it. */
+    removalRefusedTo: new Set<string>(),
     readOnly: new Set<string>(),
   }
 })
@@ -48,7 +52,8 @@ vi.mock('@/lib/email', () => ({
 }))
 vi.mock('@/lib/instance/policy', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/instance/policy')>()),
-  isActionAllowed: async (action: string) => !state.refused.has(action),
+  isActionAllowed: async (action: string, actor: { id: string } | null = null) =>
+    !state.refused.has(action) && !(action === 'remove-member' && actor && state.removalRefusedTo.has(actor.id)),
   companyWriteRefusal: async (companyId: string) => (state.readOnly.has(companyId) ? { message: 'Société en lecture seule.' } : null),
 }))
 
@@ -144,6 +149,7 @@ describe.skipIf(!available)('removing a member of a company', () => {
     state.emailEnabled = true
     state.mails.length = 0
     state.refused.clear()
+    state.removalRefusedTo.clear()
     state.readOnly.clear()
     await seed()
   })
@@ -286,5 +292,35 @@ describe.skipIf(!available)('removing a member of a company', () => {
     const viewerById = Object.fromEntries(asViewer.map((m) => [m.id, m]))
     expect(viewerById['m-org-a-u-viewer']).toMatchObject({ self: true, removal: { allowed: true } })
     expect(viewerById['m-org-a-u-accountant'].removal).toEqual({ allowed: false, reason: 'Seuls les administrateurs de la société peuvent retirer un membre.' })
+  })
+
+  it("lists every removal, leaving included, as refused with the instance policy's message when the policy refuses the viewer", async () => {
+    type Listed = Array<{ id: string; self: boolean; removal: { allowed: boolean; reason?: string } }>
+    const { actionRefusalMessage } = await import('@/lib/instance')
+    const message = actionRefusalMessage('remove-member')
+    const list = async (who: Who) => {
+      const response = await call(who, 'GET', 'members', { id: ids.a })
+      expect(response.status).toBe(200)
+      return (await response.json()) as Listed
+    }
+
+    state.refused.add('remove-member')
+    for (const who of ['cadmin', 'viewer'] as const) {
+      const members = await list(who)
+      expect(members).toHaveLength(3)
+      for (const m of members) expect(m.removal).toEqual({ allowed: false, reason: message })
+      expect(members.find((m) => m.self)?.removal).toEqual({ allowed: false, reason: message })
+    }
+    expect((await remove('cadmin', 'm-org-a-u-viewer')).status).toBe(403)
+
+    // Decided per actor: refused to the company administrator only, the viewer still leaves.
+    state.refused.clear()
+    state.removalRefusedTo.add('u-cadmin')
+    for (const m of await list('cadmin')) expect(m.removal).toEqual({ allowed: false, reason: message })
+    const asViewer = await list('viewer')
+    expect(asViewer.find((m) => m.self)?.removal).toEqual({ allowed: true })
+    expect((await remove('cadmin', 'm-org-a-u-viewer')).status).toBe(403)
+    expect((await leave('viewer')).status).toBe(200)
+    expect(await isMember('u-viewer')).toBe(false)
   })
 })

@@ -37,7 +37,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { getAppUrl } from '@/lib/config'
 import { isEmailEnabled, sendEmail } from '@/lib/email'
 import { memberRemovedEmail } from '@/lib/email/templates'
-import { assertActionAllowed } from '@/lib/instance'
+import { actionRefusalMessage, assertActionAllowed, isActionAllowed } from '@/lib/instance'
 import { logger } from '@/lib/logger'
 import { enforceRateLimit } from '@/lib/rate-limit'
 import { withSystemContext } from '@/lib/rls/context'
@@ -118,9 +118,15 @@ export interface MemberWithRemoval {
 /**
  * The members of the company, oldest first, each with the answer the
  * removal would get from `viewer` now (the page disables "Retirer" with the
- * reason). The removal checks it again under its lock.
+ * reason). The removal checks it again under its lock. When the instance
+ * policy refuses 'remove-member' to `viewer`, every removal, leaving
+ * included, is refused with the policy's message, so the page shows
+ * "Retirer" and "Quitter" disabled instead of failing on click.
  */
 export async function listMembersWithRemoval(companyId: string, viewer: RemovalActorUser): Promise<MemberWithRemoval[]> {
+  const policyRefusal = (await isActionAllowed('remove-member', { id: viewer.id, email: viewer.email, role: viewer.role }))
+    ? null
+    : actionRefusalMessage('remove-member')
   const rows = await prisma.member.findMany({
     where: { organization: { companyId } },
     select: { ...MEMBER_SELECT, createdAt: true },
@@ -130,7 +136,7 @@ export async function listMembersWithRemoval(companyId: string, viewer: RemovalA
   const actor = actorOf(viewer, subjects)
   return rows.map((row) => {
     const subject = subjects.get(row.userId) ?? { userId: row.userId, roles: [], isInstanceAdmin: false, banned: false }
-    const reason = removalRefusal(actor, subject, otherManagersOf(subjects, row.userId))
+    const reason = policyRefusal ?? removalRefusal(actor, subject, otherManagersOf(subjects, row.userId))
     return {
       id: row.id,
       userId: row.userId,

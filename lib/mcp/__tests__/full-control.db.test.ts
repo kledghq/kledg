@@ -27,10 +27,24 @@ const state = await vi.hoisted(async () => {
   process.env.BETTER_AUTH_URL = 'http://localhost:3000'
   process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
   delete process.env.RATE_LIMIT_DISABLED
-  return { user: null as null | { id: string; email: string; name: string | null; role: string | null } }
+  return {
+    user: null as null | { id: string; email: string; name: string | null; role: string | null },
+    /** Users the instance policy refuses 'remove-member' (lib/instance/policy.ts). */
+    removalRefusedTo: new Set<string>(),
+  }
 })
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => state.user }))
+vi.mock('@/lib/instance/policy', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/instance/policy')>()
+  return {
+    ...original,
+    isActionAllowed: async (action: Parameters<typeof original.isActionAllowed>[0], actor: Parameters<typeof original.isActionAllowed>[1] = null) =>
+      action === 'remove-member' && actor && state.removalRefusedTo.has(actor.id) ? false : original.isActionAllowed(action, actor),
+    actionRefusalMessage: (action: Parameters<typeof original.actionRefusalMessage>[0]) =>
+      action === 'remove-member' ? 'Le retrait de membres est désactivé sur cette instance.' : original.actionRefusalMessage(action),
+  }
+})
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import type { AccessLevel, CompanyAccess, ExecutionMode } from '@/lib/ai-access/access'
@@ -857,7 +871,32 @@ describe.skipIf(!available)('manage_members remove (company administrators)', ()
     ;({ createApiKeyWithGrant } = await import('@/lib/ai-access/create-api-key.service'))
   }, 60_000)
 
-  beforeEach(seed)
+  beforeEach(async () => {
+    state.removalRefusedTo.clear()
+    await seed()
+  })
+
+  it('is refused at the dry run when the instance policy refuses the removal, before any approval is asked', async () => {
+    const key = await apiKey('admin')
+    const args = { companyId: ids.aCompany, action: 'remove', memberId: `m-a-${VIEWER.id}` }
+    state.removalRefusedTo.add(OWNER.id)
+    const refused = await call(key, 'manage_members', args)
+    expect(refused.ok).toBe(false)
+    expect(refused.text).toBe('Le retrait de membres est désactivé sur cette instance.')
+    expect(await prisma.mcpPendingAction.count()).toBe(0)
+    expect(await prisma.member.count({ where: { id: `m-a-${VIEWER.id}` } })).toBe(1)
+
+    // An approval given before the policy refused it is still refused at execution.
+    state.removalRefusedTo.clear()
+    const dry = await call(key, 'manage_members', args)
+    expect(dry.ok, dry.text).toBe(true)
+    await approve(dry.data.actionId)
+    state.removalRefusedTo.add(OWNER.id)
+    const done = await call(key, 'manage_members', { ...args, actionId: dry.data.actionId })
+    expect(done.ok).toBe(false)
+    expect(done.text).toContain('Le retrait de membres est désactivé sur cette instance.')
+    expect(await prisma.member.count({ where: { id: `m-a-${VIEWER.id}` } })).toBe(1)
+  })
 
   it('removes a member after approval, and their own key loses the company at once', async () => {
     const viewerKey = await apiKey('read', { allCompanies: true, companyIds: [] }, VIEWER)

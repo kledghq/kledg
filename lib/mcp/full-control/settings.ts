@@ -342,6 +342,8 @@ const manageMembersTool = fullControlTool({
   async preview({ companyId, action, email, role, memberId }, ctx) {
     if (action !== 'remove') ctx.requireInstanceAdministrator()
     const user = ctx.access.user
+    // A removal the instance policy refuses is refused at the dry run, before an approval is asked (execution checks it again).
+    if (action === 'remove') await assertActionAllowed('remove-member', { id: user.id, email: user.email, role: user.role })
     const members = await listMembersWithRemoval(companyId, { id: user.id, email: user.email, name: user.name ?? null, role: user.role })
     const member = memberId ? (members.find((m) => m.id === memberId) ?? null) : null
     return { action, email: email ?? null, role: role ?? null, member, membersBefore: members.length }

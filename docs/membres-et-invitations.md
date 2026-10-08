@@ -165,7 +165,10 @@ Trois actions de `lib/instance/types.ts` ([extension-points.md](extension-points
   l'administrateur de l'instance crée les autres comptes.
 - `remove-member` : décidée pour la personne qui agit (l'administrateur de
   l'instance compris) ; refusée, elle ne retire aucun membre et ne quitte
-  pas la société.
+  pas la société. La page Membres le montre d'avance : « Retirer » et
+  « Quitter » y sont désactivés avec le message de la politique
+  (`listMembersWithRemoval`), et `manage_members` action `remove` est
+  refusé dès l'essai à blanc, avant toute demande d'approbation.
 
 Kledg autorise les trois. Une offre hébergée peut y ajouter ses propres
 limites (par exemple un nombre de membres par offre) dans sa politique.
