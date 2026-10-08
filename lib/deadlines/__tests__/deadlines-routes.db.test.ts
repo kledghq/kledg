@@ -228,14 +228,16 @@ describe.skipIf(!available)('deadline routes', () => {
     expect(context.company.turnoverCentsByYear).toEqual({ 2026: 110_000_050 })
 
     // R3 QUAL-24: "le chiffre d'affaires majoré des acquisitions taxables" (loi n° 2025-127, art. 38, 5° a;
-    // CGI art. 287, 3 from 2027) adds the services self-assessed under art. 283, 2; not a purchase of art. 283, 1 (44528)
+    // CGI art. 287, 3 from 2027) adds the operations of art. 283, 2 to 2 decies: the services self-assessed under
+    // art. 283, 2 and the intra-Community acquisitions of goods of art. 283, 2 bis; not a purchase of art. 283, 1 (44528)
     const account = (code: string, label: string) => prisma.account.create({ data: { companyId: ids.other, fiscalYearId: ids.otherFy, code, label } })
-    const [software, deductible, due, due2831, goods] = await Promise.all([
+    const [software, deductible, due, due2831, goods, machine] = await Promise.all([
       account('651100', 'Logiciels'),
       account('445660', 'TVA déductible'),
       account('445200', 'TVA due intracommunautaire'),
       account('445280', 'TVA due, article 283-1'),
       account('607000', 'Marchandises'),
+      account('215400', 'Matériel industriel'),
     ])
     const selfAssessed = async (n: string, charge: string, vatDue: string, base: number) => {
       const entry = await prisma.accountingEntry.create({
@@ -257,6 +259,11 @@ describe.skipIf(!available)('deadline routes', () => {
     await selfAssessed('2', goods.id, due2831.id, 5_000)
     context = await loadDeadlineContext(ids.other)
     expect(context.company.turnoverCentsByYear).toEqual({ 2026: 110_100_050 })
+    // R3 residual: intra-Community acquisitions of goods (CGI art. 283, 2 bis), merchandise and a fixed asset, count too
+    await selfAssessed('3', goods.id, due.id, 2_000)
+    await selfAssessed('4', machine.id, due.id, 3_000)
+    context = await loadDeadlineContext(ids.other)
+    expect(context.company.turnoverCentsByYear).toEqual({ 2026: 110_600_050 })
   })
 
   it('answers 404 to a member of another company and 401 to an anonymous request', async () => {
