@@ -16,7 +16,7 @@ import { parseCents } from '@/lib/utils/money'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
-import { entriesState } from './fingerprint'
+import { entryTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -95,7 +95,7 @@ const validateEntriesTool = fullControlTool({
   confirmation: true,
   destructive: true,
   // The approval covers the drafts as the user saw them: an edit before the execution refuses it.
-  targetState: ({ companyId, entryIds }) => entriesState(companyId, entryIds),
+  targetState: ({ companyId, entryIds }) => entryTargets(companyId, entryIds),
   async preview({ companyId, entryIds }) {
     const ids = [...new Set(entryIds)]
     const rows = await prisma.accountingEntry.findMany({
@@ -278,7 +278,7 @@ const deleteDraftEntryTool = fullControlTool({
   never: 'deletes a validated entry (refused).',
   confirmation: true,
   destructive: true,
-  targetState: ({ companyId, entryId }) => entriesState(companyId, [entryId]),
+  targetState: ({ companyId, entryId }) => entryTargets(companyId, [entryId]),
   async preview({ companyId, entryId }) {
     const entry = await prisma.accountingEntry.findFirst({ where: { id: entryId, companyId }, select: ENTRY_SUMMARY_SELECT })
     if (!entry) throw new NotFoundError(ENTRY_NOT_FOUND)

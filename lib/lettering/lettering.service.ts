@@ -408,10 +408,12 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 } as const
 export async function letterLines(
   companyId: string,
   input: { accountId: string; lineIds: string[] },
-  options: { now?: Date; source?: string } = {},
+  options: { now?: Date; source?: string; inTx?: (tx: Prisma.TransactionClient) => Promise<void> } = {},
 ): Promise<LetteredGroup> {
   const letteringDay = parisDayOf(options.now ?? new Date())
   const result = await prisma.$transaction(async (tx) => {
+    // The caller's check of the document lettered (an approved MCP action's invoice or report), locked first
+    if (options.inTx) await options.inTx(tx)
     const account = await loadAccount(tx, companyId, input.accountId)
     assertOpenYear(account)
     await lockAccount(tx, account.id)

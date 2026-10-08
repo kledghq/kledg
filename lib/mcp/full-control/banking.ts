@@ -35,7 +35,7 @@ import {
 import type { TabularOptions } from '@/lib/banking/import/types'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
-import { rulesState } from './fingerprint'
+import { ruleTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -165,7 +165,7 @@ const runRules = fullControlTool({
   idempotent: true,
   confirmation: true,
   // The dry run only counts: the rules themselves are bound to the approval (update_rule before the execution refuses it).
-  targetState: ({ companyId }) => rulesState(companyId),
+  targetState: ({ companyId }) => ruleTargets(companyId),
   async preview({ companyId, transactionIds }) {
     const result = await processTransactions({ companyId, transactionIds, autoApply: false })
     return { processed: result.processed, matched: result.matched, wouldApply: result.applicable, errors: result.errors }
@@ -281,7 +281,7 @@ const updateRuleTool = fullControlTool({
   never: 'runs the rule (run_rules does).',
   confirmation: true,
   highImpactWhen: ({ autoCreate }) => autoCreate === true,
-  targetState: ({ companyId, ruleId }) => rulesState(companyId, ruleId),
+  targetState: ({ companyId, ruleId }) => ruleTargets(companyId, ruleId),
   preview: async ({ companyId, ruleId, ...input }) => ({ current: summarizeRule(await findRule(companyId, ruleId)), replacement: input, effect: AUTO_CREATE_EFFECT }),
   idempotent: true,
   execute: async ({ companyId, ruleId, ...input }) => summarizeRule(await updateRule(companyId, ruleId, input)),
@@ -298,7 +298,7 @@ const deleteRuleTool = fullControlTool({
   never: 'deletes the entries the rule created.',
   confirmation: true,
   destructive: true,
-  targetState: ({ companyId, ruleId }) => rulesState(companyId, ruleId),
+  targetState: ({ companyId, ruleId }) => ruleTargets(companyId, ruleId),
   preview: async ({ companyId, ruleId }) => ({ ruleToDelete: summarizeRule(await findRule(companyId, ruleId)) }),
   execute: async ({ companyId, ruleId }) => ({ deleted: true, ...(await deleteRule(companyId, ruleId)) }),
   audit: ({ ruleId }, result) => ({ ruleId, name: result.name }),

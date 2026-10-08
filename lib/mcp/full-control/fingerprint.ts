@@ -10,28 +10,25 @@
  * stores a fingerprint of what the user approved when the action is
  * prepared: the dry run (with the values that move on their own removed,
  * like the indicative numbers) and the rows the tool targets (`targetState`
- * of the tool: entries with their lines, invoices with their lines, rules
- * with their conditions...). At execution it computes the fingerprint
- * again and refuses the action when it differs.
- *
- * The check runs right before the execution, once the approved action is
- * claimed (an action refused here cannot be executed again).
+ * of the tool: references to entries, invoices, rules..., read by
+ * lib/approved-state/targets.ts). At execution it is checked twice:
+ * - right after the approved action is claimed, the whole fingerprint is
+ *   computed again (dry run included) and compared;
+ * - then the service runs inside runWithApprovedState
+ *   (lib/approved-state/guard.ts) and checks each target again inside its
+ *   own transaction, under a lock of the rows, so an edit landing between
+ *   the first check and the service's write is refused as well.
  */
 
 import { createHash } from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { loadTargetState, normalizeState, targetKey, type TargetRef } from '@/lib/approved-state/targets'
 import { canonicalJson } from './canonical-json'
+
+export { STATE_CHANGED_MESSAGE } from '@/lib/approved-state/guard'
 
 /** Keys of a dry run that change without any edit of the data (indicative numbers, notes). */
 const VOLATILE_PREVIEW_KEYS = new Set(['numberToAssign', 'note'])
-
-export const STATE_CHANGED_MESSAGE =
-  "Les données ont changé depuis l'approbation : l'action n'a pas été exécutée. Préparez une nouvelle action (appel sans actionId) et faites-la approuver de nouveau."
-
-/** JSON as stored (Decimal, Date and other toJSON values serialized the same way). */
-function normalize(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value ?? null))
-}
 
 function withoutVolatile(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withoutVolatile)
@@ -43,42 +40,35 @@ function withoutVolatile(value: unknown): unknown {
   )
 }
 
+export interface TargetSnapshot {
+  ref: TargetRef
+  state: unknown
+}
+
+/** The current state of each target (read without lock, outside any transaction). */
+export async function readTargets(refs: TargetRef[]): Promise<TargetSnapshot[]> {
+  const unique = new Map(refs.map((ref) => [targetKey(ref), ref]))
+  const snapshots: TargetSnapshot[] = []
+  for (const ref of unique.values()) snapshots.push({ ref, state: await loadTargetState(prisma, ref) })
+  return snapshots
+}
+
 /** SHA-256 of a dry run and of the rows the action targets. */
-export function stateFingerprint(preview: unknown, target: unknown): string {
-  const state = { preview: withoutVolatile(normalize(preview)), target: normalize(target) }
+export function stateFingerprint(preview: unknown, targets: TargetSnapshot[]): string {
+  const target = Object.fromEntries(targets.map(({ ref, state }) => [targetKey(ref), normalizeState(state)]))
+  const state = { preview: withoutVolatile(normalizeState(preview)), target }
   return createHash('sha256').update(canonicalJson(state)).digest('hex')
 }
 
-/** Entries of the company among `ids`, every column with their lines (lines replaced by an edit get new ids). */
-export function entriesState(companyId: string, ids: string[]) {
-  return prisma.accountingEntry.findMany({
-    where: { id: { in: [...new Set(ids)] }, companyId },
-    include: { lines: { orderBy: { id: 'asc' } } },
-    orderBy: { id: 'asc' },
-  })
-}
+/** References to entries of the company. */
+export const entryTargets = (companyId: string, ids: string[]): TargetRef[] => [...new Set(ids)].map((id) => ({ kind: 'entry', companyId, id }))
 
-/** An invoice of the company, every column with its lines, VAT breakdown and payments. */
-export function invoiceState(companyId: string, invoiceId: string) {
-  return prisma.invoice.findFirst({
-    where: { id: invoiceId, companyId },
-    include: { lines: { orderBy: { id: 'asc' } }, vatBreakdown: { orderBy: { id: 'asc' } }, payments: { orderBy: { id: 'asc' } } },
-  })
-}
+/** Reference to an invoice of the company. */
+export const invoiceTarget = (companyId: string, id: string): TargetRef[] => [{ kind: 'invoice', companyId, id }]
 
-/** Assignment rules of the company (one, or all of them), with their conditions and entry lines. */
-export function rulesState(companyId: string, ruleId?: string) {
-  return prisma.transactionRule.findMany({
-    where: { companyId, ...(ruleId && { id: ruleId }) },
-    include: { conditions: { orderBy: { id: 'asc' } }, entryLines: { orderBy: { id: 'asc' } } },
-    orderBy: { id: 'asc' },
-  })
-}
+/** Reference to an expense report of the company. */
+export const expenseReportTarget = (companyId: string, id: string): TargetRef[] => [{ kind: 'expenseReport', companyId, id }]
 
-/** An expense report of the company, every column with its lines. */
-export function expenseReportState(companyId: string, reportId: string) {
-  return prisma.expenseReport.findFirst({
-    where: { id: reportId, companyId },
-    include: { lines: { orderBy: { id: 'asc' } } },
-  })
-}
+/** Reference to one rule, or to every rule of the company. */
+export const ruleTargets = (companyId: string, ruleId?: string): TargetRef[] =>
+  ruleId ? [{ kind: 'rule', companyId, id: ruleId }] : [{ kind: 'rules', companyId }]

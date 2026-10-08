@@ -35,7 +35,7 @@ import { deleteFixedAsset } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { getFixedAsset } from '@/lib/fixed-assets/read-fixed-assets.service'
 import { deleteDepreciationRecord, postDepreciationRecord } from '@/lib/fixed-assets/manage-depreciation-records.service'
 import { fullControlTool, type RegisterTool } from './define'
-import { expenseReportState, invoiceState } from './fingerprint'
+import { expenseReportTarget, invoiceTarget } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, ownedFiscalYear } from './resolve'
 
@@ -74,7 +74,7 @@ const manageInvoiceTool = fullControlTool({
   // resume_qonto calls Qonto
   openWorld: true,
   // The approval covers the invoice as the user saw it: an edit (update_draft_invoice) before the execution refuses it.
-  targetState: ({ companyId, invoiceId }) => invoiceState(companyId, invoiceId),
+  targetState: ({ companyId, invoiceId }) => invoiceTarget(companyId, invoiceId),
   async preview({ companyId, action, invoiceId, entryLineId, paymentId }) {
     const invoice = forAssistant(await getInvoice(companyId, invoiceId)) as Record<string, unknown>
     return { action, invoice: { id: invoice.id, number: invoice.number, direction: invoice.direction, status: invoice.status, totalInclTax: invoice.totalInclTax, remaining: invoice.remaining }, entryLineId: entryLineId ?? null, paymentId: paymentId ?? null }
@@ -223,7 +223,7 @@ const manageExpenseReportTool = fullControlTool({
   confirmation: true,
   highImpactActions: ['submit', 'return', 'validate', 'reopen', 'post', 'unpost', 'reimburse', 'delete'],
   destructive: true,
-  targetState: ({ companyId, reportId }) => expenseReportState(companyId, reportId),
+  targetState: ({ companyId, reportId }) => expenseReportTarget(companyId, reportId),
   async preview({ companyId, action, reportId }, ctx) {
     const report = forAssistant(await getExpenseReport(companyId, reportId, await expenseActorOf(ctx.access.user, companyId))) as Record<string, unknown>
     return { action, report: { id: report.id, number: report.number, status: report.status, claimant: report.claimant, totalInclTax: report.totalInclTax, periodStart: report.periodStart, periodEnd: report.periodEnd } }

@@ -31,7 +31,7 @@ import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { isoDate } from './resolve'
 import { decodeBase64File, receiptTypeOf } from './files'
-import { rulesState } from './fingerprint'
+import { ruleTargets } from './fingerprint'
 
 const transactionIds = z.array(z.string().min(1).max(64)).min(1).max(500).describe('Transaction ids, from list_bank_transactions.')
 
@@ -117,7 +117,7 @@ const bulkReconcileTool = fullControlTool({
   // Reconciling, by rule or without an entry, follows the approval of run_rules (KLEDG-R3-MCP-10).
   highImpactActions: ['mark_reconciled', 'unreconcile', 'auto_match', 'apply_rule'],
   destructive: true,
-  targetState: ({ companyId, action, ruleId }) => (action === 'apply_rule' && ruleId ? rulesState(companyId, ruleId) : Promise.resolve(null)),
+  targetState: ({ companyId, action, ruleId }) => (action === 'apply_rule' && ruleId ? ruleTargets(companyId, ruleId) : []),
   async preview({ companyId, action, transactionIds: ids, transactionId, ruleId, startDate, endDate }) {
     if (action === 'apply_rule') {
       if (!transactionId || !ruleId) throw new ValidationError('transactionId et ruleId sont requis pour appliquer une règle.')
@@ -208,7 +208,7 @@ const syncBankDataTool = fullControlTool({
   // The refresh runs the autoCreate rules: it follows the approval of run_rules (KLEDG-R3-MCP-10).
   confirmation: true,
   highImpactWhen: ({ scope }) => scope === 'refresh',
-  targetState: ({ companyId, scope }) => (scope === 'refresh' ? rulesState(companyId) : Promise.resolve(null)),
+  targetState: ({ companyId, scope }) => (scope === 'refresh' ? ruleTargets(companyId) : []),
   idempotent: true,
   async preview({ companyId, scope, maxDays }) {
     const rules = await prisma.transactionRule.findMany({

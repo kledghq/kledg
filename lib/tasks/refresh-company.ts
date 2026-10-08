@@ -6,6 +6,7 @@ import { handleError } from '@/lib/accounting/errors'
 import { errorReason } from '@/lib/banking/errors'
 import { plural } from '@/lib/utils/plural'
 import { pickRule } from '@/lib/transactions/rule-matcher'
+import { ApprovedStateChangedError } from '@/lib/approved-state/guard'
 
 export interface RefreshCompanyResult {
   bankSync: { success: boolean; message: string; accountsSynced: number }
@@ -184,6 +185,8 @@ export async function refreshCompany(
           else recordFailure(transaction.id, result.error || "Impossible d'appliquer la règle")
         }
       } catch (error) {
+        // The rules approved for an MCP run changed: the run stops (KLEDG-R3-MCP-01).
+        if (error instanceof ApprovedStateChangedError) throw error
         logger.error(`Error processing transaction ${transaction.id}:`, error)
         recordFailure(transaction.id, userMessage(error, RULE_FAILED))
       }
@@ -201,6 +204,7 @@ export async function refreshCompany(
       failures,
     }
   } catch (error) {
+    if (error instanceof ApprovedStateChangedError) throw error
     logger.error(`Rules execution failed for company ${companyId}:`, error)
     results.rulesExecution = {
       success: false,

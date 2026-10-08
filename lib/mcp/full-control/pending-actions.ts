@@ -26,7 +26,10 @@
  *    claimed with a conditional update before it runs: it executes once,
  *    even when two calls race. Once claimed, it runs only if the data it
  *    acts on did not change since it was prepared (`fingerprint`,
- *    fingerprint.ts): approving an action approves what the user saw.
+ *    fingerprint.ts, checked again inside the service's transaction):
+ *    approving an action approves what the user saw. When the data changed,
+ *    the claim is released (releaseAction): nothing ran, and the action
+ *    stays approved for the data the user saw only.
  *
  * Why the assistant executes after approval rather than Kledg executing on
  * approval: execution stays inside the MCP authorization path (scope of the
@@ -152,6 +155,16 @@ export async function claimApprovedAction(
   })
   if (claimed.count === 0) throw new ConflictError(PENDING_ACTION_MESSAGES.done)
   return { fingerprint: row.fingerprint }
+}
+
+/**
+ * Gives back a claimed action that did not run because its data changed
+ * since the approval (KLEDG-R3-MCP-01): it stays approved and unused, and
+ * executes only once the data is again the one the user approved (the
+ * fingerprint is compared on every claim).
+ */
+export async function releaseAction(actionId: string): Promise<void> {
+  await prisma.mcpPendingAction.updateMany({ where: { id: actionId, status: 'executing' }, data: { status: 'approved' } })
 }
 
 /** Records how a claimed action ended. */

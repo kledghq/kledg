@@ -41,6 +41,7 @@ import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { accountByRoot } from './ledger-accounts'
 import { INVOICE_NOT_FOUND, lockInvoice } from './manage-invoices.service'
 import { VAT_ACCOUNT_ROOTS } from './post-invoice.service'
+import { checkApprovedState } from '@/lib/approved-state/guard'
 
 type Db = Prisma.TransactionClient | typeof prisma
 
@@ -205,7 +206,12 @@ async function letterIfCovered(companyId: string, invoiceId: string, now?: Date)
     }
   }
   try {
-    const group = await letterLines(companyId, { accountId: tiersLine.accountId, lineIds: [tiersLine.id, ...paymentLines.map((l) => l.id)] }, { now, source: 'invoice' })
+    const group = await letterLines(
+      companyId,
+      { accountId: tiersLine.accountId, lineIds: [tiersLine.id, ...paymentLines.map((l) => l.id)] },
+      // An approved MCP action letters the invoice as the user saw it (KLEDG-R3-MCP-01)
+      { now, source: 'invoice', inTx: (tx) => checkApprovedState(tx, { kind: 'invoice', companyId, id: invoiceId }) },
+    )
     return { paidCents, remainingCents: 0, lettered: true, letteringCode: group.code, letteringPending: null }
   } catch (error) {
     if (error instanceof AccountingError) return { paidCents, remainingCents: 0, lettered: false, letteringCode: null, letteringPending: error.message }

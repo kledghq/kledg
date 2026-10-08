@@ -29,6 +29,7 @@ import { bankVatInEuros } from '@/lib/banking/bank-vat';
 import { selfAssessedSplit } from '@/lib/vat-deduction/share';
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date';
 import { checkEntryDate } from '@/lib/reconciliation/validation';
+import { ApprovedStateChangedError, approvedStateActive, checkApprovedState } from '@/lib/approved-state/guard';
 import {
   MESSAGES as RECONCILIATION_MESSAGES,
   assertWritableLines,
@@ -73,6 +74,8 @@ export interface PreparedRuleEntry {
   reference: string | null;
   bankAccountId: string;
   lines: GeneratedLine[];
+  /** When the rule read was last changed (an approved MCP run checks it did not change before the write). */
+  ruleUpdatedAt: Date;
 }
 
 export type RuleFailure = { ok: false; error: string; status: number };
@@ -285,6 +288,7 @@ export async function prepareRuleEntry(
     reference: transaction.reference,
     bankAccountId: bankAccount.id,
     lines,
+    ruleUpdatedAt: rule.updatedAt,
   };
 }
 
@@ -316,6 +320,15 @@ export async function applyRule(
       description: prepared.description,
       reference: prepared.reference,
       lines: prepared.lines,
+      // An approved MCP action applies the rule as the user saw it (KLEDG-R3-MCP-01):
+      // checked under a lock of the rule, in the transaction that writes the entry.
+      afterCreate: async (db) => {
+        await checkApprovedState(db, { kind: 'rule', companyId, id: ruleId });
+        if (!approvedStateActive()) return;
+        const current = await db.transactionRule.findUnique({ where: { id: ruleId }, select: { updatedAt: true } });
+        // The entry was computed from the rule read before this transaction: it must still be that one.
+        if (current?.updatedAt.getTime() !== prepared.ruleUpdatedAt.getTime()) throw new ApprovedStateChangedError();
+      },
     });
 
     await prisma.transactionRule.update({
@@ -328,6 +341,7 @@ export async function applyRule(
 
     return { success: true, entryId: entry.id };
   } catch (error) {
+    if (error instanceof ApprovedStateChangedError) throw error;
     if (error instanceof ConflictError || error instanceof ValidationError) {
       return { success: false, error: error.message, status: error.statusCode };
     }

@@ -14,6 +14,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { loadRuleMatcher } from '@/lib/transactions/rule-service'
+import { ApprovedStateChangedError } from '@/lib/approved-state/guard'
 import { pickRule } from '@/lib/transactions/rule-matcher'
 import { applyRule } from '@/lib/transactions/rule-executor'
 import { logger } from '@/lib/logger'
@@ -183,6 +184,8 @@ export async function processTransactions(
               })
             }
           } catch (error: unknown) {
+            // The rules approved for an MCP run changed: the run stops (KLEDG-R3-MCP-01).
+            if (error instanceof ApprovedStateChangedError) throw error
             const errorMessage = error instanceof Error ? error.message : 'Error applying rule'
             results.errors.push({
               transactionId: transaction.id,
@@ -192,6 +195,7 @@ export async function processTransactions(
         }
       }
     } catch (error: unknown) {
+      if (error instanceof ApprovedStateChangedError) throw error
       const errorMessage = error instanceof Error ? error.message : 'Error processing transaction'
       logger.error(`Error processing transaction ${transaction.id}:`, error)
       results.errors.push({

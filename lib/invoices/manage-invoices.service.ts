@@ -47,6 +47,7 @@ import { assertInvoiceAmountsFit } from './amount-bounds'
 import { assertOutsideRunningSeries, loadNumberingSettings, lockInvoiceNumbers, peekNextNumber } from './numbering/series'
 import { VAT_EXEMPTION_CODES, invoiceExemptionMentions, isVatExemption, type VatExemption } from './vat-exemptions'
 import { defaultDueDate, invoiceStatus, maxDueDate, remainingCents, type InvoiceStatus } from './status'
+import { checkApprovedState } from '@/lib/approved-state/guard'
 
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
 
@@ -575,6 +576,8 @@ export async function createInvoice(
 export async function lockInvoice(tx: Prisma.TransactionClient, companyId: string, id: string) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "invoices" WHERE "id" = ${id} AND "companyId" = ${companyId} FOR UPDATE`
   if (rows.length === 0) throw new NotFoundError(INVOICE_NOT_FOUND)
+  // An approved MCP action acts on the invoice as the user saw it (KLEDG-R3-MCP-01)
+  await checkApprovedState(tx, { kind: 'invoice', companyId, id })
   const invoice = await tx.invoice.findUniqueOrThrow({
     where: { id },
     select: {

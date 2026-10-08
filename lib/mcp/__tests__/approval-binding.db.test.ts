@@ -169,14 +169,17 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       expect(done.text).toMatch(/Les données ont changé depuis l'approbation/)
       const row = await prisma.accountingEntry.findUniqueOrThrow({ where: { id: entry.id }, select: { status: true } })
       expect(row.status).toBe('draft')
-      expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id: dry.actionId } })).status).toBe('failed')
+      // The approval is left unused (approved, never executed), for the data the user saw only.
+      expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id: dry.actionId } })).status).toBe('approved')
       const refused = await prisma.auditLog.findMany({ where: { action: 'MCP_FULL_CONTROL_REFUSED', companyId: ids.company } })
       expect(refused.some((log) => (log.metadata as { actionId?: string }).actionId === dry.actionId)).toBe(true)
 
-      // The refused action is spent: calling it again does not run it either.
+      // Calling it again on the edited draft does not run it either.
       const again = await call(key, 'validate_entries', { companyId: ids.company, entryIds: [entry.id], actionId: dry.actionId })
       expect(again.ok).toBe(false)
+      expect(again.text).toMatch(/Les données ont changé depuis l'approbation/)
       expect((await prisma.accountingEntry.findUniqueOrThrow({ where: { id: entry.id } })).status).toBe('draft')
+      expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id: dry.actionId } })).status).toBe('approved')
     })
 
     it('still executes an approved action on unchanged data', async () => {
@@ -241,6 +244,136 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       const done = await call(key, 'run_rules', { companyId: ids.company, actionId: dry.actionId })
       expect(done.ok).toBe(false)
       expect(done.text).toMatch(/Les données ont changé depuis l'approbation/)
+    })
+  })
+
+  describe('KLEDG-R3-MCP-01: the approved state is checked again inside the service transaction', () => {
+    /**
+     * Runs `edit` in a transaction left open until the approved execution
+     * waits on a row lock, then commits it: the edit lands after the check
+     * done before the execution, while the service is about to write.
+     */
+    async function editDuringExecution(edit: (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => Promise<unknown>, execute: () => Promise<Awaited<ReturnType<typeof call>>>) {
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      let edited!: () => void
+      const editDone = new Promise<void>((resolve) => (edited = resolve))
+      const editing = prisma.$transaction(
+        async (tx) => {
+          await edit(tx)
+          edited()
+          await gate
+        },
+        { timeout: 30_000 },
+      )
+      await editDone
+      const execution = execute()
+      // Wait until a statement of the execution waits on the edit's row locks.
+      let waiting = 0
+      for (let i = 0; i < 200 && waiting === 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 25))
+        const rows = await prisma.$queryRaw<Array<{ n: bigint }>>`SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`
+        waiting = Number(rows[0]?.n ?? 0)
+      }
+      release()
+      await editing
+      return { result: await execution, waited: waiting > 0 }
+    }
+
+    it('validate_entries: an edit committed while the validation waits on the entry lock refuses it, approval unused', async () => {
+      const key = await apiKey('admin')
+      const entry = await draftEntry('Encre', '15.00')
+      const dry = await ok(key, 'validate_entries', { companyId: ids.company, entryIds: [entry.id] })
+      await approve(dry.actionId)
+
+      const { result, waited } = await editDuringExecution(
+        (tx) => tx.accountingEntry.update({ where: { id: entry.id }, data: { description: 'Remboursement associé' } }),
+        () => call(key, 'validate_entries', { companyId: ids.company, entryIds: [entry.id], actionId: dry.actionId }),
+      )
+      expect(waited).toBe(true)
+      expect(result.ok).toBe(false)
+      expect(result.text).toMatch(/Les données ont changé depuis l'approbation/)
+      const row = await prisma.accountingEntry.findUniqueOrThrow({ where: { id: entry.id }, select: { status: true, description: true } })
+      expect(row).toEqual({ status: 'draft', description: 'Remboursement associé' })
+      expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id: dry.actionId } })).status).toBe('approved')
+    })
+
+    it('manage_invoice post: an edit committed while posting waits on the invoice lock refuses it', async () => {
+      const auto = await apiKey('admin', 'automatic', 'Préparation concurrente')
+      const key = await apiKey('admin')
+      const tiers = await ok(key, 'manage_tiers', { companyId: ids.company, action: 'create', tiers: { kind: 'SUPPLIER', name: 'Papeterie Leroy' } })
+      const created = await ok(auto, 'create_draft_invoice', {
+        companyId: ids.company,
+        direction: 'PURCHASE',
+        tiers: tiers.tiersId,
+        number: 'F-CONC-1',
+        issueDate: '2025-03-16',
+        lines: [{ label: 'Papier', quantity: 1, unitPrice: 50, vatRate: 20, accountCode: '606100' }],
+      })
+      const invoiceId = created.result.invoice?.id ?? created.result.invoiceId ?? created.result.id
+      const dry = await ok(key, 'manage_invoice', { companyId: ids.company, action: 'post', invoiceId })
+      await approve(dry.actionId)
+
+      const { result, waited } = await editDuringExecution(
+        (tx) => tx.invoice.update({ where: { id: invoiceId }, data: { number: 'F-CONC-9' } }),
+        () => call(key, 'manage_invoice', { companyId: ids.company, action: 'post', invoiceId, actionId: dry.actionId }),
+      )
+      expect(waited).toBe(true)
+      expect(result.ok).toBe(false)
+      expect(result.text).toMatch(/Les données ont changé depuis l'approbation/)
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { entryId: true } })).entryId).toBeNull()
+      expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id: dry.actionId } })).status).toBe('approved')
+    })
+
+    it('run_rules: a rule edit committed while the run waits on the rule lock refuses it, no entry created', async () => {
+      const key = await apiKey('admin')
+      await prisma.transactionRule.deleteMany({ where: { companyId: ids.company } })
+      const rule = await ok(key, 'create_rule', {
+        companyId: ids.company,
+        name: 'Abonnement box',
+        conditions: [{ conditionType: 'label', operator: 'contains', value: 'BOX' }],
+        entryLines: [{ accountCode: '627', lineType: 'auto', amountType: 'full' }],
+      })
+      const transaction = await bankTransaction('PRLV BOX INTERNET', '29.99')
+      const dry = await ok(key, 'run_rules', { companyId: ids.company, transactionIds: [transaction.id] })
+      expect(dry.preview.wouldApply).toBe(1)
+      await approve(dry.actionId)
+
+      const { result, waited } = await editDuringExecution(
+        (tx) => tx.transactionRuleEntryLine.updateMany({ where: { ruleId: rule.result.id }, data: { accountCode: '455' } }),
+        () => call(key, 'run_rules', { companyId: ids.company, transactionIds: [transaction.id], actionId: dry.actionId }),
+      )
+      expect(waited).toBe(true)
+      expect(result.ok).toBe(false)
+      expect(result.text).toMatch(/Les données ont changé depuis l'approbation/)
+      expect((await prisma.bankTransaction.findUniqueOrThrow({ where: { id: transaction.id } })).reconciled).toBe(false)
+      expect(await prisma.accountingEntry.count({ where: { sourceBankTransactionId: transaction.id } })).toBe(0)
+      expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id: dry.actionId } })).status).toBe('approved')
+    })
+
+    it('run_rules: unchanged rules still apply once approved', async () => {
+      const key = await apiKey('admin')
+      await prisma.transactionRule.deleteMany({ where: { companyId: ids.company } })
+      await ok(key, 'create_rule', {
+        companyId: ids.company,
+        name: 'Abonnement fibre',
+        conditions: [{ conditionType: 'label', operator: 'contains', value: 'FIBRE' }],
+        entryLines: [{ accountCode: '627', lineType: 'auto', amountType: 'full' }],
+      })
+      const first = await bankTransaction('PRLV FIBRE 1', '19.99')
+      const second = await bankTransaction('PRLV FIBRE 2', '19.99')
+      const dry = await ok(key, 'run_rules', { companyId: ids.company, transactionIds: [first.id, second.id] })
+      await approve(dry.actionId)
+      const done = await ok(key, 'run_rules', { companyId: ids.company, transactionIds: [first.id, second.id], actionId: dry.actionId })
+      // The same rule applied twice: its counters change, not its approved state.
+      expect(done.result.applied).toBe(2)
+      expect((await prisma.mcpPendingAction.findUniqueOrThrow({ where: { id: dry.actionId } })).status).toBe('executed')
+    })
+
+    it('a check outside an approved execution does nothing (web pages, automatic mode)', async () => {
+      const { checkApprovedState, approvedStateActive } = await import('@/lib/approved-state/guard')
+      expect(approvedStateActive()).toBe(false)
+      await expect(prisma.$transaction((tx) => checkApprovedState(tx, { kind: 'entry', companyId: ids.company, id: 'none' }))).resolves.toBeUndefined()
     })
   })
 

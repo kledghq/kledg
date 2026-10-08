@@ -29,6 +29,7 @@ import { letterLines, type LetteredGroup } from '@/lib/lettering/lettering.servi
 import { calendarDayOf } from '@/lib/utils/date'
 import { formatCentsFr, parseCents } from '@/lib/utils/money'
 import { REPORT_NOT_FOUND } from './manage-expense-reports.service'
+import { checkApprovedState } from '@/lib/approved-state/guard'
 
 /** Body of POST /api/expense-reports/[id]/reimbursement. */
 export const ReimburseBodySchema = z.object({
@@ -152,5 +153,10 @@ export async function reimburseExpenseReport(
   if (paid !== amountCents) {
     throw new ValidationError(`Les virements choisis font ${formatCentsFr(paid)}, la note de frais ${formatCentsFr(amountCents)}\u00a0: Kledg ne lettre que des montants égaux.`)
   }
-  return letterLines(companyId, { accountId: line.accountId, lineIds: [line.id, ...unique] }, { now: options.now, source: options.source ?? 'expense-report' })
+  return letterLines(
+    companyId,
+    { accountId: line.accountId, lineIds: [line.id, ...unique] },
+    // An approved MCP action letters the report as the user saw it (KLEDG-R3-MCP-01)
+    { now: options.now, source: options.source ?? 'expense-report', inTx: (tx) => checkApprovedState(tx, { kind: 'expenseReport', companyId, id: reportId }) },
+  )
 }

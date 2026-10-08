@@ -23,8 +23,11 @@
  *    In validation mode the approval is bound to the data, not only to the
  *    arguments: a fingerprint of the dry run and of the rows the tool
  *    targets (`targetState`) is stored with the pending action and computed
- *    again before the execution; when the data changed since the approval
- *    the action is refused (fingerprint.ts);
+ *    again before the execution, then each target is checked again by the
+ *    service inside its transaction, under a lock of its rows
+ *    (lib/approved-state/guard.ts); when the data changed since the
+ *    approval the action is refused and nothing is written
+ *    (fingerprint.ts);
  * 4. every action (not the dry runs nor the plain reads) is written to the
  *    audit log with the user, the assistant (OAuth client name or API key
  *    name), the execution mode, the tool and the main ids.
@@ -47,8 +50,11 @@ import { READ_ONLY, describeTool, permissionsOfAction, writeAnnotations, type Ac
 import { ConflictError, ForbiddenError } from '@/lib/accounting/errors'
 import type { GroupAccess } from '@/lib/management-fees/access'
 import type { ExecutionMode } from '@/lib/ai-access/access'
-import { claimApprovedAction, createPendingAction, finishAction } from './pending-actions'
-import { STATE_CHANGED_MESSAGE, stateFingerprint } from './fingerprint'
+import { claimApprovedAction, createPendingAction, finishAction, releaseAction } from './pending-actions'
+import { STATE_CHANGED_MESSAGE, readTargets, stateFingerprint } from './fingerprint'
+import type { TargetRef } from '@/lib/approved-state/targets'
+import { ApprovedStateChangedError, runWithApprovedState } from '@/lib/approved-state/guard'
+import { logger } from '@/lib/logger'
 import { TWO_STEP, stepFor } from './descriptions'
 
 export const companyIdInput = z.string().describe('Company id, from list_companies.')
@@ -125,12 +131,13 @@ export interface ConfirmedTool<S extends Shape, P, R> extends ToolBase<S, R> {
   highImpactWhen?: (args: Args<S>) => boolean
   /**
    * The rows the action acts on (entries with their lines, an invoice with
-   * its lines, rules...), read again before the execution: in validation
-   * mode the approval is refused when they, or the dry run, changed since
-   * the user approved it (fingerprint.ts). The dry run alone is compared
-   * when absent.
+   * its lines, rules...): in validation mode the approval is refused when
+   * they, or the dry run, changed since the user approved it, checked before
+   * the execution and again by the service inside its transaction under a
+   * lock of the rows (fingerprint.ts, lib/approved-state/guard.ts). The dry
+   * run alone is compared, before the execution only, when absent.
    */
-  targetState?: (args: Args<S>, ctx: FullControlContext) => Promise<unknown>
+  targetState?: (args: Args<S>, ctx: FullControlContext) => TargetRef[]
 }
 
 export type FullControlTool<S extends Shape, P, R> = DirectTool<S, R> | ConfirmedTool<S, P, R>
@@ -312,7 +319,7 @@ interface HighImpactCall<P, R> {
   actionId?: string
   preview: () => Promise<P>
   /** The rows the action acts on, part of the fingerprint the approval is bound to. */
-  targetState?: () => Promise<unknown>
+  targetState?: () => TargetRef[]
   execute: () => Promise<R>
   /** Main ids written to the audit log with the action. */
   audit: ((result: R) => Record<string, unknown>) | null
@@ -338,11 +345,11 @@ async function highImpactCall<P, R>(call: HighImpactCall<P, R>): Promise<ToolRes
   }
 
   const binding = { userId: access.user.id, caller: access.caller, tool, companyId, args: call.args }
-  const fingerprintOf = async (preview: P) => stateFingerprint(preview, call.targetState ? await call.targetState() : null)
+  const targetsNow = () => readTargets(call.targetState ? call.targetState() : [])
   if (!call.actionId) {
     const preview = await call.preview()
     const assistant = await assistantOf(access)
-    const pending = await createPendingAction(binding, preview, assistant.name, await fingerprintOf(preview))
+    const pending = await createPendingAction(binding, preview, assistant.name, stateFingerprint(preview, await targetsNow()))
     await audit(tool, access, companyId, { actionId: pending.id }, undefined, 'MCP_FULL_CONTROL_PENDING')
     return json({
       dryRun: true,
@@ -364,20 +371,34 @@ async function highImpactCall<P, R>(call: HighImpactCall<P, R>): Promise<ToolRes
   }
   // The approval covers the data the user saw: the action is claimed (it
   // cannot run twice), then refused if the dry run or the target rows
-  // changed since (an approved draft edited by a direct tool, say).
+  // changed since (an approved draft edited by a direct tool, say). A
+  // refusal releases the claim: the approval stays unused, and executes
+  // only on the data the user approved.
+  let targets: Awaited<ReturnType<typeof targetsNow>>
   try {
-    const current = await fingerprintOf(await call.preview())
+    targets = await targetsNow()
+    const current = stateFingerprint(await call.preview(), targets)
     if (approvedFingerprint === null || current !== approvedFingerprint) throw new ConflictError(STATE_CHANGED_MESSAGE)
   } catch (error) {
-    await finishAction(actionId, false)
+    await releaseAction(actionId)
     await audit(tool, access, companyId, { actionId }, error instanceof Error ? error.message : 'refused')
     throw error
   }
+  // The services check each target again inside their own transaction,
+  // under a lock of its rows (lib/approved-state/guard.ts): an edit landing
+  // after the check above rolls the service's transaction back.
   let result: R
   try {
-    result = await call.execute()
+    const run = await runWithApprovedState(targets, call.execute)
+    result = run.result
+    if (run.unchecked.length > 0) logger.warn('MCP approved action: targets not checked inside a transaction', { tool, actionId, unchecked: run.unchecked })
   } catch (error) {
-    await finishAction(actionId, false)
+    if (error instanceof ApprovedStateChangedError) {
+      await releaseAction(actionId)
+      await audit(tool, access, companyId, { actionId }, error.message)
+    } else {
+      await finishAction(actionId, false)
+    }
     throw error
   }
   await finishAction(actionId, true)

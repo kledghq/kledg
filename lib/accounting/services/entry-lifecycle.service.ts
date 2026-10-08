@@ -18,6 +18,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { ApprovedStateChangedError, checkApprovedState } from '@/lib/approved-state/guard'
 import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { syncFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/acquisition-entry'
 import { ConflictError, NotFoundError, ValidationError, handleError } from '../errors'
@@ -382,11 +383,15 @@ export async function validateEntries(
     try {
       validated.push(
         await prisma.$transaction(async (db) => {
+          // An approved MCP action validates the draft as the user saw it (KLEDG-R3-MCP-01)
+          await checkApprovedState(db, { kind: 'entry', companyId, id })
           await validateEntryInTx(db, id, companyId)
           return getEntry(id, db)
         }, TX_OPTIONS),
       )
     } catch (error) {
+      // The approved data changed: the whole approved action stops here.
+      if (error instanceof ApprovedStateChangedError) throw error
       errors.push({ entryId: id, error: describeEntryError(error) })
     }
   }
@@ -489,7 +494,11 @@ export async function updateDraftEntry(
 
 /** Deletes a draft. A validated entry is refused (409): it can only be reversed. */
 export async function deleteDraftEntry(companyId: string, entryId: string): Promise<{ id: string; description: string | null; reference: string | null }> {
-  return prisma.$transaction(async (db) => deleteDraftEntryInTx(db, companyId, entryId), TX_OPTIONS)
+  return prisma.$transaction(async (db) => {
+    // An approved MCP action deletes the draft as the user saw it (KLEDG-R3-MCP-01)
+    await checkApprovedState(db, { kind: 'entry', companyId, id: entryId })
+    return deleteDraftEntryInTx(db, companyId, entryId)
+  }, TX_OPTIONS)
 }
 
 /** deleteDraftEntry inside the caller's transaction (an invoice unposted with its draft entry). */

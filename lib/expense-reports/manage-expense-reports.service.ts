@@ -44,6 +44,7 @@ import { expenseReportStatus, type ExpenseReportStatus, type ExpenseStatusFilter
 import { RECOVERY_LABELS } from './vat-recovery'
 import { mealLineTreatment, type MealTaker } from './exploitant-meals'
 import { claimantMealRole, mealRulesOn } from './meal-rule.service'
+import { checkApprovedState } from '@/lib/approved-state/guard'
 
 export const REPORT_NOT_FOUND = 'Note de frais introuvable'
 
@@ -544,6 +545,8 @@ async function nextNumber(tx: Prisma.TransactionClient, companyId: string): Prom
 export async function lockExpenseReport(tx: Prisma.TransactionClient, companyId: string, id: string, actor: ExpenseActor | null) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "expense_reports" WHERE "id" = ${id} AND "companyId" = ${companyId} FOR UPDATE`
   if (rows.length === 0) throw new NotFoundError(REPORT_NOT_FOUND)
+  // An approved MCP action acts on the report as the user saw it (KLEDG-R3-MCP-01)
+  await checkApprovedState(tx, { kind: 'expenseReport', companyId, id })
   const report = await tx.expenseReport.findUniqueOrThrow({
     where: { id },
     select: { id: true, number: true, status: true, entryId: true, claimantId: true, claimant: { select: { userId: true } }, _count: { select: { lines: true } } },
