@@ -35,7 +35,7 @@ import { accountByRoot, accountsByCode } from './ledger-accounts'
 import { invoiceName, lockInvoice, INVOICE_NOT_FOUND } from './manage-invoices.service'
 import { assignSeriesNumber } from './numbering/series'
 import { planInvoiceEntry, vatAccountsNeeded, type PlanLine, type VatAccountKey } from './posting-plan'
-import { vatDeductionShareOn } from '@/lib/vat-deduction/coefficient'
+import { vatDeductionOn } from '@/lib/vat-deduction/coefficient'
 
 /** PCG roots of the VAT accounts (PCG art. 932-1; 44574 is a subdivision of 4457). */
 export const VAT_ACCOUNT_ROOTS: Record<VatAccountKey, { root: string; label: string }> = {
@@ -68,8 +68,8 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
   // provisional coefficient de déduction), read before the transaction; the
   // date is checked again under the lock.
   const header = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { direction: true, issueDate: true } })
-  const share = header?.direction === 'PURCHASE' ? await vatDeductionShareOn(companyId, header.issueDate) : null
-  const deductionPercent = share === null ? undefined : Math.round(share * 100)
+  // The coefficient is a whole percent: passed as is, never through share x 100.
+  const deductionPercent = header?.direction === 'PURCHASE' ? ((await vatDeductionOn(companyId, header.issueDate)).percent ?? undefined) : undefined
   const result = await prisma.$transaction(async (tx) => {
     const locked = await lockInvoice(tx, companyId, invoiceId)
     if (locked.entryId) throw new ConflictError(`${invoiceName(locked)} est déjà comptabilisée.`)

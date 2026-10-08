@@ -11,6 +11,9 @@ import { averageMonthlyChange } from '@/lib/cash-forecast/flows'
 import { addMonths, daysInclusive, endOfMonth } from '@/lib/cash-forecast/projection'
 import { dueDateOf } from '@/lib/reports/third-parties/payment-terms'
 import { trialBalanceStatement } from '@/lib/mcp/views/builders'
+import { wholePercentOf } from '@/lib/utils/money'
+import { buildPostingLines } from '@/lib/simple/posting'
+import { findCategory } from '@/lib/simple/categories'
 
 describe('balances compare in cents', () => {
   it('a one cent imbalance is an imbalance, float noise is not', () => {
@@ -62,5 +65,17 @@ describe('day arithmetic', () => {
     expect(dueDateOf('2026-01-31', { days: 30, endOfMonth: false })).toBe('2026-03-02')
     expect(dueDateOf('2026-01-31', { days: 30, endOfMonth: true })).toBe('2026-03-31')
     expect(dueDateOf('2028-01-30', { days: 0, endOfMonth: true })).toBe('2028-01-31')
+  })
+})
+
+describe('coefficient de déduction shown as a whole percent', () => {
+  it('reads back the percent a share came from', () => {
+    expect([0.29, 0.57, 0.6, 1, 0].map(wholePercentOf)).toEqual([29, 57, 60, 100, 0])
+  })
+
+  it('simple mode writes the coefficient of the note through it', () => {
+    const category = findCategory('telephone-internet')!
+    const plan = buildPostingLines({ category, posting: category.posting, side: 'debit', amountCents: 12_000, recoveryRatio: 0.29 })
+    expect(plan.vatNote).toContain(' 29 % de la TVA')
   })
 })

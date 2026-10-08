@@ -49,6 +49,7 @@
 import { trustedBankVatCents } from '@/lib/banking/bank-vat'
 import { vatOnBaseCents } from '@/lib/invoices/amounts'
 import { deductibleVatCents, selfAssessedSplit } from '@/lib/vat-deduction/share'
+import { wholePercentOf } from '@/lib/utils/money'
 import { recoverableVatByRule, vatIncludedCents, RECOVERY_LABELS } from '@/lib/expense-reports/vat-recovery'
 import { NON_DEDUCTIBLE_MEALS_ACCOUNT, splitExploitantMeal, type MealSplit } from '@/lib/expense-reports/exploitant-meals'
 import { EXPLOITANT_MEAL_ANSWER, type CategoryKind, type Posting, type Question, type SimpleCategory } from './categories'
@@ -193,7 +194,7 @@ export const VAT_SELF_ASSESSED = '4452'
 const DETECTED_NONE_NOTE = 'Opération exonérée (CGI art. 261 C, 1°)\u00a0: aucune TVA lue sur la facture'
 const SELF_ASSESSED_NOTE = 'TVA autoliquidée\u00a0: fournisseur établi hors de France (CGI art. 259, 1° et 283, 2)'
 
-const coefficientNote = (ratio: number) => `Coefficient de déduction provisoire\u00a0: ${Math.round(ratio * 100)} % de la TVA récupérable (CGI ann. II art. 206)`
+const coefficientNote = (ratio: number) => `Coefficient de déduction provisoire\u00a0: ${wholePercentOf(ratio)} % de la TVA récupérable (CGI ann. II art. 206)`
 
 /**
  * A service of a supplier established outside France: the amount paid is
