@@ -71,6 +71,7 @@ export const TABLES = {
   expense_category_rules: { company: '"companyId" = $2', columns: ['id'] },
   management_fee_conventions: { company: '"companyId" = $2', columns: ['id'] },
   fixed_assets: { company: '"companyId" = $2', columns: ['id'] },
+  company_invitations: { company: '"companyId" = $2', columns: ['id'] },
 } as const
 
 export type TargetTable = keyof typeof TABLES
