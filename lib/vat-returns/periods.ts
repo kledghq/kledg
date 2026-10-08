@@ -21,10 +21,10 @@ import { vatFilingAt, type DeadlineCompany } from '@/lib/deadlines/engine'
 import type { DeadlineSettings } from '@/lib/deadlines/settings'
 import { parsePeriodKey } from './period-keys'
 
-export { PERIOD_KEY_PATTERN, parsePeriodKey, periodKeyOfDeadline } from './period-keys'
+export { PERIOD_KEY_PATTERN } from './period-keys'
 
 export type VatForm = 'CA3' | 'CA12'
-export type VatFrequency = 'monthly' | 'quarterly' | 'annual'
+type VatFrequency = 'monthly' | 'quarterly' | 'annual'
 
 export interface VatPeriod {
   /** "2026-09", "2026-T3" or "2026". */

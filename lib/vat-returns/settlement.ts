@@ -44,7 +44,7 @@ export interface SettlementInput {
   creditEuros: number
 }
 
-export const SETTLEMENT_ACCOUNTS = {
+const SETTLEMENT_ACCOUNTS = {
   toPay: { code: '44551', label: 'TVA à décaisser' },
   credit: { code: '44567', label: 'Crédit de TVA à reporter' },
   roundingCharge: { code: '658', label: 'Pénalités et autres charges' },
@@ -64,7 +64,7 @@ const LABELS: Array<[string, string]> = [
 const labelOf = (code: string) => LABELS.find(([root]) => code.startsWith(root))?.[1] ?? `Compte ${code}`
 
 /** Accounts the settlement clears by their period movement. */
-export const isSettledCode = (code: string) =>
+const isSettledCode = (code: string) =>
   (code.startsWith('4457') && !code.startsWith('44574') && !code.startsWith('44578')) ||
   code.startsWith('4452') ||
   code.startsWith('44562') ||

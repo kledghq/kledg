@@ -46,7 +46,7 @@ import type { CorporateTaxSourceKey } from './sources'
 export type CorporateTaxRegime = 'normal' | 'simplified'
 
 /** Where a line of the worksheet comes from. */
-export type AdjustmentOrigin = 'books' | 'group' | 'manual'
+type AdjustmentOrigin = 'books' | 'group' | 'manual'
 
 /** A reintegration or a deduction of the tax result. Amounts positive. */
 export interface Adjustment {

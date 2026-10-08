@@ -27,7 +27,7 @@ const STATUS = { computed: 'Calculé', manual: 'À remplir', total: 'Total' } as
 const SEVERITY = { blocking: 'À corriger', warning: 'À vérifier', info: 'Information', ok: 'OK' } as const
 const books = (cents: number | null) => (cents === null ? '' : centsToFecAmount(cents))
 
-export function vatReturnCsv(view: VatReturnView, companyName: string): string {
+function vatReturnCsv(view: VatReturnView, companyName: string): string {
   const period = view.period
   const rows: Array<Array<string | number | null>> = [
     ['Société', companyName],

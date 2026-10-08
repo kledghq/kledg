@@ -19,7 +19,7 @@ const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
 const cents = (value: { toString(): string }) => parseCents(value.toString()) ?? 0
 
 /** Collected VAT due or pending (4457, 44574 included), not the taxes assimilées of 44578. */
-export const isCollectedVatCode = (code: string) => code.startsWith('4457') && !code.startsWith('44578')
+const isCollectedVatCode = (code: string) => code.startsWith('4457') && !code.startsWith('44578')
 
 /** The ledger code an invoice line posted to: the first revenue line of the entry under its root (lib/invoices/ledger-accounts.ts). */
 function ledgerCodeOf(root: string, entryCodes: readonly string[]): string {

@@ -46,7 +46,7 @@ import { DECLARED_RATES_BP } from './classify'
 import { CA12_LINES, CA3_LINES, RATE_LINES, type FormLineDef } from './forms'
 import type { VatForm } from './periods'
 
-export type LineStatus = 'computed' | 'manual' | 'total'
+type LineStatus = 'computed' | 'manual' | 'total'
 
 export interface VatReturnLine {
   code: string
@@ -66,7 +66,7 @@ export interface VatReturnLine {
   hint: string
 }
 
-export interface VatReturnResult {
+interface VatReturnResult {
   kind: 'due' | 'credit' | 'nil'
   /** On the form, whole euros: CA3 line 28 or CA12 line 33; CA3 line 27 or CA12 line 35. */
   dueEuros: number
@@ -75,7 +75,7 @@ export interface VatReturnResult {
   booksNetCents: number
 }
 
-export interface CA12Acomptes {
+interface CA12Acomptes {
   /** Acomptes paid during the year (44581): line 30. */
   paidCents: number
   /** Line 57: VAT of the year the next acomptes are computed on, whole euros. */
@@ -108,7 +108,7 @@ export function roundEuros(cents: number): number {
 }
 
 /** Threshold under which no acompte of the réel simplifié is due, in euros (BOI-TVA-DECLA-20-20-30-10). */
-export const ACOMPTE_THRESHOLD_EUROS = 1000
+const ACOMPTE_THRESHOLD_EUROS = 1000
 
 const sum = (values: number[]) => values.reduce((s, v) => s + v, 0)
 

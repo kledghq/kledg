@@ -62,7 +62,7 @@ export type CategoryKind = 'expense' | 'income' | 'other' | 'refund'
  *   and deducts it (44566), as the rules library templates of foreign
  *   suppliers book it (lib/simple/foreign-suppliers.ts).
  */
-export type SimpleVatRule = VatRule | 'passenger-vehicle' | 'detected' | 'self-assessed'
+type SimpleVatRule = VatRule | 'passenger-vehicle' | 'detected' | 'self-assessed'
 
 /** What an entry needs from a category: the account, the VAT rate and the recovery rule. */
 export interface Posting {
@@ -73,7 +73,7 @@ export interface Posting {
   vatRule: SimpleVatRule
 }
 
-export type QuestionId = 'durable' | 'meal-guests' | 'vehicle' | 'rent-vat' | 'sale-vat-rate' | 'owner-money' | 'supplier-vat'
+type QuestionId = 'durable' | 'meal-guests' | 'vehicle' | 'rent-vat' | 'sale-vat-rate' | 'owner-money' | 'supplier-vat'
 
 export interface QuestionAnswer {
   id: string
@@ -489,7 +489,7 @@ const DEFS: Def[] = [
 export const SIMPLE_CATEGORIES: readonly SimpleCategory[] = DEFS.map(({ account, vatRateBp, vatRule, ...rest }) => ({ ...rest, posting: { account, vatRateBp, vatRule } }))
 
 /** Prefix of the refund categories: `remboursement:telephone-internet`. */
-export const REFUND_PREFIX = 'remboursement:'
+const REFUND_PREFIX = 'remboursement:'
 
 /** Group of the refund categories in the picker. */
 export const REFUND_GROUP = 'Remboursements de dépenses'

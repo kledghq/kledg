@@ -18,6 +18,7 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { centsField, optionalText } from '@/lib/api/zod-fields'
 import { writeAuditLog } from '@/lib/audit'
 import { centsToDecimal } from '@/lib/utils/money'
+import { ACCOUNT_CODE_PATTERN } from '@/lib/accounting/account-code'
 import { todayParis } from '@/lib/accounting/entry-date'
 import { taxationOf } from './coefficient'
 import { deductedVatOf } from './load-vat-deduction.service'
@@ -25,11 +26,12 @@ import { VAT_TREATMENTS } from './revenue'
 
 const percent = (message: string) => z.number({ error: message }).int(message).min(0, message).max(100, message)
 
-/** A class 7 account code or root (7, 70, 706, 7061...). */
+/** A class 7 account code or root (70, 706, 7061...), in the one account number format (lib/accounting/account-code.ts). */
 export const revenueAccountCode = z
   .string({ error: 'Le compte est requis' })
   .trim()
-  .regex(/^7[0-9A-Za-z]{0,19}$/, 'Indiquez un compte de produits (classe 7)')
+  .regex(ACCOUNT_CODE_PATTERN, 'Indiquez un compte de produits (classe 7)')
+  .refine((code) => code.startsWith('7'), 'Indiquez un compte de produits (classe 7)')
 
 export const SaveVatDeductionBodySchema = z.object({
   partialVatDeduction: z.boolean().optional(),

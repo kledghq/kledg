@@ -62,7 +62,7 @@ import {
 } from '@/lib/corporate-tax/rules'
 import { formatCentsFr } from '@/lib/utils/money'
 
-export const INTEGRATION_SOURCES = {
+const INTEGRATION_SOURCES = {
   cgi223A: { label: 'CGI, art. 223 A (société mère, détention de 95 % au moins, exercices, option pour cinq exercices)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042340402/' },
   cgi223: { label: 'CGI, art. 223 A à 223 U (régime des groupes de sociétés\u00a0: résultat d’ensemble, art. 223 B ; déficits, art. 223 C et 223 I ; cessions entre sociétés du groupe, art. 223 F)', url: 'https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006069577/LEGISCTA000006162535/' },
   cgi216: { label: 'CGI, art. 216, I (quote-part de frais et charges de 1 % pour les dividendes entre sociétés d’un groupe)', url: 'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000048831340' },
@@ -77,15 +77,15 @@ export const INTEGRATION_SOURCES = {
 
 export type IntegrationSourceKey = keyof typeof INTEGRATION_SOURCES
 
-export const INTEGRATION_NOTICE =
+const INTEGRATION_NOTICE =
   'Simulation indicative de l’intégration fiscale pour un exercice, à faire vérifier par votre expert-comptable\u00a0: Kledg n’exerce pas l’option et ne dépose rien. Les retraitements que les livres ne montrent pas sont listés et ne comptent que si vous saisissez leur montant.'
 
 /** Quote-part de frais et charges on dividends between members of an integrated group (art. 216, I). */
-export const GROUP_QUOTE_PART_BP = 100
+const GROUP_QUOTE_PART_BP = 100
 /** Dividends between members outside the régime mère-fille: deducted at 99 % (art. 223 B). */
-export const NON_PARENT_DEDUCTION_BP = 9_900
+const NON_PARENT_DEDUCTION_BP = 9_900
 /** Holding giving access to the group (art. 223 A). */
-export const INTEGRATION_MIN_BP = 9_500
+const INTEGRATION_MIN_BP = 9_500
 
 export interface IntegrationCompanyInput {
   id: string
@@ -137,7 +137,7 @@ export interface IntegrationCheck {
   source: IntegrationSourceKey
 }
 
-export interface IntegrationMembership {
+interface IntegrationMembership {
   companyId: string
   name: string
   role: 'holding' | 'subsidiary'
@@ -157,7 +157,7 @@ export const MANUAL_NEUTRALISATIONS: Array<{ id: ManualNeutralisationId; label: 
   { id: 'other', label: 'Autres retraitements', hint: 'Tout autre retraitement que votre expert-comptable retient.', source: 'cgi223' },
 ]
 
-export interface IntegrationAdjustment {
+interface IntegrationAdjustment {
   id: string
   label: string
   /** Signed: positive adds to the résultat d'ensemble. */
@@ -168,7 +168,7 @@ export interface IntegrationAdjustment {
   source: IntegrationSourceKey
 }
 
-export interface IntegrationTax {
+interface IntegrationTax {
   taxableProfitCents: number
   reducedRate: { applied: boolean; eligible: boolean | null; baseCents: number; taxCents: number }
   normalRate: { baseCents: number; taxCents: number }

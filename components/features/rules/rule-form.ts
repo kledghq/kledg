@@ -103,7 +103,7 @@ export interface RuleFormState {
   entryLines: EntryLine[]
 }
 
-export function normalizeEntryLines(lines: EntryLineInput[]): EntryLine[] {
+function normalizeEntryLines(lines: EntryLineInput[]): EntryLine[] {
   return lines.map((l) => ({
     ...l,
     lineType: l.lineType === 'auto' ? 'debit' : l.lineType,
@@ -177,7 +177,7 @@ function codeLookup(accounts: Account[]) {
 }
 
 /** Entry lines as the API takes them (POST/PUT /api/transaction-rules and the simulate endpoint). */
-export function entryLinesPayload(lines: EntryLine[], accounts: Account[]) {
+function entryLinesPayload(lines: EntryLine[], accounts: Account[]) {
   const codeOf = codeLookup(accounts)
   return lines.map((l) => ({
     accountCode: codeOf(l.accountId) ?? '',
@@ -283,7 +283,7 @@ export const CONDITION_TYPES: Array<{ value: string; label: string }> = [
 /** Condition types compared with "equals" only, their value picked in a list. */
 export const LIST_CONDITION_TYPES = ['side', 'operationType', 'status', 'attachment']
 
-export const AMOUNT_OPERATORS = [
+const AMOUNT_OPERATORS = [
   { value: 'equals', label: 'Égal à' },
   { value: 'gt', label: 'Supérieur à' },
   { value: 'gte', label: 'Supérieur ou égal à' },
@@ -292,7 +292,7 @@ export const AMOUNT_OPERATORS = [
   { value: 'between', label: 'Entre' },
 ]
 
-export const TEXT_OPERATORS = [
+const TEXT_OPERATORS = [
   { value: 'equals', label: 'Égal à' },
   { value: 'contains', label: 'Contient' },
   { value: 'startsWith', label: 'Commence par' },

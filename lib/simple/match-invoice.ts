@@ -54,7 +54,7 @@ export interface InvoiceMatch {
   reason: string
 }
 
-export const INVOICE_SCORES = { named: 0.95, amountOnly: 0.7, partialNumber: 0.75, partialCustomer: 0.6, ambiguous: 0.7 } as const
+const INVOICE_SCORES = { named: 0.95, amountOnly: 0.7, partialNumber: 0.75, partialCustomer: 0.6, ambiguous: 0.7 } as const
 
 /** Legal forms and filler words that do not identify a customer. */
 const NOT_A_NAME = new Set(['SARL', 'SAS', 'SASU', 'EURL', 'SA', 'SCI', 'SNC', 'SCOP', 'SELARL', 'SELAS', 'EI', 'EIRL', 'ETS', 'STE', 'SOCIETE', 'CABINET', 'GROUPE', 'THE', 'LES', 'DES', 'DU', 'DE', 'LA', 'LE', 'ET'])

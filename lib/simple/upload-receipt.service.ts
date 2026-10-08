@@ -24,7 +24,7 @@ import { limitBankCalls } from '@/lib/banking/guard'
 import { uploadQontoReceipt } from '@/lib/integrations/providers/qonto/sync-attachments'
 import { writeAuditLog } from '@/lib/audit'
 
-export const RECEIPT_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'] as const
+const RECEIPT_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'] as const
 
 export const RECEIPT_MESSAGES = {
   missing: 'Joignez un fichier (photo JPEG ou PNG, ou PDF).',

@@ -20,7 +20,7 @@
  *   and its recoverable VAT add up to that sum to the cent.
  */
 
-import { EXPENSE_CATEGORIES, type ExpenseCategory } from './categories'
+import { type ExpenseCategory } from './categories'
 import { mileageAllowance, type VehicleType } from './mileage-scale'
 import { formatCentsFr } from '@/lib/utils/money'
 import { recoverableVat, vatIncludedCents, VAT_TOLERANCE_CENTS, type ReceiptKind, type RecoveryReason } from './vat-recovery'
@@ -176,7 +176,3 @@ export function assignPriorDistances<T extends LineInput>(lines: readonly T[], b
   return lines.map((line, index) => (prior.has(index) ? { ...line, priorDistanceKm: prior.get(index) as number } : line))
 }
 
-/** Default account of a line: its own, else its category's (null: to choose). */
-export function accountOfLine(line: { category: ExpenseCategory; accountCode?: string | null }): string | null {
-  return line.accountCode || EXPENSE_CATEGORIES[line.category].account
-}

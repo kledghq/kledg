@@ -74,14 +74,14 @@ import { REGULARISATION_REFERENCE_PREFIX } from '@/lib/vat-deduction/rules'
 export const DECLARED_RATES_BP = [2000, 1000, 550, 210] as const
 export type DeclaredRate = (typeof DECLARED_RATES_BP)[number]
 
-export interface VatEntryLine {
+interface VatEntryLine {
   code: string
   debitCents: number
   creditCents: number
 }
 
 /** An invoice line as the posting plan saw it. */
-export interface VatInvoiceLine {
+interface VatInvoiceLine {
   rateBp: number
   baseCents: number
   nature: 'GOODS' | 'SERVICES'
@@ -170,14 +170,14 @@ export const SETTLEMENT_REFERENCE_PREFIX = 'TVA-'
 const starts = (code: string, ...roots: string[]) => roots.some((root) => code.startsWith(root))
 
 export const isCollectedCode = (code: string) => code.startsWith('4457') && !starts(code, '44574', '44578')
-export const isPendingCode = (code: string) => code.startsWith('44574')
+const isPendingCode = (code: string) => code.startsWith('44574')
 export const isAutoliquidationCode = (code: string) => code.startsWith('4452')
 /** Subaccount of 4452 for the VAT due under CGI art. 283, 1, second paragraph (CA3 B4, CA12 AB). */
-export const ART_283_1_ACCOUNT = '44528'
-export const isArt2831Code = (code: string) => code.startsWith(ART_283_1_ACCOUNT)
+const ART_283_1_ACCOUNT = '44528'
+const isArt2831Code = (code: string) => code.startsWith(ART_283_1_ACCOUNT)
 export const isDeductibleFixedAssetsCode = (code: string) => code.startsWith('44562')
 export const isDeductibleOtherCode = (code: string) => code.startsWith('44566') || code === '4456'
-export const isTransferredCode = (code: string) => code.startsWith('44563')
+const isTransferredCode = (code: string) => code.startsWith('44563')
 export const isCreditCarriedCode = (code: string) => code.startsWith('44567')
 export const isAcompteCode = (code: string) => code.startsWith('44581')
 export const isToPayCode = (code: string) => code.startsWith('4455')
@@ -201,7 +201,7 @@ export function isSettlementEntry(entry: Pick<VatEntry, 'reference' | 'lines'>):
 }
 
 /** Round half up of a x b / c on non-negative integers (BigInt, exact). */
-export function mulDiv(a: number, b: number, c: number): number {
+function mulDiv(a: number, b: number, c: number): number {
   if (c === 0) return 0
   const n = BigInt(a) * BigInt(b) * BigInt(2) + BigInt(c)
   return Number(n / (BigInt(c) * BigInt(2)))
@@ -249,7 +249,7 @@ export function splitInvoiceVat(invoice: VatInvoiceSource, servicesPending: bool
 }
 
 /** Base and VAT per rate of `vatCents` moved from 44574 to 44571 for these invoices, in proportion to their pending VAT. */
-export function splitTransferredVat(invoices: VatInvoiceSource[], vatCents: number): RateBucket[] | null {
+function splitTransferredVat(invoices: VatInvoiceSource[], vatCents: number): RateBucket[] | null {
   const pending = invoices.flatMap((inv) => splitInvoiceVat(inv, true)).filter((r) => r.pendingVatCents > 0)
   const total = pending.reduce((s, r) => s + r.pendingVatCents, 0)
   if (total === 0 || vatCents <= 0 || vatCents > total) return null
@@ -310,7 +310,7 @@ function collectedSplit(entry: VatEntry, vatCents: number, revenueCents: number)
 }
 
 /** An empty set of movements. */
-export function emptyMovements(): VatMovements {
+function emptyMovements(): VatMovements {
   return {
     collected: [],
     autoliquidationGoods: [],

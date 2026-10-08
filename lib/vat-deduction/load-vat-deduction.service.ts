@@ -35,7 +35,7 @@ export const VatDeductionQuerySchema = z.object({
 })
 export type VatDeductionQuery = z.infer<typeof VatDeductionQuerySchema>
 
-export interface DraftState {
+interface DraftState {
   reference: string
   status: 'none' | 'draft' | 'validated'
   entryId: string | null
