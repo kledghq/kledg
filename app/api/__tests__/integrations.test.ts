@@ -36,6 +36,8 @@ vi.mock('@/lib/banking/guard', () => ({
 
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn().mockResolvedValue(undefined) }))
 
+// Writable company: the pause of read-only companies is covered by lib/banking/__tests__/sync-pause.db.test.ts
+vi.mock('@/lib/banking/sync-pause', () => ({ bankSyncPause: async () => null, bankSyncPausedMessage: () => '' }))
 vi.mock('@/lib/integrations/sync', () => ({ syncIntegration: vi.fn() }))
 
 vi.mock('@/lib/banking/providers', () => ({ createBankProvider: vi.fn() }))

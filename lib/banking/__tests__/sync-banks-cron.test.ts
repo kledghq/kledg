@@ -50,6 +50,8 @@ beforeEach(() => {
   process.env.CRON_SECRET = SECRET
   process.env.ENCRYPTION_KEY = 'a'.repeat(64)
   db.integration.findMany.mockResolvedValue(INTEGRATIONS)
+  // Writable companies (read-only ones are skipped: sync-pause.db.test.ts)
+  db.company.findUnique.mockResolvedValue({ archivedAt: null })
   vi.mocked(syncIntegration).mockImplementation(async (id) => {
     if (id === 'int-ponto') throw new ExternalServiceError('Ponto est indisponible pour le moment. Réessayez dans quelques minutes.')
     return { success: true, itemsSynced: id === 'int-qonto' ? 12 : 3, matched: 0, errors: [] }

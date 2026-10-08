@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- Banque : la synchronisation bancaire d'une société en lecture seule (archivée, ou abonnement impayé sur une offre hébergée) est suspendue, quotidienne comme manuelle ; la page **Comptes bancaires** dit pourquoi, et elle reprend d'elle-même dès que la société redevient modifiable, en rattrapant les opérations depuis la dernière synchronisation ([documentation](docs/connexions-bancaires.md#société-en-lecture-seule)).
+
 ### Sécurité
 
 - Import Excel (relevés bancaires et import comptable) : un petit fichier .xlsx ne peut plus saturer la mémoire ni bloquer le serveur. La lecture est bornée (1 000 000 de cellules, 256 colonnes, 100 000 lignes pour un relevé et 500 000 pour l'import comptable, 30 secondes), les cellules fusionnées, validations de données, mises en forme conditionnelles et noms définis ne sont plus lus, et un fichier au-delà des limites est refusé avec un message qui dit quoi faire. Un relevé CSV est limité à 100 000 lignes.

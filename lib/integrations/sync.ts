@@ -37,6 +37,7 @@ import { errorReason } from '@/lib/banking/errors'
 import { AccountingError } from '@/lib/accounting/errors'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { addUtcDays, todayUtc } from '@/lib/utils/date'
+import { bankSyncPause, bankSyncPausedMessage } from '@/lib/banking/sync-pause'
 
 const UNREADABLE_CREDENTIALS_MESSAGE =
   'Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'
@@ -86,6 +87,10 @@ export async function syncIntegration(
   if (integration.status !== 'active') {
     return { success: false, itemsSynced: 0, errors: ["La connexion n'est pas active : terminez ou renouvelez l'autorisation depuis la page Banque."] }
   }
+  // A read-only company receives no new operation, and nothing is recorded:
+  // its last sync date stays, so the sync catches up once writable (issue #15).
+  const pause = await bankSyncPause(integration.companyId)
+  if (pause) return { success: false, paused: true, itemsSynced: 0, errors: [bankSyncPausedMessage(pause)] }
   if (!isBankProvider(integration.provider)) {
     return { success: false, itemsSynced: 0, errors: [`Fournisseur non pris en charge : ${integration.provider}`] }
   }

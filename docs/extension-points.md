@@ -95,6 +95,12 @@ and exports (all GET) keep working. A fork makes a company read-only this
 way (an unpaid subscription, a legal hold) without hiding any data. Kledg
 answers null.
 
+A read-only company also stops receiving bank operations
+(`lib/banking/sync-pause.ts`): the daily bank sync skips it and every manual
+sync returns without calling the bank, recording nothing, so its last sync
+date stays. Once the policy answers null again, the next sync reads from that
+date and catches up the paused period.
+
 ### Company identifiers
 
 ```ts
