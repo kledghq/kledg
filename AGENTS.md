@@ -10,6 +10,7 @@ Kledg: open-source French accounting app (PCG 2026), Next.js 16 App Router + Pri
 - Emails go through `lib/email`; templates in `lib/email/templates.ts`.
 - Schema changes need a migration in `prisma/migrations` (`pnpm db:migrate:dev`).
 - Accounting and tax rules need tests and a cited source (PCG article, BOFiP, form notice).
+- Documentation is split: user guides live on the website (www.kledg.com/fr/docs, `content/docs/fr` in `kledghq/website`), technical docs live in `docs/` here (code, API, calculation rules, rights). Do not put step-by-step user instructions in `docs/`; link to the guide instead.
 
 ## Conventions
 

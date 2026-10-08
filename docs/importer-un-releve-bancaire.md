@@ -1,18 +1,19 @@
 # Importer un relevé bancaire
 
-Pour une banque sans synchronisation automatique (BoursoBank, Shine, banques de réseau...), Kledg importe les opérations à partir d'un fichier exporté depuis votre espace bancaire en ligne. C'est aussi la solution de secours quand la synchronisation d'une banque connectée est interrompue.
+Le guide d'utilisation (exporter depuis sa banque, étapes de l'import, doublons expliqués, erreurs fréquentes) est sur le site : [Importer un relevé bancaire](https://www.kledg.com/fr/docs/importer-un-releve-bancaire). Cette page décrit le fonctionnement technique : formats et règles de lecture, modèles de banques, détection des doublons et limites.
 
-Le bouton **Importer un relevé** se trouve sur les pages **Banque** et **Relevés bancaires**. Il faut le rôle Comptable ou Administrateur de la société ; un compte en lecture seule ne peut pas importer.
+L'import sert aux banques sans synchronisation et de secours quand une synchronisation est interrompue. Fenêtre **Importer un relevé** des pages **Banque** et **Relevés bancaires** (un fichier déposé sur ces pages ouvre la fenêtre avec le fichier déjà analysé).
+
+Code : `lib/banking/import` (`parse.ts` détection et lecture, `tabular.ts` CSV et Excel, `encoding.ts`, `date.ts`, `amount.ts`, `ofx.ts`, `camt053.ts`, `presets.ts` modèles de banques, `dedupe.ts` doublons, `import-statement.service.ts`, `importer.ts`). API : `POST /api/banking/import-statement` (multipart), droit `banking:reconcile` (Comptable ou Administrateur ; la lecture seule ne peut pas importer). Outil MCP `import_statement` (contrôle total). Fichiers d'exemple : `public/examples/`.
 
 ## Déroulement
 
-1. Choisissez le compte bancaire de Kledg à alimenter, puis le fichier. Vous pouvez aussi glisser le fichier depuis votre ordinateur sur la page **Banque** ou **Relevés bancaires** : la fenêtre d'import s'ouvre avec le fichier déjà analysé.
-2. **Analyser le fichier** : Kledg détecte le format, l'encodage, la ligne d'en-tête et les colonnes, puis affiche un aperçu des premières opérations.
-3. Vérifiez la correspondance des colonnes. Quand la détection n'est pas sûre (badge *Colonnes à vérifier*), le panneau de correspondance s'ouvre : choisissez la colonne de date, le libellé, et soit un montant signé, soit les colonnes Débit et Crédit. Vous pouvez aussi forcer le format des dates, le séparateur décimal, le modèle de banque ou la feuille d'un classeur Excel.
-4. Contrôlez le résumé : opérations à importer, doublons exacts, doublons probables (voir plus bas), période couverte, total des débits et des crédits.
-5. **Importer** : les opérations sont enregistrées en une seule fois (tout ou rien), prêtes pour le rapprochement.
+- **Analyse** : détection du format, de l'encodage, de la ligne d'en-tête et des colonnes, aperçu des premières opérations.
+- **Correspondance des colonnes** : ouverte d'office quand la détection n'est pas sûre (badge *Colonnes à vérifier*). Date, libellé, et soit un montant signé, soit Débit et Crédit ; options forcées : format des dates, séparateur décimal, modèle de banque, feuille Excel.
+- **Résumé** : opérations à importer, doublons exacts, doublons probables, période couverte, totaux des débits et des crédits.
+- **Import** : enregistrement en une seule transaction (tout ou rien).
 
-Si certaines lignes sont illisibles (date impossible, montant non numérique), elles sont listées avec leur numéro de ligne et l'import demande une confirmation explicite avant d'enregistrer les lignes valides. Il en va de même quand le numéro de compte indiqué dans un fichier OFX ou camt.053 ne correspond pas au compte choisi.
+Lignes illisibles (date impossible, montant non numérique) : listées avec leur numéro de ligne (100 au plus, `MAX_ERRORS`), confirmation explicite exigée avant d'enregistrer les lignes valides. Même confirmation quand le numéro de compte d'un fichier OFX ou camt.053 ne correspond pas au compte choisi.
 
 ## Formats acceptés
 
@@ -23,7 +24,7 @@ Si certaines lignes sont illisibles (date impossible, montant non numérique), e
 | OFX / QFX | OFX 1.x (SGML) et OFX 2.x (XML), y compris les montants à virgule décimale. Les opérations en attente sont ignorées. |
 | camt.053 | Relevé ISO 20022 (versions 02 à 13). Seules les écritures comptabilisées (statut `BOOK`) sont importées. Une remise groupée dont le détail est fourni est éclatée en une opération par paiement. Un fichier contenant plusieurs comptes n'importe que celui choisi. |
 
-Les relevés PDF ne sont pas lisibles : exportez les opérations dans l'un des formats ci-dessus.
+Les relevés PDF ne sont pas lus.
 
 ### Dates et montants
 
@@ -49,9 +50,9 @@ Kledg reconnaît automatiquement les exports CSV suivants d'après leur ligne d'
 | Qonto | Export en anglais (`Status,Settlement date (UTC),...,Total amount (incl. VAT),...,Transaction ID`) ou en français (`Statut;...;Montant total (TTC);...;Identifiant de transaction`) | Les opérations `processing` sont ignorées |
 | Revolut Business | `Date started (UTC),Date completed (UTC),ID,Type,State,Description,...,Amount,...` | Les opérations `PENDING` sont ignorées ; `Total amount` (frais inclus) est pris quand il existe |
 
-Ces modèles sont établis d'après des exports réels publiés par des projets libres d'import bancaire (les sources sont citées dans `lib/banking/import/presets.ts`). Les banques modifient parfois leurs exports : si une colonne n'est pas reconnue, corrigez la correspondance dans l'aperçu. LCL n'a pas de modèle dédié faute de source vérifiable ; ses exports sont lus par la détection générique.
+Ces modèles sont établis d'après des exports réels publiés par des projets libres d'import bancaire (les sources sont citées dans `lib/banking/import/presets.ts`). Une colonne non reconnue se corrige dans la correspondance des colonnes. LCL n'a pas de modèle dédié faute de source vérifiable ; ses exports sont lus par la détection générique.
 
-Quand votre banque le propose, préférez l'export **OFX** ou **camt.053** : ces formats indiquent le compte, l'identifiant unique de chaque opération et le statut comptabilisé, ce qui rend l'import plus sûr.
+OFX et camt.053 portent le compte, l'identifiant unique de chaque opération et le statut comptabilisé. Limites du lecteur OFX : profondeur 64 (`OFX_MAX_DEPTH`), balise de 1 024 caractères, texte de 64 Kio.
 
 ## Doublons
 
@@ -70,13 +71,13 @@ Une même opération peut arriver par deux chemins avec des libellés différent
 
 Le rapprochement se fait opération par opération : si le fichier contient trois lignes identiques et que le compte n'en a qu'une, une seule ligne est signalée. Une opération existante déjà reconnue (comme doublon exact ou probable) ne sert pas deux fois.
 
-Les doublons probables ne sont jamais supprimés en silence. L'aperçu les liste avec l'opération déjà présente qu'ils recoupent (date, libellé, origine : import CSV, OFX... ou synchronisation bancaire). Ils sont ignorés par défaut ; décochez **Ignorer** sur une ligne, ou sur l'en-tête pour toutes, afin de les importer quand même (par exemple deux virements réels du même montant le même jour). Le résumé compte séparément les doublons exacts et les doublons probables.
+Les doublons probables ne sont jamais supprimés en silence : l'aperçu les liste avec l'opération existante recoupée (date, libellé, origine : import CSV, OFX... ou synchronisation bancaire). Ignorés par défaut, réimportables par la case **Ignorer** (ligne ou en-tête). Le résumé compte séparément les doublons exacts et les doublons probables.
 
 À l'import, Kledg recalcule les doublons : une ligne conservée dans l'aperçu n'est importée que si elle est toujours un doublon probable à la même position et avec la même empreinte. Un aperçu périmé (fichier modifié, autre import entre-temps) ne peut donc rien importer d'inattendu.
 
 ## Fichiers d'exemple
 
-Ces fichiers fictifs montrent les formats attendus ; ils sont aussi téléchargeables depuis la fenêtre d'import.
+Fichiers fictifs, aussi téléchargeables depuis la fenêtre d'import.
 
 - [exemple-releve.csv](../public/examples/exemple-releve.csv) : CSV point-virgule, colonnes Date, Date de valeur, Libellé, Référence, Débit, Crédit
 - [exemple-releve.ofx](../public/examples/exemple-releve.ofx) : OFX 2.2
@@ -86,4 +87,4 @@ Sur une instance en ligne, ils sont servis sous `/examples/`.
 
 ## Limites de taille
 
-Un fichier ne peut pas dépasser 20 Mo. Sur Vercel, la plateforme refuse toute requête de plus de 4,5 Mo avant qu'elle n'atteigne Kledg : découpez un relevé plus lourd par période.
+Un fichier ne peut pas dépasser 20 Mo. Sur Vercel, la plateforme refuse toute requête de plus de 4,5 Mo avant qu'elle n'atteigne Kledg : un relevé plus lourd se découpe par période.

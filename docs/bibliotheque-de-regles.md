@@ -1,15 +1,17 @@
 # Bibliothèque de règles
 
-La bibliothèque de règles propose des [règles d'affectation](regles-d-affectation.md) prêtes à l'emploi pour les fournisseurs et les paiements les plus courants d'une petite société française : frais bancaires, logiciels, télécom, énergie, assurances, URSSAF, impôts, transport, carburant... Chaque modèle donne ses conditions, son écriture, son traitement de la TVA avec la raison et les sources officielles. Ajouter un modèle ouvre l'éditeur de règle prérempli, avec les comptes du plan de la société ; rien n'est enregistré sans que vous le validiez.
+Le guide d'utilisation (suggestions, ajout d'un modèle, TVA des modèles expliquée, copie depuis une autre société) est sur le site : [La bibliothèque de règles](https://www.kledg.com/fr/docs/la-bibliotheque-de-regles). Cette page décrit le fonctionnement technique : code, API, rapprochement des comptes, calcul des suggestions, format et contribution des modèles.
+
+La bibliothèque propose des [règles d'affectation](regles-d-affectation.md) prêtes à l'emploi (56 modèles). Chaque modèle donne ses conditions, son écriture, son traitement de la TVA avec la raison et les sources officielles. Ajouter un modèle ouvre l'éditeur de règle prérempli, avec les comptes du plan de la société ; rien n'est enregistré sans validation.
 
 ## La page
 
-Entrée **Bibliothèque de règles** de la navigation (Banque), à côté de **Règles d'affectation** : `/<société>/rules/library`. Droit de lecture des règles (`banking:read`) pour la consulter ; créer des comptes ou copier des règles demande le droit de gérer le plan et les règles (`ledger:manage`), comme la création d'une règle.
+`/<société>/rules/library` (Banque, Bibliothèque de règles). Droit de lecture des règles (`banking:read`) pour la consulter ; créer des comptes ou copier des règles demande le droit de gérer le plan et les règles (`ledger:manage`), comme la création d'une règle.
 
-- **Suggérées pour vous** : les modèles classés par le nombre de transactions bancaires des 12 derniers mois que le modèle reconnaîtrait et qu'aucune règle active de la société ne reconnaît déjà, avec un libellé en exemple. Les modèles déjà ajoutés n'y figurent pas.
-- **Tous les modèles** : recherche par mot, filtre par catégorie, une carte par modèle : conditions en phrases, lignes de l'écriture avec le compte retenu dans le plan de la société, traitement de la TVA, sa raison et ses sources. Une carte dit **Déjà ajoutée** quand une règle porte le même nom ou les mêmes conditions, et **Règle proche** quand une règle existante reconnaît déjà les libellés du modèle.
-- **Ajouter** ouvre `/rules/new?template=<id>` : l'éditeur charge le modèle (`GET /api/rule-templates/[id]`). Si le plan n'a pas un compte du modèle, une fenêtre le dit et propose **Créer et continuer** (`POST /api/rule-templates/[id]/accounts`, chaque compte créé sous le compte qu'il subdivise, dans l'exercice ouvert) ou **Continuer sans créer** (le compte parent est utilisé quand il existe, sinon le compte est à choisir dans l'éditeur).
-- **Copier depuis une autre société** : les règles de vos autres sociétés où votre rôle permet de lire les règles. Choisissez la société, cochez des règles et copiez-les (`POST /api/transaction-rules/copy`). Les comptes sont adaptés au plan de la société (même code d'abord), les comptes absents sont créés si la case est cochée, avec le libellé de la société d'origine. Les copies sont inactives par défaut, pour vérifier leurs comptes ; une règle déjà présente (même nom ou mêmes conditions) n'est pas copiée.
+- **Suggérées pour vous** : voir [Suggestions](#suggestions). Les modèles déjà ajoutés n'y figurent pas.
+- **Tous les modèles** : une carte dit **Déjà ajoutée** quand une règle porte le même nom ou les mêmes conditions, et **Règle proche** quand une règle existante reconnaît déjà les libellés du modèle.
+- **Ajouter** ouvre `/rules/new?template=<id>` : l'éditeur charge le modèle (`GET /api/rule-templates/[id]`). Si le plan n'a pas un compte du modèle, **Créer et continuer** appelle `POST /api/rule-templates/[id]/accounts` (chaque compte créé sous le compte qu'il subdivise, dans l'exercice ouvert) ; **Continuer sans créer** garde le compte parent quand il existe, sinon le compte est à choisir dans l'éditeur.
+- **Copier depuis une autre société** (`POST /api/transaction-rules/copy`) : sociétés où le rôle de l'utilisateur permet de lire les règles. Comptes adaptés au plan de la société (même code d'abord), comptes absents créés si la case est cochée (par défaut), avec le libellé de la société d'origine. Copies inactives par défaut ; une règle déjà présente (même nom ou mêmes conditions) n'est pas copiée.
 
 ## Comptes
 

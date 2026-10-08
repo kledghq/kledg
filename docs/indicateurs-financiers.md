@@ -1,5 +1,7 @@
 # Indicateurs financiers : SIG, CAF, BFR et ratios
 
+Le guide d'utilisation (à quoi servent les indicateurs, comment les lire) est sur le site : [Les indicateurs financiers](https://www.kledg.com/fr/docs/les-indicateurs-financiers). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 La page **États, SIG et ratios** (`/<société>/reports/sig`) présente, pour un
 exercice et l'exercice précédent : les soldes intermédiaires de gestion, la
 capacité d'autofinancement, le besoin en fonds de roulement, la trésorerie
@@ -175,13 +177,12 @@ autre société répond 404, une société sans exercice 400. Le CSV passe par
 `lib/reports/csv-safe` (formules neutralisées, séparateur `;`, virgule
 décimale, marque d'ordre des octets UTF-8).
 
-## Ce que corrige ce module
+## Vérification
 
-Les indicateurs de l'ancienne application dont Kledg reprend les fonctions
-étaient faux : l'« EBITDA » ne renvoyait que les dotations de la classe 68,
-le délai clients valait toujours zéro, le ratio de liquidité comptait tous
-les emprunts (16, 17) en dettes à court terme et sur toute l'histoire, le
-délai fournisseurs comparait des dettes TTC à des achats HT, et la marge
-brute renvoyait zéro. Ici, chaque indicateur suit le PCG et les formulaires,
-avec un exemple entièrement calculé à la main dans les tests
-(`lib/reports/financial-indicators/__tests__/worked-example.ts`).
+Chaque indicateur suit le PCG et les formulaires cités ci-dessus, avec un
+exemple entièrement calculé à la main dans les tests
+(`lib/reports/financial-indicators/__tests__/worked-example.ts`). Points
+vérifiés en particulier : l'EBE n'est pas réduit aux dotations (68), les
+délais clients et fournisseurs comparent des montants TTC à des flux TTC, et
+les dettes financières de l'indicateur excluent les découverts et les comptes
+d'associés.

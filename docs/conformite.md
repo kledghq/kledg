@@ -1,5 +1,7 @@
 # Conformité : ce que Kledg garantit et ce qu'il ne garantit pas
 
+La version à remettre aux utilisateurs, à leur expert-comptable ou à un vérificateur (obligations expliquées, ce qui reste à la charge de la société, modèle de description des procédures comptables) est sur le site : [Conformité : ce que Kledg garantit](https://www.kledg.com/fr/docs/ce-que-kledg-garantit). Cette page garde le détail technique : mécanismes (services, déclencheurs, migrations), table des cases des états et décisions avec leurs sources, FEC, routes.
+
 Pour les sociétés qui tiennent leurs comptes dans Kledg, leurs experts-comptables et commissaires aux comptes, et un vérificateur de l'administration fiscale. Chaque règle renvoie à son texte et au code qui l'applique. Textes vérifiés en octobre 2026 ; le plan comptable général (PCG) est le règlement ANC n° 2014-03 modifié, en dernier lieu par le règlement n° 2022-06 (exercices ouverts depuis le 1er janvier 2025), dont la numérotation est utilisée ici.
 
 Kledg est un logiciel de comptabilité. Il n'est ni un logiciel de caisse, ni un logiciel de paie, ni une plateforme agréée de facturation électronique, et il n'est pas certifié par un organisme tiers. La société reste responsable de sa comptabilité (Code de commerce, art. L123-12 et suivants) : Kledg lui en donne les moyens, il ne la tient pas à sa place.
@@ -21,8 +23,8 @@ Kledg est un logiciel de comptabilité. Il n'est ni un logiciel de caisse, ni un
 
 ### Ce qui reste à la charge de la société
 
-- **Pièces justificatives** (C. com. art. L123-22 ; LPF art. L102 B, 6 ans au moins, dans leur format d'origine pour une facture électronique). **Kledg ne stocke aucun fichier** : il garde la référence et la date de la pièce et, pour Qonto, l'identifiant du document chez la banque, qu'il ne peut plus lire si le compte Qonto est fermé. Conservez vos factures et justificatifs dans un système d'archivage qui le permet pendant 10 ans.
-- **Sauvegardes** d'une instance auto-hébergée : la base de données est la comptabilité. Sauvegardez-la et gardez les sauvegardes 10 ans au moins, avec le moyen de les relire ([auto-hébergement](self-hosting.md)).
+- **Pièces justificatives** (C. com. art. L123-22 ; LPF art. L102 B, 6 ans au moins, dans leur format d'origine pour une facture électronique). **Kledg ne stocke aucun fichier** : il garde la référence et la date de la pièce et, pour Qonto, l'identifiant du document chez la banque, qu'il ne peut plus lire si le compte Qonto est fermé. L'archivage des pièces pendant 10 ans se fait hors de Kledg.
+- **Sauvegardes** d'une instance auto-hébergée : la base de données est la comptabilité ; ses sauvegardes se gardent 10 ans au moins, avec le moyen de les relire ([auto-hébergement](self-hosting.md)).
 - **Description des procédures comptables** (C. com. art. R123-172) et **documentation du système** (PCG art. 1011-4 ; BOI-BIC-DECLA-30-10-20-40 § 270 à 350) : ce document, la documentation de Kledg et son code source ouvert en sont la base ; la société décrit en plus son organisation (qui saisit, qui valide, à quel rythme les périodes sont clôturées, où sont archivées les pièces).
 - **Clôture des périodes à temps** et clôture de l'exercice.
 
@@ -60,16 +62,7 @@ Là où les formulaires et leurs notices de 2026 n'ont pas de case dédiée, Kle
 
 ## Modèle de description des procédures comptables
 
-Le Code de commerce (art. R123-172) demande un document qui décrit les procédures et l'organisation comptables, conservé aussi longtemps que les documents comptables. Copiez ce modèle et complétez-le :
-
-1. **Logiciel** : Kledg, version (Administration, mises à jour), instance (adresse, hébergeur), documentation : ce document et la documentation de Kledg.
-2. **Organisation** : qui saisit, qui valide les écritures (rôles des membres de la société), qui clôture les périodes et l'exercice, qui dépose les déclarations.
-3. **Sources des écritures** : banques synchronisées ou relevés importés, règles d'affectation, factures, notes de frais, saisie manuelle, import FEC.
-4. **Validation** : les brouillons sont validés au plus tard [rythme] ; une écriture validée ne se modifie plus, elle se corrige par une contre-passation.
-5. **Clôture des périodes** : [mensuelle, après chaque déclaration de TVA, ou à une date choisie] ; réglage de la clôture automatique : [désactivée, après déclaration de TVA, mensuelle avec un délai de N jours].
-6. **Pièces justificatives** : où elles sont conservées 10 ans, dans leur format d'origine pour les factures électroniques (Kledg ne stocke aucun fichier), et comment la référence de pièce de chaque écriture permet de les retrouver.
-7. **Sauvegardes** : fréquence, lieu, durée de conservation (10 ans au moins), test de restauration.
-8. **FEC** : produit depuis la page États, FEC, contrôlé par Kledg et par Test Compta Demat avant sa remise.
+Le modèle du document exigé par le Code de commerce (art. R123-172), que la société complète (logiciel, organisation, sources des écritures, validation, clôture des périodes, pièces, sauvegardes, FEC), est sur le site : [Modèle de description des procédures comptables](https://www.kledg.com/fr/docs/ce-que-kledg-garantit#modèle-de-description-des-procédures-comptables). Le mettre à jour quand un réglage qu'il cite change (clôture automatique, rôles, page Mises à jour).
 
 ## Fichier des écritures comptables (FEC)
 
@@ -83,17 +76,17 @@ Page États, FEC ; `GET /api/fec` ; outil MCP `export_fec`. Code : `lib/fec`.
 | Jeu de caractères : ASCII, ISO 8859-15 ou UTF-8 (XII, 1°) | UTF-8 sans marque d'ordre des octets. |
 | Montants avec virgule décimale, sans séparateur de milliers ; dates AAAAMMJJ | Oui ; montants exacts au centime. |
 | Écritures validées, après opérations d'inventaire, « hors écritures de centralisation et hors écritures de solde des comptes de charges et de produits » (VII, 1°) | Seules les écritures validées ; l'écriture de détermination du résultat (journal CL) est exclue, si bien que les classes 6 et 7 du fichier donnent le résultat. Le rapport d'export signale les brouillons restants, absents du fichier. |
-| À-nouveaux en tête (VII, 3° ; BOFiP § 100 et § 110) | Les écritures des journaux AN, RAN et OU sont placées en tête du fichier. Exercice précédent clôturé à temps (aucune écriture encore validée dans le nouvel exercice) : l'écriture d'à-nouveaux reçoit le numéro 1. Clôturé tard : les écritures déjà validées gardent leur numéro (elles sont définitives, PCG art. 1031-3), l'écriture d'à-nouveaux prend le numéro suivant ; c'est le cas que le BOFiP admet expressément (§ 110 : « il est admis qu'elles soient enregistrées au cours de l'exercice »), et elle reste identifiable par son journal (AN) et sa référence (AN-année). Pour lui donner le numéro 1, clôturez l'exercice avant de valider des écritures du suivant. |
+| À-nouveaux en tête (VII, 3° ; BOFiP § 100 et § 110) | Les écritures des journaux AN, RAN et OU sont placées en tête du fichier. Exercice précédent clôturé à temps (aucune écriture encore validée dans le nouvel exercice) : l'écriture d'à-nouveaux reçoit le numéro 1. Clôturé tard : les écritures déjà validées gardent leur numéro (elles sont définitives, PCG art. 1031-3), l'écriture d'à-nouveaux prend le numéro suivant ; c'est le cas que le BOFiP admet expressément (§ 110 : « il est admis qu'elles soient enregistrées au cours de l'exercice »), et elle reste identifiable par son journal (AN) et sa référence (AN-année). Elle n'a le numéro 1 que si l'exercice est clôturé avant toute validation dans le suivant. |
 | ValidDate obligatoire (§ 250) | Date de validation de l'écriture, en heure de Paris. |
-| Contrôle | Kledg contrôle le fichier à l'export (nom, zones, formats, équilibre de chaque écriture et du fichier, continuité de la numérotation). Ce contrôle est celui de Kledg : testez aussi le fichier avec **Test Compta Demat** de la DGFiP avant de le remettre. Aucun de ces contrôles ne vaut certificat de conformité. |
+| Contrôle | Kledg contrôle le fichier à l'export (nom, zones, formats, équilibre de chaque écriture et du fichier, continuité de la numérotation). Ce contrôle est celui de Kledg, pas celui de **Test Compta Demat** de la DGFiP. Aucun de ces contrôles ne vaut certificat de conformité. |
 
 ## Factures
 
 Kledg **enregistre** les factures d'achat et de vente ; il ne produit pas le document et ne l'envoie pas ([factures et tiers](factures-et-tiers.md)). Il **numérote** les factures de vente (série chronologique et continue, numéro donné à la comptabilisation, [numérotation](factures-et-tiers.md#numérotation-des-factures-de-vente)), ou les crée dans Qonto qui les numérote et produit le PDF.
 
-- Les mentions obligatoires d'une facture (CGI ann. II art. 242 nonies A ; Code de commerce art. L441-9 : échéance, pénalités de retard, indemnité forfaitaire de 40 € pour frais de recouvrement, escompte) sont portées par le document émis par votre outil de facturation ou votre plateforme. Kledg en garde ce dont la comptabilité a besoin : numéro (unique dans la société pour une vente), dates, parties et leurs SIREN et numéros de TVA, lignes, nature bien ou prestation, TVA par taux, type facture ou avoir.
-- Un avoir n'enregistre pas la référence de la facture qu'il rectifie (exigée sur le document, BOI-TVA-DECLA-30-20-20-20) : mettez-la dans son libellé.
-- Factures de frais de gestion : numérotées par Kledg dans la série de la convention (CGI ann. II art. 242 nonies A, I, 7°). Ne supprimez pas un brouillon déjà transmis : annulez la facture par un avoir, sinon la série a un trou.
+- Les mentions obligatoires d'une facture (CGI ann. II art. 242 nonies A ; Code de commerce art. L441-9 : échéance, pénalités de retard, indemnité forfaitaire de 40 € pour frais de recouvrement, escompte) sont portées par le document émis par l'outil de facturation ou la plateforme de la société. Kledg en garde ce dont la comptabilité a besoin : numéro (unique dans la société pour une vente), dates, parties et leurs SIREN et numéros de TVA, lignes, nature bien ou prestation, TVA par taux, type facture ou avoir.
+- Un avoir n'enregistre pas la référence de la facture qu'il rectifie (exigée sur le document, BOI-TVA-DECLA-30-20-20-20) : elle se porte dans son libellé.
+- Factures de frais de gestion : numérotées par Kledg dans la série de la convention (CGI ann. II art. 242 nonies A, I, 7°). Supprimer un brouillon déjà transmis laisse un trou dans la série : une facture émise s'annule par un avoir.
 
 ### Facturation électronique
 
@@ -107,7 +100,7 @@ Kledg ne calcule pas : la contribution exceptionnelle sur les bénéfices des g
 
 ## Paie
 
-La paie et les données de salaire sont **hors du périmètre** de Kledg : il ne calcule ni bulletin, ni cotisation, ni déclaration sociale nominative. Les salaires y entrent comme des écritures (comptes 421, 431, 641, 645...) passées depuis le journal de paie de votre logiciel ou de votre prestataire, sans données nominatives au-delà du libellé que vous saisissez.
+La paie et les données de salaire sont **hors du périmètre** de Kledg : il ne calcule ni bulletin, ni cotisation, ni déclaration sociale nominative. Les salaires y entrent comme des écritures (comptes 421, 431, 641, 645...) passées depuis le journal de paie du logiciel ou du prestataire de paie, sans données nominatives au-delà du libellé saisi.
 
 ## Données personnelles (RGPD)
 
@@ -116,7 +109,7 @@ La société qui utilise Kledg est **responsable du traitement** des données pe
 | Données | Pourquoi | Durée |
 | --- | --- | --- |
 | Utilisateurs (nom, e-mail, sessions) | Accès à l'instance, piste d'audit | Le compte, jusqu'à sa suppression par l'utilisateur ou un administrateur ; le journal d'audit 10 ans. |
-| Personnes physiques : associés, dirigeants, bénéficiaires de notes de frais (nom, coordonnées, adresse, photo facultative, date et lieu de naissance facultatifs) | Composition du capital (formulaire 2033-F / 2059-F), approbation des comptes, notes de frais | Tant que la société en a besoin ; ne saisissez la date et le lieu de naissance que pour les formalités qui les demandent, et la photo seulement si elle vous sert. |
+| Personnes physiques : associés, dirigeants, bénéficiaires de notes de frais (nom, coordonnées, adresse, photo facultative, date et lieu de naissance facultatifs) | Composition du capital (formulaire 2033-F / 2059-F), approbation des comptes, notes de frais | Tant que la société en a besoin ; date et lieu de naissance et photo sont facultatifs (minimisation, art. 5, 1, c). |
 | Tiers personnes physiques (nom, SIREN, adresse, e-mail) | Factures, lettrage | Avec les factures et les écritures. |
 | Écritures, factures, notes de frais, opérations bancaires | Comptabilité | 10 ans (C. com. art. L123-22). |
 
@@ -128,11 +121,7 @@ Droits des personnes, page Informations, **Données personnelles** (`/api/compan
 
 ## Ce qui reste à la société
 
-Kledg applique les textes tels qu'ils sont cités dans ce document, avec leurs sources. Restent du ressort de la société et de son expert-comptable :
-
-- le choix du rythme de clôture des périodes (ou de la clôture automatique) et la description écrite de ses procédures (modèle ci-dessus) ;
-- l'archivage probant des pièces justificatives hors de Kledg ;
-- les cas que la mise en page par défaut des états ne peut pas connaître (par exemple des travaux d'une société hors du secteur construction qui fournit pourtant les matériaux) : l'éditeur de mise en page permet de déplacer un compte.
+Kledg applique les textes tels qu'ils sont cités dans ce document, avec leurs sources. Restent du ressort de la société et de son expert-comptable (détaillé pour eux sur le site) : le rythme de clôture des périodes (ou la clôture automatique), la description écrite des procédures ([modèle](#modèle-de-description-des-procédures-comptables)), l'archivage probant des pièces hors de Kledg, les sauvegardes d'une instance auto-hébergée, et les cas que la mise en page par défaut des états ne peut pas connaître (éditeur de mise en page).
 
 ## Sources
 

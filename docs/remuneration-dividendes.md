@@ -1,5 +1,7 @@
 # Rémunération et dividendes
 
+Le guide d'utilisation (à quoi sert le simulateur, étapes, règles expliquées) est sur le site : [Rémunération ou dividendes : la simulation](https://www.kledg.com/fr/docs/remuneration-ou-dividendes). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Le simulateur compare, pour le dirigeant associé d'une société à l'impôt sur
 les sociétés, ce qu'il garde du résultat de l'exercice selon qu'il se le verse
 en **rémunération**, en **dividendes** ou en **mélange des deux**, et cherche
@@ -10,9 +12,7 @@ export et réponse de l'outil MCP le rappelle.
 
 Page : États, Rémunération et dividendes (`/<société>/remuneration`, mode
 expert). Carte « Combien puis-je me verser ? » sur l'accueil du mode simple.
-Code : `lib/remuneration`. Remplace le simulateur de dividendes de l'ancienne
-application, réécrit : sa réserve légale et ses tranches d'impôt sur les
-sociétés étaient fausses (voir plus bas), son impôt sur le revenu figé.
+Code : `lib/remuneration`.
 
 Règles vérifiées le 5 octobre 2026 sur la loi de finances pour 2026 (loi
 n° 2026-103 du 19 février 2026) et la loi de financement de la sécurité
@@ -31,13 +31,13 @@ enregistré garde l'année des règles qui l'ont calculé (`rulesYear`).
 | Comptes courants | Solde créditeur des comptes 455, tous associés, en aide pour le seuil des 10 % d'un non salarié |
 | Dividendes proposés | L'affectation proposée dans l'approbation des comptes de l'exercice |
 
-Ce qui se saisit : la situation du foyer (parts, autres revenus imposables),
-l'imposition des dividendes (prélèvement forfaitaire, barème, ou le plus
-favorable), la part du bénéfice distribuable versée, la part du mixte, et pour
-un non salarié les primes d'émission et le compte courant moyen. Tout se
-modifie sans rien enregistrer ; « Revenir aux chiffres des comptes » annule
-les changements. Si la rémunération du dirigeant est comptabilisée en 641 et
-645 avec celle des salariés, ajoutez-la au résultat.
+Hypothèses saisies (`RemunerationInputsSchema`) : la situation du foyer (parts,
+autres revenus imposables), l'imposition des dividendes (prélèvement
+forfaitaire, barème, ou le plus favorable), la part du bénéfice distribuable
+versée, la part du mixte, et pour un non salarié les primes d'émission et le
+compte courant moyen. Elles surchargent les chiffres des comptes sans rien
+enregistrer. Une rémunération du dirigeant comptabilisée en 641 et 645 avec
+celle des salariés n'est pas reconnue : elle s'ajoute au résultat à la main.
 
 ## Le calcul d'un scénario
 
@@ -53,8 +53,7 @@ C de ce budget consacrée à la rémunération (rémunération et cotisations) :
 3. **Réserve légale** : un vingtième du bénéfice après impôt diminué des
    pertes antérieures, jusqu'au dixième du capital (C. com., art. L232-10),
    pour les SARL et sociétés par actions, avec la fonction de l'affectation
-   du résultat (`legalReserveFor`). L'ancienne application prenait le plus
-   grand de 5 % du capital et 10 % du bénéfice : c'était faux.
+   du résultat (`legalReserveFor`).
 4. **Dividendes** : le bénéfice distribuable de l'exercice, bénéfice après
    impôt moins les pertes antérieures et la réserve (L232-11, sans le report à
    nouveau des exercices précédents), multiplié par la part distribuée ; le
@@ -188,8 +187,8 @@ indexé de 0,9 %), et la page le dit.
 
 15 % jusqu'à 42 500 € de bénéfice (proratisé pour un exercice qui ne dure pas
 douze mois), 25 % au-delà (CGI, art. 219, I) : inchangé par la LFI 2026.
-L'ancienne application gardait les tranches 2018 à 2021 (38 120 €, 28 %,
-31 %) ; Kledg reprend les fonctions du module de l'impôt sur les sociétés.
+Kledg reprend les fonctions du module de l'impôt sur les sociétés
+(`lib/corporate-tax/rules.ts`), pas de seuils propres au simulateur.
 Les déficits reportables ne sont pas imputés dans la simulation.
 
 ## Ce qui n'est pas simulé
@@ -206,8 +205,6 @@ Les déficits reportables ne sont pas imputés dans la simulation.
 - Report à nouveau des exercices antérieurs, réserves statutaires,
   acomptes sur dividendes, régime mère-fille d'une holding associée.
 
-Pour un calcul détaillé : le simulateur officiel de l'URSSAF
-(mon-entreprise.urssaf.fr).
 
 ## Scénarios enregistrés et approbation des comptes
 

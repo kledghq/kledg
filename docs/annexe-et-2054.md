@@ -1,8 +1,10 @@
 # Annexe des comptes, méthodes comptables et formulaires 2054, 2055, 2033-C
 
+Le guide d'utilisation (à quoi servent l'annexe et les tableaux, étapes, règles expliquées) est sur le site : [L'annexe et les tableaux 2054, 2055, 2033-C](https://www.kledg.com/fr/docs/l-annexe-et-les-tableaux-fiscaux). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Les comptes annuels comprennent le bilan, le compte de résultat et une annexe (PCG art. 811-1). Kledg établit l'annexe à partir des écritures validées, des immobilisations, des provisions, du registre des méthodes comptables et de la composition du capital, selon la catégorie de taille de la société ; il prépare aussi les formulaires d'immobilisations et d'amortissements de la liasse fiscale. Code : `lib/annexe` ; pages États, Annexe (`/reports/annexe`), États, Immobilisations (2054, 2055) (`/reports/fixed-asset-movements`) et Saisie, Méthodes comptables (`/accounting-methods`) ; outils MCP `get_annexe`, `get_fixed_asset_movements` et, avec l'accès brouillons, `manage_accounting_methods`, `manage_accounting_changes` et `update_annexe_notes` (voir [mcp.md](mcp.md)).
 
-Kledg n'invente rien : ce que les comptes ne disent pas (engagements hors bilan, événements postérieurs à la clôture, échéances des dettes, effectif...) est demandé, et l'annexe ne se génère que lorsque rien ne manque. Les montants viennent des écritures validées de l'exercice, à-nouveaux compris, écriture de clôture exclue. Faites relire l'annexe par votre expert-comptable.
+Kledg n'invente rien : ce que les comptes ne disent pas (engagements hors bilan, événements postérieurs à la clôture, échéances des dettes, effectif...) est demandé, et l'annexe ne se génère que lorsque rien ne manque. Les montants viennent des écritures validées de l'exercice, à-nouveaux compris, écriture de clôture exclue.
 
 Textes vérifiés le 5 octobre 2026 : règlement ANC n° 2014-03 relatif au plan comptable général, version consolidée au 1er janvier 2026 (recueil publié par l'ANC) ; formulaires DGFiP n° 2054-SD, 2055-SD (liasse 2050, édition 2026) et 2033-C-SD (édition 2026), et la notice 2033-NOT-SD.
 

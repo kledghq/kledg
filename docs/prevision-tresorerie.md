@@ -1,5 +1,7 @@
 # Prévision de trésorerie
 
+Le guide d'utilisation (lire la prévision, choisir les flux, fixer le seuil d'alerte, limites) est sur le site : [La prévision de trésorerie](https://www.kledg.com/fr/docs/la-prevision-de-tresorerie). Cette page décrit le fonctionnement technique : code, API, sources des flux, règles de calcul, droits et limites d'implémentation.
+
 Le solde bancaire projeté sur les 3, 6 ou 12 prochains mois, par mois ou par semaine, à partir du solde du jour et des flux que Kledg connaît déjà, avec un seuil d'alerte par société. Code : `lib/cash-forecast`, page `/prevision-tresorerie` (Banque, Prévision de trésorerie), outil MCP `get_cash_forecast`. C'est une projection, pas une garantie : la page, l'export, les alertes et l'outil MCP le disent.
 
 Aucune règle financière n'est réécrite : chaque flux vient d'un service qu'un écran expert utilise déjà, si bien que la prévision et ces écrans s'accordent au centime.

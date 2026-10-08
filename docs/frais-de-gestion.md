@@ -1,5 +1,7 @@
 # Frais de gestion
 
+Le guide d'utilisation (à quoi servent les frais de gestion, étapes, règles expliquées) est sur le site : [Les frais de gestion](https://www.kledg.com/fr/docs/les-frais-de-gestion). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Les services qu'une holding animatrice rend à ses filiales (direction, comptabilité, informatique, juridique) et leur refacturation : une convention par groupe de filiales, un prix calculé depuis les écritures validées, une facture de vente par filiale et par période dans la holding, et, sur demande, la facture d'achat proposée en brouillon à chaque filiale. Code : `lib/management-fees`, pages `/management-fees`, outils MCP `list_management_fee_conventions` et `preview_management_fees`.
 
 ## Holding et filiales

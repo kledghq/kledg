@@ -1,5 +1,7 @@
 # Serveur MCP : connecter Claude ou ChatGPT
 
+Le guide d'utilisation (connecter Claude, ChatGPT ou Claude Code, choisir l'accès et les sociétés, mode d'exécution, approuver une action, révoquer, Proposer avec l'IA, parcours guidés) est sur le site : [Connecter Claude ou ChatGPT](https://www.kledg.com/fr/docs/connecter-claude-ou-chatgpt). Cette page décrit le fonctionnement technique : autorisations OAuth, portées, outils et leurs conventions, actions en attente, journal d'audit, prompts, couverture et inventaire de l'API.
+
 Chaque instance Kledg expose un serveur [MCP](https://modelcontextprotocol.io) sur `https://votre-instance/api/mcp`. Votre assistant peut alors lire votre comptabilité et proposer des écritures, sans que vos données ne transitent par un service tiers autre que l'assistant que vous choisissez.
 
 ## Connexion
@@ -32,9 +34,9 @@ La page d'autorisation propose jusqu'à trois niveaux, parmi ceux que l'assistan
 
 - **Lecture seule** : portée `kledg:read`. Les jetons émis ne contiennent pas `kledg:write`, et aucun outil de brouillon (`create_draft_entry` et ceux de la section [Lecture et brouillons](#lecture-et-brouillons-kledgwrite)) n'apparaît dans la liste d'outils de l'assistant.
 - **Lecture et brouillons d'écritures** (présélectionné) : portées `kledg:read` et `kledg:write`. L'assistant peut proposer des écritures avec `create_draft_entry` et préparer le travail que vous vérifiez ensuite dans Kledg : lignes de budget, décisions sur les abonnements, provisions et leur évaluation, subventions, écritures de clôture en brouillon, notes de frais en brouillon, données de l'approbation des comptes. Rien n'est validé ni comptabilisé : les écritures restent en brouillon jusqu'à ce qu'une personne les valide.
-- **Contrôle total** : portées `kledg:read`, `kledg:write` et `kledg:admin`. L'assistant pourra agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice..., dans la limite de vos droits sur les sociétés choisies. Ce niveau n'est jamais présélectionné et s'accompagne d'un avertissement ; réservez-le à un assistant en qui vous avez toute confiance. Il se complète du choix du **mode d'exécution** (voir [Mode d'exécution du contrôle total](#mode-dexécution-du-contrôle-total)).
+- **Contrôle total** : portées `kledg:read`, `kledg:write` et `kledg:admin`. L'assistant pourra agir comme vous : valider des écritures, rapprocher, importer, clôturer un exercice..., dans la limite de vos droits sur les sociétés choisies. Ce niveau n'est jamais présélectionné et s'accompagne d'un avertissement. Il se complète du choix du **mode d'exécution** (voir [Mode d'exécution du contrôle total](#mode-dexécution-du-contrôle-total)).
 
-Les assistants demandent les trois portées ; seules celles que vous acceptez figurent dans les jetons. La page indique le compte Kledg connecté et le nom de l'assistant (son logo pour Claude et ChatGPT).
+Les assistants demandent les trois portées ; seules celles que vous acceptez figurent dans les jetons.
 
 Le niveau choisi s'affiche dans **Assistants autorisés**. Il se modifie avec le bouton **Modifier** de l'assistant :
 
@@ -71,7 +73,7 @@ Chaque connexion a sa liste de sociétés : un assistant autorisé par OAuth (pa
 
 Sur la page d'autorisation, le choix part de **Toutes mes sociétés**, sauf si une autorisation précédente de cet assistant nommait des sociétés auxquelles vous avez encore accès. Si vous n'avez accès à aucune société, seul **Toutes mes sociétés** est proposé ; si vos sociétés ne peuvent pas être chargées, la page le dit au lieu d'afficher une liste vide.
 
-Le choix se fait sur la page d'autorisation (à côté des droits demandés) quand vous connectez Claude ou ChatGPT, et à la création d'une clé API. Il se modifie ensuite à tout moment sur la page Assistants IA ou Clés API (bouton **Modifier** de l'assistant ou de la clé) et s'applique dès la requête suivante, sans reconnecter l'assistant.
+Le choix se fait sur la page d'autorisation et à la création d'une clé API ; il se modifie ensuite (bouton **Modifier** de l'assistant ou de la clé) et s'applique dès la requête suivante, sans nouvelle autorisation.
 
 Pour l'assistant, une société non choisie est introuvable, exactement comme une société dont vous n'êtes pas membre : `list_companies` ne la renvoie pas et tout outil appelé avec son identifiant (ou celui d'un exercice, d'une écriture, d'un compte ou d'une transaction de cette société) répond « Société introuvable » ou « Exercice introuvable ». Les outils de brouillons exigent à la fois la portée `kledg:write` et une société choisie.
 
@@ -87,7 +89,7 @@ Le bouton **Révoquer** d'un assistant autorisé supprime, pour votre compte :
 - ses jetons de rafraîchissement (et les jetons d'accès enregistrés) : l'assistant ne peut plus obtenir de nouveau jeton ;
 - l'accès des jetons déjà émis : un jeton d'accès encore valide est refusé par `/api/mcp` dès la requête suivante (réponse 401 `invalid_token`), puisque l'autorisation n'existe plus.
 
-Le nettoyage est fait par la base de données (déclencheurs sur la table des autorisations), quel que soit le chemin de la révocation. Les autres utilisateurs du même assistant ne sont pas concernés. Pour rétablir l'accès, reconnectez l'assistant : la page d'autorisation s'affiche de nouveau.
+Le nettoyage est fait par la base de données (déclencheurs sur la table des autorisations), quel que soit le chemin de la révocation. Les autres utilisateurs du même assistant ne sont pas concernés. Une nouvelle connexion repasse par la page d'autorisation.
 
 ### Changement ou réinitialisation du mot de passe
 

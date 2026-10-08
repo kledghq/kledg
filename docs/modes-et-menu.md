@@ -1,5 +1,7 @@
 # Modes d'affichage et menu personnalisé
 
+Le guide d'utilisation (choisir son mode, menu du mode standard, personnaliser son menu) est sur le site : [Mode simple, standard ou expert](https://www.kledg.com/fr/docs/le-mode-simple). Cette page décrit le fonctionnement technique : code, API, stockage, droits et tests.
+
 Kledg affiche les mêmes livres de trois façons, au choix de chaque
 utilisateur, et chacun peut en plus masquer des entrées de son menu, société
 par société. Ni le mode ni le menu ne donnent ou ne retirent un droit : ce

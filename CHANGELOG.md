@@ -10,6 +10,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - Page **Justificatifs** : zone « Déposer des justificatifs » (plusieurs fichiers, appareil photo du téléphone, glisser-déposer) ; pour chaque fichier, confirmez le montant, la date et le commerçant (préremplis depuis le nom du fichier), puis rattachez-le à la transaction trouvée ou créez une note de frais.
 - Membres : un administrateur de la société retire lui-même un membre (jamais quelqu'un qui a plus de droits que lui, ni un administrateur de l'instance, ni le dernier administrateur de la société), et chaque membre peut quitter la société. L'accès prend fin tout de suite, assistants IA et clés API compris ; ses actions IA en attente et les invitations qu'il a envoyées sont annulées, ce qu'il a saisi reste à son nom, et il est prévenu par email. Outil MCP `manage_members` (action `remove`) ([documentation](docs/membres-et-invitations.md#retrait-dun-membre)).
 
+### Modifié
+
+- Documentation : les guides d'utilisation sont sur [www.kledg.com/fr/docs](https://www.kledg.com/fr/docs) ; `docs/` garde la documentation technique (architecture, sécurité, configuration, auto-hébergement, serveur MCP, fonctionnement de chaque fonctionnalité) et chaque page renvoie à son guide.
+
 ## [0.3.2] - 2026-10-08
 
 ### Ajouté

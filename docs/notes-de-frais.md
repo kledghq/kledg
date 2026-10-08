@@ -1,5 +1,7 @@
 # Notes de frais
 
+Le guide d'utilisation (bénéficiaires, saisie d'une note, TVA récupérable, indemnités kilométriques, repas de l'exploitant, validation, remboursement) est sur le site : [Les notes de frais](https://www.kledg.com/fr/docs/les-notes-de-frais). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Les dépenses qu'un salarié, un dirigeant ou un associé avance pour la société, et ses trajets avec un véhicule personnel : saisie avec les justificatifs, TVA récupérable calculée ligne par ligne, indemnités kilométriques au barème officiel, validation, comptabilisation au crédit du compte de la personne et remboursement constaté par le lettrage. Code : `lib/expense-reports`, pages `/expense-reports`, outils MCP `list_expense_reports`, `get_expense_report`, `list_expense_claimants` et, avec l'accès brouillons, `create_draft_expense_report`.
 
 ## Bénéficiaires
@@ -54,10 +56,10 @@ Règles appliquées dans cet ordre, la première qui s'applique décide (`lib/ex
 4. **Exclusions** de l'article 206, IV, 2 de l'annexe II du CGI (version en vigueur depuis le 8 juillet 2024), dont le coefficient d'admission est nul :
    - 2° : la fourniture à titre gratuit du logement des dirigeants ou du personnel, donc l'hôtel d'un déplacement (BOI-TVA-DED-30-30-10) ;
    - 5° : les transports de personnes et leurs opérations accessoires (BOI-TVA-DED-30-30-30) ;
-   - 3° : les biens cédés sans rémunération, sauf ceux de très faible valeur, 73 € TTC par bénéficiaire et par an (CGI ann. IV art. 28-00 A). Kledg vérifie la ligne : saisissez une ligne par bénéficiaire.
+   - 3° : les biens cédés sans rémunération, sauf ceux de très faible valeur, 73 € TTC par bénéficiaire et par an (CGI ann. IV art. 28-00 A). Kledg vérifie la ligne, d'où une ligne par bénéficiaire.
 
    Dans le texte en vigueur, le 4° (publicité pour les boissons alcooliques) est abrogé : les exclusions utiles aux notes de frais sont les 2°, 3° et 5°.
-5. **Carburant** d'un véhicule de tourisme : 80 % de la TVA sur l'essence et le gazole (CGI art. 298, 4, 1°, a ; BOI-TVA-DED-30-30-40), arrondi au centime. Un véhicule utilitaire ouvre droit à 100 % : choisissez une autre catégorie.
+5. **Carburant** d'un véhicule de tourisme : 80 % de la TVA sur l'essence et le gazole (CGI art. 298, 4, 1°, a ; BOI-TVA-DED-30-30-40), arrondi au centime. Un véhicule utilitaire ouvre droit à 100 % : il relève d'une autre catégorie.
 6. Sinon, toute la TVA du justificatif.
 
 Puis, pour une société partiellement exonérée (déduction par coefficient, [organisme de formation](organisme-de-formation.md)), la TVA récupérable de la ligne est multipliée par le coefficient de déduction provisoire du jour de la dépense (CGI ann. II art. 205 et 206), arrondie au centime le plus proche, comme pour les factures d'achat, le mode simple et les règles d'affectation. Une société exonérée dont la déduction se fait par coefficient applique ce coefficient ; seule la franchise en base ne récupère rien.
@@ -166,7 +168,7 @@ Vérifié le 4 octobre 2026 dans la référence publique de l'API Business de Qo
 - Aucune portée OAuth ne couvre les notes de frais ; les pages `/expense-reports` ou `/reimbursements` de la référence n'existent pas.
 - Le point d'accès `/expense_reports` n'y figure pas : Kledg ne l'appelle pas.
 
-Un remboursement payé par Qonto arrive comme une transaction bancaire : rapprochez-la avec le compte du bénéficiaire, puis lettrez la note avec elle (Remboursement). Si Qonto publie un jour un point d'accès, l'import se fera en lecture seule, sans doublon par identifiant Qonto.
+Un remboursement payé par Qonto arrive comme une transaction bancaire, rapprochée avec le compte du bénéficiaire puis lettrée avec la note (Remboursement). Si Qonto publie un jour un point d'accès, l'import se fera en lecture seule, sans doublon par identifiant Qonto.
 
 ## MCP
 

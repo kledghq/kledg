@@ -1,27 +1,27 @@
 # Impôts locaux (CFE, CVAE)
 
-Kledg **prépare** les deux impôts de la contribution économique territoriale
-(CET) d'une année civile : la cotisation foncière des entreprises (CFE)
-d'après l'avis d'imposition que vous saisissez, et la cotisation sur la
-valeur ajoutée des entreprises (CVAE) calculée sur la valeur ajoutée des
-comptes. **Vous déclarez et payez** dans votre espace professionnel sur
-impots.gouv.fr : Kledg ne dépose rien, ne paie rien et ne transmet rien à
-l'administration.
+Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
+expliquées) est sur le site : [Les impôts locaux : CFE et CVAE](https://www.kledg.com/fr/docs/les-impots-locaux).
+Cette page décrit le fonctionnement technique : code, API, règles de calcul,
+droits et limites d'implémentation.
+
+Kledg prépare les deux impôts de la contribution économique territoriale
+(CET) d'une année civile : la CFE d'après l'avis d'imposition saisi, la CVAE
+calculée sur la valeur ajoutée des comptes. Kledg ne dépose rien, ne paie
+rien et ne transmet rien à l'administration.
 
 Page : États, Impôts locaux (CFE, CVAE) (`/<société>/impots-locaux?annee=2026`,
 mode expert). Code : `lib/local-taxes`. Les échéances des deux impôts et leur
 suivi (déposée, payée, en retard) sont ceux du calendrier
-([échéances](echeances.md)). Reprend la partie CFE et CVAE du module de
-déclarations de l'ancienne application, réécrite avec la loi en vigueur au
-5 octobre 2026.
+([échéances](echeances.md)). Règles : la loi en vigueur au 5 octobre 2026.
 
 ## CFE
 
 La CFE est due chaque année par qui exerce une activité professionnelle non
 salariée au 1er janvier (CGI, art. 1447). Sa base est la valeur locative des
 biens passibles de taxe foncière utilisés pour l'activité (CGI, art. 1467),
-son taux celui que vote la commune : **Kledg ne peut pas la calculer**. Vous
-saisissez l'avis d'imposition (montant total, acompte demandé, date, note),
+son taux celui que vote la commune : **Kledg ne peut pas la calculer**. L'utilisateur
+saisit l'avis d'imposition (montant total, acompte demandé, date, note),
 une ligne par année (table `local_taxes`).
 
 | Règle | Kledg | Source |
@@ -119,8 +119,8 @@ Sources : CGI, art. 1586 quater (version en vigueur du 1er janvier 2026 au
   au-delà de 7 600 000 €.
 - **Seuils** : déclaration 1330-CVAE au-delà de 152 500 € de chiffre
   d'affaires (art. 1586 octies, BOI-CVAE-DECLA-10), CVAE au-delà de
-  500 000 € (art. 1586 quater). La consigne de départ évoquait 500 000 € pour
-  la 1330 : la loi fixe 152 500 €, Kledg suit la loi.
+  500 000 € (art. 1586 quater). Les deux seuils diffèrent : la 1330 est due
+  dès 152 500 €, même sans CVAE à payer.
 - **Taux** (art. 1586 quater) : 0 jusqu'à 500 000 €, puis par tranche jusqu'à
   3, 10 et 50 millions d'euros, **arrondi au centième** (exemple du BOFiP :
   2 700 000 € en 2026, 0,094 % x 2 200 000 / 2 500 000 = 0,0827 %, soit

@@ -1,5 +1,10 @@
 # Échéances et suivi des déclarations
 
+Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
+expliquées) est sur le site : [Suivre ses échéances fiscales et juridiques](https://www.kledg.com/fr/docs/les-echeances).
+Cette page décrit le fonctionnement technique : code, API, règles de calcul,
+droits et limites d'implémentation.
+
 Le calendrier des échéances fiscales et juridiques d'une société, et le suivi
 de ce qui a été déposé et payé. Page : États, Échéances
 (`/<société>/echeances`), widget Échéances du tableau de bord
@@ -51,14 +56,10 @@ crédit de TVA) n'a rien à payer.
 
 ### Enregistrer un dépôt ou un paiement
 
-« Enregistrer » sur une échéance (droit `entries:create`, administrateurs et
-comptables) ouvre un formulaire : date de dépôt, date de paiement (selon ce
-que l'échéance demande), montant, « Non due cette fois » pour une échéance
-conditionnelle, pièce justificative et note. Kledg ne stocke pas de fichier :
-la pièce est une pièce déjà dans Kledg (une pièce jointe Qonto, par exemple
-celle de l'opération bancaire du paiement, comme pour les notes de frais) ou
-la référence d'une pièce gardée ailleurs (accusé de réception, avis).
-« Retirer l'enregistrement » efface ce qui a été saisi.
+« Enregistrer » (droit `entries:create`) : `filedOn`, `paidOn` (selon ce que
+l'échéance demande), `amountCents`, `notDue`, pièce (`attachmentId`, une pièce
+jointe existante de la société, ou `attachmentReference`, texte libre ; aucun
+fichier stocké) et `note`. « Retirer l'enregistrement » supprime la ligne.
 
 Règles (`lib/declarations/mark-declaration.service.ts`) :
 

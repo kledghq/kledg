@@ -1,8 +1,8 @@
 # Catégories simples et dépenses à vérifier
 
-Le mode simple s'adresse aux personnes qui ne connaissent pas la comptabilité. Au lieu de choisir des comptes et des taux de TVA, elles confirment une **catégorie en langage courant** (« Téléphone et internet », « Repas d'affaires ») pour chaque paiement de la banque. Kledg en déduit l'écriture complète, et l'expert-comptable la valide.
+Le guide d'utilisation (vérifier ses dépenses et ses recettes, questions, immobilisations, validation par le comptable, expliqués pas à pas) est sur le site : [Les catégories simples](https://www.kledg.com/fr/docs/les-categories-simples). Cette page décrit le fonctionnement technique : catalogue et règles comptables avec leurs sources, moteur de proposition, écritures produites, API, droits et outils MCP.
 
-Cette page décrit le catalogue des catégories, la façon dont Kledg propose une catégorie, les pages **Dépenses à vérifier** et **Recettes à vérifier**, la validation par l'expert-comptable et les outils MCP. Le code est dans `lib/simple`.
+En mode simple, l'utilisateur confirme une **catégorie en langage courant** pour chaque transaction bancaire non rapprochée ; Kledg en déduit l'écriture complète. Le code est dans `lib/simple`.
 
 ## Catalogue des catégories
 
@@ -109,13 +109,7 @@ Pour une entrée d'argent, Kledg cherche d'abord la **facture de vente payée** 
 
 ## Dépenses à vérifier
 
-La page `/<société>/simple/depenses` (mode simple) liste les paiements non rapprochés, du plus récent au plus ancien, avec la catégorie proposée et sa raison :
-
-- **OK** confirme la proposition ;
-- **Modifier** ouvre la liste des catégories (recherche par mot, sans accent), la question éventuelle, la note pour le comptable et l'envoi du justificatif ;
-- une ligne qui pose une question se règle d'un clic sur la réponse ;
-- **Tout confirmer** ne confirme que les lignes de confiance haute sans question ; le serveur recalcule chaque proposition avant de confirmer ;
-- une ligne dont la date n'est couverte par aucun exercice ouvert le dit et ne peut pas être confirmée.
+La page `/<société>/simple/depenses` (mode simple) liste les débits non rapprochés, du plus récent au plus ancien, avec la catégorie proposée et sa raison. Actions : confirmer la proposition, choisir une autre catégorie (recherche sans accent) avec la réponse à la question, une note et le justificatif, ou tout confirmer. **Tout confirmer** ne confirme que les lignes de confiance haute sans question ; le serveur recalcule chaque proposition avant de confirmer. Une ligne dont la date n'est couverte par aucun exercice ouvert ne peut pas être confirmée.
 
 Confirmer crée l'écriture par le service du rapprochement (`createEntryAndReconcile`) : la transaction est réservée sous verrou, l'écriture créée par le seul chemin de création (`createEntryInTx`) avec la ligne de banque au 512, la charge ou le produit et la TVA, au journal BQ, dans l'exercice de la date, puis liée à la transaction, le tout dans une seule transaction de la base. Une seconde confirmation répond 409. Annuler le rapprochement supprime le brouillon, comme pour tout rapprochement, et l'immobilisation créée avec lui (voir [Immobilisations](#immobilisations)).
 

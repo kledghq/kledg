@@ -2,6 +2,8 @@
 
 Kledg est conçu pour être déployé par chaque organisation sur sa propre infrastructure. Le chemin recommandé est **Vercel + Neon + Resend** : tout tient dans les offres gratuites pour démarrer, sans serveur à administrer.
 
+Les guides pas à pas sont sur le site : [Installer Kledg](https://www.kledg.com/fr/docs/installer-kledg), [Choisir son hébergement](https://www.kledg.com/fr/docs/choisir-son-hebergement), [Mettre à jour Kledg](https://www.kledg.com/fr/docs/mettre-a-jour-kledg). Cette page donne la référence technique de chaque hébergement.
+
 ## Ce dont vous avez besoin
 
 | Service | Rôle | Obligatoire |
@@ -41,7 +43,7 @@ Quel que soit l'hébergeur, il vous faut les variables de [configuration.md](con
 
 ### Domaine personnalisé
 
-Ajoutez votre domaine dans les paramètres du projet Vercel, puis définissez `BETTER_AUTH_URL=https://compta.votre-domaine.fr`. Sans cette variable, Kledg utilise l'URL de production Vercel.
+Ajoutez votre domaine dans les paramètres du projet Vercel, puis définissez `BETTER_AUTH_URL=https://compta.votre-domaine.fr`. Sans cette variable, Kledg utilise l'URL de production Vercel. Guide pas à pas : [Utiliser son propre domaine](https://www.kledg.com/fr/docs/utiliser-son-propre-domaine).
 
 ### Assistants IA
 
@@ -53,7 +55,7 @@ Kledg n'appelle aucun modèle d'IA lui-même. Votre assistant (Claude, ChatGPT, 
 2. Créez une clé API avec la permission « Sending access ».
 3. Définissez `RESEND_API_KEY` et `EMAIL_FROM="Kledg <compta@mail.votre-domaine.fr>"`.
 
-Sans Resend, Kledg reste utilisable : les emails sont écrits dans les logs du serveur et l'ajout d'un membre affiche un mot de passe temporaire à lui transmettre. En revanche, un utilisateur ne peut pas changer son adresse email depuis son profil, car la nouvelle adresse doit être confirmée par un lien envoyé par email ; seul un administrateur de l'instance peut alors changer sa propre adresse, après avoir saisi son mot de passe.
+Sans Resend, Kledg reste utilisable : les emails sont écrits dans les logs du serveur et l'ajout d'un membre affiche un mot de passe temporaire à lui transmettre. En revanche, un utilisateur ne peut pas changer son adresse email depuis son profil, car la nouvelle adresse doit être confirmée par un lien envoyé par email. Un administrateur de l'instance peut changer sa propre adresse, après avoir saisi son mot de passe, et celle des autres comptes depuis Paramètres, Instance, Utilisateurs (menu de la ligne, « Changer l'adresse email ») : aucun lien de confirmation n'est envoyé, la personne se connecte aussitôt avec la nouvelle adresse. Guide : [Changer son adresse email](https://www.kledg.com/fr/docs/changer-son-adresse-email).
 
 ## Railway
 

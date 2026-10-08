@@ -1,5 +1,7 @@
 # Provisions, dépréciations et subventions d'investissement
 
+Le guide d'utilisation (à quoi servent les provisions et les subventions, étapes, règles expliquées) est sur le site : [Provisions, dépréciations et subventions](https://www.kledg.com/fr/docs/les-provisions-et-subventions). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Les travaux d'inventaire de la clôture : les provisions pour risques et charges, les dépréciations des immobilisations, des stocks, des créances et des valeurs mobilières, la reprise des subventions d'investissement, et la composition du capital. Code : `lib/provisions`, `lib/investment-grants`, `lib/year-end`, `lib/reports/capital-composition` ; pages Saisie, Risques et charges (`/provisions`), Saisie, Dépréciations (`/provisions/impairments`), Saisie, Subventions d'investissement (`/investment-grants`), Saisie, Travaux de clôture (`/year-end`) et États, Composition du capital (`/reports/capital-composition`) ; outils MCP `get_year_end_inventory`, `list_doubtful_receivables`, `get_capital_composition` et, avec l'accès brouillons (droit `entries:create`), `create_provision`, `record_provision_assessment`, `create_investment_grant` et `prepare_year_end_entries` (écritures en brouillon seulement, voir [mcp.md](mcp.md)).
 
 Kledg ne passe jamais une écriture d'inventaire seul : il propose les dotations, les reprises et les quotes-parts de subventions **en brouillon**, que l'utilisateur vérifie et valide (PCG art. 1031-3). La clôture refuse un exercice qui contient encore des brouillons.
@@ -18,7 +20,7 @@ Une provision pour risques et charges et une dépréciation fonctionnent de la m
 
 Les comptes sont ceux du plan de comptes modifié par le règlement ANC 2022-06 (exercices ouverts à partir du 1er janvier 2025) : les provisions pour charges sont en 152 (1521 pensions, 1522 restructurations, 1523 impôts, 1524 renouvellement, 1525 gros entretien, 1526 remise en état, 1527 autres), plus en 153 à 158. Le « résultat » (exploitation, financier, exceptionnel) choisit les comptes de dotation et de reprise ; une catégorie n'accepte que ceux qui ont un sens (une dépréciation de titres de participation est financière ou exceptionnelle, pas d'exploitation).
 
-- **Création** : catégorie, compte, libellé, objet et estimation (la provision doit être « nettement précisée quant à son objet », c'est la pièce justificative de l'écriture), date d'origine, date de fin éventuelle, montant déjà comptabilisé avant Kledg pour une société reprise en cours de vie. Une dépréciation d'immobilisation peut être rattachée à une immobilisation de Kledg ; une dépréciation de créance à un client (compte auxiliaire).
+- **Champs** : catégorie, compte, libellé, objet et estimation (pièce justificative de l'écriture), date d'origine, date de fin éventuelle, montant déjà comptabilisé avant Kledg (société reprise en cours de vie). Rattachement optionnel à une immobilisation (dépréciation d'immobilisation) ou à un client, compte auxiliaire (dépréciation de créance).
 - **Évaluation à la clôture** : le montant que le compte doit avoir au dernier jour de l'exercice (meilleure estimation, revue à chaque clôture, PCG art. 322-1 et suivants). Pour une immobilisation rattachée, on peut saisir sa **valeur actuelle** (la plus élevée de la valeur vénale et de la valeur d'usage) : la dépréciation est l'excédent de la valeur nette comptable à la fin de l'exercice sur cette valeur, jamais négative (PCG art. 214-15 et suivants). La valeur nette comptable vient du plan d'amortissement de l'immobilisation, ou des montants enregistrés pour chaque exercice quand il y en a (`lib/fixed-assets/cumulative-depreciation.ts`).
 - **Mouvement** : montant requis moins solde à l'ouverture (montant déjà comptabilisé plus les mouvements des exercices précédents) moins ce qui est déjà passé pour cette clôture. Positif, c'est une dotation ; négatif, une reprise.
 - **Fin du risque** : une date de fin dans l'exercice, sans évaluation, demande un solde nul : tout le solde est repris.
@@ -49,13 +51,13 @@ Une subvention reçue pour financer une immobilisation s'inscrit en capitaux pro
 - L'année où l'immobilisation financée sort de l'actif, le solde non repris est viré au résultat (CGI art. 42 septies).
 - Une quote-part passée en trop n'est jamais reprise en sens inverse : elle réduit les suivantes.
 - Le compte 747 est celui du plan 2025 (« Quote-part des subventions d'investissement virée au résultat de l'exercice », produits d'exploitation, ligne FO du 2052 et 230 du 2033-B). L'ancien plan utilisait le 777 en produits exceptionnels ; le compte se change par subvention.
-- Une immobilisation financée par une subvention ne se supprime pas tant que la subvention la suit (clé étrangère `RESTRICT` et message en français) : modifiez la subvention, ou enregistrez la sortie de l'immobilisation.
-- Une fois une quote-part validée, le montant, le rythme et les comptes de la subvention sont figés ; une subvention qui a une quote-part validée ne se supprime pas (contre-passez d'abord).
+- Une immobilisation financée par une subvention ne se supprime pas tant que la subvention la suit (clé étrangère `RESTRICT` et message en français) : il faut modifier la subvention ou enregistrer la sortie de l'immobilisation.
+- Une fois une quote-part validée, le montant, le rythme et les comptes de la subvention sont figés ; une subvention qui a une quote-part validée ne se supprime pas (la quote-part se contre-passe d'abord).
 - Quand la subvention est entièrement reprise, les comptes 131 et 139 se soldent l'un par l'autre par une écriture manuelle (débit 131, crédit 139) : Kledg ne la propose pas.
 
 ## Travaux de clôture
 
-La page Travaux de clôture montre, pour l'exercice choisi, chaque provision, dépréciation et subvention concernée avec son statut :
+Statuts calculés par la page Travaux de clôture pour chaque provision, dépréciation et subvention de l'exercice :
 
 | Statut | Signification |
 |---|---|
@@ -98,7 +100,7 @@ La page États, Composition du capital (`GET /api/reports/capital-composition?co
 - **Liasse** : les associés qui détiennent au moins 10 % du capital sont marqués, ce sont ceux des formulaires 2033-F (régime simplifié) et 2059-F (régime normal).
 - **Contrôles** : capital social différent du nombre de titres multiplié par la valeur nominale (Code de commerce art. L223-2 pour les SARL, L228-1 pour les sociétés par actions), titres ou pourcentages qui ne font pas le total, nombre de titres manquant, capital comptabilisé au compte 101 à la fin de l'exercice différent du capital social.
 - Aucune donnée personnelle hors le nom : la date et le lieu de naissance, l'adresse et les coordonnées restent sur la fiche de l'associé.
-- La page s'imprime pour l'annexe ou l'assemblée générale. Les participations détenues (2033-G, 2059-G) ne sont pas encore reprises.
+- Page imprimable. Les participations détenues (2033-G, 2059-G) ne sont pas encore reprises.
 
 ## Ce qui n'est pas couvert
 

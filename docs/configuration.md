@@ -39,7 +39,7 @@ Toutes les variables sont listées dans [`.env.example`](../.env.example).
 
 ## Changer le secret
 
-Si `BETTER_AUTH_SECRET` a pu être lu par quelqu'un d'autre, remplacez-le :
+Si `BETTER_AUTH_SECRET` a pu être lu par quelqu'un d'autre, remplacez-le (guide pas à pas sur le site : [Changer le secret d'authentification](https://www.kledg.com/fr/docs/changer-le-secret-d-authentification)) :
 
 1. Générez un nouveau secret (`openssl rand -base64 32`).
 2. Définissez `BETTER_AUTH_SECRETS=2:<nouveau secret>` et gardez l'ancien dans `BETTER_AUTH_SECRET`, puis redéployez.

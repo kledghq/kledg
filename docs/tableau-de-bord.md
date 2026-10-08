@@ -1,5 +1,7 @@
 # Tableau de bord
 
+Le guide d'utilisation (ce que montre chaque widget, dispositions par défaut, personnalisation) est sur le site : [Le tableau de bord](https://www.kledg.com/fr/docs/le-tableau-de-bord). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Le tableau de bord d'une société (`app/(company)/[companyId]/page.tsx`) est
 fait de widgets que chaque utilisateur choisit, range et dimensionne pour
 lui-même, société par société.
@@ -61,13 +63,12 @@ Une carte d'état de la [prévision de trésorerie](prevision-tresorerie.md) se 
 
 ## Personnalisation
 
-« Personnaliser » ouvre le mode édition : glisser un widget par sa poignée
-(souris, tactile, ou clavier : Espace puis les flèches), ou les boutons
-Monter et Descendre ; choisir une taille (S une colonne, M deux, L toute la
-ligne ; la grille passe de une à deux puis quatre colonnes selon la place) ;
-retirer un widget ; « Ajouter un widget » liste ceux qui sont masqués.
-« Enregistrer » sauvegarde, « Rétablir la disposition par défaut » revient
-à celle du rôle. Chaque changement est annoncé aux lecteurs d'écran.
+Mode édition (« Personnaliser ») : déplacement par poignée (souris,
+tactile, clavier : Espace puis les flèches) ou boutons Monter et Descendre ;
+tailles S (une colonne), M (deux), L (toute la ligne) sur une grille d'une,
+deux puis quatre colonnes selon la place ; retrait ; « Ajouter un widget »
+pour les widgets masqués ; « Enregistrer » ; « Rétablir la disposition par
+défaut » (celle du rôle). Chaque changement est annoncé aux lecteurs d'écran.
 
 La disposition est enregistrée par utilisateur et par société (table
 `dashboard_layouts`, `GET`, `PUT` et `DELETE /api/dashboard/layout`). Elle

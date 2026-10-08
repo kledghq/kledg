@@ -1,5 +1,7 @@
 # Abonnements
 
+Le guide d'utilisation (lire la page, statuts, confirmer ou ignorer, ajouter au budget) est sur le site : [Les abonnements](https://www.kledg.com/fr/docs/les-abonnements). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+
 Les paiements récurrents repérés dans les opérations bancaires de la société (logiciels, forfaits, loyers, assurances), avec leur coût annuel, leur prochaine échéance et ce qui a changé. Code : `lib/subscriptions`, page `/subscriptions` (Banque, Abonnements), outils MCP `list_detected_subscriptions` et, avec l'accès brouillons, `classify_subscription` et `add_subscription_to_budget`.
 
 ## Détection
