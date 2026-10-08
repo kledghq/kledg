@@ -29,7 +29,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { enforceRateLimit } from '@/lib/rate-limit'
 import { calendarDayOf } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
-import { checkReceiptFile, receiptFileName, type ReceiptContentType } from './file-type'
+import { RECEIPT_FILE_MESSAGES, RECEIPT_MAX_BYTES, checkReceiptFile, receiptFileName, type ReceiptContentType } from './file-type'
 
 export const STAGED_RECEIPT_TTL_DAYS = 30
 const DAY_MS = 86_400_000
@@ -253,4 +253,11 @@ export async function discardStagedReceipt(companyId: string, id: string, actor:
   await prisma.receiptFile.deleteMany({ where: { companyId, stagedReceipts: { none: {} }, attachments: { none: {} } } })
   await writeAuditLog('info', 'Staged receipt discarded', { action: 'RECEIPT_DISCARDED', companyId, metadata: { stagedReceiptId: id } })
   return stagedReceiptView(await findStagedReceipt(companyId, id, actor))
+}
+
+/** A receipt uploaded from the Justificatifs page (multipart field "file"): the size is checked before the bytes are read. */
+export async function stageUploadedReceipt(companyId: string, actor: StagedReceiptActor, file: FormDataEntryValue | null): Promise<{ receipt: StagedReceiptView; duplicate: boolean }> {
+  if (!file || typeof file === 'string') throw new ValidationError('Joignez un fichier (photo JPEG ou PNG, ou PDF).')
+  if (file.size > RECEIPT_MAX_BYTES) throw new ValidationError(RECEIPT_FILE_MESSAGES.tooLarge)
+  return stageReceipt(companyId, actor, { bytes: new Uint8Array(await file.arrayBuffer()), fileName: file.name, source: 'app' })
 }

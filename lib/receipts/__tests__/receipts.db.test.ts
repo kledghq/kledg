@@ -256,6 +256,29 @@ describe.skipIf(!available)('receipts filed from a photo', () => {
       ])
     })
 
+    it('starts a new brouillon when the open one cannot take the line (a line of it to fix)', async () => {
+      const claimant = await prisma.expenseClaimant.findFirstOrThrow({ where: { companyId: ids.aCompany, userId: 'u-viewer' } })
+      const broken = await prisma.expenseReport.create({
+        data: {
+          companyId: ids.aCompany,
+          claimantId: claimant.id,
+          number: 'NDF-0900',
+          periodStart: day('2026-11-01'),
+          periodEnd: day('2026-11-30'),
+          totalInclTax: 10,
+          recoverableVat: 0,
+          totalExpense: 10,
+          lines: { create: [{ position: 1, date: day('2026-11-02'), label: 'Ancienne ligne', category: 'OTHER', accountCode: '706000', amountInclTax: 10 }] },
+        },
+      })
+      const { receipt } = await stageReceipt(ids.aCompany, VIEWER, { bytes: jpegWith('november'), fileName: 'n.jpg', source: 'view' })
+      await matchStagedReceipt(ids.aCompany, receipt.id, VIEWER, fields({ amountCents: 1_500, date: '2026-11-05', merchant: 'Taxi', paymentHint: 'cash' }))
+      const result = await expenseFromStagedReceipt(ids.aCompany, receipt.id, VIEWER, viewerExpense)
+      expect(result.created).toBe(true)
+      expect(result.reportId).not.toBe(broken.id)
+      expect(await prisma.expenseLine.count({ where: { reportId: broken.id } })).toBe(1)
+    })
+
     it('refuses a foreign currency receipt and one already attached', async () => {
       const { receipt } = await stageReceipt(ids.aCompany, VIEWER, { bytes: jpegWith('usd'), fileName: 'u.jpg', source: 'view' })
       await matchStagedReceipt(ids.aCompany, receipt.id, VIEWER, fields({ currency: 'usd', merchant: 'Diner NYC', paymentHint: 'personal_card' }))

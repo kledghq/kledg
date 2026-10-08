@@ -436,9 +436,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 231 | 190 | 41 |
-| Lectures (GET) | 183 | 155 | 28 |
-| Total | 414 | 345 | 69 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 236 | 195 | 41 |
+| Lectures (GET) | 184 | 155 | 29 |
+| Total | 420 | 350 | 70 |
 
 ### Exclusions
 
@@ -456,7 +456,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
-| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 10 (4) |
+| Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 11 (4) |
 
 ### Table des routes
 
@@ -822,6 +822,12 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/reports/journal` | reports:read | `get_ledger_report` (L) |
 | `GET /api/reports/tiers-flows` | reports:read | `get_tiers_flows` (L) |
 | `GET /api/reports/trial-balance` | reports:read | `get_trial_balance` (L) |
+| `GET /api/receipts/staged` | expenses:submit | Exclu : aides de l'interface |
+| `POST /api/receipts/staged` | expenses:submit | `stage_receipt` (B) |
+| `DELETE /api/receipts/staged/[id]` | expenses:submit | `file_receipt` (B) ; Action discard. |
+| `POST /api/receipts/staged/[id]/attach` | banking:reconcile | `file_receipt` (B) ; Action attach, à fort impact : approuvée dans Kledg sans le contrôle total. |
+| `POST /api/receipts/staged/[id]/expense` | expenses:submit | `file_receipt` (B) ; Action expense, note de frais en brouillon. |
+| `POST /api/receipts/staged/[id]/match` | banking:read | `file_receipt` (B) ; Action match. |
 | `GET /api/rule-templates` | banking:read | `list_rule_templates` (L) |
 | `GET /api/rule-templates/[id]` | banking:read | `list_rule_templates` (L) |
 | `POST /api/rule-templates/[id]/accounts` | ledger:manage | `add_rule_from_template` (CT) ; Option createMissingAccounts de l'outil. |

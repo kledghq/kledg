@@ -523,21 +523,24 @@ export async function expenseFromStagedReceipt(
     })
     attachmentId = attachment.id
     const lines = expenseLinesOf(fields, input, attachment.id)
-    const draft = await openDraftOf(companyId, expenseActor.userId, fields.date)
     const [year, month] = fields.date.split('-').map(Number)
-    const report = draft
-      ? await appendExpenseLines(companyId, draft.id, lines, expenseActor, { source: options.source })
-      : await createExpenseReport(
-          companyId,
-          {
-            label: null,
-            periodStart: `${fields.date.slice(0, 7)}-01`,
-            periodEnd: `${fields.date.slice(0, 7)}-${String(lastDayOfMonth(year, month)).padStart(2, '0')}`,
-            lines,
-          },
-          expenseActor,
-          { source: options.source },
-        )
+    const createReport = () =>
+      createExpenseReport(
+        companyId,
+        { label: null, periodStart: `${fields.date.slice(0, 7)}-01`, periodEnd: `${fields.date.slice(0, 7)}-${String(lastDayOfMonth(year, month)).padStart(2, '0')}`, lines },
+        expenseActor,
+        { source: options.source },
+      )
+    let draft = await openDraftOf(companyId, expenseActor.userId, fields.date)
+    let report: Awaited<ReturnType<typeof createReport>>
+    try {
+      report = draft ? await appendExpenseLines(companyId, draft.id, lines, expenseActor, { source: options.source }) : await createReport()
+    } catch (error) {
+      // The open brouillon does not take the line (a line of it to fix, edited meanwhile): a new brouillon of the month does.
+      if (!draft || !(error instanceof ValidationError || error instanceof ConflictError)) throw error
+      draft = null
+      report = await createReport()
+    }
     const line = report.lines.find((l) => l.receiptAttachmentId === attachment.id)
     await prisma.stagedReceipt.update({ where: { id }, data: { expenseReportId: report.id, expenseLineId: line?.id ?? null, attachmentId: attachment.id } })
     await writeAuditLog('info', 'Receipt added to an expense report', {
