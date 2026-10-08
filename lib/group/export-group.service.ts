@@ -13,6 +13,7 @@
 import { z } from 'zod'
 import { XLSX_CONTENT_TYPE, type GeneratedFile } from '@/lib/api/download'
 import type { GroupAccess } from '@/lib/management-fees/access'
+import { exportAccess } from './perimeter'
 import { fileNamePart } from '@/lib/reports/export-reports.service'
 import { formatIsoDateFr } from '@/lib/utils/date'
 import { percentCell, toCsv, toWorkbook, type ExportDoc, type Row } from './export-doc'
@@ -177,7 +178,12 @@ async function exportedTransactions(holdingId: string, query: GroupExportQuery, 
     page = await listGroupTransactions(holdingId, { ...query, limit: MAX_GROUP_TRANSACTIONS_PAGE, cursor }, access)
     items.push(...page.items)
   }
-  return { companies: page.companies, items: items.slice(0, MAX_EXPORTED_TRANSACTIONS), truncated: page.nextCursor !== null || items.length > MAX_EXPORTED_TRANSACTIONS }
+  return {
+    companies: page.companies,
+    items: items.slice(0, MAX_EXPORTED_TRANSACTIONS),
+    truncated: page.nextCursor !== null || items.length > MAX_EXPORTED_TRANSACTIONS,
+    notRead: page.unreachable.length + page.truncated,
+  }
 }
 
 async function buildDoc(holdingId: string, query: GroupExportQuery, access: GroupAccess): Promise<ExportDoc> {
@@ -210,15 +216,22 @@ async function buildDoc(holdingId: string, query: GroupExportQuery, access: Grou
     }
     case 'transactions': {
       const fy = periodRef(await resolveHoldingFiscalYear(holdingId, query.fiscalYearId))
-      const { companies, items, truncated } = await exportedTransactions(holdingId, query, access)
+      const { companies, items, truncated, notRead } = await exportedTransactions(holdingId, query, access)
       const holding = companies.find((c) => c.role === 'holding')
-      return transactionsDoc({ name: holding?.name ?? '' }, companies, items, truncated, fy.year)
+      return transactionsDoc({ name: holding?.name ?? '' }, companies, items, truncated, fy.year, notRead)
     }
   }
 }
 
+/**
+ * The file of a report of the group space. Every company is read with
+ * reports:export there, not only reports:read (KLEDG-R3-AUTHZ-04): a viewer
+ * of a subsidiary sees it in the group pages but does not take its books out;
+ * such a subsidiary is left out of the file with the same notice as one out
+ * of reach.
+ */
 export async function exportGroup(holdingId: string, query: GroupExportQuery, access: GroupAccess): Promise<GeneratedFile> {
-  const doc = await buildDoc(holdingId, query, access)
+  const doc = await buildDoc(holdingId, query, exportAccess(access))
   const base = `${FILE_NAMES[query.report]}_${fileNamePart(doc.holdingName)}_${doc.year}`
   if (query.format === 'csv') return { content: toCsv(doc), fileName: `${base}.csv`, contentType: 'text/csv; charset=utf-8' }
   return { content: await toWorkbook(doc), fileName: `${base}.xlsx`, contentType: XLSX_CONTENT_TYPE }

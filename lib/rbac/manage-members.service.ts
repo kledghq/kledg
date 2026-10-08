@@ -12,7 +12,6 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { resolveCompanyRef } from '@/lib/companies/slug'
 import { COMPANY_ROLES, type CompanyRoleName } from './add-member-to-company.service'
-import { ensureCompanyOrganization } from './ensure-company-organization.service'
 
 export const MEMBER_NOT_FOUND_MESSAGE = 'Membre introuvable'
 
@@ -25,9 +24,10 @@ function rolesOf(role: string): string[] {
 
 /** Members of the company, oldest first, with their user's email and name. */
 export async function listMembers(companyId: string) {
-  const organization = await ensureCompanyOrganization(companyId)
+  // A read never writes (KLEDG-R3-AUTHZ-07): a company without its
+  // organization row yet has no member; adding one creates it.
   const members = await prisma.member.findMany({
-    where: { organizationId: organization.id },
+    where: { organization: { companyId } },
     include: { user: { select: { id: true, email: true, name: true } } },
     orderBy: { createdAt: 'asc' },
   })

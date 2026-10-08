@@ -7,7 +7,10 @@ import { toast } from 'sonner'
 import { authClient } from '@/lib/auth-client'
 import {
   ALL_COMPANIES,
+  API_KEY_EXPIRY_DAYS,
+  DEFAULT_API_KEY_EXPIRY_DAYS,
   apiKeyLevelOf,
+  type ApiKeyExpiryDays,
   describeLevel,
   type AccessLevel,
   type CompanyAccess,
@@ -18,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Field, formatDisplayDate, useConfirm } from '@/components/shared'
 import { CompanyAccessPicker, accessError, describeAccess, type PickerCompany } from './company-access-picker'
 import { AccessLevelPicker } from './access-level-picker'
@@ -52,6 +56,12 @@ export function NewApiKeyCard({
   const [level, setLevel] = useState<AccessLevel>('write')
   // Full control only: automatic by default (owner's choice).
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('automatic')
+  // Full control only: the password is typed again (the server checks it).
+  const [password, setPassword] = useState('')
+  // A key that writes always expires; "no expiry" only for a read-only key (KLEDG-R3-AUTH-01).
+  const [expiry, setExpiry] = useState<ApiKeyExpiryDays>(DEFAULT_API_KEY_EXPIRY_DAYS)
+  const effectiveExpiry: ApiKeyExpiryDays = expiry === null && level !== 'read' ? DEFAULT_API_KEY_EXPIRY_DAYS : expiry
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
   const [accessMessage, setAccessMessage] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [newKey, setNewKey] = useState<string | null>(null)
@@ -63,12 +73,22 @@ export function NewApiKeyCard({
       setAccessMessage(invalid)
       return
     }
+    if (level === 'admin' && !password) {
+      setPasswordMessage('Saisissez votre mot de passe pour créer une clé à contrôle total.')
+      return
+    }
     setCreating(true)
     try {
       const response = await fetch('/api/ai-access/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() || 'Clé MCP', access, level, ...(level === 'admin' && { executionMode }) }),
+        body: JSON.stringify({
+          name: name.trim() || 'Clé MCP',
+          access,
+          level,
+          expiresInDays: effectiveExpiry,
+          ...(level === 'admin' && { executionMode, password }),
+        }),
       })
       const data = (await response.json().catch(() => ({}))) as { key?: string; error?: string }
       if (!response.ok || !data.key) {
@@ -80,6 +100,8 @@ export function NewApiKeyCard({
       setAccess(ALL_COMPANIES)
       setLevel('write')
       setExecutionMode('automatic')
+      setPassword('')
+      setExpiry(DEFAULT_API_KEY_EXPIRY_DAYS)
       await onCreated()
     } finally {
       setCreating(false)
@@ -113,6 +135,44 @@ export function NewApiKeyCard({
           </Field>
           <AccessLevelPicker value={level} onChange={setLevel} disabled={creating} />
           {level === 'admin' && <ExecutionModePicker value={executionMode} onChange={setExecutionMode} disabled={creating} />}
+          <Field
+            label="Validité"
+            htmlFor="api-key-expiry"
+            hint={level === 'read' ? 'Une clé en lecture seule peut ne pas expirer.' : 'Une clé qui écrit expire toujours.'}
+          >
+            <Select value={effectiveExpiry === null ? 'never' : String(effectiveExpiry)} onValueChange={(v) => setExpiry(v === 'never' ? null : (Number(v) as ApiKeyExpiryDays))} disabled={creating}>
+              <SelectTrigger id="api-key-expiry" className="w-full sm:w-60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {API_KEY_EXPIRY_DAYS.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {days} jours
+                  </SelectItem>
+                ))}
+                {level === 'read' && <SelectItem value="never">Sans expiration</SelectItem>}
+              </SelectContent>
+            </Select>
+          </Field>
+          {level === 'admin' && (
+            <Field
+              label="Votre mot de passe"
+              hint="Une clé à contrôle total agit comme vous&nbsp;: confirmez avec votre mot de passe."
+              error={passwordMessage ?? undefined}
+              required
+            >
+              <Input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setPasswordMessage(null)
+                }}
+                disabled={creating}
+              />
+            </Field>
+          )}
           <CompanyAccessPicker
             companies={companies}
             loading={companiesLoading}
@@ -218,6 +278,7 @@ export function ApiKeysCard({
                     {k.lastRequest
                       ? ` · dernière utilisation le ${formatDisplayDate(k.lastRequest, 'long')}`
                       : ' · jamais utilisée'}
+                    {k.expiresAt ? ` · expire le ${formatDisplayDate(k.expiresAt, 'long')}` : ' · sans expiration'}
                   </div>
                   <div className="text-muted-foreground truncate text-xs">
                     <span className="text-foreground">Accès&nbsp;:</span> {describeLevel(apiKeyLevelOf(k.permissions), grants.get(k.id)?.executionMode)}

@@ -8,6 +8,7 @@ import { DEADLINE_CATEGORY_LABELS } from '@/lib/deadlines/types'
 import { INDICATOR_SECTIONS } from '@/lib/reports/financial-indicators/rows'
 import type { FinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 import { formatIsoDateFr } from '@/lib/utils/date'
+import { plural } from '@/lib/utils/plural'
 import { DEADLINE_COLUMNS, DEADLINE_COLUMN_LABELS } from './deadline-summary'
 import type { ExportDoc, Row, Section } from './export-doc'
 import { percentCell } from './export-doc'
@@ -163,11 +164,23 @@ export function deadlinesDoc(report: GroupDeadlinesReport): ExportDoc {
   return { title: `Impôts et échéances du groupe ${report.holding.name}, ${period(report.fiscalYear)}`, holdingName: report.holding.name, year: report.fiscalYear.year, sections: [summary, list] }
 }
 
-export function transactionsDoc(holding: { name: string }, companies: GroupCompanyLink[], items: readonly GroupTransaction[], truncated: boolean, year: number): ExportDoc {
+export function transactionsDoc(
+  holding: { name: string },
+  companies: GroupCompanyLink[],
+  items: readonly GroupTransaction[],
+  truncated: boolean,
+  year: number,
+  notRead = 0,
+): ExportDoc {
   const names = new Map(companies.map((c) => [c.id, c.name]))
+  const notices = [
+    truncated ? `Les ${items.length} transactions les plus récentes\u00a0: affinez les filtres pour exporter les autres.` : null,
+    // A subsidiary out of reach, or where the user may not export (KLEDG-R3-AUTHZ-04).
+    notRead > 0 ? `${plural(notRead, 'filiale n’est pas exportée', 'filiales ne sont pas exportées')}, faute d’accès ou de droit d’export.` : null,
+  ].filter((notice): notice is string => notice !== null)
   return {
     title: `Transactions bancaires du groupe ${holding.name}`,
-    notice: truncated ? `Les ${items.length} transactions les plus récentes\u00a0: affinez les filtres pour exporter les autres.` : null,
+    notice: notices.length > 0 ? notices.join(' ') : null,
     holdingName: holding.name,
     year,
     sections: [

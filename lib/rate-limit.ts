@@ -58,6 +58,8 @@ export const RATE_LIMITS = {
   export: { window: 60, max: 30, message: "Trop d'exports en une minute. Patientez une minute avant de réessayer." },
   /** MCP calls authenticated with an API key, per key (lib/mcp/api-key.ts): assistants make many calls per conversation. */
   'mcp-api-key': { window: 60, max: 300, message: "Trop d'appels avec cette clé API en une minute. Patientez une minute." },
+  /** Creation of a full control API key (password typed again), per user. */
+  'api-key-full-control': { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Approval or refusal of an action prepared by an assistant (password typed again), per user. */
   'ai-action-approval': { window: 900, max: 20, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Saving or resetting one's dashboard layout, per user. */

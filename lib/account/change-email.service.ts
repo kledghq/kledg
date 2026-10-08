@@ -12,6 +12,7 @@
  * password (they control the instance and its database anyway).
  */
 
+import { waitUntil } from '@vercel/functions'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { getAppUrl } from '@/lib/config'
@@ -85,13 +86,16 @@ export async function requestEmailChange(
   }
 
   // Better Auth answers the same way when the address belongs to another
-  // account (nothing is sent), so the response never reveals who is registered.
+  // account (nothing is sent), so the response never reveals who is
+  // registered: neither by its content nor by its time, since the link to a
+  // free address is sent after the response (lib/auth.ts, KLEDG-R3-AUTH-03).
   await callAuth(() => auth.api.changeEmail({ headers, body: { newEmail, callbackURL: EMAIL_CHANGE_CALLBACK } }))
-  try {
-    await sendEmail(emailChangeNoticeEmail(user.email, newEmail, `${getAppUrl()}/settings/profile`))
-  } catch (error) {
-    // The change itself is pending on the new address; the notice is best effort.
-    logger.warn('Email change notice could not be sent', error)
-  }
+  // The change itself is pending on the new address; the notice is best
+  // effort, sent after the response too.
+  waitUntil(
+    sendEmail(emailChangeNoticeEmail(user.email, newEmail, `${getAppUrl()}/settings/profile`)).catch((error: unknown) => {
+      logger.warn('Email change notice could not be sent', error)
+    }),
+  )
   return { status: 'verification-sent' }
 }

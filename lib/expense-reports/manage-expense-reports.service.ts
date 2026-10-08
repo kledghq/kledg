@@ -209,6 +209,12 @@ function statusWhere(filter: ExpenseStatusFilter): Prisma.ExpenseReportWhereInpu
 }
 
 export async function listExpenseReports(companyId: string, actor: ExpenseActor, query: ListExpenseReportsQuery) {
+  // The cursor must be a report the actor may see in the company (KLEDG-R3-AUTHZ-02):
+  // Prisma reads the sort values of the cursor row by its id alone.
+  if (query.cursor) {
+    const visible = await prisma.expenseReport.findFirst({ where: { AND: [{ id: query.cursor }, visibleTo(companyId, actor)] }, select: { id: true } })
+    if (!visible) throw new ValidationError('Curseur invalide\u00a0: rechargez la liste.')
+  }
   const term = query.search?.trim()
   const where: Prisma.ExpenseReportWhereInput = {
     AND: [

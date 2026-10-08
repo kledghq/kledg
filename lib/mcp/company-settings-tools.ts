@@ -19,7 +19,7 @@ import { forAssistant } from '@/lib/mcp/euros'
 import { parseInput } from '@/lib/api/zod-fields'
 import { ValidationError } from '@/lib/accounting/errors'
 import { getCompanyById } from '@/lib/companies/manage-company.service'
-import { listOrInitializeEstablishments } from '@/lib/companies/manage-establishments.service'
+import { getCompanyEstablishments } from '@/lib/companies/manage-establishments.service'
 import { listMembers } from '@/lib/rbac/manage-members.service'
 import { exportCompanyPerson, listCompanyPersons } from '@/lib/companies/manage-persons.service'
 import { listShareholders } from '@/lib/companies/manage-shareholders.service'
@@ -85,7 +85,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
         const id = args.companyId
         const load: Record<(typeof SECTIONS)[number], () => Promise<unknown>> = {
           company: () => getCompanyById(id),
-          establishments: () => listOrInitializeEstablishments(id),
+          establishments: () => getCompanyEstablishments(id),
           members: () => listMembers(id),
           persons: () => listCompanyPersons(id),
           person: () => {

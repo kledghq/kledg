@@ -19,7 +19,7 @@ import { calendarDayOf, endOfDay, isoDateToUtc } from '@/lib/utils/date'
 import { toCents } from '@/lib/utils/money'
 import { decodeCursor, mergePages, type PageKey } from './merge-pages'
 import { linkOf, perimeterWarnings, readGroupMembers, type GroupCompanyLink } from './members'
-import type { UnreachableSubsidiary } from './perimeter'
+import { GROUP_BANK_READ, type UnreachableSubsidiary } from './perimeter'
 
 export const MAX_GROUP_TRANSACTIONS_PAGE = 200
 export const DEFAULT_GROUP_TRANSACTIONS_PAGE = 50
@@ -130,7 +130,8 @@ export async function listGroupTransactions(holdingId: string, query: GroupTrans
         bankAccountName: t.bankAccount.displayName || t.bankAccount.name,
       }),
     )
-  })
+    // Bank transactions need banking:read in each company, like its Transactions page (KLEDG-R3-AUTHZ-08).
+  }, GROUP_BANK_READ)
   if (only && !read.members.some((m) => m.ref.id === only || m.ref.slug === only)) throw new NotFoundError(COMPANY_NOT_IN_GROUP)
   const page = mergePages(
     read.members.map((m) => m.value),

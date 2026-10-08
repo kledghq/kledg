@@ -6,7 +6,7 @@ import { ChangeBodySchema, deleteAccountingChange, updateAccountingChange } from
 const company = fromResource(companyOfAccountingChange)
 
 /** PATCH /api/accounting-changes/[id]: replaces the change; a draft entry that no longer matches is deleted, a validated one refuses (409). */
-export const PATCH = companyRoute({ company, permission: { entries: ['create'] }, body: ChangeBodySchema }, async ({ companyId, params, body }) =>
+export const PATCH = companyRoute({ company, permission: { entries: ['update'] }, body: ChangeBodySchema }, async ({ companyId, params, body }) =>
   NextResponse.json(await updateAccountingChange(companyId, params.id as string, body)),
 )
 

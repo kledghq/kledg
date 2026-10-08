@@ -138,3 +138,27 @@ export function emailChangeNoticeEmail(to: string, newEmail: string, profileUrl:
     text: `Un changement de l'adresse de votre compte ${APP_NAME} vers ${newEmail} a été demandé. Si ce n'est pas vous, changez votre mot de passe : ${profileUrl}`,
   }
 }
+
+/**
+ * Notice to the owner of a new API key (KLEDG-R3-AUTH-01): someone who held
+ * the session could create one; the owner hears of it. Never the secret,
+ * only its name, its access and its expiry.
+ */
+export function apiKeyCreatedEmail(
+  to: string,
+  key: { name: string; access: string; expiresOn: string | null },
+  settingsUrl: string,
+): EmailMessage {
+  const expiry = key.expiresOn ? `Elle expire le ${key.expiresOn}.` : 'Elle n’expire pas (lecture seule).'
+  return {
+    to,
+    subject: `Nouvelle clé API sur ${APP_NAME}`,
+    html: layout(
+      'Nouvelle clé API',
+      `Une clé API « ${escapeHtml(key.name)} » a été créée sur votre compte ${APP_NAME}, avec l’accès « ${escapeHtml(key.access)} ». ${expiry}`,
+      { label: 'Voir mes clés API', url: settingsUrl },
+      "Si vous n'êtes pas à l'origine de cette clé, révoquez-la depuis vos clés API, puis changez votre mot de passe : cela supprime aussi toutes vos clés et déconnecte vos assistants IA.",
+    ),
+    text: `Une clé API « ${key.name} » a été créée sur votre compte ${APP_NAME} (accès : ${key.access}). ${expiry} Si ce n'est pas vous, révoquez-la et changez votre mot de passe : ${settingsUrl}`,
+  }
+}

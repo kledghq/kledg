@@ -19,7 +19,7 @@ import {
   getConfigVersion,
   restoreConfigVersion,
 } from '../balance-sheet/config/manage-config-history.service'
-import { applyBalanceSheetTemplate, createBalanceSheetTemplate } from '../balance-sheet/config/manage-templates.service'
+import { applyBalanceSheetTemplate, createBalanceSheetTemplate, usableTemplateWhere } from '../balance-sheet/config/manage-templates.service'
 import { updateBalanceSheetLineConfig } from '../balance-sheet/config/update-balance-sheet-line-config.service'
 import { createDefaultIncomeStatementConfig } from '../income-statement/config/create-default-pcg-config.service'
 import { createIncomeStatementLineConfig } from '../income-statement/config/create-income-statement-line-config.service'
@@ -41,6 +41,8 @@ import type {
 
 const LINE_NOT_FOUND = 'Configuration introuvable'
 const TEMPLATE_NOT_FOUND = 'Modèle introuvable'
+const TEMPLATE_PRIVATE_ONLY =
+  'Un modèle enregistré reste propre à la société\u00a0: seuls les modèles fournis par Kledg sont partagés entre les sociétés.'
 
 /** A balance sheet layout line of the company, else a 404. */
 export async function getBalanceSheetLine(companyId: string, lineId: string) {
@@ -56,11 +58,11 @@ export async function getIncomeStatementLine(companyId: string, lineId: string) 
   return line
 }
 
-/** A template the company may use: public, or its own. */
+/** A template the company may use: its own, or one of Kledg's shared ones. */
 async function assertTemplateUsable(companyId: string, templateId: string | null | undefined): Promise<void> {
   if (!templateId) return
   const template = await prisma.balanceSheetConfigTemplate.findFirst({
-    where: { id: templateId, OR: [{ isPublic: true }, { companyId }] },
+    where: { id: templateId, ...usableTemplateWhere(companyId) },
     select: { id: true },
   })
   if (!template) throw new NotFoundError(TEMPLATE_NOT_FOUND)
@@ -179,17 +181,12 @@ export async function runBalanceSheetHistoryAction(
 /** Saves the company's balance sheet layout as a template (author: the signed-in user), or applies a template. */
 export async function runBalanceSheetTemplateAction(companyId: string, userId: string, input: z.infer<typeof TemplateActionSchema>) {
   if (input.action === 'create') {
-    const template = await createBalanceSheetTemplate(
-      companyId,
-      input.name,
-      input.description || null,
-      input.variant,
-      input.isPublic || false,
-      userId,
-    )
+    // KLEDG-R3-AUTHZ-01: shared templates are Kledg's own; a company's template stays its own.
+    if (input.isPublic) throw new ValidationError(TEMPLATE_PRIVATE_ONLY)
+    const template = await createBalanceSheetTemplate(companyId, input.name, input.description || null, input.variant, userId)
     return { created: true, result: template }
   }
-  // A private template of another company is not visible: 404 (checked by the service).
+  // A template of another company is not visible: 404 (checked by the service).
   return { created: false, result: await applyBalanceSheetTemplate(input.templateId, companyId) }
 }
 

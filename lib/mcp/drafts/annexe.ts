@@ -55,7 +55,7 @@ const manageMethodsTool = draftTool({
     referenceMethod: z.boolean().optional(),
   },
   permission: [],
-  actions: { create: { entries: ['create'] }, update: { entries: ['create'] }, delete: { entries: ['delete'] } },
+  actions: { create: { entries: ['create'] }, update: { entries: ['update'] }, delete: { entries: ['delete'] } },
   destructive: true,
   idempotent: false,
   async execute(args) {
@@ -100,7 +100,7 @@ const manageChangesTool = draftTool({
     entryDate: day.nullable().optional().describe('Day of the catch-up entry; default the opening (EQUITY) or the closing (RESULT).'),
   },
   permission: [],
-  actions: { create: { entries: ['create'] }, update: { entries: ['create'] }, delete: { entries: ['delete'] }, prepare_entry: { entries: ['create'] } },
+  actions: { create: { entries: ['create'] }, update: { entries: ['update'] }, delete: { entries: ['delete'] }, prepare_entry: { entries: ['create'] } },
   destructive: true,
   idempotent: false,
   async execute(args) {

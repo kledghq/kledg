@@ -21,6 +21,8 @@ const previous = await vi.hoisted(async () => {
   return before
 })
 
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { Client } from 'pg'
 import {
   TEST_APP_ROLE,
@@ -210,6 +212,60 @@ describe.skipIf(!available)('row level security: tenant isolation', () => {
       client.query(`INSERT INTO "${table}" ("id", "userId", "companyId", "updatedAt") VALUES ('forged', $1, $2, now())`, [USER_A, COMPANY.a]),
     )
     await expect(attempt).rejects.toMatchObject({ code: expect.stringMatching(/^(42501|23502)$/) })
+  })
+
+  it.each(['balance_sheet_config_templates', 'income_statement_config_templates'])(
+    '[KLEDG-R3-AUTHZ-01] %s: a user publishes, changes nor deletes a template shared with every company',
+    async (table) => {
+      const columns = `("id", "name", "reportVariant", "isPublic", "companyId", "createdBy", "configData", "updatedAt")`
+      const published = asRaw(userA, (client) =>
+        client.query(`INSERT INTO "${table}" ${columns} VALUES ('pirate', 'Officiel', 'complete', true, NULL, $1, '{}', now())`, [USER_A]),
+      )
+      await expect(published).rejects.toMatchObject({ code: '42501' })
+      // A template of Kledg (written by the owner here, a migration in real life) is read, never written.
+      await owner.query(`INSERT INTO "${table}" ${columns} VALUES ('kledg-shared', 'Kledg', 'complete', true, NULL, NULL, '{}', now())`)
+      try {
+        expect(await visibleKeys(userA, table)).toContain('kledg-shared')
+        await asRaw(userA, async (client) => {
+          expect((await client.query(`UPDATE "${table}" SET "name" = 'Pirate' WHERE "id" = 'kledg-shared'`)).rowCount).toBe(0)
+          expect((await client.query(`DELETE FROM "${table}" WHERE "id" = 'kledg-shared'`)).rowCount).toBe(0)
+        })
+        // Nor turns its own company's template into a shared one.
+        const moved = asRaw(userA, (client) => client.query(`UPDATE "${table}" SET "companyId" = NULL, "isPublic" = true WHERE "id" = $1`, [keys[table].a]))
+        await expect(moved).rejects.toMatchObject({ code: '42501' })
+      } finally {
+        await owner.query(`DELETE FROM "${table}" WHERE "id" = 'kledg-shared'`)
+      }
+    },
+  )
+
+  it('[KLEDG-R3-AUTHZ-01] migration 20261121090000 gives the templates companies published back to them, private', async () => {
+    const table = 'balance_sheet_config_templates'
+    const columns = `("id", "name", "reportVariant", "isPublic", "companyId", "createdBy", "configData", "updatedAt")`
+    await owner.query(
+      `INSERT INTO "${table}" ${columns} VALUES
+         ('published-a', 'Publié par A', 'complete', true, NULL, $1, $2::jsonb, now()),
+         ('published-gone', 'Société disparue', 'complete', true, NULL, $1, '{"companyId": "company-gone"}', now()),
+         ('kledg-own', 'Modèle Kledg', 'complete', true, NULL, NULL, '{}', now())`,
+      [USER_A, JSON.stringify({ companyId: COMPANY.a })],
+    )
+    try {
+      const sql = readFileSync(join(process.cwd(), 'prisma/migrations/20261121090000_statement_templates_private/migration.sql'), 'utf8')
+      await owner.query(sql)
+      const { rows } = await owner.query<{ id: string; companyId: string | null; isPublic: boolean }>(
+        `SELECT "id", "companyId", "isPublic" FROM "${table}" WHERE "id" IN ('published-a', 'published-gone', 'kledg-own') ORDER BY "id"`,
+      )
+      expect(rows).toEqual([
+        { id: 'kledg-own', companyId: null, isPublic: true },
+        { id: 'published-a', companyId: COMPANY.a, isPublic: false },
+        { id: 'published-gone', companyId: null, isPublic: false },
+      ])
+      // Company B no longer sees what A had published.
+      expect(await visibleKeys({ access: 'user', userId: USER_B }, table)).not.toContain('published-a')
+      expect(await visibleKeys({ access: 'user', userId: USER_B }, table)).not.toContain('published-gone')
+    } finally {
+      await owner.query(`DELETE FROM "${table}" WHERE "id" IN ('published-a', 'published-gone', 'kledg-own')`)
+    }
   })
 
   it('narrows a user to the scope, never beyond their memberships', async () => {

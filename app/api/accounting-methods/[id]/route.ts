@@ -6,7 +6,7 @@ import { MethodBodySchema, deleteAccountingMethod, updateAccountingMethod } from
 const company = fromResource(companyOfAccountingMethod)
 
 /** PATCH /api/accounting-methods/[id]: replaces the method (a reference method stays one, PCG art. 121-5). */
-export const PATCH = companyRoute({ company, permission: { entries: ['create'] }, body: MethodBodySchema }, async ({ companyId, params, body }) =>
+export const PATCH = companyRoute({ company, permission: { entries: ['update'] }, body: MethodBodySchema }, async ({ companyId, params, body }) =>
   NextResponse.json(await updateAccountingMethod(companyId, params.id as string, body)),
 )
 

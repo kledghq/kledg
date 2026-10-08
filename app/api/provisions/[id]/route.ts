@@ -6,7 +6,7 @@ import { deleteProvision, ProvisionBodySchema, updateProvision } from '@/lib/pro
 const company = fromResource(companyOfProvision)
 
 /** PATCH /api/provisions/[id]: replaces the provision (its account and history are fixed once a movement is validated). */
-export const PATCH = companyRoute({ company, permission: { entries: ['create'] }, body: ProvisionBodySchema }, async ({ companyId, params, body }) =>
+export const PATCH = companyRoute({ company, permission: { entries: ['update'] }, body: ProvisionBodySchema }, async ({ companyId, params, body }) =>
   NextResponse.json(await updateProvision(companyId, params.id as string, body)),
 )
 

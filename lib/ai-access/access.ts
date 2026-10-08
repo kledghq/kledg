@@ -159,6 +159,25 @@ export function apiKeyLevelOf(permissions: Record<string, string[]> | null | und
 export const AccessLevelSchema = z.enum(['read', 'write', 'admin'])
 
 /**
+ * Lifetime of an API key, in days, chosen at creation (KLEDG-R3-AUTH-01):
+ * 30, 90 (default) or 365; no expiry only for a read-only key. A key that
+ * writes (drafts or full control) always expires, so a key planted by
+ * someone who once held the session does not live forever.
+ */
+export const API_KEY_EXPIRY_DAYS = [30, 90, 365] as const
+export type ApiKeyExpiryDays = (typeof API_KEY_EXPIRY_DAYS)[number] | null
+export const DEFAULT_API_KEY_EXPIRY_DAYS: ApiKeyExpiryDays = 90
+export const ApiKeyExpirySchema = z.union([z.literal(30), z.literal(90), z.literal(365), z.null()], {
+  error: 'Durée de validité inconnue : 30, 90 ou 365 jours, ou sans expiration pour une clé en lecture seule.',
+})
+export const API_KEY_EXPIRY_REQUIRED_MESSAGE = 'Une clé qui écrit doit expirer : choisissez 30, 90 ou 365 jours.'
+
+/** Whether a key of `level` may be created with this lifetime. */
+export function expiryAllowed(level: AccessLevel, days: ApiKeyExpiryDays): boolean {
+  return days !== null || level === 'read'
+}
+
+/**
  * How a full control connection runs its high-impact tools (validate,
  * reverse, delete, import, close...), chosen per assistant (user and OAuth
  * client) and per API key, stored on its grant:

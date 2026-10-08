@@ -255,28 +255,3 @@ export async function deactivateEstablishment(companyId: string, establishmentId
     return tx.establishment.update({ where: { id: establishment.id }, data: { isActive: false } })
   })
 }
-
-/**
- * Active establishments of the company; when it has none yet, first creates
- * the main one ("Siège social") from the company's headquarters address.
- */
-export async function listOrInitializeEstablishments(companyId: string) {
-  const establishments = await getCompanyEstablishments(companyId)
-  if (establishments.length > 0) return establishments
-
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { activityCode: true, headquartersAddressId: true },
-  })
-  if (!company) throw new NotFoundError('Société introuvable')
-
-  // The SIRET is typed later by the user, at the establishment level.
-  await createEstablishment(companyId, {
-    siret: '',
-    name: 'Siège social',
-    addressId: company.headquartersAddressId,
-    activityCode: company.activityCode ?? undefined,
-    isMain: true,
-  })
-  return getCompanyEstablishments(companyId)
-}

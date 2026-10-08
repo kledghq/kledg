@@ -9,10 +9,14 @@
  * - anonymous: 401
  * - no response carries a secret: credentials, tokens, password hashes,
  *   API key hashes (keys and values scanned in every read below)
+ * - every handler built with companyRoute under app/api has a case here
+ *   (KLEDG-R3-AUTHZ-06, checked by the last test of this file)
  *
  * Skipped when the test database server is unreachable.
  */
 
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
@@ -23,6 +27,9 @@ const state = await vi.hoisted(async () => {
   process.env.BETTER_AUTH_URL ??= 'http://localhost:3000'
   // Routes that reach Qonto (invoice import) must never leave the machine: a closed local port answers at once
   process.env.QONTO_API_URL = 'http://127.0.0.1:9/v2'
+  // Same for the other bank providers (Ponto institutions, Revolut), and any other host is refused below
+  process.env.PONTO_API_URL = 'http://127.0.0.1:9'
+  process.env.REVOLUT_API_URL = 'http://127.0.0.1:9'
   return { user: null as null | { id: string; email: string; name: string | null; role: string | null } }
 })
 
@@ -255,6 +262,18 @@ async function seedCompany(prefix: 'a' | 'b', name: string, slug: string, siren:
   const depreciation = await prisma.fixedAssetDepreciation.create({
     data: { companyId: company.id, fixedAssetId: fixedAsset.id, fiscalYearId: fy.id, periodType: 'year', year: 2026, amount: 400 },
   })
+  // Layout lines of the simplified statements, and a Revolut connection being set up (its callback resolves the company from it)
+  const bsLine = await prisma.balanceSheetLineConfig.create({
+    data: { companyId: company.id, reportVariant: 'simplified', section: 'actif', lineLabel: 'Disponibilités', accountCodes: ['51'], balanceType: 'debit', order: 1 },
+  })
+  const isLine = await prisma.incomeStatementLineConfig.create({
+    data: { companyId: company.id, reportVariant: 'simplified', section: 'produits', lineLabel: 'Ventes', accountCodes: ['70'], balanceType: 'credit', order: 1 },
+  })
+  await prisma.integration.create({
+    data: { id: `revolut${prefix}integration0`, companyId: company.id, provider: 'REVOLUT', type: 'BANKING', name: 'Revolut', credentials: {}, credentialsEncrypted: false },
+  })
+  const template = await prisma.balanceSheetConfigTemplate.create({ data: { companyId: company.id, name: 'Modèle maison', reportVariant: 'simplified', configData: {} } })
+  Object.assign(ids, { [`${prefix}BsLine`]: bsLine.id, [`${prefix}IsLine`]: isLine.id, [`${prefix}Connection`]: connection.id, [`${prefix}Template`]: template.id })
   const integration = await prisma.integration.create({
     data: {
       companyId: company.id,
@@ -579,6 +598,42 @@ const ROUTE_MODULES = {
   yearEnd: () => import('@/app/api/year-end/route'),
   yearEndEntries: () => import('@/app/api/year-end/entries/route'),
   capitalComposition: () => import('@/app/api/reports/capital-composition/route'),
+  // KLEDG-R3-AUTHZ-06: the company routes the matrix did not call before
+  bankAccount: () => import('@/app/api/banking/accounts/[id]/route'),
+  bankAccountsSync: () => import('@/app/api/banking/accounts/sync/route'),
+  qontoReceiptProxy: () => import('@/app/api/banking/attachments/[attachmentId]/proxy/route'),
+  qontoReceiptsSync: () => import('@/app/api/banking/attachments/sync/route'),
+  bankConnection: () => import('@/app/api/banking/connections/[id]/route'),
+  bankConnectionRefresh: () => import('@/app/api/banking/connections/[id]/refresh/route'),
+  bankInstitutions: () => import('@/app/api/banking/institutions/route'),
+  manualAccounts: () => import('@/app/api/banking/manual-accounts/route'),
+  ponto: () => import('@/app/api/banking/ponto/route'),
+  autoReconcile: () => import('@/app/api/banking/reconciliation/auto-reconcile/route'),
+  revolut: () => import('@/app/api/banking/revolut/route'),
+  revolutAuthorize: () => import('@/app/api/banking/revolut/authorize/route'),
+  revolutCallback: () => import('@/app/api/banking/revolut/callback/route'),
+  balanceSheetCompare: () => import('@/app/api/companies/[id]/balance-sheet/compare/route'),
+  balanceSheetHistory: () => import('@/app/api/companies/[id]/balance-sheet/config/history/route'),
+  balanceSheetLine: () => import('@/app/api/companies/[id]/balance-sheet/config/line/route'),
+  balanceSheetLineOne: () => import('@/app/api/companies/[id]/balance-sheet/config/line/[lineId]/route'),
+  balanceSheetTemplates: () => import('@/app/api/companies/[id]/balance-sheet/config/templates/route'),
+  balanceSheetTemplate: () => import('@/app/api/companies/[id]/balance-sheet/config/templates/[templateId]/route'),
+  validateIncomeStatement: () => import('@/app/api/companies/[id]/balance-sheet/validate-income-statement/route'),
+  incomeStatementLayout: () => import('@/app/api/companies/[id]/income-statement/config/route'),
+  incomeStatementLayoutReset: () => import('@/app/api/companies/[id]/income-statement/config/default/route'),
+  incomeStatementLineOne: () => import('@/app/api/companies/[id]/income-statement/config/line/[lineId]/route'),
+  incomeStatementExcel: () => import('@/app/api/companies/[id]/income-statement/export-excel/route'),
+  incomeStatementPdf: () => import('@/app/api/companies/[id]/income-statement/export-pdf/route'),
+  integrationSync: () => import('@/app/api/integrations/[id]/sync/route'),
+  integrationsSync: () => import('@/app/api/integrations/sync/route'),
+  journalsDefaults: () => import('@/app/api/journals/defaults/route'),
+  qontoAccounts: () => import('@/app/api/qonto/accounts/route'),
+  qontoStatements: () => import('@/app/api/qonto/statements/route'),
+  qontoStatement: () => import('@/app/api/qonto/statements/[id]/route'),
+  qontoStatementProxy: () => import('@/app/api/qonto/statements/[id]/proxy/route'),
+  qontoTransactionAttachments: () => import('@/app/api/qonto/transactions/[id]/attachments/route'),
+  qontoAttachmentUpload: () => import('@/app/api/qonto/transactions/[id]/attachments/upload/route'),
+  tasksRefresh: () => import('@/app/api/tasks/refresh/route'),
 }
 
 interface Call {
@@ -824,6 +879,41 @@ const WRITES: Call[] = [
   { label: 'create investment grant', route: 'investmentGrants', method: 'POST', path: () => '/api/investment-grants', body: () => ({ companyId: A(), label: 'Aide', amountCents: 100_000, grantedOn: '2026-03-01', spreading: 'TENTHS' }) },
   { label: 'update investment grant', route: 'investmentGrant', method: 'PATCH', path: () => `/api/investment-grants/${ids.aGrant}`, params: p({ id: () => ids.aGrant }), body: () => ({ label: 'Aide', amountCents: 100_000, grantedOn: '2026-02-01', spreading: 'TENTHS' }) },
   { label: 'delete investment grant', route: 'investmentGrant', method: 'DELETE', path: () => `/api/investment-grants/${ids.aGrant}`, params: p({ id: () => ids.aGrant }) },
+  // KLEDG-R3-AUTHZ-06: company routes added to the matrix
+  { label: 'update bank account', route: 'bankAccount', method: 'PUT', path: () => `/api/banking/accounts/${ids.aBankAccount}`, params: p({ id: () => ids.aBankAccount }), body: () => ({ displayName: 'Compte principal' }) },
+  { label: 'choose synced bank accounts', route: 'bankAccountsSync', method: 'POST', path: () => '/api/banking/accounts/sync', body: () => ({ bankConnectionId: ids.aConnection, accountIds: [] }) },
+  { label: 'sync Qonto receipts', route: 'qontoReceiptsSync', method: 'POST', path: () => '/api/banking/attachments/sync', body: () => ({ companyId: A() }) },
+  { label: 'disconnect bank connection', route: 'bankConnection', method: 'DELETE', path: () => `/api/banking/connections/${ids.aConnection}`, params: p({ id: () => ids.aConnection }) },
+  { label: 'refresh bank connection', route: 'bankConnectionRefresh', method: 'POST', path: () => `/api/banking/connections/${ids.aConnection}/refresh`, params: p({ id: () => ids.aConnection }) },
+  { label: 'create manual bank account', route: 'manualAccounts', method: 'POST', path: () => '/api/banking/manual-accounts', body: () => ({ companyId: A(), name: 'Compte manuel', ledgerAccountCode: '512000' }) },
+  { label: 'connect Ponto', route: 'ponto', method: 'POST', path: () => '/api/banking/ponto', body: () => ({ companyId: A(), clientId: 'client', clientSecret: 'typed-secret' }) },
+  { label: 'auto reconcile', route: 'autoReconcile', method: 'POST', path: () => '/api/banking/reconciliation/auto-reconcile', body: () => ({ companyId: A() }) },
+  { label: 'read Revolut setup', route: 'revolut', method: 'GET', path: () => `/api/banking/revolut?companyId=${A()}` },
+  { label: 'set up Revolut', route: 'revolut', method: 'POST', path: () => '/api/banking/revolut', body: () => ({ companyId: A() }) },
+  { label: 'authorize Revolut', route: 'revolutAuthorize', method: 'POST', path: () => '/api/banking/revolut/authorize', body: () => ({ companyId: A(), clientId: 'client-id-123' }) },
+  { label: 'finish Revolut consent', route: 'revolutCallback', method: 'GET', path: () => '/api/banking/revolut/callback?state=revolutaintegration0.nonce&code=abc' },
+  { label: 'sync integration', route: 'integrationSync', method: 'POST', path: () => `/api/integrations/${ids.aIntegration}/sync`, params: p({ id: () => ids.aIntegration }), body: () => ({}) },
+  { label: 'sync integrations', route: 'integrationsSync', method: 'POST', path: () => '/api/integrations/sync', body: () => ({ companyId: A() }) },
+  { label: 'refresh company data', route: 'tasksRefresh', method: 'POST', path: () => '/api/tasks/refresh', body: () => ({ companyId: A() }) },
+  { label: 'upload Qonto receipt', route: 'qontoAttachmentUpload', method: 'POST', path: () => `/api/qonto/transactions/${'00000000-0000-4000-8000-000000000001'}/attachments/upload`, params: () => ({ id: '00000000-0000-4000-8000-000000000001' }), form: () => ({ companyId: A() }) },
+  { label: 'undo reconciliation of a transaction', route: 'reconcile', method: 'DELETE', path: () => `/api/transactions/${ids.aTransaction}/reconcile`, params: p({ id: () => ids.aTransaction }) },
+  { label: 'restore default journals', route: 'journalsDefaults', method: 'POST', path: () => '/api/journals/defaults', body: () => ({ companyId: A() }) },
+  { label: 'record invoice', route: 'invoices', method: 'POST', path: () => '/api/invoices', body: () => ({ companyId: A(), direction: 'SALE', tiersId: ids.aTiers, number: 'V-9', issueDate: '2026-03-10', lines: [{ label: 'A', quantity: '1', unitPriceCents: 1000, vatRateBp: 0 }] }) },
+  { label: 'update draft invoice', route: 'invoice', method: 'PATCH', path: () => `/api/invoices/${ids.aDraftInvoice}`, params: p({ id: () => ids.aDraftInvoice }), body: () => ({ label: 'Vente' }) },
+  { label: 'create balance sheet line through the layout action', route: 'balanceSheetLayout', method: 'POST', path: () => `/api/companies/${A()}/balance-sheet/config`, params: p({ id: A }), body: () => ({ action: 'create_line', reportVariant: 'simplified', section: 'actif', lineLabel: 'Stocks' }) },
+  { label: 'snapshot balance sheet line', route: 'balanceSheetHistory', method: 'POST', path: () => `/api/companies/${A()}/balance-sheet/config/history`, params: p({ id: A }), body: () => ({ action: 'create_snapshot', configId: ids.aBsLine }) },
+  { label: 'create balance sheet line', route: 'balanceSheetLine', method: 'POST', path: () => `/api/companies/${A()}/balance-sheet/config/line`, params: p({ id: A }), body: () => ({ reportVariant: 'simplified', lineLabel: 'Créances' }) },
+  { label: 'update balance sheet line', route: 'balanceSheetLineOne', method: 'PATCH', path: () => `/api/companies/${A()}/balance-sheet/config/line/${ids.aBsLine}`, params: p({ id: A, lineId: () => ids.aBsLine }), body: () => ({ lineLabel: 'Trésorerie' }) },
+  { label: 'delete balance sheet line', route: 'balanceSheetLineOne', method: 'DELETE', path: () => `/api/companies/${A()}/balance-sheet/config/line/${ids.aBsLine}`, params: p({ id: A, lineId: () => ids.aBsLine }) },
+  { label: 'save balance sheet template', route: 'balanceSheetTemplates', method: 'POST', path: () => `/api/companies/${A()}/balance-sheet/config/templates`, params: p({ id: A }), body: () => ({ action: 'create', name: 'Modèle', variant: 'simplified' }) },
+  { label: 'delete balance sheet template', route: 'balanceSheetTemplate', method: 'DELETE', path: () => `/api/companies/${A()}/balance-sheet/config/templates/${ids.aTemplate}`, params: p({ id: A, templateId: () => ids.aTemplate }) },
+  { label: 'add income statement layout line', route: 'incomeStatementLayout', method: 'POST', path: () => `/api/companies/${A()}/income-statement/config`, params: p({ id: A }), body: () => ({ reportVariant: 'simplified', section: 'charges', lineLabel: 'Achats', accountCodes: ['60'], balanceType: 'debit', order: 2 }) },
+  { label: 'reset income statement layout', route: 'incomeStatementLayoutReset', method: 'POST', path: () => `/api/companies/${A()}/income-statement/config/default`, params: p({ id: A }), body: () => ({ variant: 'simplified' }) },
+  { label: 'update income statement line', route: 'incomeStatementLineOne', method: 'PATCH', path: () => `/api/companies/${A()}/income-statement/config/line/${ids.aIsLine}`, params: p({ id: A, lineId: () => ids.aIsLine }), body: () => ({ lineLabel: 'Chiffre d’affaires' }) },
+  { label: 'delete income statement line', route: 'incomeStatementLineOne', method: 'DELETE', path: () => `/api/companies/${A()}/income-statement/config/line/${ids.aIsLine}`, params: p({ id: A, lineId: () => ids.aIsLine }) },
+  { label: 'export balance sheet PDF', route: 'balanceSheetPdf', method: 'GET', path: () => `/api/companies/${A()}/balance-sheet/export-pdf?fiscalYearId=${ids.aFy}&variant=simplified`, params: p({ id: A }) },
+  { label: 'export income statement Excel', route: 'incomeStatementExcel', method: 'GET', path: () => `/api/companies/${A()}/income-statement/export-excel?fiscalYearId=${ids.aFy}&variant=simplified`, params: p({ id: A }) },
+  { label: 'export income statement PDF', route: 'incomeStatementPdf', method: 'GET', path: () => `/api/companies/${A()}/income-statement/export-pdf?fiscalYearId=${ids.aFy}&variant=simplified`, params: p({ id: A }) },
   { label: 'invoice management fees', route: 'feeInvoices', method: 'POST', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}/invoices`, params: p({ id: () => ids.aFeeConvention }), body: () => ({ periodStart: '2026-01-01', periodEnd: '2026-03-31' }) },
 ]
 
@@ -955,6 +1045,41 @@ const READS: Call[] = [
   { label: 'year-end inventory', route: 'yearEnd', method: 'GET', path: () => `/api/year-end?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'list doubtful receivables', route: 'doubtfulReceivables', method: 'GET', path: () => `/api/provisions/doubtful-receivables?companyId=${A()}&fiscalYearId=${ids.aFy}` },
   { label: 'capital composition', route: 'capitalComposition', method: 'GET', path: () => `/api/reports/capital-composition?companyId=${A()}` },
+  // KLEDG-R3-AUTHZ-06: company routes added to the matrix
+  { label: 'compare balance sheets', route: 'balanceSheetCompare', method: 'GET', path: () => `/api/companies/${A()}/balance-sheet/compare?currentFiscalYearId=${ids.aFy}&previousFiscalYearId=${ids.aFy}&variant=simplified`, params: p({ id: A }) },
+  { label: 'check balance sheet against income statement', route: 'validateIncomeStatement', method: 'GET', path: () => `/api/companies/${A()}/balance-sheet/validate-income-statement?fiscalYearId=${ids.aFy}&variant=simplified`, params: p({ id: A }) },
+  { label: 'balance sheet line history', route: 'balanceSheetHistory', method: 'GET', path: () => `/api/companies/${A()}/balance-sheet/config/history?configId=${ids.aBsLine}`, params: p({ id: A }) },
+  { label: 'read balance sheet line', route: 'balanceSheetLineOne', method: 'GET', path: () => `/api/companies/${A()}/balance-sheet/config/line/${ids.aBsLine}`, params: p({ id: A, lineId: () => ids.aBsLine }) },
+  { label: 'balance sheet templates', route: 'balanceSheetTemplates', method: 'GET', path: () => `/api/companies/${A()}/balance-sheet/config/templates?variant=simplified`, params: p({ id: A }) },
+  { label: 'income statement layout', route: 'incomeStatementLayout', method: 'GET', path: () => `/api/companies/${A()}/income-statement/config?variant=simplified`, params: p({ id: A }) },
+  { label: 'read income statement line', route: 'incomeStatementLineOne', method: 'GET', path: () => `/api/companies/${A()}/income-statement/config/line/${ids.aIsLine}`, params: p({ id: A, lineId: () => ids.aIsLine }) },
+  { label: 'reconciliation context of a transaction', route: 'reconcile', method: 'GET', path: () => `/api/transactions/${ids.aTransaction}/reconcile`, params: p({ id: () => ids.aTransaction }) },
+]
+
+/**
+ * Reads of company A that do not answer 200 with the seeded data: those that
+ * reach the bank (Qonto, Ponto: the call fails locally, closed port) and the
+ * fee preview of a convention without subsidiary (400). The viewer is let
+ * through (not 401 nor 403), the non-member gets a 404, anonymous a 401.
+ * KLEDG-R3-AUTHZ-06.
+ */
+const READS_LET_THROUGH: Call[] = [
+  { label: 'preview management fees', route: 'feePreview', method: 'GET', path: () => `/api/management-fees/conventions/${ids.aFeeConvention}/preview?periodStart=2026-01-01&periodEnd=2026-03-31`, params: p({ id: () => ids.aFeeConvention }) },
+  { label: 'read Qonto receipt', route: 'qontoReceiptProxy', method: 'GET', path: () => `/api/banking/attachments/unknown-receipt/proxy?companyId=${A()}`, params: () => ({ attachmentId: 'unknown-receipt' }) },
+  { label: 'list bank institutions', route: 'bankInstitutions', method: 'GET', path: () => `/api/banking/institutions?companyId=${A()}` },
+  { label: 'list Qonto accounts', route: 'qontoAccounts', method: 'GET', path: () => `/api/qonto/accounts?companyId=${A()}` },
+  { label: 'list Qonto statements', route: 'qontoStatements', method: 'GET', path: () => `/api/qonto/statements?companyId=${A()}` },
+  { label: 'list Qonto statements (body)', route: 'qontoStatements', method: 'POST', path: () => '/api/qonto/statements', body: () => ({ companyId: A() }) },
+  { label: 'read Qonto statement', route: 'qontoStatement', method: 'GET', path: () => `/api/qonto/statements/st-1?companyId=${A()}`, params: () => ({ id: 'st-1' }) },
+  { label: 'download Qonto statement', route: 'qontoStatementProxy', method: 'GET', path: () => `/api/qonto/statements/st-1/proxy?companyId=${A()}`, params: () => ({ id: 'st-1' }) },
+  { label: 'list Qonto receipts of a transaction', route: 'qontoTransactionAttachments', method: 'GET', path: () => `/api/qonto/transactions/${ids.aTransaction}/attachments?companyId=${A()}`, params: p({ id: () => ids.aTransaction }) },
+]
+
+/** The user's own dashboard of company A: every member, a viewer included (a preference); non-member 404, anonymous 401. */
+const OWN_PREFERENCES: Call[] = [
+  { label: 'save own dashboard layout', route: 'dashboardLayout', method: 'PUT', path: () => `/api/dashboard/layout?companyId=${A()}`, body: () => ({ items: [] }) },
+  { label: 'reset own dashboard layout', route: 'dashboardLayout', method: 'DELETE', path: () => `/api/dashboard/layout?companyId=${A()}` },
+  { label: 'save own sidebar menu', route: 'sidebarPreferences', method: 'PUT', path: () => `/api/companies/${A()}/sidebar-preferences`, params: p({ id: A }), body: () => ({ hiddenItems: [], hiddenGroups: [] }) },
 ]
 
 /** What the accountant must not do. */
@@ -996,10 +1121,38 @@ const ACCOUNTANT_FORBIDDEN = new Set([
   'update VAT settings',
   'update invoice numbering',
   'update simple mode settings',
+  // KLEDG-R3-AUTHZ-06: bank connections (banking:manage) and report layouts (settings:update)
+  'update bank account',
+  'choose synced bank accounts',
+  'disconnect bank connection',
+  'create manual bank account',
+  'connect Ponto',
+  'read Revolut setup',
+  'set up Revolut',
+  'authorize Revolut',
+  'finish Revolut consent',
+  'create balance sheet line through the layout action',
+  'snapshot balance sheet line',
+  'create balance sheet line',
+  'update balance sheet line',
+  'delete balance sheet line',
+  'save balance sheet template',
+  'delete balance sheet template',
+  'add income statement layout line',
+  'reset income statement layout',
+  'update income statement line',
+  'delete income statement line',
 ])
 
 describe.skipIf(!available)('authorization matrix', () => {
   beforeAll(async () => {
+    // No route of the matrix reaches the network: the bank providers point to a closed local port, anything else fails here.
+    const realFetch = globalThis.fetch
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input))
+      if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') return Promise.reject(new TypeError(`fetch failed: ${url.hostname} is not reachable from the matrix`))
+      return realFetch(input, init)
+    })
     await prepareTestDatabase('matrix')
     ;({ prisma } = await import('@/lib/prisma'))
     for (const [name, load] of Object.entries(ROUTE_MODULES)) {
@@ -1014,6 +1167,7 @@ describe.skipIf(!available)('authorization matrix', () => {
   }
 
   afterAll(async () => {
+    vi.unstubAllGlobals()
     await prisma?.$disconnect()
   })
 
@@ -1387,6 +1541,32 @@ describe.skipIf(!available)('authorization matrix', () => {
     })
   })
 
+  describe('reads let through and own preferences (KLEDG-R3-AUTHZ-06)', () => {
+    beforeAll(reseed)
+    it.each([...READS_LET_THROUGH, ...OWN_PREFERENCES].map((c) => [c.label, c] as const))('%s: anonymous 401, member of B 404', async (_label, c) => {
+      expect((await call('anonymous', c)).status).toBe(401)
+      expect((await call('memberB', c)).status).toBe(404)
+    })
+
+    it.each(READS_LET_THROUGH.map((c) => [c.label, c] as const))('%s: allowed to the viewer by role (not 401/403)', async (_label, c) => {
+      expect([401, 403]).not.toContain((await call('viewer', c)).status)
+    })
+
+    it.each(OWN_PREFERENCES.map((c) => [c.label, c] as const))('%s: the viewer saves their own', async (_label, c) => {
+      expect((await call('viewer', c)).status).toBe(200)
+    })
+
+    it('a viewer deletes their own draft expense report, never a submitted one nor another company\'s', async () => {
+      const remove = (id: string): Call => ({ label: 'delete expense report', route: 'expenseReport', method: 'DELETE', path: () => `/api/expense-reports/${id}`, params: () => ({ id }) })
+      expect((await call('anonymous', remove(ids.aDraftReport))).status).toBe(401)
+      expect((await call('memberB', remove(ids.aDraftReport))).status).toBe(404)
+      expect((await call('viewer', remove(ids.bDraftReport))).status).toBe(404)
+      expect([400, 403, 409]).toContain((await call('viewer', remove(ids.aSubmittedReport))).status)
+      expect((await call('viewer', remove(ids.aDraftReport))).status).toBe(204)
+      expect(await prisma.expenseReport.count({ where: { id: ids.aDraftReport } })).toBe(0)
+    })
+  })
+
   describe('member of company B', () => {
     beforeAll(reseed)
     it.each([...WRITES, ...READS].map((c) => [c.label, c] as const))('%s on company A: 404', async (_label, c) => {
@@ -1506,5 +1686,31 @@ describe.skipIf(!available)('authorization matrix', () => {
       const text = await (await call('companyAdmin', WRITES.find((w) => w.label === 'read bank credentials')!)).text()
       for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret)
     })
+  })
+})
+
+// Runs without a database: the inventory of handlers against the cases above.
+describe('authorization matrix coverage', () => {
+  it('[KLEDG-R3-AUTHZ-06] has a case for every companyRoute handler of app/api', () => {
+    const source = readFileSync(path.join(process.cwd(), 'lib/api/__tests__/authorization-matrix.test.ts'), 'utf8')
+    const modules = new Map<string, string>()
+    for (const match of source.matchAll(/^\s+(\w+): \(\) => import\('@\/(app\/api\/[^']+)\/route'\)/gm)) modules.set(match[2], match[1])
+    const covered = new Set([...source.matchAll(/route: '(\w+)',\s*method: '(\w+)'/g)].map((m) => `${m[1]} ${m[2]}`))
+    const missing: string[] = []
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const file = path.join(dir, name)
+        if (statSync(file).isDirectory()) walk(file)
+        else if (name === 'route.ts') {
+          const folder = path.relative(process.cwd(), dir).split(path.sep).join('/')
+          for (const match of readFileSync(file, 'utf8').matchAll(/export const (GET|POST|PUT|PATCH|DELETE)\s*=\s*companyRoute\b/g)) {
+            const route = modules.get(folder)
+            if (!route || !covered.has(`${route} ${match[1]}`)) missing.push(`${match[1]} /${folder.replace(/^app\//, '')}`)
+          }
+        }
+      }
+    }
+    walk(path.join(process.cwd(), 'app/api'))
+    expect(missing, 'Add these handlers to the matrix (WRITES, READS, READS_LET_THROUGH or OWN_PREFERENCES)').toEqual([])
   })
 })

@@ -16,6 +16,6 @@ export const GET = companyRoute(
 
 /** POST /api/expense-reports/[id]/reimbursement { entryLineIds }: letters the report with its reimbursement (the report becomes remboursée). */
 export const POST = companyRoute(
-  { company: fromResource(companyOfExpenseReport), permission: { entries: ['update'] }, body: ReimburseBodySchema },
+  { company: fromResource(companyOfExpenseReport), permission: { expenses: ['validate'], entries: ['update'] }, body: ReimburseBodySchema },
   async ({ companyId, params, body }) => NextResponse.json(await reimburseExpenseReport(companyId, params.id as string, body.entryLineIds)),
 )

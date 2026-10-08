@@ -15,7 +15,7 @@ export const PUT = companyRoute({ company, permission: { entries: ['create'] }, 
 )
 
 /** DELETE /api/provisions/[id]/assessment?fiscalYearId=: removes the assessment of the closing and its draft entry. */
-export const DELETE = companyRoute({ company, permission: { entries: ['create'] }, query: AssessmentQuerySchema }, async ({ companyId, params, query }) => {
+export const DELETE = companyRoute({ company, permission: { entries: ['delete'] }, query: AssessmentQuerySchema }, async ({ companyId, params, query }) => {
   await deleteAssessment(companyId, params.id as string, query.fiscalYearId)
   return new NextResponse(null, { status: 204 })
 })

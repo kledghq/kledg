@@ -18,10 +18,22 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 - En-tête `Referrer-Policy: strict-origin` sur toutes les réponses : le référent ne porte plus que l'origine, même d'une page de l'instance à une autre, si bien que l'adresse d'une page (identifiant de la société, recherche) n'est lisible par aucun script ni service de mesure d'audience.
 - Une instance dont la politique exige la sécurité au niveau des lignes (point d'extension `requiresRowLevelSecurity`, [documentation](docs/extension-points.md)) refuse de démarrer et d'ouvrir la base sans `KLEDG_RLS=enforce`, avec un message qui nomme la variable. Sans effet sur une instance standard.
 - Limites de tentatives par adresse IP de `/setup` et des routes propres d'une instance : une adresse IPv6 compte pour son préfixe /64, que détient un seul abonné, au lieu de l'adresse exacte.
+- Un changement ou une réinitialisation du mot de passe supprime aussi toutes les clés API et déconnecte tous les assistants IA du compte (autorisations, jetons, actions en attente), en plus des autres sessions ; la création d'une clé API à contrôle total demande de saisir de nouveau le mot de passe ([documentation](docs/mcp.md#changement-ou-réinitialisation-du-mot-de-passe)).
+- Clés API : une durée de validité se choisit à la création (30, 90 ou 365 jours, 90 par défaut ; sans expiration seulement pour une clé en lecture seule), elle est affichée dans la liste et ne se change plus ensuite ; un email prévient le titulaire du compte de chaque nouvelle clé ([documentation](docs/mcp.md#niveau-des-clés-api)). Les clés existantes qui écrivent expirent 90 jours après la mise à jour (migration `20261121100000_api_key_expiry`).
+- Le lien de confirmation d'une nouvelle adresse email ne connecte plus le navigateur qui l'ouvre : il faut d'abord se connecter au compte concerné, puis la confirmation se termine.
+- Le changement d'adresse email répond dans le même délai que la nouvelle adresse soit libre ou déjà utilisée par un autre compte.
+- La page de connexion n'affiche plus le texte passé dans son adresse : seuls les codes d'erreur connus ont un message, les autres un message générique.
+- Limites de tentatives de connexion, de réinitialisation de mot de passe et des autres points d'entrée d'authentification : une adresse IPv6 compte pour son préfixe /64 (une adresse IPv4 présentée en IPv6 compte pour l'adresse IPv4), réglage désormais fixé explicitement et vérifié par un test.
+- Modèles de bilan : un modèle enregistré par une société reste propre à cette société ; seuls les modèles fournis par Kledg sont partagés entre les sociétés de l'instance. Les modèles qu'une société avait rendus publics redeviennent privés à cette société (migration `20261121090000_statement_templates_private`). Un modèle de la société se supprime : API `DELETE /api/companies/[id]/balance-sheet/config/templates/[templateId]` (droit de modifier les paramètres), action `delete_template` de l'outil MCP `manage_statement_layout`.
+- Listes des factures et des notes de frais : un curseur de pagination qui n'appartient pas à la société est refusé.
+- Déclarer une société actionnaire demande de pouvoir modifier les paramètres de cette société (administrateur) : un simple lecteur ne peut plus faire entrer une société dans son groupe ([documentation](docs/vue-groupe.md#accès--chaque-société-est-vérifiée)).
+- Exports de l'espace groupe : une filiale n'est exportée que si l'utilisateur a le droit d'exporter dans cette filiale ; une filiale où il n'est que lecteur reste visible dans les pages du groupe et est signalée comme non exportée dans le fichier.
+- Espace groupe : les transactions, soldes bancaires, écritures d'un compte et alertes d'une filiale demandent les mêmes droits que les pages de la filiale (banque, écritures) ; une société actionnaire hors du groupe que l'utilisateur ne lit pas s'affiche « Société actionnaire », sans le nom enregistré.
 
 ### Corrigé
 
 - Éditeur de règles : les champs d'une condition sont de nouveau alignés sur les en-têtes Champ, Opérateur et Valeur ; le bouton de suppression passe en dernière colonne et la valeur retrouve sa largeur (#18).
+- Page Informations : afficher les établissements d'une société qui n'en a pas encore n'en crée plus un « Siège social » sans SIRET (ce qui échouait pour une deuxième société) ; ajoutez l'établissement principal avec son SIRET. Lire les membres d'une société n'écrit plus rien.
 
 ## [0.3.1] - 2026-10-05
 

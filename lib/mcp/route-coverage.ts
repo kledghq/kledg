@@ -130,6 +130,7 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'POST /api/companies/[id]/balance-sheet/config': { tools: ['manage_statement_layout'] },
   'GET /api/companies/[id]/balance-sheet/config/templates': { tools: ['get_statement_layout'] },
   'POST /api/companies/[id]/balance-sheet/config/templates': { tools: ['manage_statement_layout'] },
+  'DELETE /api/companies/[id]/balance-sheet/config/templates/[templateId]': { tools: ['manage_statement_layout'], note: 'Action delete_template.' },
   'GET /api/companies/[id]/balance-sheet/export-excel': { tools: ['export_report'] },
   'GET /api/companies/[id]/balance-sheet/export-pdf': { tools: ['export_report'] },
   'GET /api/companies/[id]/balance-sheet': { tools: ['get_balance_sheet'] },

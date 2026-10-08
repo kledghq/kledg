@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { roles } from '@/lib/permissions'
 import { ensureCompanyOrganization } from './ensure-company-organization.service'
+import { deleteDelegatedAccess } from '@/lib/account/revoke-delegated-access'
 import { isEmailEnabled } from '@/lib/email'
 import { sendAsWelcome } from '@/lib/email/welcome-context'
 import { withinRateLimit } from '@/lib/rate-limit'
@@ -81,13 +82,8 @@ async function resetUnconfirmedAccount(userId: string, name: string, password: s
     if (credential.count === 0) {
       await tx.authAccount.create({ data: { id: randomBytes(16).toString('hex'), accountId: userId, providerId: 'credential', userId, password: hashed } })
     }
-    await tx.apikey.deleteMany({ where: { referenceId: userId } })
-    await tx.oauthConsent.deleteMany({ where: { userId } })
-    await tx.oauthAccessToken.deleteMany({ where: { userId } })
-    await tx.oauthRefreshToken.deleteMany({ where: { userId } })
-    await tx.aiAccessGrant.deleteMany({ where: { userId } })
-    await tx.mcpPendingAction.deleteMany({ where: { userId } })
-    await tx.mcpConfirmation.deleteMany({ where: { userId } })
+    // Same list as a password reset or change (lib/account/revoke-delegated-access.ts).
+    await deleteDelegatedAccess(tx, userId)
     await tx.verification.deleteMany({ where: { value: userId } })
     await tx.user.update({ where: { id: userId }, data: { emailVerified: true, name } })
   })
