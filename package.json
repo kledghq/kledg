@@ -69,7 +69,7 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-pdf/renderer": "^4.5.1",
-    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-table": "^9.2.6",
     "@vercel/blob": "~2.8.0",
     "@vercel/functions": "^3.9.11",
     "aws4fetch": "^1.0.20",
