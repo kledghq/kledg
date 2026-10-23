@@ -107,8 +107,8 @@ describe('authActionOf', () => {
     expect(authActionOf('/admin/set-role')).toBe('manage-users')
   })
 
-  it('leaves sign-in and sessions alone', () => {
-    expect(authActionOf('/sign-in/email')).toBeNull()
+  it('checks the email and password sign-in, and leaves sessions alone', () => {
+    expect(authActionOf('/sign-in/email')).toBe('sign-in')
     expect(authActionOf('/get-session')).toBeNull()
     expect(authActionOf('/sign-out')).toBeNull()
     // Every /admin/* endpoint is closed over HTTP anyway (lib/auth-policy.ts).

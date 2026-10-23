@@ -42,6 +42,7 @@ account, for instance). A refused action answers 403 with
 
 | Action (`InstanceAction`, `lib/instance/types.ts`) | Checked in |
 |---|---|
+| `sign-in` | Better Auth `/sign-in/email` over HTTP (the `/login` form), with a null actor: when refused, `/login` shows the `LoginExtra` slot without the sign-in form. In-process sign-ins (`auth.api.signInEmail`) are not checked |
 | `change-password`, `change-email`, `delete-account` | the account routes of the Profil page (`app/api/account`, services in `lib/account`), and the Better Auth hook (`lib/auth.ts`, endpoint to action map `authActionOf` in `lib/instance/index.ts`) for direct calls |
 | `manage-users` | the "Utilisateurs" page (`app/api/users/[id]`, `lib/users/instance-users.service.ts`: role, ban, email, deletion; the page shows the refusal message and disables its actions) and the Better Auth hook (`lib/auth.ts`, `authActionOf`) for account creation |
 | `change-appearance` | `PUT /api/account/appearance` (chart colours, `lib/appearance/appearance.service.ts`); the Apparence page shows the refusal message and disables its colour controls (the theme stays available), and its user menu entry carries the action so `filterUserMenu` can hide it. Saved colours keep applying |

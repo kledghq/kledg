@@ -8,6 +8,13 @@
  * it, through `assertActionAllowed` or `isActionAllowed` (lib/instance).
  */
 export const INSTANCE_ACTIONS = [
+  /**
+   * Sign in with an email and a password: the /login form (Better Auth's
+   * /sign-in/email over HTTP). Refused, /login shows no sign-in form. The
+   * instance's own in-process sign-ins are not checked. Checked with a null
+   * actor.
+   */
+  'sign-in',
   /** Change, set or reset a password (account settings, reset links). */
   'change-password',
   /** Change the email address of an account. */
