@@ -44,10 +44,8 @@ import {
 import { initials } from "@/components/layout/initials";
 import { RemunerationSimpleCard } from "@/components/features/remuneration/remuneration-simple-card";
 import { cn } from "@/lib/utils";
-import {
-  CashForecastStatusCard,
-  forecastPath,
-} from "@/components/features/cash-forecast/cash-forecast-alert";
+import { CashForecastStatusCard } from "@/components/features/cash-forecast/cash-forecast-alert";
+import { forecastPath } from "@/components/features/cash-forecast/forecast-path";
 
 const euros = (cents: number) => cents / 100;
 

@@ -21,7 +21,8 @@ import { DashboardDataProvider } from './dashboard-data'
 import { DashboardGrid, EditableDashboardGrid } from './dashboard-grid'
 import { WidgetCatalogue } from './widget-catalogue'
 import { guideVisible } from './widgets'
-import { CashForecastStatusCard, forecastPath } from '@/components/features/cash-forecast/cash-forecast-alert'
+import { CashForecastStatusCard } from '@/components/features/cash-forecast/cash-forecast-alert'
+import { forecastPath } from '@/components/features/cash-forecast/forecast-path'
 
 interface FiscalYearOption {
   id: string
