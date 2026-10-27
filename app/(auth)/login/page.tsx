@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { LoginExtra } from '@/components/instance/slots'
+import { isActionAllowed } from '@/lib/instance'
 import { safeRedirectPath } from '@/lib/safe-redirect'
 import { LoginForm } from './login-form'
 
@@ -13,7 +14,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const redirectTo = safeRedirectPath(typeof redirect === 'string' ? redirect : null)
   return (
     <Suspense fallback={null}>
-      <LoginForm extra={<LoginExtra redirectTo={redirectTo} />} />
+      <LoginForm extra={<LoginExtra redirectTo={redirectTo} />} signIn={await isActionAllowed('sign-in')} />
     </Suspense>
   )
 }

@@ -40,6 +40,7 @@ export async function assertCompanyCreationAllowed(actor: InstanceActor): Promis
 }
 
 const AUTH_PATH_ACTIONS: Readonly<Record<string, InstanceAction>> = {
+  '/sign-in/email': 'sign-in',
   '/change-password': 'change-password',
   '/set-password': 'change-password',
   '/reset-password': 'change-password',

@@ -25,8 +25,12 @@ function navigateTo(target: string, router: ReturnType<typeof useRouter>, mode: 
   router[mode](target)
 }
 
-/** Sign-in form. `extra` (the LoginExtra instance slot) is shown above the card. */
-export function LoginForm({ extra }: { extra?: React.ReactNode }) {
+/**
+ * Sign-in form. `extra` (the LoginExtra instance slot) is shown above the
+ * card; without `signIn` (the instance policy refuses 'sign-in') it is shown
+ * alone.
+ */
+export function LoginForm({ extra, signIn = true }: { extra?: React.ReactNode; signIn?: boolean }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session } = authClient.useSession()
@@ -98,6 +102,8 @@ export function LoginForm({ extra }: { extra?: React.ReactNode }) {
     router.push(redirectTo)
     router.refresh()
   }
+
+  if (!signIn) return <AuthShell>{extra}</AuthShell>
 
   return (
     <AuthShell>

@@ -133,4 +133,12 @@ describe('LoginForm', () => {
     expect(screen.getByRole('heading', { name: 'Connexion' })).toBeInTheDocument()
     expect(nav.replace).not.toHaveBeenCalled()
   })
+
+  it('shows only the instance slot when the policy refuses the sign-in', () => {
+    render(<LoginForm extra={<p>Bandeau de l’instance</p>} signIn={false} />)
+    expect(screen.getByText('Bandeau de l’instance')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Connexion' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Mot de passe')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Se connecter' })).not.toBeInTheDocument()
+  })
 })

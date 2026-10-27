@@ -28,9 +28,6 @@ import { cn } from '@/lib/utils'
 /** Cents as the UI shows them ("1 234,56 €" with narrow spaces). */
 export const formatCents = (cents: number) => formatAmount(cents / 100)
 
-/** Path of the forecast page of a company (id or slug). */
-export const forecastPath = (companyRef: string) => `/${companyRef}/prevision-tresorerie`
-
 /**
  * The threshold alert (docs/prevision-tresorerie.md): the projected balance
  * goes under the company's minimum within the horizon. Shown on the forecast
