@@ -1,10 +1,12 @@
 /**
- * MCP tools get_sig and get_financial_ratios: the company guard with
- * reports:read, the fiscal year asked (the current one by default), amounts
- * in euros, N-1 when there is one, errors as tool errors. The report service
- * is mocked (its database test is lib/reports/financial-indicators/__tests__/
- * financial-indicators.db.test.ts); the indicators it returns are computed by
- * the real pure modules on the worked example.
+ * MCP tools get_sig, get_financial_ratios and get_monthly_pnl: the company
+ * guard with reports:read, the fiscal year or months asked (the current year,
+ * the last 12 full months by default), amounts in euros, N-1 when there is
+ * one, errors as tool errors. The report services are mocked (their database
+ * tests are lib/reports/financial-indicators/__tests__/
+ * financial-indicators.db.test.ts and lib/reports/__tests__/
+ * monthly-pnl.db.test.ts); the indicators returned are computed by the real
+ * pure modules on the worked example.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,9 +28,15 @@ vi.mock('@/lib/reports/financial-indicators/get-financial-indicators.service', a
   ...(await importOriginal<typeof import('@/lib/reports/financial-indicators/get-financial-indicators.service')>()),
   getFinancialIndicators: vi.fn(),
 }))
+vi.mock('@/lib/reports/get-monthly-pnl.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/reports/get-monthly-pnl.service')>()),
+  getMonthlyPnl: vi.fn(),
+}))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { getFinancialIndicators } from '@/lib/reports/financial-indicators/get-financial-indicators.service'
+import { getMonthlyPnl } from '@/lib/reports/get-monthly-pnl.service'
+import { ValidationError } from '@/lib/accounting/errors'
 import { computeFinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 import { NotFoundError } from '@/lib/accounting/errors'
 import type { ToolResult } from '@/lib/mcp/tool-result'
@@ -42,7 +50,7 @@ function tools() {
     { registerTool: (name: string, _config: unknown, handler: Handler) => handlers.set(name, handler) } as never,
     { user: { id: 'u1', email: 'a@b.c', name: 'Camille', role: 'user' }, canWrite: false, canAdmin: false, caller: { kind: 'apiKey', apiKeyId: 'k1' }, executionMode: 'validation' },
   )
-  return { sig: handlers.get('get_sig')!, ratios: handlers.get('get_financial_ratios')! }
+  return { sig: handlers.get('get_sig')!, ratios: handlers.get('get_financial_ratios')!, pnl: handlers.get('get_monthly_pnl')! }
 }
 
 const parse = (result: ToolResult) => JSON.parse(result.content[0].text)
@@ -108,5 +116,36 @@ describe('get_financial_ratios', () => {
       content: [{ type: 'text', text: 'Exercice introuvable pour cette société.' }],
       isError: true,
     })
+  })
+})
+
+describe('get_monthly_pnl', () => {
+  it('checks reports:read and answers each month in euros, result = produits minus charges', async () => {
+    vi.mocked(getMonthlyPnl).mockResolvedValue([
+      { month: '2026-08', revenueCents: 1_250_050, chiffreAffairesCents: 1_200_000, expensesCents: 830_025, resultCents: 420_025 },
+      { month: '2026-09', revenueCents: 0, chiffreAffairesCents: 0, expensesCents: 0, resultCents: 0 },
+    ])
+    const data = parse(await tools().pnl({ companyId: 'c1', from: '2026-08', to: '2026-09' }))
+    expect(guard.require).toHaveBeenCalledWith('c1', { reports: ['read'] })
+    expect(getMonthlyPnl).toHaveBeenCalledWith('c1', { from: '2026-08', to: '2026-09' })
+    expect(data).toEqual({
+      companyId: 'c1',
+      currency: 'EUR',
+      months: [
+        { month: '2026-08', revenue: 12_500.5, chiffreAffaires: 12_000, expenses: 8_300.25, result: 4_200.25 },
+        { month: '2026-09', revenue: 0, chiffreAffaires: 0, expenses: 0, result: 0 },
+      ],
+    })
+  })
+
+  it('leaves the default months to the service and reports its refusals in French', async () => {
+    vi.mocked(getMonthlyPnl).mockRejectedValueOnce(new ValidationError('24 mois au plus par appel\u00a0: de 2024-01 à 2026-09, il y en a 33. Découpez la période.'))
+    const result = await tools().pnl({ companyId: 'c1', from: '2024-01' })
+    expect(getMonthlyPnl).toHaveBeenCalledWith('c1', { from: '2024-01', to: undefined })
+    expect(result).toEqual({ content: [{ type: 'text', text: '24 mois au plus par appel\u00a0: de 2024-01 à 2026-09, il y en a 33. Découpez la période.' }], isError: true })
+
+    guard.require.mockRejectedValueOnce(new NotFoundError('Société introuvable'))
+    expect((await tools().pnl({ companyId: 'x' })).isError).toBe(true)
+    expect(getMonthlyPnl).toHaveBeenCalledTimes(1)
   })
 })

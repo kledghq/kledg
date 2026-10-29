@@ -1,10 +1,12 @@
 /**
  * Read tools of the financial indicators (docs/indicateurs-financiers.md):
  * get_sig, the soldes intermédiaires de gestion and the CAF of a fiscal year
- * and of the previous one, and get_financial_ratios, the BFR, net cash,
- * payment delays and ratios. Same rule as the web UI: the company guard with
- * reports:read (so the connection's company grant applies), then the service
- * scopes everything by company. Amounts in euros, ratios as fractions.
+ * and of the previous one, get_financial_ratios, the BFR, net cash, payment
+ * delays and ratios, and get_monthly_pnl, produits, chiffre d'affaires,
+ * charges and result month by month. Same rule as the web UI: the company
+ * guard with reports:read (so the connection's company grant applies), then
+ * the service scopes everything by company. Amounts in euros, ratios as
+ * fractions.
  */
 
 import type { McpServer } from '@modelcontextprotocol/server'
@@ -13,6 +15,7 @@ import type { CompanyGuard } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
 import { getFinancialIndicators } from '@/lib/reports/financial-indicators/get-financial-indicators.service'
+import { getMonthlyPnl, MAX_PNL_MONTHS } from '@/lib/reports/get-monthly-pnl.service'
 import type { FinancialIndicators } from '@/lib/reports/financial-indicators/indicators'
 import { fromCents } from '@/lib/utils/money'
 
@@ -33,6 +36,8 @@ function euros<T extends object>(values: T): Record<string, number | boolean> {
   }
   return out
 }
+
+const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Format attendu\u00a0: AAAA-MM')
 
 const sigOf = (i: FinancialIndicators) => ({ sig: euros(i.sig), caf: euros(i.caf) })
 
@@ -96,6 +101,43 @@ export function registerFinancialIndicatorTools(server: McpServer, guard: Compan
           fiscalYear: report.fiscalYear,
           current: ratiosOf(report.current),
           previous: report.previous ? { fiscalYear: report.previous.fiscalYear, ...ratiosOf(report.previous.indicators) } : null,
+        })
+      }),
+  )
+
+  server.registerTool(
+    'get_monthly_pnl',
+    {
+      title: 'Résultat mois par mois',
+      description: describeTool({
+        summary: `Returns the profit and loss of a company month by month: per calendar month, revenue (produits, class 7, credit minus debit), chiffreAffaires (accounts 70), expenses (charges, class 6, debit minus credit) and result (revenue minus expenses), from the validated entries (draft and closing entries excluded, like the income statement, get_sig and the dashboard chart). Months may span several fiscal years; a month without any entry is zero. Without from and to: the last 12 full months (calendar months in France); ${MAX_PNL_MONTHS} months at most per call.`,
+        access: 'read',
+        permission: { reports: ['read'] },
+        amounts: 'euros',
+        units: 'Months as yyyy-mm.',
+        never: 'changes anything (read only).',
+      }),
+      inputSchema: z.object({
+        companyId: input.shape.companyId,
+        from: month.optional().describe('First month (yyyy-mm), included. Defaults to 11 months before to.'),
+        to: month.optional().describe('Last month (yyyy-mm), included. Defaults to the last full month (from when it is later).'),
+      }),
+      annotations: readOnly,
+    },
+    (args) =>
+      run(async () => {
+        await guard.require(args.companyId, { reports: ['read'] })
+        const months = await getMonthlyPnl(args.companyId, { from: args.from, to: args.to })
+        return json({
+          companyId: args.companyId,
+          currency: 'EUR',
+          months: months.map((m) => ({
+            month: m.month,
+            revenue: fromCents(m.revenueCents),
+            chiffreAffaires: fromCents(m.chiffreAffairesCents),
+            expenses: fromCents(m.expensesCents),
+            result: fromCents(m.resultCents),
+          })),
         })
       }),
   )
