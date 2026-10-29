@@ -37,6 +37,11 @@ function monthOfIndex(index: number): MonthKey {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`
 }
 
+/** The month `count` months after `key` (before it when negative). */
+export function addMonths(key: MonthKey, count: number): MonthKey {
+  return monthOfIndex(monthIndex(key) + count)
+}
+
 /** Months from `first` to `last`, both included (empty when `last` is before `first`). */
 export function monthsBetween(first: MonthKey, last: MonthKey): MonthKey[] {
   const months: MonthKey[] = []

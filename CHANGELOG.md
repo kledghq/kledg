@@ -4,6 +4,11 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- Serveur MCP, synchronisation : `list_invoices` et `list_tiers` se lisent page par page (`cursor`, `nextCursor`) et, avec `updatedSince`, ne renvoient que les lignes modifiées depuis un instant, la plus ancienne d'abord. Chaque facture donne aussi l'identifiant de son tiers (`tiersId`), sa devise, la date de son dernier règlement (`lastPaymentDate`) et sa date de modification (`updatedAt`) ; chaque tiers son email, son adresse et sa date de modification. Un règlement enregistré ou retiré, le lettrage, la validation ou la suppression de l'écriture d'une facture comptent comme des modifications de la facture ([documentation](docs/factures-et-tiers.md#synchronisation)). Migration `20261204090000_invoice_change_tracking` (fonctions et déclencheurs ajoutés, additive).
+- Serveur MCP : outil `get_monthly_pnl`, produits, chiffre d'affaires, charges et résultat mois par mois des écritures validées (hors clôture), sur plusieurs exercices ; les 12 derniers mois complets par défaut, 24 mois au plus ([documentation](docs/mcp.md#lecture-seule-kledgread)).
+
 ## [0.4.1] - 2026-10-08
 
 ### Corrigé

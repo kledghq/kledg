@@ -25,7 +25,7 @@ source partagent cette requête. Les montants sont en centimes.
 | Excédent brut d'exploitation, Capacité d'autofinancement, Besoin en fonds de roulement, Délais de paiement | `indicators` | Les chiffres de la page SIG et ratios (`lib/reports/financial-indicators`, [indicateurs financiers](indicateurs-financiers.md)) : EBE et résultat d'exploitation, CAF et résultat de l'exercice, BFR et trésorerie nette, délais clients et fournisseurs en jours, TVA comprise ; lien vers la page |
 | Créances clients, Dettes fournisseurs | `ledger` | Soldes des comptes 411 et 401 |
 | Répartition des charges | `ledger` | Postes 60 à 65, puis le reste de la classe 6 |
-| Produits et charges par mois | `monthly` | Agrégat SQL par mois (`lib/reports/dashboard.ts`) |
+| Produits et charges par mois | `monthly` | Agrégat SQL par mois des écritures validées, hors clôture (`monthlyClassTotals`, `lib/reports/dashboard.ts`) ; le même agrégat, chiffre d'affaires (comptes 70) en plus, répond à l'outil MCP `get_monthly_pnl` |
 | Trésorerie dans le temps | `treasury` | Solde 512 en fin de mois, à-nouveaux compris (`lib/dashboard/ledger-cash.ts`) |
 | À rapprocher, Opérations à rapprocher | `reconciliation` | Transactions bancaires sans écriture (même compte que l'indicateur de l'en-tête) et les cinq plus récentes |
 | Brouillons à valider | `drafts` | Écritures en brouillon de l'exercice |

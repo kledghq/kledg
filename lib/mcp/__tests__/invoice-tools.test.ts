@@ -1,7 +1,8 @@
 /**
  * MCP tools of the purchase and sales ledger: list_tiers, list_invoices and
  * get_invoice (read tools through the company guard with entries:read, so
- * the AI grant of the connection applies), and create_draft_invoice (full
+ * the AI grant of the connection applies; the lists page by page and read
+ * the changes since an instant for a sync), and create_draft_invoice (full
  * control, entries:create, following the execution mode: approval in Kledg
  * or automatic, with a dry run of the totals). Services are mocked: they
  * have their own database tests.
@@ -72,6 +73,7 @@ const summary = {
   issueDate: '2026-03-02',
   dueDate: '2026-04-01',
   typeCode: '380',
+  currency: 'EUR',
   label: null,
   tiers: { id: 't1', name: 'Martin SA', auxiliaryAccountNumber: 'C00001' },
   totalExclTaxCents: 10_000,
@@ -80,6 +82,8 @@ const summary = {
   paidCents: 5_000,
   remainingCents: 7_000,
   status: 'partially_paid',
+  lastPaymentDate: '2026-04-02',
+  updatedAt: '2026-04-02T09:15:00.000Z',
   lettered: false,
   letteringCode: null,
   source: 'MANUAL',
@@ -105,7 +109,7 @@ describe('list_tiers', () => {
           siren: '732829320',
           siret: null,
           vatNumber: null,
-          email: null,
+          email: 'compta@martin.example',
           auxiliaryAccountNumber: 'C00001',
           collectiveAccountCode: null,
           defaultAccountCode: '706',
@@ -114,15 +118,40 @@ describe('list_tiers', () => {
           paymentTermsEndOfMonth: true,
           qontoId: null,
           notes: null,
-          address: null,
+          updatedAt: new Date('2026-05-04T08:30:00Z'),
+          address: { id: 'a1', street: '1 rue des Lilas', street2: null, postalCode: '75011', city: 'Paris', country: 'FR' },
           _count: { invoices: 3 },
         },
       ],
+      nextCursor: null,
     })
     const data = parse(await server().get('list_tiers')!({ companyId: 'c1', kind: 'CUSTOMER', limit: 100 }))
     expect(guard.require).toHaveBeenCalledWith('c1', { entries: ['read'] })
-    expect(listTiers).toHaveBeenCalledWith('c1', { kind: 'CUSTOMER', search: undefined, limit: 100 })
-    expect(data.tiers[0]).toMatchObject({ auxiliaryAccountNumber: 'C00001', defaultVatRatePercent: 20, paymentTerms: { days: 45, endOfMonth: true }, invoiceCount: 3 })
+    expect(listTiers).toHaveBeenCalledWith('c1', { kind: 'CUSTOMER', search: undefined, limit: 100, cursor: undefined, updatedSince: undefined })
+    expect(data).toMatchObject({ total: 1, truncated: false, nextCursor: null })
+    expect(data.tiers[0]).toEqual({
+      id: 't1',
+      kind: 'CUSTOMER',
+      name: 'Martin SA',
+      auxiliaryAccountNumber: 'C00001',
+      siren: '732829320',
+      vatNumber: null,
+      email: 'compta@martin.example',
+      address: { street: '1 rue des Lilas', street2: null, postalCode: '75011', city: 'Paris', country: 'FR' },
+      collectiveAccount: null,
+      defaultAccount: '706',
+      defaultVatRatePercent: 20,
+      paymentTerms: { days: 45, endOfMonth: true },
+      invoiceCount: 3,
+      updatedAt: '2026-05-04T08:30:00.000Z',
+    })
+  })
+
+  it('reads the tiers changed since an instant, page by page', async () => {
+    vi.mocked(listTiers).mockResolvedValue({ total: 3, truncated: true, nextCursor: 'next-page', tiers: [] })
+    const data = parse(await server().get('list_tiers')!({ companyId: 'c1', updatedSince: '2026-05-01T10:00:00+02:00', cursor: 'this-page', limit: 2 }))
+    expect(listTiers).toHaveBeenCalledWith('c1', { kind: undefined, search: undefined, limit: 2, cursor: 'this-page', updatedSince: new Date('2026-05-01T08:00:00Z') })
+    expect(data).toEqual({ total: 3, truncated: true, nextCursor: 'next-page', tiers: [] })
   })
 
   it('refuses a company outside the grant', async () => {
@@ -134,15 +163,47 @@ describe('list_tiers', () => {
 })
 
 describe('list_invoices and get_invoice', () => {
-  it('lists invoices in euros with their derived status', async () => {
+  it('lists invoices in euros with their derived status, tiers id, last payment and last change', async () => {
     vi.mocked(listInvoices).mockResolvedValue({ items: [summary as never], nextCursor: null })
     const data = parse(await server().get('list_invoices')!({ companyId: 'c1', direction: 'SALE', status: 'all', limit: 50 }))
     expect(guard.require).toHaveBeenCalledWith('c1', { entries: ['read'] })
-    expect(listInvoices).toHaveBeenCalledWith('c1', expect.objectContaining({ direction: 'SALE', status: 'all', limit: 50 }))
+    expect(listInvoices).toHaveBeenCalledWith('c1', expect.objectContaining({ direction: 'SALE', status: 'all', limit: 50, cursor: undefined, updatedSince: undefined }))
     expect(data).toEqual({
       truncated: false,
-      invoices: [expect.objectContaining({ id: 'inv-1', totalInclTax: 120, paid: 50, remaining: 70, status: 'partially_paid', entryNumber: '12' })],
+      nextCursor: null,
+      invoices: [
+        {
+          id: 'inv-1',
+          number: 'V-1',
+          creditNote: false,
+          issueDate: '2026-03-02',
+          dueDate: '2026-04-01',
+          tiers: 'Martin SA',
+          tiersId: 't1',
+          tiersAuxiliaryAccount: 'C00001',
+          currency: 'EUR',
+          totalExclTax: 100,
+          totalVat: 20,
+          totalInclTax: 120,
+          paid: 50,
+          remaining: 70,
+          status: 'partially_paid',
+          lastPaymentDate: '2026-04-02',
+          entryNumber: '12',
+          source: 'MANUAL',
+          updatedAt: '2026-04-02T09:15:00.000Z',
+        },
+      ],
     })
+  })
+
+  it('reads the invoices changed since an instant and hands the next cursor back', async () => {
+    vi.mocked(listInvoices).mockResolvedValue({ items: [summary as never], nextCursor: 'next-page' })
+    const data = parse(
+      await server().get('list_invoices')!({ companyId: 'c1', direction: 'PURCHASE', status: 'all', updatedSince: '2026-04-01T00:00:00Z', cursor: 'this-page', limit: 1 }),
+    )
+    expect(listInvoices).toHaveBeenCalledWith('c1', expect.objectContaining({ direction: 'PURCHASE', updatedSince: new Date('2026-04-01T00:00:00Z'), cursor: 'this-page', limit: 1 }))
+    expect(data).toMatchObject({ truncated: true, nextCursor: 'next-page' })
   })
 
   it('reads one invoice with its lines and VAT breakdown', async () => {
