@@ -123,19 +123,22 @@ interface ClassTotals {
 }
 
 /**
- * Revenue (class 7, credit - debit) and expenses (class 6, debit - credit) of
- * the validated entries dated within [startDate, endDate], closing entries
- * excluded, per calendar month (UTC), summed in cents by PostgreSQL.
+ * Revenue (class 7, credit - debit), of which the turnover (accounts 70,
+ * chiffre d'affaires net, cerfa 2052 line FL), and expenses (class 6, debit -
+ * credit) of the validated entries dated within [startDate, endDate], closing
+ * entries excluded, per calendar month (UTC), summed in cents by PostgreSQL.
+ * Keyed `${year}-${month}`, the month from 0 to 11.
  */
 export async function monthlyClassTotals(
   companyId: string,
   startDate: Date,
   endDate: Date
-): Promise<Map<string, { revenueCents: number; expensesCents: number }>> {
-  const rows = await prisma.$queryRaw<Array<{ year: number; month: number; revenue: bigint | null; expenses: bigint | null }>>`
+): Promise<Map<string, { revenueCents: number; turnoverCents: number; expensesCents: number }>> {
+  const rows = await prisma.$queryRaw<Array<{ year: number; month: number; revenue: bigint | null; turnover: bigint | null; expenses: bigint | null }>>`
     SELECT EXTRACT(YEAR FROM e."date")::int AS year,
            (EXTRACT(MONTH FROM e."date")::int - 1) AS month,
            SUM(CASE WHEN a."code" LIKE '7%' THEN (l."credit" - l."debit") * 100 ELSE 0 END)::bigint AS revenue,
+           SUM(CASE WHEN a."code" LIKE '70%' THEN (l."credit" - l."debit") * 100 ELSE 0 END)::bigint AS turnover,
            SUM(CASE WHEN a."code" LIKE '6%' THEN (l."debit" - l."credit") * 100 ELSE 0 END)::bigint AS expenses
     FROM "entry_lines" l
     JOIN "accounting_entries" e ON e."id" = l."accountingEntryId"
@@ -153,7 +156,10 @@ export async function monthlyClassTotals(
     GROUP BY 1, 2
   `
   return new Map(
-    rows.map((r) => [`${r.year}-${r.month}`, { revenueCents: Number(r.revenue ?? 0), expensesCents: Number(r.expenses ?? 0) }])
+    rows.map((r) => [
+      `${r.year}-${r.month}`,
+      { revenueCents: Number(r.revenue ?? 0), turnoverCents: Number(r.turnover ?? 0), expensesCents: Number(r.expenses ?? 0) },
+    ])
   )
 }
 

@@ -5,7 +5,10 @@
  * another one), accounts and tiers of another company refused, payments
  * from reconciled bank lines with lettering once paid, partial payments
  * without lettering, VAT on receipts moved from 44574 to 44571, unposting,
- * concurrent posts, and the tiers names and terms in the aged balance.
+ * concurrent posts, the tiers names and terms in the aged balance, and the
+ * lists read by a sync (changes since an instant, cursors): a payment,
+ * lettering, validation or deletion of the entry is a change of the invoice
+ * (triggers of migration 20261204090000_invoice_change_tracking).
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,6 +33,7 @@ let attach: typeof import('@/lib/tiers/attach-auxiliary-accounts.service')
 let reports: typeof import('@/lib/reports/third-parties/get-third-party-reports.service')
 let vat: typeof import('@/lib/companies/vat-settings.service')
 let errors: typeof import('@/lib/accounting/errors')
+let lettering: typeof import('@/lib/lettering/lettering.service')
 
 const NOW = new Date('2026-06-15T10:00:00Z')
 
@@ -67,6 +71,7 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
     reports = await import('@/lib/reports/third-parties/get-third-party-reports.service')
     vat = await import('@/lib/companies/vat-settings.service')
     errors = await import('@/lib/accounting/errors')
+    lettering = await import('@/lib/lettering/lettering.service')
   })
   beforeEach(async () => {
     await prepareTestDatabase('invoices')
@@ -103,6 +108,37 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
       const free = await tiersSvc.createTiers(books.companyId, { kind: 'CUSTOMER', name: 'Libre', email: null, address: { street: '2 rue B', street2: null, postalCode: '69001', city: 'Lyon', country: 'FR' } })
       await tiersSvc.deleteTiers(books.companyId, free.id)
       expect(await prisma.address.count({ where: { id: free.address!.id } })).toBe(0)
+    })
+
+    it('lists tiers by name page by page, and the tiers changed since an instant with their email and address', async () => {
+      const nord = await tiersSvc.createTiers(books.companyId, {
+        kind: 'CUSTOMER',
+        name: 'Atelier Nord',
+        email: 'factures@atelier-nord.example',
+        address: { street: '3 quai Est', street2: null, postalCode: '59000', city: 'Lille', country: 'FR' },
+      })
+      const page1 = await tiersSvc.listTiers(books.companyId, { limit: 2 })
+      expect(page1).toMatchObject({ total: 3, truncated: true, nextCursor: books.customerId })
+      expect(page1.tiers.map((t) => t.name)).toEqual(['Atelier Nord', 'Martin SA'])
+      expect(page1.tiers[0]).toMatchObject({ email: 'factures@atelier-nord.example', address: { city: 'Lille', postalCode: '59000' } })
+      const page2 = await tiersSvc.listTiers(books.companyId, { limit: 2, cursor: page1.nextCursor! })
+      expect(page2).toMatchObject({ total: 3, truncated: false, nextCursor: null })
+      expect(page2.tiers.map((t) => t.name)).toEqual(['Papeterie Durand'])
+      const other = await seedBooks(prisma, svc, { siren: '900000102', slug: 'factures-beta' })
+      await expect(tiersSvc.listTiers(books.companyId, { limit: 2, cursor: other.customerId })).rejects.toThrow('Curseur invalide')
+
+      await prisma.tiers.updateMany({ where: { companyId: books.companyId }, data: { updatedAt: new Date('2020-01-01T00:00:00Z') } })
+      const since = new Date('2021-01-01T00:00:00Z')
+      expect((await tiersSvc.listTiers(books.companyId, { limit: 50, updatedSince: since })).tiers).toEqual([])
+      await tiersSvc.updateTiers(books.companyId, books.supplierId, { email: 'compta@durand.example' })
+      await tiersSvc.updateTiers(books.companyId, nord.id, { address: { street: '8 rue Neuve', street2: null, postalCode: '59800', city: 'Lille', country: 'FR' } })
+      const first = await tiersSvc.listTiers(books.companyId, { limit: 1, updatedSince: since })
+      expect(first).toMatchObject({ total: 2, truncated: true })
+      expect(first.tiers).toEqual([expect.objectContaining({ id: books.supplierId, email: 'compta@durand.example' })])
+      const next = await tiersSvc.listTiers(books.companyId, { limit: 1, updatedSince: since, cursor: first.nextCursor! })
+      expect(next).toMatchObject({ total: 2, truncated: false, nextCursor: null })
+      expect(next.tiers).toEqual([expect.objectContaining({ id: nord.id, address: expect.objectContaining({ street: '8 rue Neuve' }) })])
+      expect(next.tiers[0].updatedAt.getTime()).toBeGreaterThanOrEqual(first.tiers[0].updatedAt.getTime())
     })
 
     it('never reads or changes the tiers of another company', async () => {
@@ -400,6 +436,92 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
       // Terms of the tiers (0 days), not the company's 30 days: due 1 May, 19 days late on 20 May
       expect(tiers.oldestDueDate).toBe('2026-05-01')
       expect(tiers.buckets.days0to30).toBe(12000)
+    })
+  })
+
+  describe('changes for a sync', () => {
+    // Rows are aged to a fixed past instant, then compared with SINCE: the
+    // triggers write the database clock, Prisma the server's, and the test
+    // must not depend on the two agreeing to the millisecond.
+    const OLD = new Date('2020-01-01T00:00:00Z')
+    const SINCE = new Date('2021-01-01T00:00:00Z')
+
+    const age = (...ids: string[]) => prisma.invoice.updateMany({ where: { id: { in: ids } }, data: { updatedAt: OLD } })
+    const changed = async (direction: 'SALE' | 'PURCHASE' = 'SALE') =>
+      (await invoices.listInvoices(books.companyId, { direction, status: 'all', limit: 50, updatedSince: SINCE })).items
+
+    async function postedSale(number: string, cents: number) {
+      const invoice = await invoices.createInvoice(books.companyId, { direction: 'SALE', tiersId: books.customerId, number, issueDate: '2026-03-01', typeCode: '380', lines: [line('Vente', '1', cents, 2000, { nature: 'GOODS' })] })
+      const posted = await posting.postInvoice(books.companyId, invoice.id)
+      return { invoice, posted }
+    }
+
+    it('counts the validation of its entry, a payment recorded or removed, and lettering as changes of the invoice', async () => {
+      const { invoice, posted } = await postedSale('V40', 10000)
+      await age(invoice.id)
+      expect(await changed()).toEqual([])
+
+      await svc.validateEntries(books.companyId, [posted.entryId])
+      expect((await changed()).map((i) => i.id)).toEqual([invoice.id])
+
+      await age(invoice.id)
+      await payments.recordInvoicePayment(books.companyId, invoice.id, await books.payment('customer', '2026-04-02', '40.00'))
+      expect(await changed()).toEqual([expect.objectContaining({ id: invoice.id, status: 'partially_paid', paidCents: 4000, lastPaymentDate: '2026-04-02' })])
+
+      await age(invoice.id)
+      const detail = await invoices.getInvoice(books.companyId, invoice.id)
+      await payments.removeInvoicePayment(books.companyId, invoice.id, detail.payments[0].id)
+      expect(await changed()).toEqual([expect.objectContaining({ id: invoice.id, status: 'posted', paidCents: 0, lastPaymentDate: null })])
+
+      await payments.recordInvoicePayment(books.companyId, invoice.id, await books.payment('customer', '2026-04-03', '50.00'))
+      const full = await payments.recordInvoicePayment(books.companyId, invoice.id, await books.payment('customer', '2026-04-30', '70.00'), { now: NOW })
+      expect(full).toMatchObject({ lettered: true, letteringCode: 'AA' })
+      expect(await changed()).toEqual([expect.objectContaining({ id: invoice.id, status: 'paid', remainingCents: 0, lastPaymentDate: '2026-04-30' })])
+
+      // Lettering alone, without any payment recorded or removed
+      await age(invoice.id)
+      await lettering.unletterCode(books.companyId, { accountId: books.accounts['411000'], code: 'AA' })
+      expect((await changed()).map((i) => i.id)).toEqual([invoice.id])
+      await age(invoice.id)
+      await payments.settleInvoice(books.companyId, invoice.id, { now: NOW })
+      expect(await changed()).toEqual([expect.objectContaining({ id: invoice.id, letteringCode: 'AA' })])
+    })
+
+    it('counts the deletion of its draft entry from the entries (the database clears the link) as a change', async () => {
+      const { invoice, posted } = await postedSale('V41', 10000)
+      const other = await postedSale('V42', 5000)
+      await age(invoice.id, other.invoice.id)
+      await svc.deleteDraftEntry(books.companyId, posted.entryId)
+      expect(await changed()).toEqual([expect.objectContaining({ id: invoice.id, status: 'draft', entry: null })])
+    })
+
+    it('reads the changes oldest first, ties by id, page by page with a cursor a change between pages does not break', async () => {
+      const created = []
+      for (const number of ['D-50', 'D-51', 'D-52']) {
+        created.push(await invoices.createInvoice(books.companyId, { direction: 'PURCHASE', tiersId: books.supplierId, number, issueDate: '2026-02-01', typeCode: '380', lines: [line('Papier', '1', 1000, 2000)] }))
+      }
+      await invoices.createInvoice(books.companyId, { direction: 'SALE', tiersId: books.customerId, number: 'V50', issueDate: '2026-02-01', typeCode: '380', lines: [line('A', '1', 1000, 2000)] })
+      const other = await seedBooks(prisma, svc, { siren: '900000102', slug: 'factures-beta' })
+      await invoices.createInvoice(other.companyId, { direction: 'PURCHASE', tiersId: other.supplierId, number: 'D-50', issueDate: '2026-02-01', typeCode: '380', lines: [line('Papier', '1', 1000, 2000)] })
+      const [first, ...tied] = created
+      await prisma.invoice.update({ where: { id: first.id }, data: { updatedAt: new Date('2026-05-01T10:00:00Z') } })
+      await prisma.invoice.updateMany({ where: { id: { in: tied.map((t) => t.id) } }, data: { updatedAt: new Date('2026-05-02T10:00:00Z') } })
+      const [second, third] = tied.map((t) => t.id).sort()
+
+      const query = { direction: 'PURCHASE' as const, status: 'all' as const, limit: 2, updatedSince: new Date('2026-05-01T10:00:00Z') }
+      const page1 = await invoices.listInvoices(books.companyId, query)
+      expect(page1.items.map((i) => i.id)).toEqual([first.id, second])
+      expect(page1.items[0]).toMatchObject({ updatedAt: '2026-05-01T10:00:00.000Z', currency: 'EUR', tiers: { id: books.supplierId } })
+      expect(page1.nextCursor).not.toBeNull()
+
+      // Changed between two pages: read again at the end, nothing skipped
+      await prisma.invoice.update({ where: { id: first.id }, data: { label: 'Corrigée' } })
+      const page2 = await invoices.listInvoices(books.companyId, { ...query, cursor: page1.nextCursor! })
+      expect(page2.items.map((i) => i.id)).toEqual([third, first.id])
+      expect(page2.nextCursor).toBeNull()
+
+      expect((await invoices.listInvoices(books.companyId, { ...query, updatedSince: new Date('2026-05-02T10:00:00Z'), limit: 50 })).items.map((i) => i.id)).toEqual([second, third, first.id])
+      await expect(invoices.listInvoices(books.companyId, { ...query, cursor: first.id })).rejects.toThrow('Curseur invalide')
     })
   })
 })

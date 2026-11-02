@@ -35,6 +35,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { calendarDay, centsField, optionalText } from '@/lib/api/zod-fields'
+import { changedSinceOrder, changedSinceWhere, changesPage, INVALID_CURSOR } from '@/lib/api/changed-since'
 import { writeAuditLog } from '@/lib/audit'
 import { dayToDate } from '@/lib/accounting/entry-date'
 import { getPaymentTerms } from '@/lib/companies/payment-terms.service'
@@ -52,9 +53,6 @@ import { checkApprovedState } from '@/lib/approved-state/guard'
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
 
 type Db = Prisma.TransactionClient | typeof prisma
-
-/** A list cursor that is not an invoice of the company. */
-const INVALID_CURSOR = 'Curseur invalide\u00a0: rechargez la liste.'
 
 const directionSchema = z.enum(['SALE', 'PURCHASE'], { error: 'Choisissez une facture de vente ou d’achat' })
 
@@ -142,6 +140,7 @@ const SUMMARY_SELECT = {
   issueDate: true,
   dueDate: true,
   typeCode: true,
+  currency: true,
   label: true,
   totalExclTax: true,
   totalVat: true,
@@ -154,9 +153,10 @@ const SUMMARY_SELECT = {
   externalStatus: true,
   externalAttachmentId: true,
   entryId: true,
+  updatedAt: true,
   tiers: { select: { id: true, name: true, auxiliaryAccountNumber: true } },
   entry: { select: { id: true, entryNumber: true, status: true, lines: { where: TIERS_LINE_WHERE, select: { id: true, letteringCode: true } } } },
-  payments: { select: { amount: true } },
+  payments: { select: { amount: true, entryLine: { select: { accountingEntry: { select: { date: true } } } } } },
 } satisfies Prisma.InvoiceSelect
 
 type SummaryRow = Prisma.InvoiceGetPayload<{ select: typeof SUMMARY_SELECT }>
@@ -171,6 +171,8 @@ export interface InvoiceSummary {
   issueDate: string
   dueDate: string
   typeCode: string
+  /** ISO 4217 code of the amounts. */
+  currency: string
   label: string | null
   tiers: { id: string; name: string; auxiliaryAccountNumber: string }
   totalExclTaxCents: number
@@ -179,6 +181,14 @@ export interface InvoiceSummary {
   paidCents: number
   remainingCents: number
   status: InvoiceStatus
+  /** Day of the latest payment recorded (the date of its entry), null without any. */
+  lastPaymentDate: string | null
+  /**
+   * Last change of the invoice or of what its status is derived from: its
+   * payments, the lettering, number and status of its entry (database
+   * triggers, migration 20261204090000_invoice_change_tracking). ISO instant.
+   */
+  updatedAt: string
   lettered: boolean
   letteringCode: string | null
   source: 'MANUAL' | 'QONTO'
@@ -201,6 +211,10 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
   const paidCents = row.payments.reduce((sum, p) => sum + cents(p.amount), 0)
   const letteringCode = row.entry?.lines.find((l) => l.letteringCode)?.letteringCode ?? null
   const lettered = letteringCode !== null
+  const lastPaymentDate = row.payments.reduce<string | null>((latest, p) => {
+    const paidOn = calendarDayOf(p.entryLine.accountingEntry.date) as string
+    return latest === null || paidOn > latest ? paidOn : latest
+  }, null)
   return {
     id: row.id,
     direction: row.direction,
@@ -208,6 +222,7 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
     issueDate: calendarDayOf(row.issueDate) as string,
     dueDate: calendarDayOf(row.dueDate) as string,
     typeCode: row.typeCode,
+    currency: row.currency,
     label: row.label,
     tiers: row.tiers,
     totalExclTaxCents: cents(row.totalExclTax),
@@ -216,6 +231,8 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
     paidCents,
     remainingCents: row.entry ? remainingCents({ totalInclTaxCents, paidCents, lettered }) : totalInclTaxCents,
     status: invoiceStatus({ posted: row.entry !== null, totalInclTaxCents, paidCents, lettered }),
+    lastPaymentDate,
+    updatedAt: row.updatedAt.toISOString(),
     lettered,
     letteringCode,
     source: row.source,
@@ -230,14 +247,13 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
   }
 }
 
-export async function listInvoices(companyId: string, query: ListInvoicesQuery) {
-  // The cursor must be an invoice of the company (KLEDG-R3-AUTHZ-02): Prisma
-  // reads the sort values of the cursor row by its id alone, so an id of
-  // another company would reveal its existence and its date.
-  if (query.cursor) {
-    const owned = await prisma.invoice.findFirst({ where: { id: query.cursor, companyId }, select: { id: true } })
-    if (!owned) throw new ValidationError(INVALID_CURSOR)
-  }
+/**
+ * A page of the invoices of a company, newest first. With `updatedSince` (a
+ * sync, MCP list_invoices): only the invoices changed at or after it, oldest
+ * change first, and `cursor` is the nextCursor of the previous page of that
+ * list (lib/api/changed-since.ts).
+ */
+export async function listInvoices(companyId: string, query: ListInvoicesQuery & { updatedSince?: Date }) {
   const term = query.search?.trim()
   const where: Prisma.InvoiceWhereInput = {
     companyId,
@@ -257,6 +273,23 @@ export async function listInvoices(companyId: string, query: ListInvoicesQuery) 
         }
       : {}),
   }
+  if (query.updatedSince) {
+    const rows = await prisma.invoice.findMany({
+      where: { ...where, AND: [changedSinceWhere(query.updatedSince, query.cursor)] },
+      select: SUMMARY_SELECT,
+      orderBy: changedSinceOrder(),
+      take: query.limit + 1,
+    })
+    const { page, nextCursor } = changesPage(rows, query.limit)
+    return { items: page.map(summaryOf), nextCursor }
+  }
+  // The cursor must be an invoice of the company (KLEDG-R3-AUTHZ-02): Prisma
+  // reads the sort values of the cursor row by its id alone, so an id of
+  // another company would reveal its existence and its date.
+  if (query.cursor) {
+    const owned = await prisma.invoice.findFirst({ where: { id: query.cursor, companyId }, select: { id: true } })
+    if (!owned) throw new ValidationError(INVALID_CURSOR)
+  }
   const rows = await prisma.invoice.findMany({
     where,
     select: SUMMARY_SELECT,
@@ -270,7 +303,6 @@ export async function listInvoices(companyId: string, query: ListInvoicesQuery) 
 
 const DETAIL_SELECT = {
   ...SUMMARY_SELECT,
-  currency: true,
   sellerSiren: true,
   sellerVatNumber: true,
   buyerSiren: true,
@@ -309,7 +341,6 @@ export async function getInvoice(companyId: string, id: string, db: Db = prisma)
     provisionalNumber,
     numberAssignedAt: row.numberAssignedAt?.toISOString() ?? null,
     tiers: row.tiers,
-    currency: row.currency,
     parties: { sellerSiren: row.sellerSiren, sellerVatNumber: row.sellerVatNumber, buyerSiren: row.buyerSiren, buyerVatNumber: row.buyerVatNumber },
     attachmentFileName: row.attachmentFileName,
     lines: row.lines.map((l) => ({
