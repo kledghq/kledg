@@ -570,7 +570,8 @@ describe.skipIf(!available)('MCP tools covering the API', () => {
       const edited = await ok(writer, 'update_draft_invoice', {
         companyId: ids.aCompany,
         invoiceId,
-        invoice: { direction: 'PURCHASE', tiersId: tiers.tiersId, number: 'F-001', issueDate: '2025-03-16', lines: [{ label: 'Papier', quantity: '2', unitPrice: 100, vatRate: 20, accountCode: '606100' }] },
+        // The direction belongs to the creation: the update refuses it rather than dropping it (inputs are strict)
+        invoice: { tiersId: tiers.tiersId, number: 'F-001', issueDate: '2025-03-16', lines: [{ label: 'Papier', quantity: '2', unitPrice: 100, vatRate: 20, accountCode: '606100' }] },
       })
       expect(edited.changes.totalExclTax).toBe(200)
 
@@ -684,7 +685,8 @@ describe.skipIf(!available)('MCP tools covering the API', () => {
       const establishment = await ok(admin, 'manage_company_records', {
         companyId: ids.aCompany,
         action: 'create_establishment',
-        establishment: { siret, name: 'Siège', address: { street: '1 rue de Rivoli', postalCode: '75001', city: 'Paris' } },
+        // An establishment names its address by addressId (create_address first): an inline address is refused, not dropped
+        establishment: { siret, name: 'Siège' },
       })
       expect(establishment.siret).toBe(siret)
       const regime = await ok(admin, 'manage_company_records', { companyId: ids.aCompany, action: 'add_tax_regime', taxRegime: { regimeType: 'vat', regime: 'normal', startDate: '2025-01-01' } })

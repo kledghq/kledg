@@ -26,6 +26,13 @@ describe('assistantInput', () => {
     // The transform of `day` is not applied twice: the assistant schema keeps the input.
     expect(schema.parse({ label: 'x', total: 1, day: '2025-03-01T10:00:00Z' }).day).toBe('2025-03-01T10:00:00Z')
   })
+
+  it('refuses a field the route does not know, at every level, rather than dropping it', () => {
+    const schema = assistantInput(Route) as z.ZodObject
+    expect(schema.safeParse({ label: 'x', total: 1, day: '2025-03-01', totalCents: 100 }).success).toBe(false)
+    expect(schema.safeParse({ label: 'x', total: 1, day: '2025-03-01', lines: [{ amount: 1, amountCents: 100 }] }).success).toBe(false)
+    expect(schema.safeParse({ label: 'x', total: 1, day: '2025-03-01', lines: [{ amount: 1 }] }).success).toBe(true)
+  })
 })
 
 describe('centsInput and routeBody', () => {

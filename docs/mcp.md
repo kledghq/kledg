@@ -126,7 +126,7 @@ Sur les objets où un assistant aide (une transaction à rapprocher, un brouillo
 
   Un test (`lib/mcp/__tests__/tool-metadata.test.ts`) vérifie titre, annotations, description et convention de montants de chaque outil, à chaque niveau d'accès.
 - **Fichiers** : `export_report` et `get_file` renvoient le fichier dans le résultat de l'outil, en ressource intégrée MCP (`type: "resource"`, `blob` en base64, `mimeType`, nom du fichier dans `_meta.fileName`), après un bloc texte JSON (nom, type, taille). Le fichier est produit ou lu par le même service que la route de téléchargement, après les mêmes contrôles. Kledg ne crée jamais de lien de téléchargement pour un assistant, ni lien public ni jeton dans une URL : l'`uri` (`kledg://...`) nomme le fichier sans pouvoir être ouverte, et les liens signés de Qonto ne sont jamais renvoyés. Au-delà de 5 Mo, l'outil refuse en français et l'utilisateur télécharge le fichier dans Kledg (`lib/mcp/file-result.ts`).
-- **Erreurs** : en français ; une société hors de l'autorisation répond « Société introuvable », un rôle insuffisant « Accès refusé ».
+- **Erreurs** : en français ; une société hors de l'autorisation répond « Société introuvable », un rôle insuffisant « Accès refusé ». Les entrées des outils de brouillon et les corps de route réutilisés (`assistantInput`) sont stricts : un champ inconnu est refusé, jamais ignoré en silence (un assistant qui se trompe de nom croirait la valeur enregistrée).
 
 ### Lecture seule (`kledg:read`)
 

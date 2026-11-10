@@ -31,7 +31,13 @@ export const GRANT_NOT_FOUND = "Subvention d'investissement introuvable"
 
 const cents = (message: string) => z.number({ error: message }).int(message).min(0, message).max(1e13, message)
 
-/** Body of POST /api/investment-grants (with companyId) and PATCH /api/investment-grants/[id] (the whole grant). */
+/**
+ * Body of POST /api/investment-grants (with companyId) and PATCH
+ * /api/investment-grants/[id] (the whole grant). `carriedCents`, the share
+ * transferred to the result before Kledg followed the grant, is 0 when
+ * absent at creation and keeps its stored value when absent from an update:
+ * a client that omits it never resets it (issue #29).
+ */
 export const GrantBodySchema = z.object({
   label: z.string({ error: 'Le libellé est requis' }).trim().min(1, 'Le libellé est requis').max(200),
   grantor: optionalText(200),
@@ -113,7 +119,9 @@ async function validatedTransfers(companyId: string, grantId: string) {
 export async function updateInvestmentGrant(companyId: string, grantId: string, body: GrantBody) {
   const existing = await prisma.investmentGrant.findFirst({ where: { id: grantId, companyId } })
   if (!existing) throw new NotFoundError(GRANT_NOT_FOUND)
-  const data = await normalize(companyId, body)
+  // Absent from the update: the amount already transferred stays what it is
+  const carriedCents = body.carriedCents ?? parseCents(existing.carriedAmount) ?? 0
+  const data = await normalize(companyId, { ...body, carriedCents })
   const booked = await validatedTransfers(companyId, grantId)
   const termsChanged =
     data.amount !== centsToDecimal(parseCents(existing.amount) ?? 0) ||
