@@ -9,7 +9,7 @@
  * - a category: the counterpart lines of posting.ts (charge or product, the
  *   recoverable or collected VAT) on the accounts of the fiscal year of the
  *   transaction date (ledger-accounts.ts), plus the bank line on 512
- *   (resolveBankLedgerAccount), in the BQ journal;
+ *   (resolveBankAccountLedger), in the BQ journal;
  * - a transaction rule the user accepts as suggested: the rule's own entry
  *   (prepareRuleEntry), exactly as "Appliquer la règle";
  * - an open sales invoice a credit pays (invoice-receipts.service.ts): the
@@ -59,9 +59,9 @@ import {
   loadTransaction,
   MESSAGES as RECONCILIATION_MESSAGES,
   normalizeSide,
-  resolveBankLedgerAccount,
   type GeneratedLine,
 } from '@/lib/reconciliation/service'
+import { resolveBankAccountLedger } from '@/lib/banking/ledger-account'
 import { bankLineOf, checkEntryDate } from '@/lib/reconciliation/validation'
 import { prepareRuleEntry } from '@/lib/transactions/rule-executor'
 import { createRule, updateRuleInTx, type RuleInput } from '@/lib/transactions/manage-rules.service'
@@ -251,7 +251,7 @@ async function prepareCategory(
       `La catégorie « ${category.label} » n'a pas de compte dans le plan comptable de l'exercice ${fiscalYear.year} : demandez à votre comptable de compléter le plan de comptes.`,
     )
   }
-  const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
+  const bank = await resolveBankAccountLedger(companyId, fiscalYear.id, transaction.bankAccountId)
   if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
   const journal = await journalByCode(prisma, companyId, 'BQ', { create: { label: 'Banque' } })
 
@@ -322,7 +322,7 @@ async function prepareInvoice(companyId: string, transaction: Awaited<ReturnType
       `Le compte clients de la facture n° ${invoice.number} n'existe pas dans le plan comptable de l'exercice ${fiscalYear.year} : demandez à votre comptable de compléter le plan de comptes.`,
     )
   }
-  const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
+  const bank = await resolveBankAccountLedger(companyId, fiscalYear.id, transaction.bankAccountId)
   if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
   const journal = await journalByCode(prisma, companyId, 'BQ', { create: { label: 'Banque' } })
 

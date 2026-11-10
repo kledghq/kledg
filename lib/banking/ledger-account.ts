@@ -11,7 +11,6 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { resolveBankLedgerAccount } from '@/lib/reconciliation/service'
 import { pickLedgerCodeForBankAccount } from './ledger-code'
 
 export interface LedgerAccountRef {
@@ -21,6 +20,30 @@ export interface LedgerAccountRef {
 }
 
 const SELECT = { id: true, code: true, label: true } as const
+
+/**
+ * The company's default bank ledger account in a fiscal year: its
+ * defaultBankAccountCode when set and present in the year, else the first
+ * detailed 512 account (512000 rather than the bare class 512). Only for a
+ * bank account without a mapping of its own, or when there is no bank
+ * account at all; a transaction's bank line uses resolveBankAccountLedger.
+ */
+export async function resolveBankLedgerAccount(companyId: string, fiscalYearId: string): Promise<LedgerAccountRef | null> {
+  const company = await prisma.company.findUnique({ where: { id: companyId }, select: { defaultBankAccountCode: true } })
+  if (company?.defaultBankAccountCode) {
+    const account = await prisma.account.findFirst({
+      where: { companyId, fiscalYearId, code: company.defaultBankAccountCode },
+      select: SELECT,
+    })
+    if (account) return account
+  }
+  const candidates = await prisma.account.findMany({
+    where: { companyId, fiscalYearId, code: { startsWith: '512' } },
+    select: SELECT,
+    orderBy: { code: 'asc' },
+  })
+  return candidates.find((a) => a.code.length > 3) ?? candidates[0] ?? null
+}
 
 /** Ledger account of one bank account of the company (its mapping, else the company default). */
 export async function resolveBankAccountLedger(

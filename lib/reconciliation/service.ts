@@ -18,6 +18,7 @@ import { assertAllOwned, findOwned, transactionOfCompany } from '@/lib/api/resou
 import { createEntryInTx, validateEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
 import { deleteFixedAssetsAcquiredByEntryInTx } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { writeAuditLog } from '@/lib/audit'
+import { resolveBankAccountLedger } from '@/lib/banking/ledger-account'
 import { normalizeBankSide } from '@/lib/banking/side'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
@@ -59,29 +60,6 @@ export async function fiscalYearPeriods(companyId: string, client: Client = pris
     endDate: toIsoDateUtc(fy.endDate),
     isClosed: fy.isClosed,
   }))
-}
-
-/**
- * The bank account (classe 5) of the locked line in a fiscal year: the
- * company's default bank account code when set, else the first detailed 512
- * account (512000 rather than the bare class 512).
- */
-export async function resolveBankLedgerAccount(companyId: string, fiscalYearId: string, client: Client = prisma) {
-  const company = await client.company.findUnique({ where: { id: companyId }, select: { defaultBankAccountCode: true } })
-  const select = { id: true, code: true, label: true } as const
-  if (company?.defaultBankAccountCode) {
-    const account = await client.account.findFirst({
-      where: { companyId, fiscalYearId, code: company.defaultBankAccountCode },
-      select,
-    })
-    if (account) return account
-  }
-  const candidates = await client.account.findMany({
-    where: { companyId, fiscalYearId, code: { startsWith: '512' } },
-    select,
-    orderBy: { code: 'asc' },
-  })
-  return candidates.find((a) => a.code.length > 3) ?? candidates[0] ?? null
 }
 
 export const bankAccountMissingMessage = (year: number) =>
@@ -284,7 +262,8 @@ export async function reconcileWithNewEntry(companyId: string, transactionId: st
     )
   }
 
-  const bank = await resolveBankLedgerAccount(companyId, fiscalYear.id)
+  // The bank line goes to the 512 account of the transaction's bank account (its own mapping, else the company default)
+  const bank = await resolveBankAccountLedger(companyId, fiscalYear.id, transaction.bankAccountId)
   if (!bank) throw new ValidationError(bankAccountMissingMessage(fiscalYear.year))
 
   const description = input.description?.trim() || transaction.label || 'Transaction bancaire'
