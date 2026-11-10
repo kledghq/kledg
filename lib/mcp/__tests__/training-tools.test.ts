@@ -167,8 +167,16 @@ describe('draft tools', () => {
   it('save_training_report and save_training_origins call their services', async () => {
     vi.mocked(saveTrainingReport).mockResolvedValue({ fiscalYearId: 'fy25' })
     vi.mocked(saveTrainingOrigins).mockResolvedValue({ accounts: 1, customers: 1 })
-    parse(await tools(true).get('save_training_report')!({ companyId: 'c1', fiscalYearId: 'fy25', data: { trainees: { employees: { count: 3, hours: 21 } }, charges: { totalCents: null } } }))
-    expect(saveTrainingReport).toHaveBeenCalledWith('c1', expect.objectContaining({ fiscalYearId: 'fy25', data: expect.objectContaining({ trainees: expect.objectContaining({ employees: { count: 3, hours: 21 } }) }) }), { userId: 'u1' })
+    // The charges overrides are in euros for the assistant (`total`): the route name `totalCents` is refused, never dropped
+    parse(await tools(true).get('save_training_report')!({ companyId: 'c1', fiscalYearId: 'fy25', data: { trainees: { employees: { count: 3, hours: 21 } }, charges: { total: null } } }))
+    expect(saveTrainingReport).toHaveBeenCalledWith(
+      'c1',
+      expect.objectContaining({ fiscalYearId: 'fy25', data: expect.objectContaining({ trainees: expect.objectContaining({ employees: { count: 3, hours: 21 } }), charges: expect.objectContaining({ totalCents: null }) }) }),
+      { userId: 'u1' },
+    )
+    const centsName = await tools(true).get('save_training_report')!({ companyId: 'c1', fiscalYearId: 'fy25', data: { charges: { totalCents: null } } })
+    expect(centsName.isError).toBe(true)
+    expect(centsName.content[0].text).toMatch(/totalCents/)
     parse(await tools(true).get('save_training_origins')!({ companyId: 'c1', accounts: [{ accountCode: '7061', trainingOrigin: 'c2e' }], customers: [{ tiersId: 't1', trainingOrigin: 'c1' }] }))
     expect(saveTrainingOrigins).toHaveBeenCalledWith('c1', { accounts: [{ accountCode: '7061', trainingOrigin: 'c2e' }], customers: [{ tiersId: 't1', trainingOrigin: 'c1' }] })
     const bad = await tools(true).get('save_training_origins')!({ companyId: 'c1', accounts: [{ accountCode: '7061', trainingOrigin: 'x9' }] })

@@ -8,7 +8,9 @@
  * - `assistantInput(schema)` is the same schema for the assistant, every
  *   `xCents` number field renamed `x` and given in euros (two decimals at
  *   most), wrappers kept (optional, nullable, arrays, unions), transforms
- *   and defaults left to the route schema;
+ *   and defaults left to the route schema. Its objects are strict: a field
+ *   the route does not know is refused, never silently dropped (an
+ *   assistant that misnames a field would otherwise believe it was saved);
  * - `centsInput(schema, value)` turns what the assistant sent back into the
  *   route body (euros to cents, `x` to `xCents`), to be parsed by the
  *   route schema itself (French messages, refinements);
@@ -98,7 +100,7 @@ export function assistantInput(schema: AnySchema): AnySchema {
         else if (bp && isNumber(field)) shape[bp[1]] = percentField(field)
         else shape[key] = assistantInput(field)
       }
-      return withDescription(z.object(shape))
+      return withDescription(z.strictObject(shape))
     }
     case 'optional':
     case 'default':

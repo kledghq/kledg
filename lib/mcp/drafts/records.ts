@@ -151,17 +151,31 @@ const updateGrantTool = draftTool({
   name: 'update_investment_grant',
   title: 'Modifier une subvention d’investissement',
   summary:
-    'Replaces an investment grant recorded in Kledg (same fields as create_investment_grant, amount in euros); its terms are fixed once a transfer is validated (409).',
+    'Replaces an investment grant recorded in Kledg (same fields as create_investment_grant, amount in euros). The share already transferred to the result before Kledg followed the grant is `alreadyTransferred` (alias `carried`): omitted, it keeps its current value. Its terms are fixed once a transfer is validated (409).',
   never: NEVER_POSTS,
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, durations in years.',
-  input: { grantId: id('La subvention').describe('Grant id, from get_year_end_inventory.'), grant: assistantInput(GrantBodySchema) },
+  input: {
+    grantId: id('La subvention').describe('Grant id, from get_year_end_inventory.'),
+    grant: z.strictObject({
+      ...assistantShape(GrantBodySchema),
+      alreadyTransferred: eurosInput.min(0).optional().describe('Share already transferred to the result before Kledg followed it, in euros (same field as create_investment_grant; omitted: unchanged).'),
+    }),
+  },
   permission: { entries: ['update'] },
   destructive: true,
   idempotent: true,
   async execute(args) {
-    const grant = await updateInvestmentGrant(args.companyId, args.grantId, routeBody(GrantBodySchema, args.grant))
-    return { changes: forAssistant(grant), reviewUrl: kledgPageUrl(args.companyId, 'investment-grants'), message: 'Subvention modifiée.' }
+    // assistantShape is untyped: the fields are those of GrantBodySchema in euros, plus the alias
+    const { alreadyTransferred, carried, ...grant } = args.grant as { alreadyTransferred?: number; carried?: number } & Record<string, unknown>
+    if (alreadyTransferred !== undefined && carried !== undefined && carried !== alreadyTransferred) {
+      throw new ValidationError('alreadyTransferred et carried désignent le même montant déjà repris\u00a0: donnez une seule valeur.')
+    }
+    const transferred = carried ?? alreadyTransferred
+    // Neither given: no carriedCents in the body, the service keeps the stored amount
+    const body = routeBody(GrantBodySchema, transferred === undefined ? grant : { ...grant, carried: transferred })
+    const updated = await updateInvestmentGrant(args.companyId, args.grantId, body)
+    return { changes: forAssistant(updated), reviewUrl: kledgPageUrl(args.companyId, 'investment-grants'), message: 'Subvention modifiée.' }
   },
   audit: (args) => ({ grantId: args.grantId }),
 })

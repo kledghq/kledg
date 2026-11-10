@@ -103,7 +103,8 @@ export async function auditDraftWrite(tool: string, access: McpAccess, companyId
 }
 
 export function registerDraftTool<S extends Shape, R extends DraftResult>(server: McpServer, access: McpAccess, guard: CompanyGuard, tool: DraftTool<S, R>): void {
-  const inputSchema = z.object({ companyId: companyIdInput, ...tool.input })
+  // Strict: an argument the tool does not know is refused, never silently ignored
+  const inputSchema = z.strictObject({ companyId: companyIdInput, ...tool.input })
   const basePermissions: readonly Permission[] = Array.isArray(tool.permission) ? tool.permission : [tool.permission as Permission]
   if (basePermissions.length === 0 && !tool.actions) throw new Error(`${tool.name}: a draft tool checks at least one right`)
 
