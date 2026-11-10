@@ -101,7 +101,8 @@ describe('companyRoute with query and body', () => {
   it('reports the default zod messages in French', async () => {
     const response = await POST(request('/api/x?companyId=acme', 'POST', {}))
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toBe('name: Entrée invalide : string attendu, undefined reçu')
+    // zod 4.6 words its French locale fully (zod < 4.6 said "string attendu, undefined reçu")
+    expect((await response.json()).error).toBe('name: Entrée invalide : chaîne de caractères attendu, indéfini reçu')
   })
 
   it('reads an empty body as undefined and refuses malformed JSON', async () => {
