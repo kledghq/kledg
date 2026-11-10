@@ -214,7 +214,8 @@ describe.skipIf(!available)('MCP approvals and writes (round 3)', () => {
       await ok(key, 'update_draft_invoice', {
         companyId: ids.company,
         invoiceId,
-        invoice: { direction: 'PURCHASE', tiersId: tiers.tiersId, number: 'F-001', issueDate: '2025-03-15', lines: [{ label: 'Papier', quantity: '900', unitPrice: 100, vatRate: 20, accountCode: '606100' }] },
+        // The direction belongs to the creation: the update refuses it rather than dropping it (inputs are strict)
+        invoice: { tiersId: tiers.tiersId, number: 'F-001', issueDate: '2025-03-15', lines: [{ label: 'Papier', quantity: '900', unitPrice: 100, vatRate: 20, accountCode: '606100' }] },
       })
 
       const done = await call(key, 'manage_invoice', { companyId: ids.company, action: 'post', invoiceId, actionId: dry.actionId })
