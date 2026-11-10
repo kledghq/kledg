@@ -52,6 +52,8 @@ export function deadlineStatusJson(d: TrackedDeadline) {
     attachment: d.status.record?.attachmentId ? { id: d.status.record.attachmentId, fileName: d.status.record.attachmentName } : null,
     attachmentReference: d.status.record?.attachmentReference ?? null,
     condition: d.condition ?? null,
+    /** What the calendar says about the deadline itself (an acompte whose reference IS Kledg does not hold, an online extension). */
+    calendarNote: d.note ?? null,
     estimated: d.estimated,
   }
 }

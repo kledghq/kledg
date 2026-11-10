@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { balanceOf, quarterOf, referenceTax, scheduleAcomptes, type AcompteDue, type AcompteReference } from '../acomptes'
+import { acomptesNotDue, balanceOf, quarterOf, referenceTax, scheduleAcomptes, type AcompteDue, type AcompteReference, type FiledReference } from '../acomptes'
 import { bookAdjustments, manualAdjustments, parentSubsidiaryAdjustments } from '../adjustments'
 import { corporateTaxChecks, isReliable, type CheckInput } from '../checks'
 import { computeCorporateTax, eligibilityOf, type Adjustment, type ComputeInput } from '../compute'
@@ -294,6 +294,38 @@ describe('acomptes of the next year (CGI art. 1668, BOI-IS-DECLA-20-10)', () => 
   it('leaves the first two to compute when the previous return is not recorded', () => {
     const s = scheduleAcomptes({ dues, current: ref(60_000), previous: null, firstOnPrevious: true })
     expect(s.items.map((i) => i.amountCents)).toEqual([null, null, k(2_688), k(2_688)])
+  })
+
+  describe('acomptes known not to be due from the filed returns (CGI art. 1668, 1; BOI-IS-DECLA-20-10 § 120, 360 and 370)', () => {
+    const filed = (profitEuros: number, over: Partial<FiledReference> = {}): FiledReference => ({ profitCents: k(profitEuros), duration: YEAR, reducedRate: true, ...over })
+    // The return of 2026 is due on 4 May 2027: the first acompte (15 March) rests on 2025
+    const base = { dues, previousReturnDue: '2027-05-04' }
+    const numbers = (over: Partial<Parameters<typeof acomptesNotDue>[0]>) => acomptesNotDue({ ...base, previous: null, beforePrevious: null, ...over })
+
+    it('decides nothing when the reference return is not recorded', () => {
+      expect(numbers({})).toEqual([])
+      expect(numbers({ previous: filed(60_000) })).toEqual([])
+    })
+
+    it('exempts all but the first when the previous IS is 3 000 € or less (20 000 € at 15 %), not at 3 000,60 €', () => {
+      expect(numbers({ previous: filed(20_000) })).toEqual([2, 3, 4])
+      expect(numbers({ previous: filed(20_004) })).toEqual([])
+      // Judged on the IS brought to twelve months (§ 60): 10 000 € over six months is 20 000 € a year
+      expect(numbers({ previous: filed(10_000, { duration: durationOf('2026-01-01', '2026-06-30') }) })).toEqual([2, 3, 4])
+      expect(numbers({ previous: filed(10_002, { duration: durationOf('2026-01-01', '2026-06-30') }) })).toEqual([])
+    })
+
+    it('exempts the first on the exercice it rests on: the previous one when its return is due before, else the one before', () => {
+      expect(acomptesNotDue({ dues, previous: filed(20_000), beforePrevious: null, previousReturnDue: '2027-03-01' })).toEqual([1, 2, 3, 4])
+      expect(numbers({ previous: filed(20_000), beforePrevious: filed(10_000) })).toEqual([1, 2, 3, 4])
+      expect(numbers({ previous: filed(60_000), beforePrevious: filed(10_000) })).toEqual([1])
+      expect(numbers({ previous: filed(20_000), beforePrevious: filed(60_000) })).toEqual([2, 3, 4])
+    })
+
+    it('owes nothing on the first when the previous exercice was the company\'s first (BOI-IS-DECLA-20-30)', () => {
+      expect(numbers({ previous: filed(60_000), beforePrevious: 'none' })).toEqual([1])
+      expect(numbers({ previous: null, beforePrevious: 'none' })).toEqual([1])
+    })
   })
 
   it('a short next year pays as many acomptes as it holds due dates', () => {

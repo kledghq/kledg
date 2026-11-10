@@ -186,6 +186,21 @@ export function secondBusinessDayAfterMayFirst(year: number): string {
   return nthBusinessDayAfter(isoOf(year, 5, 1), 2)
 }
 
+/**
+ * Day the declaration of results (2065-SD and liasse) of an exercice is
+ * due, before any online extension: the second business day after 1 May
+ * for a calendar year, three months after the closing otherwise (CGI
+ * art. 223, 1; BOI-IS-DECLA-30-10-10).
+ */
+export function liasseLegalDate(endDate: string): string {
+  return endDate.endsWith('-12-31') ? secondBusinessDayAfterMayFirst(yearOf(endDate) + 1) : addMonthsEom(endDate, 3)
+}
+
+/** The company's first exercice: it starts with the company (a month of leeway for the registration). */
+export function firstExerciceOfCompany(foundationDate: string | null, fy: Pick<DeadlineFiscalYear, 'startDate' | 'endDate'>): boolean {
+  return foundationDate !== null && foundationDate >= addIsoDays(fy.startDate, -31) && foundationDate <= fy.endDate
+}
+
 // ------------------------------------------------------------ regimes
 
 export type VatRegime = 'normal' | 'simplified' | 'none'
@@ -323,7 +338,7 @@ function fiscalYearSpans(input: DeadlineInput): FiscalYearSpan[] {
     ...fy,
     projected: false,
     // The company's first exercice when it is the earliest known and starts with the company.
-    first: index === 0 && foundation !== null && foundation >= addIsoDays(fy.startDate, -31) && foundation <= fy.endDate,
+    first: index === 0 && firstExerciceOfCompany(foundation, fy),
   }))
   let last = spans[spans.length - 1]
   while (last && last.endDate < input.to && spans.length < sorted.length + 4) {
@@ -443,10 +458,14 @@ export function isAcompteDates(fy: DeadlineFiscalYear): string[] {
   return count === 0 ? [] : sequence.slice(-count)
 }
 
+/** Acomptes of the earliest exercice in Kledg: their reference IS is one Kledg does not hold (CGI art. 1668, 1). */
+export const ACOMPTE_REFERENCE_NOT_FOLLOWED_NOTE =
+  "Calculé sur l'impôt d'un exercice que Kledg ne suit pas : marquez l'acompte non dû si cet impôt ne dépassait pas 3 000 €, ou désactivez les acomptes d'IS dans les réglages des échéances."
+
 function corporateTaxDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidate[] {
   const { company, settings } = input
   const out: Candidate[] = []
-  for (const fy of spans) {
+  for (const [index, fy] of spans.entries()) {
     const regime = corporateTaxRegimeAt(company, fy.endDate)
     if (!regime) continue
     const projected = fy.projected
@@ -454,6 +473,8 @@ function corporateTaxDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): C
     const december = monthOf(fy.endDate) === 12 && dayOf(fy.endDate) === 31
 
     if (settings.isAcomptes && !fy.first) {
+      // The earliest exercice in Kledg: its acomptes rest on an IS Kledg never computed, the user decides.
+      const note = index === 0 ? ACOMPTE_REFERENCE_NOT_FOLLOWED_NOTE : undefined
       isAcompteDates(fy).forEach((date, i) => {
         out.push({
           key: `${fy.endDate}:${i + 1}`,
@@ -461,6 +482,7 @@ function corporateTaxDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): C
           legalDate: date,
           postpone: true,
           label: `${ORDINALS[i]} acompte d'IS de ${exerciceLabel(fy)}`,
+          note,
           condition: "Si l'impôt de l'exercice de référence dépasse 3 000 €.",
           projected,
         })
@@ -470,7 +492,7 @@ function corporateTaxDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): C
     const [sy, sm] = december ? [closingYear + 1, 5] : shiftMonth(closingYear, monthOf(fy.endDate), 4)
     out.push({ key: fy.endDate, ruleId: 'is-solde', legalDate: isoOf(sy, sm, 15), postpone: true, label: `Solde de l'IS de ${exerciceLabel(fy)}`, projected })
 
-    const liasseDate = december ? secondBusinessDayAfterMayFirst(closingYear + 1) : addMonthsEom(fy.endDate, 3)
+    const liasseDate = liasseLegalDate(fy.endDate)
     out.push({
       key: fy.endDate,
       ruleId: 'liasse',

@@ -86,7 +86,7 @@ champ (409) et indique la page où il s'enregistre.
 | --- | --- | --- |
 | CA3, CA12 | Dépôt enregistré de la déclaration de TVA ([déclarations de TVA](declarations-tva.md)) : déposée à sa date, payée le même jour quand un montant est dû (la TVA se paie avec la déclaration, CGI art. 1692) | Dépôt et paiement |
 | Liasse (2065) | Dépôt enregistré de l'impôt sur les sociétés ([impôt sur les sociétés](impot-societes.md)) | Dépôt |
-| Acompte d'IS n | Acomptes versés de l'exercice sur la page Impôt sur les sociétés | Paiement |
+| Acompte d'IS n | Acomptes versés de l'exercice sur la page Impôt sur les sociétés ; non dû quand le dépôt enregistré de l'exercice de référence montre un impôt, ramené à douze mois, inférieur ou égal à 3 000 € (CGI art. 1668, 1 ; `acomptesNotDue`, `lib/corporate-tax/acomptes.ts`) : l'exercice précédent, ou celui d'avant pour un premier acompte qui tombe avant que sa déclaration soit due. Un exercice que Kledg ne suit pas ne décide rien, et les acomptes du premier exercice suivi portent une note qui renvoie à « Non due » et au réglage `isAcomptes` | Paiement |
 | Approbation, dépôt des comptes | Dates de l'approbation des comptes ([approbation](approbation-des-comptes.md)) | Dépôt |
 | CFE, acompte de CFE | Avis de CFE de zéro saisi dans les impôts locaux : non due | Rien |
 

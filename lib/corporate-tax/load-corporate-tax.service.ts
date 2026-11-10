@@ -26,7 +26,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
-import { addMonthsEom, computeDeadlines, corporateTaxRegimeAt, corporateTaxRegimeValueAt, secondBusinessDayAfterMayFirst } from '@/lib/deadlines/engine'
+import { addMonthsEom, computeDeadlines, corporateTaxRegimeAt, corporateTaxRegimeValueAt, firstExerciceOfCompany, liasseLegalDate } from '@/lib/deadlines/engine'
 import { INCOME_TAX_REGIME } from '@/lib/companies/profit-taxation'
 import { loadDeadlineContext, type CompanyContext } from '@/lib/deadlines/load-deadlines.service'
 import type { GroupAccess } from '@/lib/management-fees/access'
@@ -213,14 +213,7 @@ export function corporateTaxStatusOf(company: CompanyContext['company'], fy: Pic
 
 /** The first exercice of the company (no acompte, CGI art. 1668), by the engine's rule. */
 function isFirstExercice(context: CompanyContext, fy: Fy): boolean {
-  const first = context.fiscalYears[0]
-  const foundation = context.company.foundationDate
-  return first?.id === fy.id && foundation !== null && foundation >= addIsoDays(fy.startDate, -31) && foundation <= fy.endDate
-}
-
-/** Day the declaration of results is due (2065-SD and liasse), as the calendar computes it. */
-function liasseLegalDate(endDate: string): string {
-  return endDate.endsWith('-12-31') ? secondBusinessDayAfterMayFirst(Number(endDate.slice(0, 4)) + 1) : addMonthsEom(endDate, 3)
+  return context.fiscalYears[0]?.id === fy.id && firstExerciceOfCompany(context.company.foundationDate, fy)
 }
 
 function chooseFiscalYear(context: CompanyContext, query: CorporateTaxQuery, today: string): Fy {

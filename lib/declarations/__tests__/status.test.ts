@@ -99,7 +99,7 @@ describe('deriveStatus', () => {
 describe('sourceFactsOf', () => {
   const data: SourceData = {
     ...EMPTY,
-    corporateTax: new Map([['2026-12-31', { fiscalYearId: 'fy26', filedOn: '2027-05-04', acomptesPaid: [{ number: 2, paidOn: '2026-06-12', amountCents: 75_000 }] }]]),
+    corporateTax: new Map([['2026-12-31', { fiscalYearId: 'fy26', filedOn: '2027-05-04', acomptesPaid: [{ number: 2, paidOn: '2026-06-12', amountCents: 75_000 }], acomptesNotDue: [] }]]),
     approvals: new Map([['2026-12-31', { fiscalYearId: 'fy26', approvedOn: '2027-06-20', filedOn: null }]]),
     localTaxes: new Map([[2026, { cfeTotalCents: 0, cfeAcompteCents: null }], [2027, { cfeTotalCents: 400_000, cfeAcompteCents: 0 }]]),
   }
@@ -112,6 +112,20 @@ describe('sourceFactsOf', () => {
     expect(sourceFactsOf(deadline({ id: 'depot-comptes:2026-12-31', ruleId: 'depot-comptes' }), data)).toMatchObject({ filedOn: null, locked: ['filedOn'] })
     // A projected fiscal year (not in Kledg yet): nothing locked
     expect(sourceFactsOf(deadline({ id: 'liasse:2027-12-31', ruleId: 'liasse' }), data)).toBeNull()
+  })
+
+  it('says an IS acompte is not due when the corporate tax module knows it (reference IS of 3 000 € or less), and still reads a payment', () => {
+    const exempt: SourceData = {
+      ...EMPTY,
+      corporateTax: new Map([['2026-12-31', { fiscalYearId: 'fy26', filedOn: null, acomptesPaid: [{ number: 1, paidOn: '2026-03-13', amountCents: 150_000 }], acomptesNotDue: [2, 3, 4] }]]),
+    }
+    const second = deadline({ id: 'is-acompte:2026-12-31:2', ruleId: 'is-acompte', date: '2026-06-15', legalDate: '2026-06-15' })
+    expect(sourceFactsOf(second, exempt)).toMatchObject({ source: 'corporate-tax', notDue: true, amountCents: 0, paidOn: null, locked: ['paidOn'] })
+    expect(deriveStatus(second, sourceFactsOf(second, exempt), null, '2026-10-05')).toMatchObject({ status: 'not-due', settled: true, amountCents: 0 })
+    // The first rests on an exercice Kledg does not know: its payment is read, nothing is decided
+    const first = deadline({ id: 'is-acompte:2026-12-31:1', ruleId: 'is-acompte', date: '2026-03-16', legalDate: '2026-03-15' })
+    expect(sourceFactsOf(first, exempt)).toMatchObject({ notDue: false, paidOn: '2026-03-13', amountCents: 150_000 })
+    expect(deriveStatus(first, sourceFactsOf(first, exempt), null, '2026-10-05').status).toBe('paid')
   })
 
   it('says a CFE of zero (or an acompte the avis does not ask) is not due', () => {
