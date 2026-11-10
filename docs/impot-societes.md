@@ -170,7 +170,10 @@ CGI, art. 1668 ; BOI-IS-DECLA-20-10 ; BOI-IS-DECLA-20-30.
   (BOI-IS-DECLA-20-30). Si l'exercice précédent n'a pas de dépôt enregistré,
   les deux premiers montants restent à calculer.
 - Aucun acompte quand l'impôt de référence ne dépasse pas 3 000 €, jugé à
-  chaque échéance (§ 360 et 370).
+  chaque échéance (§ 360 et 370). L'échéancier ([échéances](echeances.md))
+  marque « Non due » les acomptes dont le dépôt enregistré de l'exercice de
+  référence le montre (`acomptesNotDue`) ; une feuille de calcul non déposée
+  ne décide rien.
 - Les dates sont celles du calendrier (`isAcompteDates`) : 15 mars, 15 juin,
   15 septembre, 15 décembre pour un exercice civil, dans l'ordre que fixe la
   date de clôture, autant d'acomptes que l'exercice compte d'échéances

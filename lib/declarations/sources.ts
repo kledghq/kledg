@@ -7,7 +7,7 @@
  * | --- | --- | --- | --- |
  * | CA3, CA12 (tva-ca3, tva-ca12) | VAT filing record (lib/vat-returns) | filed on the day recorded, paid the same day when an amount is due (CGI art. 1692: the VAT is paid with the return) | filed, paid |
  * | Liasse (2065) | Corporate tax filing (lib/corporate-tax) | filed | filed |
- * | IS acompte n | Acomptes paid of the exercice (lib/corporate-tax) | paid, amount | paid |
+ * | IS acompte n | Acomptes paid of the exercice (lib/corporate-tax); not due when the filed return of its reference exercice shows an IS of 3 000 € or less (CGI art. 1668, 1) | paid, amount, not due | paid |
  * | Approval, filing of the accounts | Approval pack (lib/approval) | approved, filed with the greffe | filed |
  * | CFE, CFE acompte | Avis entered (lib/local-taxes) | not due when the avis says zero | nothing |
  */
@@ -24,6 +24,8 @@ export interface CorporateTaxFact {
   fiscalYearId: string
   filedOn: string | null
   acomptesPaid: Array<{ number: number; paidOn: string; amountCents: number }>
+  /** Numbers of the acomptes known not to be due from the filed returns (lib/corporate-tax/acomptes.ts, acomptesNotDue). */
+  acomptesNotDue: number[]
 }
 
 export interface ApprovalFact {
@@ -76,10 +78,12 @@ export function sourceFactsOf(deadline: Pick<Deadline, 'id' | 'ruleId'>, data: S
       const row = data.corporateTax.get(end)
       if (!row) return null
       const paid = row.acomptesPaid.find((a) => a.number === Number(n))
+      const notDue = row.acomptesNotDue.includes(Number(n))
       return {
         source: 'corporate-tax',
         paidOn: paid?.paidOn ?? null,
-        amountCents: paid?.amountCents ?? null,
+        amountCents: paid?.amountCents ?? (notDue ? 0 : null),
+        notDue,
         locked: ['paidOn'],
         page: `impot-societes?exercice=${row.fiscalYearId}`,
         pageLabel: 'Impôt sur les sociétés',

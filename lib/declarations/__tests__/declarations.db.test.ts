@@ -151,6 +151,19 @@ describe.skipIf(!available)('declarations tracker (PostgreSQL)', () => {
     expect(byId.get('cvae:2025')?.status).toMatchObject({ status: 'overdue', kind: 'file' })
   })
 
+  it('says the acomptes of 2026 are not due once the filed return of 2025 shows an IS of 3 000 € or less, except the first, which rests on 2024', async () => {
+    const where = { fiscalYearId_companyId: { fiscalYearId: ids.fy2025, companyId: ids.company } }
+    await prisma.corporateTaxReturn.update({ where, data: { resultBeforeDeficits: 20_000, corporateTax: 3_000 } })
+    try {
+      const byId = await calendar()
+      expect(byId.get('is-acompte:2026-12-31:2')?.status).toMatchObject({ status: 'not-due', label: 'Non due', settled: true, amountCents: 0, notDue: true })
+      expect(byId.get('is-acompte:2026-12-31:4')?.status.status).toBe('not-due')
+      expect(byId.get('is-acompte:2026-12-31:1')?.status).toMatchObject({ status: 'paid', notDue: false })
+    } finally {
+      await prisma.corporateTaxReturn.update({ where, data: { resultBeforeDeficits: 40_000, corporateTax: 6_000 } })
+    }
+  })
+
   it('marks a payment for administrators and accountants only, and the calendar follows', async () => {
     expect((await mark('viewer', { deadlineId: 'cfe-acompte:2026', paidOn: '2026-06-12' })).status).toBe(403)
     expect((await mark('outsider', { deadlineId: 'cfe-acompte:2026', paidOn: '2026-06-12' })).status).toBe(404)

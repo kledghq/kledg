@@ -38,8 +38,11 @@ export interface AcompteReference {
   filed: boolean
 }
 
+/** The figures of a filed return an acompte rests on (profit after deficits, duration, rate). */
+export type FiledReference = Pick<AcompteReference, 'profitCents' | 'duration' | 'reducedRate'>
+
 /** IS of a reference profit brought to twelve months (BOI-IS-DECLA-20-10 § 60). */
-export function referenceTax(reference: AcompteReference): number {
+export function referenceTax(reference: FiledReference): number {
   const annual = annualize(Math.max(reference.profitCents, 0), reference.duration)
   return taxAtRates(annual, reference.reducedRate, REDUCED_RATE_PROFIT_CEILING_CENTS).taxCents
 }
@@ -161,6 +164,41 @@ export interface AcomptePaid {
   number: number
   paidOn: string
   amountCents: number
+}
+
+export interface AcompteExemptionInput {
+  /** The acomptes of the exercice, with the legal day of each. */
+  dues: Array<Pick<AcompteDue, 'number' | 'legalDate'>>
+  /** The exercice before theirs, as filed; null when its return is not recorded. */
+  previous: FiledReference | null
+  /** The exercice before that one, as filed; 'none' when the previous one was the company's first; null when not recorded. */
+  beforePrevious: FiledReference | 'none' | null
+  /** Day the return of the previous exercice is due (liasseLegalDate): a first acompte falling before it rests on the exercice before. */
+  previousReturnDue: string
+}
+
+/**
+ * The acomptes of an exercice known not to be due, from filed returns only
+ * (CGI art. 1668, 1; BOI-IS-DECLA-20-10 § 360 and 370: no acompte when the
+ * IS of the reference exercice, brought to twelve months, does not exceed
+ * 3 000 €). The reference is the exercice before theirs, except the first
+ * acompte when it falls before that exercice's return is due: it then
+ * rests on the exercice before (§ 120), and nothing is due on it when that
+ * one was the company's first (BOI-IS-DECLA-20-30). A reference not
+ * recorded decides nothing: the deadline stays due until the user says
+ * otherwise. The worksheet of an unfiled year is never a reference here,
+ * its figures are provisional.
+ */
+export function acomptesNotDue(input: AcompteExemptionInput): number[] {
+  const exemptReference = (reference: FiledReference | 'none' | null) => reference !== null && reference !== 'none' && exemptTax(referenceTax(reference))
+  const previousExempt = exemptReference(input.previous)
+  return input.dues
+    .filter((due) => {
+      const onBeforePrevious = due.number === 1 && due.legalDate < input.previousReturnDue
+      if (!onBeforePrevious) return previousExempt
+      return input.beforePrevious === 'none' || exemptReference(input.beforePrevious)
+    })
+    .map((due) => due.number)
 }
 
 /** The relevé de solde (2572-SD): the tax of the year less the acomptes paid; negative, an excess to claim back. */
