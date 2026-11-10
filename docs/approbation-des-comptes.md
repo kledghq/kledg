@@ -80,6 +80,18 @@ Le rapport de gestion n'est pas déposé (sauf sociétés cotées) : il est tenu
 
 Les échéances d'approbation et de dépôt restent calculées par le calendrier des échéances (`lib/deadlines`, page Échéances), sans doublon : la page d'approbation appelle les mêmes fonctions (`approvalDeadlineOf`, `filingDeadlineOf`). Quand la date d'approbation est enregistrée, le calendrier compte le dépôt depuis cette date au lieu de la date limite d'approbation, et note les dates d'approbation et de dépôt enregistrées. Le choix « dépôt en ligne » de la page d'approbation prend le pas, pour l'exercice, sur le réglage de la carte Échéances.
 
+## Capitaux propres inférieurs à la moitié du capital
+
+Quand les comptes font apparaître des capitaux propres inférieurs à la moitié du capital social, les associés décident, dans les quatre mois qui suivent l'approbation de ces comptes, s'il y a lieu à dissolution anticipée de la société, et la décision est publiée. Sans dissolution, les capitaux propres sont reconstitués à hauteur de la moitié du capital, ou le capital réduit, au plus tard à la clôture du deuxième exercice qui suit celui au cours duquel les pertes ont été constatées (C. com. art. L223-42 pour la SARL et l'EURL, L225-248 pour la SA, applicable à la SAS et à la SASU par L227-1). Une société civile n'est pas concernée.
+
+La page d'approbation le signale (`equityAlert`, `lib/approval/equity.ts`) :
+
+- capitaux propres du bilan (PCG art. 934-1, classes 10 à 14 : capital, réserves, report à nouveau, résultat de l'exercice, subventions d'investissement, provisions réglementées), comparés à la moitié du capital social de la fiche société, sinon du solde du 101 ;
+- date limite de la décision, quatre mois après la date d'approbation enregistrée ;
+- date limite de reconstitution, trois ans après la clôture de l'exercice pour des exercices de douze mois (l'approbation tombe pendant l'exercice suivant, puis deux exercices).
+
+La résolution sur la dissolution anticipée et l'échéance de reconstitution dans le calendrier ne sont pas encore générées.
+
 ## Données et droits
 
 - Lecture (`reports:read`) : tous les membres. Enregistrement (`closing:execute`) : administrateur de la société et comptable. Téléchargement des documents (`reports:export`), limité comme les autres exports.
