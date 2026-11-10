@@ -26,6 +26,7 @@ import {
 import { addIsoDays } from '@/lib/utils/date'
 import { approvalRegime, decisionTitle, defaultDecisionMode, unsupportedReason, type ApprovalRegime, type DecisionMode } from './legal-regime'
 import type { ApprovalDetails, AttendanceStatus, ConfidentialityOption, ResolutionId } from './schemas'
+import { equityBelowHalfCapital, type EquityAlert } from './equity'
 import { proposeCategory, SIZE_LABELS, type SizeCategory } from './size'
 import { SOURCES, type LegalSource } from './sources'
 import { voteOutcome, type VoteContext, type VoteOutcome } from './votes'
@@ -68,6 +69,8 @@ export interface ApprovalContext {
   }
   /** Validated entries only: drafts of the year, which may change the result. */
   draftEntries: number
+  /** Capitaux propres at the close, classes 10 to 14 with the result of the year (equity.ts). */
+  equityCents: number
 }
 
 /** 'annexe' is added by get-approval.service.ts from lib/annexe (it reads the books, the pack is pure). */
@@ -138,6 +141,8 @@ export interface ApprovalPack {
   }
   documents: PackDocument[]
   publication: { required: boolean; items: ChecklistItem[]; notes: string[] }
+  /** Equity below half the share capital (C. com. L223-42, L225-248); null when not the case. */
+  equityAlert: EquityAlert | null
   /** Things to look at, in French: they do not block the documents. */
   warnings: string[]
 }
@@ -483,6 +488,14 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
   if (reportProduced && details.hasAuditor && regime?.form !== 'SCI') {
     warnings.push("Le rapport de gestion d'une société dont les comptes sont certifiés indique les délais de paiement des fournisseurs et des clients (C. com. art. L. 441-14 et D. 441-6) : ajoutez ce tableau, Kledg ne le génère pas encore.")
   }
+  const equityAlert = equityBelowHalfCapital({
+    form: regime?.form ?? null,
+    capitalCents: context.company.shareCapitalCents ?? (context.balances.capitalCents > 0 ? context.balances.capitalCents : null),
+    equityCents: context.equityCents,
+    fiscalYear: context.fiscalYear,
+    approvedOn: details.approvedOn ?? null,
+  })
+  if (equityAlert) warnings.push(equityAlert.message)
   if (regime?.form === 'SA') warnings.push("Une SA établit aussi le rapport sur le gouvernement d'entreprise (C. com. art. L. 225-37), que Kledg ne génère pas.")
   if (category && proposal.category !== category) {
     warnings.push(`Les chiffres de Kledg suggèrent la catégorie ${SIZE_LABELS[proposal.category].toLowerCase()} : vérifiez la catégorie retenue (deux exercices consécutifs).`)
@@ -513,6 +526,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
     },
     documents,
     publication: { required: Boolean(regime?.filing.required), items, notes },
+    equityAlert,
     warnings,
   }
 }

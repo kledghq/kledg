@@ -33,6 +33,7 @@ export function contextFor(legalType: string | null, overrides: Partial<Approval
     balances: { resultCents: 5_000_000, legalReserveCents: 0, capitalCents: 1_000_000, retainedEarningsCents: 0, priorLossesCents: 0 },
     figures: { revenueCents: 30_000_000, totalAssetsCents: 20_000_000, previous: { revenueCents: 25_000_000, totalAssetsCents: 18_000_000 } },
     draftEntries: 0,
+    equityCents: 10_000_000,
     ...overrides,
   }
 }
