@@ -145,7 +145,8 @@ export type StatementImportResult = Awaited<ReturnType<typeof importStatement>>
  * `fallback`. Unreadable JSON and invalid content both report `message`.
  */
 function jsonFormField<T>(schema: z.ZodType<T>, fallback: T, message: string) {
-  return z.unknown().transform((value, ctx): T => {
+  // optional(): zod 4.6 refuses an absent key whose schema is z.unknown(); the fallback covers it
+  return z.unknown().optional().transform((value, ctx): T => {
     if (value === undefined || value === null || value === '') return fallback
     let json: unknown
     try {
@@ -174,9 +175,9 @@ const BANK_ACCOUNT_REQUIRED = 'Choisissez le compte bancaire à alimenter.'
 export const StatementFormSchema = z.object({
   bankAccountId: z.string({ error: BANK_ACCOUNT_REQUIRED }).min(1, BANK_ACCOUNT_REQUIRED).max(200),
   file: z.instanceof(File, { error: 'Aucun fichier reçu.' }),
-  mode: z.unknown().transform((value): 'preview' | 'import' => (value === 'import' ? 'import' : 'preview')),
+  mode: z.unknown().optional().transform((value): 'preview' | 'import' => (value === 'import' ? 'import' : 'preview')),
   options: jsonFormField<TabularOptions>(statementOptionsSchema as z.ZodType<TabularOptions>, {}, "Options d'import invalides."),
-  allowErrors: z.unknown().transform((value) => value === 'true'),
+  allowErrors: z.unknown().optional().transform((value) => value === 'true'),
   keep: jsonFormField<KeptProbable[]>(keptProbablesSchema, [], 'Liste des doublons probables à conserver invalide.'),
 })
 
