@@ -37,9 +37,9 @@ import {
   createEntryAndReconcile,
   fiscalYearPeriods,
   normalizeSide,
-  resolveBankLedgerAccount,
   type GeneratedLine,
 } from '@/lib/reconciliation/service';
+import { resolveBankAccountLedger } from '@/lib/banking/ledger-account';
 
 /**
  * Rule with entry lines for execution
@@ -236,12 +236,12 @@ export async function prepareRuleEntry(
   };
 
   // Use the bank account from the rule template if present (e.g. 512101), otherwise
-  // the company's bank account (default code, else 512). Prefer the rule's bank to
-  // avoid balancing on parent account 51.
+  // the 512 account of the transaction's bank account (its own mapping, else the
+  // company default). Prefer the rule's bank to avoid balancing on parent account 51.
   const ruleBankAccount = targetAccounts
     .filter((a) => a.code.startsWith('51'))
     .sort((a, b) => b.code.length - a.code.length)[0];
-  const bankAccount = ruleBankAccount ?? (await resolveBankLedgerAccount(companyId, fiscalYear.id));
+  const bankAccount = ruleBankAccount ?? (await resolveBankAccountLedger(companyId, fiscalYear.id, transaction.bankAccountId));
 
   if (!bankAccount) {
     return fail(bankAccountMissingMessage(fiscalYear.year));

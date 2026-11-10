@@ -7,11 +7,12 @@
 import { prisma } from '@/lib/prisma'
 import { findOwned, transactionOfCompany } from '@/lib/api/resources'
 import { bankVatOf } from '@/lib/banking/bank-vat'
+import { resolveBankAccountLedger } from '@/lib/banking/ledger-account'
 import { vatDeductionOn } from '@/lib/vat-deduction/coefficient'
 import { toCents } from '@/lib/utils/money'
 import { toIsoDateUtc } from '@/lib/utils/date'
 import { counterpartyOf, suggestEntry } from './prefill'
-import { MESSAGES, fiscalYearPeriods, normalizeSide, resolveBankLedgerAccount } from './service'
+import { MESSAGES, fiscalYearPeriods, normalizeSide } from './service'
 import type { ReconciliationContext } from './types'
 import { bankLineOf, fiscalYearForDate } from './validation'
 
@@ -33,7 +34,7 @@ export async function getReconciliationContext(companyId: string, transactionId:
   const fiscalYear = fiscalYearForDate(fiscalYears, date)
   // When the transaction's year is closed or missing, show the bank account of the latest open year
   const accountYear = fiscalYear && !fiscalYear.isClosed ? fiscalYear : [...fiscalYears].reverse().find((fy) => !fy.isClosed)
-  const bank = accountYear ? await resolveBankLedgerAccount(companyId, accountYear.id) : null
+  const bank = accountYear ? await resolveBankAccountLedger(companyId, accountYear.id, transaction.bankAccountId) : null
 
   // The VAT the bank read, when it can be trusted (lib/banking/bank-vat.ts)
   const bankVat = bankVatOf(transaction, amountCents)
