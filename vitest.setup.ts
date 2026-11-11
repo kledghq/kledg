@@ -1,9 +1,20 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterAll, afterEach } from 'vitest'
 
 afterEach(() => {
   cleanup()
+})
+
+// Unmount Better Auth's session store before jsdom is torn down
+// (lib/__tests__/helpers/auth-client-stores.ts).
+afterAll(async () => {
+  const helper = await import('@/lib/__tests__/helpers/auth-client-stores').catch(() => null)
+  try {
+    helper?.unmountAuthClientStores()
+  } catch {
+    // A test that mocks the auth client has no store to unmount
+  }
 })
 
 // jsdom does not implement Pointer Capture or scrollIntoView; Radix primitives
