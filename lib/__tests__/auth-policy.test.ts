@@ -43,14 +43,14 @@ describe('rate limiting', () => {
 })
 
 describe('account endpoints reserved to the account routes', () => {
-  it('closes email change and account deletion over HTTP', () => {
-    for (const path of ['/change-email', '/delete-user', '/delete-user/callback']) {
+  it('closes email change, password change and account deletion over HTTP', () => {
+    for (const path of ['/change-email', '/change-password', '/delete-user', '/delete-user/callback']) {
       expect(isAccountRouteOnlyPath(path), path).toBe(true)
     }
   })
 
   it('leaves the other account endpoints open', () => {
-    for (const path of ['/change-password', '/update-user', '/verify-email', '/get-session', '/list-sessions']) {
+    for (const path of ['/update-user', '/verify-email', '/get-session', '/list-sessions']) {
       expect(isAccountRouteOnlyPath(path), path).toBe(false)
     }
   })

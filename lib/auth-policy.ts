@@ -32,10 +32,11 @@ export function isOrganizationMutationPath(path: string): boolean {
  * Better Auth account endpoints that Kledg only calls from its own account
  * routes (app/api/account), which add checks Better Auth does not make: the
  * current password before an email change, the email configuration, the
- * typed confirmation and the last administrator guards before a deletion.
- * Over HTTP they are closed.
+ * typed confirmation and the last administrator guards before a deletion,
+ * the instance policy and a per-user rate limit before a password change
+ * (lib/account/change-password.service.ts). Over HTTP they are closed.
  */
-const ACCOUNT_ROUTE_ONLY_PATHS = new Set(['/change-email', '/delete-user', '/delete-user/callback'])
+const ACCOUNT_ROUTE_ONLY_PATHS = new Set(['/change-email', '/change-password', '/delete-user', '/delete-user/callback'])
 
 /**
  * API keys are created only by app/api/ai-access/api-keys (password for full

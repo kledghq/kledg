@@ -146,13 +146,20 @@ contexte système `invitation-acceptance` ([rls.md](rls.md)), et propose :
 | Connecté avec le compte de l'adresse invitée (adresse confirmée) | **Rejoindre la société**, en un clic |
 | Connecté avec un autre compte | explique qu'il faut se déconnecter et rouvrir le lien avec le bon compte |
 | Un compte confirmé existe pour l'adresse | **Se connecter pour accepter** (retour sur le lien après la connexion) |
-| Pas de compte, ou un compte jamais confirmé | création du compte (nom, mot de passe) puis connexion ; le lien prouve la boîte mail, l'adresse est marquée confirmée. Un compte jamais confirmé est d'abord réinitialisé (sessions, clés et assistants supprimés), comme pour un ajout par l'administrateur (KLEDG-SEC-011) |
+| Pas de compte, ou un compte jamais confirmé | création du compte (nom, mot de passe) puis connexion ; un lien reçu par email prouve la boîte mail, l'adresse est marquée confirmée ; un lien remis à l'invitant (pas d'envoi d'email) ne prouve rien, le compte créé reste non confirmé et sera réinitialisé si un administrateur ajoute plus tard cette adresse à une autre société. Un compte jamais confirmé est d'abord réinitialisé (sessions, clés et assistants supprimés), comme pour un ajout par l'administrateur (KLEDG-SEC-011) |
 | Pas de compte et l'instance refuse `invitation-sign-up` | demande à l'administrateur de l'instance de créer le compte ; le même lien sert ensuite |
 | Lien inconnu, expiré, annulé ou déjà utilisé | message qui dit quoi faire |
 
 L'acceptation vérifie de nouveau que l'instance autorise les invitations
 (`invite-member`, avec l'invitant comme acteur) : désactiver les invitations
 rend inutilisables les liens en attente.
+
+Elle vérifie aussi que l'invitant peut toujours envoyer cette invitation :
+son compte existe, n'est pas suspendu, et il est administrateur de
+l'instance ou membre de la société avec `members:manage` et tous les droits
+du rôle proposé (même règle qu'à l'envoi). Un invitant suspendu, retiré,
+rétrogradé ou supprimé rend ses liens en attente inutilisables, avec un
+message qui demande une nouvelle invitation.
 
 ### Politique de l'instance
 

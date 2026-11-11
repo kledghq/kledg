@@ -5,6 +5,7 @@
  */
 
 import { type ColumnDef } from "@tanstack/react-table"
+import type { TransactionTableFeatures } from "./table-features"
 import { FileText, MoreHorizontal, Paperclip } from "lucide-react"
 
 import { Checkbox } from "@/components/ui/checkbox"
@@ -51,8 +52,8 @@ export function signedAmount(transaction: BankTransaction): number {
 
 const counterpartyOf = (t: BankTransaction) => t.counterpartyName || t.label || ""
 
-export function transactionColumns(handlers: TransactionColumnHandlers): ColumnDef<BankTransaction>[] {
-  const columns: ColumnDef<BankTransaction>[] = [
+export function transactionColumns(handlers: TransactionColumnHandlers): ColumnDef<TransactionTableFeatures, BankTransaction>[] {
+  const columns: ColumnDef<TransactionTableFeatures, BankTransaction>[] = [
     {
       id: "select",
       header: ({ table }) => (

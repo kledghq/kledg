@@ -1,6 +1,7 @@
 "use client"
 
-import { type Table } from "@tanstack/react-table"
+import { type RowData, type Table } from "@tanstack/react-table"
+import type { TransactionTableFeatures } from "./table-features"
 import { Settings2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -13,12 +14,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-interface DataTableViewOptionsProps<TData> {
-  table: Table<TData>
+interface DataTableViewOptionsProps<TData extends RowData> {
+  table: Table<TransactionTableFeatures, TData>
 }
 
 /** "Colonnes" menu: shows or hides the columns that declare a French label (`meta.label`). */
-export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps<TData>) {
+export function DataTableViewOptions<TData extends RowData>({ table }: DataTableViewOptionsProps<TData>) {
   const columns = table
     .getAllLeafColumns()
     .filter((column) => column.getCanHide() && (column.columnDef.meta as { label?: string } | undefined)?.label)
