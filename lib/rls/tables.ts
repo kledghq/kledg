@@ -117,6 +117,7 @@ export const DEFINER_TRIGGER_FUNCTIONS: readonly string[] = [
   'kledg_delete_grant_on_consent_delete',
   'kledg_revoke_tokens_on_consent_delete',
   'kledg_narrow_tokens_on_consent_update',
+  'kledg_clear_full_control_on_consent_change',
   'kledg_rls_entry_line_company',
   'kledg_rls_bank_transaction_company',
   'kledg_rls_entry_moved',
