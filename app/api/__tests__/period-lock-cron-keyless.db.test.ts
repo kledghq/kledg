@@ -1,11 +1,11 @@
 /**
- * KLEDG-R3-INPUT-03: without CRON_SECRET, GET /api/cron/period-locks is
- * public. It used to walk every company on every call and append a
- * PERIOD_AUTO_LOCK_SKIPPED audit row for each company whose period cannot
- * be locked (a draft dated in it), so an anonymous caller grew the
- * append-only audit log at will. Now the keyless route runs at most twice a
- * day for the instance (rule cron-keyless-period-lock), and a skip identical
- * to the last one recorded writes no new row.
+ * GET /api/cron/period-locks closes periods, which nothing reopens without
+ * an administrator. Without CRON_SECRET the route was public (KLEDG-R3-INPUT-03
+ * limited it to twice a day), so anyone could close a period hours before the
+ * schedule. Now the automatic closing runs only for a request carrying the
+ * CRON_SECRET bearer token: without the secret it does nothing (a warning
+ * logged once per server). A skip identical to the last one recorded writes
+ * no new audit row.
  */
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -38,23 +38,23 @@ describe.skipIf(!available)('[KLEDG-R3-INPUT-03] keyless period-lock cron', () =
     await prisma.accountingEntry.create({ data: { companyId, journalId: journal.id, fiscalYearId: fy.id, entryNumber: 'BR-1', date: day(`${year - 1}-02-10`) } })
   })
 
-  it('runs at most twice a day without CRON_SECRET and writes one audit row for an unchanged skip', async () => {
+  it('does nothing without CRON_SECRET, and logs it once', async () => {
     delete process.env.CRON_SECRET
-    delete process.env.RATE_LIMIT_DISABLED
-    await prisma.rateLimit.deleteMany({ where: { key: 'cron-keyless-period-lock|instance' } })
-    const { GET } = await import('@/app/api/cron/period-locks/route')
-    const answers: unknown[] = []
-    for (let i = 0; i < 5; i++) {
-      const response = await GET(new Request('http://localhost/api/cron/period-locks'))
-      expect(response.status).toBe(200)
-      answers.push(await response.json())
+    const { logger } = await import('@/lib/logger')
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    try {
+      const { GET } = await import('@/app/api/cron/period-locks/route')
+      for (let i = 0; i < 3; i++) {
+        const response = await GET(new Request('http://localhost/api/cron/period-locks'))
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ success: false, skipped: 'cron-secret-missing' })
+      }
+      expect(warn.mock.calls.filter(([message]) => /CRON_SECRET/.test(String(message)))).toHaveLength(1)
+      expect(await prisma.auditLog.count({ where: { action: { startsWith: 'PERIOD_AUTO_LOCK' }, companyId } })).toBe(0)
+      expect(await prisma.fiscalYear.findUniqueOrThrow({ where: { id: fiscalYearId } })).toMatchObject({ periodLockedThrough: null })
+    } finally {
+      warn.mockRestore()
     }
-    expect(answers.slice(0, 2)).toEqual([
-      { success: true, companies: 1, locked: 0, skipped: 1 },
-      { success: true, companies: 1, locked: 0, skipped: 1 },
-    ])
-    expect(answers.slice(2)).toEqual(Array(3).fill({ success: true, skipped: 'rate-limited' }))
-    expect(await prisma.auditLog.count({ where: { action: 'PERIOD_AUTO_LOCK_SKIPPED', companyId } })).toBe(1)
   })
 
   it('records a skip again once it changes (another date or reason)', async () => {
@@ -68,10 +68,11 @@ describe.skipIf(!available)('[KLEDG-R3-INPUT-03] keyless period-lock cron', () =
     expect(await prisma.auditLog.count({ where: { action: 'PERIOD_AUTO_LOCK_SKIPPED', companyId } })).toBe(before + 1)
   })
 
-  it('still runs on every call with the bearer token when CRON_SECRET is set', async () => {
+  it('runs on every call with the bearer token when CRON_SECRET is set, and refuses a call without it', async () => {
     process.env.CRON_SECRET = 'cron-secret-for-tests'
     try {
       const { GET } = await import('@/app/api/cron/period-locks/route')
+      expect((await GET(new Request('http://localhost/api/cron/period-locks'))).status).toBe(401)
       for (let i = 0; i < 3; i++) {
         const response = await GET(new Request('http://localhost/api/cron/period-locks', { headers: { authorization: 'Bearer cron-secret-for-tests' } }))
         expect(await response.json()).toMatchObject({ success: true, companies: 1 })

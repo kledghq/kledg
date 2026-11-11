@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
-import { bankConnectionContext, decrypt, integrationContext } from '@/lib/integrations/encryption'
+import { bankConnectionContext, decrypt, integrationContext, LegacySecretError } from '@/lib/integrations/encryption'
 import { logger } from '@/lib/logger'
 import { requireEncryptionKey } from '@/lib/banking/credentials'
 import { QontoClient } from './client'
@@ -32,6 +32,8 @@ export async function getQontoCredentials(companyId: string): Promise<QontoCrede
     try {
       return { login: connection.login, secretKey: decrypt(connection.secretKeyEncrypted, encryptionKey, bankConnectionContext(companyId, 'QONTO')) }
     } catch (error) {
+      // Legacy encryption format: the operator must run the re-encryption, say so
+      if (error instanceof LegacySecretError) throw error
       logger.warn('[Qonto] Legacy connection key unreadable, trying the integration', error)
     }
   }
@@ -49,6 +51,7 @@ export async function getQontoCredentials(companyId: string): Promise<QontoCrede
     try {
       secretKey = decrypt(secretKey, encryptionKey, integrationContext(companyId, 'QONTO', 'secretKey'))
     } catch (error) {
+      if (error instanceof LegacySecretError) throw error
       logger.error('[Qonto] Integration key unreadable', error)
       throw new ValidationError(UNREADABLE_MESSAGE)
     }

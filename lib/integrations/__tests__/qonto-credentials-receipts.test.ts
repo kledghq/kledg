@@ -103,6 +103,16 @@ describe('getQontoCredentials', () => {
     expect(logger.error).toHaveBeenCalledWith('[Qonto] Integration key unreadable', expect.anything())
   })
 
+  it('says to run the re-encryption for a key still in the legacy format', async () => {
+    const { LegacySecretError } = await import('@/lib/integrations/encryption')
+    const legacy = Buffer.alloc(120, 1).toString('base64')
+    db.bankConnection.findUnique.mockResolvedValue({ login: 'legacy-org', secretKeyEncrypted: legacy })
+    await expect(getQontoCredentials(COMPANY)).rejects.toThrow(LegacySecretError)
+    db.bankConnection.findUnique.mockResolvedValue(null)
+    db.integration.findFirst.mockResolvedValue({ credentials: { login: 'acme', secretKey: legacy }, credentialsEncrypted: true })
+    await expect(getQontoCredentials(COMPANY)).rejects.toThrow(/pnpm secrets:reencrypt/)
+  })
+
   it('refuses incomplete stored credentials', async () => {
     for (const credentials of [{ login: 'acme' }, { secretKey: 's' }, { login: 42, secretKey: 's' }, null]) {
       db.integration.findFirst.mockResolvedValue({ credentials, credentialsEncrypted: false })

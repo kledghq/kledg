@@ -34,10 +34,25 @@ describe('encryption keys', () => {
     expect(previousEncryptionKeys({ BETTER_AUTH_SECRETS: `2:${NEW},1:${OLD}` })).toEqual([oldKey])
   })
 
-  it('lets ENCRYPTION_KEY win, with nothing to rotate', () => {
+  it('lets ENCRYPTION_KEY win, the keys derived from the auth secrets becoming previous ones', () => {
     const env = { ENCRYPTION_KEY: 'a'.repeat(64), BETTER_AUTH_SECRETS: `2:${NEW},1:${OLD}` }
     expect(getEncryptionKey(env)).toBe('a'.repeat(64))
-    expect(previousEncryptionKeys(env)).toEqual([])
+    // Setting ENCRYPTION_KEY on an instance that used the derived key: its values are sealed again
+    const derived = [getEncryptionKey({ BETTER_AUTH_SECRET: NEW }), getEncryptionKey({ BETTER_AUTH_SECRET: OLD })]
+    expect(previousEncryptionKeys(env)).toEqual(derived)
+    expect(previousEncryptionKeys({ ENCRYPTION_KEY: 'a'.repeat(64) })).toEqual([])
+  })
+
+  it('rotates ENCRYPTION_KEY with ENCRYPTION_KEYS_PREVIOUS, for re-encryption only', () => {
+    const env = { ENCRYPTION_KEY: 'a'.repeat(64), ENCRYPTION_KEYS_PREVIOUS: ` ${'b'.repeat(64)}, ${'C'.repeat(64)},,${'a'.repeat(64)}` }
+    expect(getEncryptionKey(env)).toBe('a'.repeat(64))
+    // Trimmed, lowercased, the current key and duplicates left out
+    expect(previousEncryptionKeys(env)).toEqual(['b'.repeat(64), 'c'.repeat(64)])
+    // Malformed entries (not 64 hex characters) are skipped
+    expect(previousEncryptionKeys({ ENCRYPTION_KEY: 'a'.repeat(64), ENCRYPTION_KEYS_PREVIOUS: 'short,' + 'z'.repeat(64) })).toEqual([])
+    expect(previousEncryptionKeys({ ...env, BETTER_AUTH_SECRET: OLD })).toEqual([getEncryptionKey({ BETTER_AUTH_SECRET: OLD }), 'b'.repeat(64), 'c'.repeat(64)])
+    // Back from ENCRYPTION_KEY to the key derived from the auth secret
+    expect(previousEncryptionKeys({ BETTER_AUTH_SECRET: OLD, ENCRYPTION_KEYS_PREVIOUS: 'b'.repeat(64) })).toEqual(['b'.repeat(64)])
   })
 })
 

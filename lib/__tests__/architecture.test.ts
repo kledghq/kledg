@@ -137,3 +137,10 @@ describe('import scanner', () => {
     expect(runtimeImports(source)).toEqual(['@/lib/a', '@/lib/b', '@/lib/c', '@/lib/d'])
   })
 })
+
+describe('legacy secret reader', () => {
+  it('is used by the re-encryption pass only (a value in the legacy format is bound to no row)', () => {
+    const users = FILES.filter((file) => /\bdecryptForReencryption\b/.test(sources.get(file)!)).map(rel)
+    expect(users.sort()).toEqual(['lib/crypto/reencrypt.ts', 'lib/integrations/encryption.ts'])
+  })
+})

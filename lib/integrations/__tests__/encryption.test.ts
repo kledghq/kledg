@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { describe, it, expect } from 'vitest'
-import { bankConnectionContext, decrypt, encrypt, integrationContext, isLegacySealed } from '../encryption'
+import { ValidationError } from '@/lib/accounting/errors'
+import { bankConnectionContext, decrypt, decryptForReencryption, encrypt, integrationContext, isLegacySealed, LegacySecretError } from '../encryption'
 
 const CTX = integrationContext('company-1', 'QONTO', 'secretKey')
 
@@ -144,18 +145,31 @@ describe('Encryption', () => {
       }
     })
 
-    it('still opens values sealed in the legacy format, whatever the context', () => {
+    it('refuses a value in the legacy format (not bound to its row), pointing to the re-encryption command', () => {
       const legacy = legacyEncrypt('old-secret', validKey)
       expect(isLegacySealed(legacy)).toBe(true)
-      expect(decrypt(legacy, validKey, CTX)).toBe('old-secret')
-      expect(() => decrypt(legacy, 'b'.repeat(64), CTX)).toThrow()
+      // A legacy value copied into another company's row would otherwise open there
+      for (const context of [CTX, integrationContext('company-2', 'QONTO', 'secretKey')]) {
+        expect(() => decrypt(legacy, validKey, context)).toThrow(LegacySecretError)
+        expect(() => decrypt(legacy, validKey, context)).toThrow(/pnpm secrets:reencrypt/)
+      }
+      expect(new LegacySecretError()).toBeInstanceOf(ValidationError)
+    })
+
+    it('opens a legacy value only through the re-encryption reader, whatever the context', () => {
+      const legacy = legacyEncrypt('old-secret', validKey)
+      expect(decryptForReencryption(legacy, validKey, CTX)).toBe('old-secret')
+      expect(() => decryptForReencryption(legacy, 'b'.repeat(64), CTX)).toThrow()
+      const sealed = encrypt('qonto-secret', validKey, CTX)
+      expect(decryptForReencryption(sealed, validKey, CTX)).toBe('qonto-secret')
+      expect(() => decryptForReencryption(sealed, validKey, integrationContext('company-2', 'QONTO', 'secretKey'))).toThrow()
     })
 
     it('refuses a truncated value instead of checking a shorter tag', () => {
       const legacy = Buffer.from(legacyEncrypt('', validKey), 'base64')
       // Ciphertext empty: dropping bytes shortens the tag (Node would accept a 4 byte tag without authTagLength)
       for (const cut of [1, 8, 12]) {
-        expect(() => decrypt(legacy.subarray(0, legacy.length - cut).toString('base64'), validKey, CTX)).toThrow()
+        expect(() => decryptForReencryption(legacy.subarray(0, legacy.length - cut).toString('base64'), validKey, CTX)).toThrow()
       }
       const v2 = Buffer.from(encrypt('', validKey, CTX).slice(3), 'base64')
       for (const cut of [1, 8, 12]) {

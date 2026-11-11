@@ -12,7 +12,7 @@ export interface LegacySecretsCounts {
 
 /**
  * Configuration page: secrets still sealed in the legacy encryption format,
- * which Kledg 0.4 no longer reads. Nothing is shown once every value is in
+ * which Kledg no longer reads outside the re-encryption pass. Nothing is shown once every value is in
  * the current format.
  */
 export function LegacySecretsRow({ counts, docHref }: { counts: LegacySecretsCounts | null; docHref: string }) {
@@ -22,8 +22,8 @@ export function LegacySecretsRow({ counts, docHref }: { counts: LegacySecretsCou
     <StatusRow icon={LockKeyhole} title="Ancien format de chiffrement" status={<StatusBadge tone="warning">À chiffrer de nouveau</StatusBadge>}>
       <p>
         {counts.total === 1 ? 'Une valeur chiffrée reste' : `${counts.total} valeurs chiffrées restent`} dans l&apos;ancien format
-        {banks > 0 && counts.updateTokens > 0 ? ' (accès bancaires et jeton GitHub)' : banks > 0 ? ' (accès bancaires)' : ' (jeton GitHub)'}, que Kledg 0.4
-        ne lira plus.
+        {banks > 0 && counts.updateTokens > 0 ? ' (accès bancaires et jeton GitHub)' : banks > 0 ? ' (accès bancaires)' : ' (jeton GitHub)'}, que Kledg
+        ne lit plus&nbsp;: les synchronisations et appels qui en dépendent échouent.
       </p>
       <p>
         Redémarrez le serveur ou lancez <code className="font-mono text-xs">pnpm secrets:reencrypt</code>&nbsp;: chaque valeur lisible est

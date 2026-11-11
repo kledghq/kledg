@@ -36,6 +36,7 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-}
       CRON_SECRET: ${CRON_SECRET:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ENCRYPTION_KEYS_PREVIOUS: ${ENCRYPTION_KEYS_PREVIOUS:-}
       # Behind Coolify's or Dokploy's proxy (Traefik or Caddy): 1. Add 1 per
       # proxy in front of it (Cloudflare proxied DNS: 2).
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}

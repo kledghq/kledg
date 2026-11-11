@@ -38,7 +38,7 @@ Quel que soit l'hébergeur, il vous faut les variables de [configuration.md](con
    - `BETTER_AUTH_SECRET` : générez-la avec `openssl rand -base64 32`. Gardez-la : la clé qui chiffre les identifiants bancaires en est dérivée.
    - `ADMIN_EMAIL` : votre email, seul autorisé à créer le compte administrateur.
 3. Le build exécute `prisma migrate deploy` puis `next build` (script `vercel-build`, `scripts/vercel-build.mjs`) : la base est créée automatiquement. Un aperçu sans base de données, comme celui de la pull request d'une mise à jour, saute les migrations et construit seulement : il vérifie que la mise à jour compile, sans toucher à la base de production. Vercel renvoie ensuite vers https://www.kledg.com/fr/welcome, qui récapitule la suite.
-4. Ouvrez `https://<votre-instance>/setup?token=<jeton>` et créez le compte administrateur. Sans `SETUP_TOKEN` ni emails, le jeton est dérivé de `BETTER_AUTH_SECRET` (HMAC-SHA256 de `kledg:setup-token:v1`, en base64url, voir `lib/setup.ts`) : le guide de déploiement de kledg.com le calcule dans le navigateur et donne le lien complet. Avec `RESEND_API_KEY`, `/setup` propose aussi d'envoyer le lien à `ADMIN_EMAIL`. `SETUP_TOKEN` et `CRON_SECRET` restent possibles (voir [configuration.md](configuration.md)) mais ne sont plus nécessaires sur Vercel.
+4. Ouvrez `https://<votre-instance>/setup?token=<jeton>` et créez le compte administrateur. Sans `SETUP_TOKEN` ni emails, le jeton est dérivé de `BETTER_AUTH_SECRET` (HMAC-SHA256 de `kledg:setup-token:v1`, en base64url, voir `lib/setup.ts`) : le guide de déploiement de kledg.com le calcule dans le navigateur et donne le lien complet. Avec `RESEND_API_KEY`, `/setup` propose aussi d'envoyer le lien à `ADMIN_EMAIL`. `SETUP_TOKEN` reste possible (voir [configuration.md](configuration.md)) mais n'est plus nécessaire sur Vercel. `CRON_SECRET` n'est pas demandé au déploiement, mais la clôture automatique mensuelle des périodes ne s'exécute pas sans lui : si une société l'utilise, ajoutez-le dans les variables du projet (`openssl rand -base64 32`) et redéployez ; Vercel l'envoie alors seul aux tâches planifiées.
 5. Créez votre première société, puis importez un FEC ou connectez votre banque.
 
 ### Domaine personnalisé
@@ -317,18 +317,27 @@ Une valeur trop petite ne prend que l'adresse d'un proxy (limites partagées, sa
 
 ## Tâches planifiées
 
-La synchronisation bancaire quotidienne est un appel HTTP : planifiez `GET /api/cron/sync-banks` (l'ancien chemin `/api/cron/sync-qonto` reste valable) avec l'en-tête `Authorization: Bearer $CRON_SECRET`. Vercel le fait seul (`vercel.json`). Ailleurs : cron système, tâche planifiée de l'hébergeur ou GitHub Actions dans votre dépôt :
+Deux tâches quotidiennes sont des appels HTTP avec l'en-tête `Authorization: Bearer $CRON_SECRET` :
+
+- `GET /api/cron/sync-banks` (05:00 UTC) : la synchronisation bancaire (l'ancien chemin `/api/cron/sync-qonto` reste valable). Sans `CRON_SECRET`, elle reste appelable par tous, donc bridée (voir [configuration.md](configuration.md)).
+- `GET /api/cron/period-locks` (04:30 UTC) : la clôture automatique mensuelle des périodes des sociétés qui l'ont choisie. **Elle exige `CRON_SECRET`** : sans lui, elle ne fait rien (le journal du serveur l'indique une fois, `Automatic period closing skipped: CRON_SECRET is not set`), car une clôture ne se défait pas sans administrateur.
+
+Vercel les appelle seul (`vercel.json`) et envoie l'en-tête quand `CRON_SECRET` est défini dans le projet. Ailleurs : cron système, tâche planifiée de l'hébergeur ou GitHub Actions dans votre dépôt :
 
 ```yaml
-name: Synchronisation bancaire
+name: Tâches planifiées
 on:
   schedule:
+    - cron: "30 4 * * *"
     - cron: "0 5 * * *"
 jobs:
-  sync:
+  cron:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ vars.KLEDG_URL }}/api/cron/sync-banks"
+      - if: github.event.schedule == '30 4 * * *'
+        run: curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ vars.KLEDG_URL }}/api/cron/period-locks"
+      - if: github.event.schedule == '0 5 * * *'
+        run: curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ vars.KLEDG_URL }}/api/cron/sync-banks"
 ```
 
 ## Mettre à jour
@@ -452,7 +461,9 @@ Dans tous les cas, planifiez un `pg_dump` régulier vers un stockage que vous co
 
 ## Sécurité
 
-- Gardez `BETTER_AUTH_SECRET` secret. Le changer déconnecte tout le monde et, si `ENCRYPTION_KEY` n'est pas défini, rend illisibles les identifiants bancaires enregistrés (il faudra reconnecter les intégrations).
+- Gardez `BETTER_AUTH_SECRET` et `ENCRYPTION_KEY` secrets. Pour les changer sans reconnecter les banques, suivez [Changer le secret](configuration.md#changer-le-secret) et [Changer la clé de chiffrement](configuration.md#changer-la-clé-de-chiffrement) : remplacer l'un ou l'autre d'un coup rend illisibles les identifiants bancaires enregistrés.
+- Définissez `CRON_SECRET` : sans lui, la clôture automatique des périodes ne s'exécute pas et la synchronisation bancaire reste appelable par tous.
+- L'image Docker installe l'outil de migration (Prisma) depuis un fichier de verrouillage versionné (`docker/migrator/package-lock.json`, `npm ci`), aux versions de `pnpm-lock.yaml` : rien n'est résolu au moment de la construction.
 - Il n'y a pas d'inscription publique : les comptes sont créés par l'administrateur.
 - Le jeton GitHub de la page **Mises à jour** est chiffré comme les identifiants bancaires, réservé aux administrateurs de l'instance et n'est jamais renvoyé au navigateur. Kledg n'appelle que `https://api.github.com`, sur le seul dépôt de l'instance. Limitez le jeton à ce dépôt et donnez-lui une date d'expiration.
 - Signalez une vulnérabilité selon [SECURITY.md](../SECURITY.md).

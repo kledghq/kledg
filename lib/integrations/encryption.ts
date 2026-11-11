@@ -9,13 +9,17 @@
  * write the database cannot move a company's secret into another company's
  * integration. The tag is always 16 bytes (a truncated value is refused).
  *
- * Legacy format (no prefix, still read): base64(salt 64 bytes, iv 16, tag 16,
+ * Legacy format (no prefix): base64(salt 64 bytes, iv 16, tag 16,
  * ciphertext), no additional data. Base64 never contains `:`, so the two
- * formats cannot be confused. Values are sealed again in v2 at server start
- * (lib/crypto/reencrypt.ts).
+ * formats cannot be confused. Since Kledg 0.4, `decrypt` refuses it
+ * (LegacySecretError): a legacy value is bound to no row, so one copied into
+ * another company's row would open there. Only the re-encryption pass
+ * (lib/crypto/reencrypt.ts: server start, `pnpm secrets:reencrypt`) reads it,
+ * through decryptForReencryption, to seal it again in v2.
  */
 
 import crypto from 'crypto'
+import { ValidationError } from '@/lib/accounting/errors'
 
 const ALGORITHM = 'aes-256-gcm'
 const TAG_LENGTH = 16
@@ -52,19 +56,36 @@ export function encrypt(text: string, encryptionKey: string, context: string): s
   return V2_PREFIX + Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64')
 }
 
-/** Opens a sealed value (v2 with its context, or legacy). Throws when the key, the context or the value is wrong. */
-export function decrypt(encryptedData: string, encryptionKey: string, context: string): string {
-  const key = keyBytes(encryptionKey)
-  if (encryptedData.startsWith(V2_PREFIX)) {
-    const data = Buffer.from(encryptedData.slice(V2_PREFIX.length), 'base64')
-    if (data.length < V2_IV_LENGTH + TAG_LENGTH) throw new Error('Sealed value too short')
-    const iv = data.subarray(0, V2_IV_LENGTH)
-    const tag = data.subarray(V2_IV_LENGTH, V2_IV_LENGTH + TAG_LENGTH)
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_LENGTH })
-    decipher.setAAD(aad(context))
-    decipher.setAuthTag(tag)
-    return Buffer.concat([decipher.update(data.subarray(V2_IV_LENGTH + TAG_LENGTH)), decipher.final()]).toString('utf8')
+/**
+ * A value still in the legacy format, refused outside the re-encryption pass.
+ * The message names the command that seals it again (docs/configuration.md).
+ */
+export class LegacySecretError extends ValidationError {
+  constructor() {
+    super(
+      "Ce secret est enregistré dans l'ancien format de chiffrement, que Kledg ne lit plus. L'administrateur de l'instance doit lancer `pnpm secrets:reencrypt` (ou redémarrer le serveur), puis reconnecter l'intégration si elle reste illisible.",
+    )
+    this.name = 'LegacySecretError'
   }
+}
+
+/**
+ * Opens a v2 value sealed for `context`. Throws when the key, the context or
+ * the value is wrong, and LegacySecretError for a value in the legacy format.
+ */
+export function decrypt(encryptedData: string, encryptionKey: string, context: string): string {
+  if (isLegacySealed(encryptedData)) throw new LegacySecretError()
+  return decryptV2(encryptedData, keyBytes(encryptionKey), context)
+}
+
+/**
+ * Opens a v2 value, or a legacy one (bound to no context). For the
+ * re-encryption pass only (lib/crypto/reencrypt.ts), which seals what it
+ * opens again in v2: everything else uses decrypt.
+ */
+export function decryptForReencryption(encryptedData: string, encryptionKey: string, context: string): string {
+  const key = keyBytes(encryptionKey)
+  if (!isLegacySealed(encryptedData)) return decryptV2(encryptedData, key, context)
   const data = Buffer.from(encryptedData, 'base64')
   // Salt, iv and a full 16 byte tag: a truncated value would leave a shorter tag
   if (data.length < LEGACY_ENCRYPTED_POSITION) throw new Error('Sealed value too short')
@@ -73,6 +94,17 @@ export function decrypt(encryptedData: string, encryptionKey: string, context: s
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_LENGTH })
   decipher.setAuthTag(tag)
   return Buffer.concat([decipher.update(data.subarray(LEGACY_ENCRYPTED_POSITION)), decipher.final()]).toString('utf8')
+}
+
+function decryptV2(encryptedData: string, key: Buffer, context: string): string {
+  const data = Buffer.from(encryptedData.slice(V2_PREFIX.length), 'base64')
+  if (data.length < V2_IV_LENGTH + TAG_LENGTH) throw new Error('Sealed value too short')
+  const iv = data.subarray(0, V2_IV_LENGTH)
+  const tag = data.subarray(V2_IV_LENGTH, V2_IV_LENGTH + TAG_LENGTH)
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_LENGTH })
+  decipher.setAAD(aad(context))
+  decipher.setAuthTag(tag)
+  return Buffer.concat([decipher.update(data.subarray(V2_IV_LENGTH + TAG_LENGTH)), decipher.final()]).toString('utf8')
 }
 
 /** A value in the legacy format (no context bound), to seal again in v2. */
