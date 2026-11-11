@@ -151,13 +151,13 @@ export function OAuthConnectionsCard({
         initial={editing ? grants.get(editing.clientId) : undefined}
         level={editing ? levelOf(editing) : undefined}
         executionMode={editing ? (grants.get(editing.clientId)?.executionMode ?? 'automatic') : undefined}
-        onSave={async (access, level, executionMode) => {
+        onSave={async (access, level, executionMode, password) => {
           if (!editing) return
           if (level && level !== accessLevelOf(editing.scopes)) {
             await lowerAccess(editing, level)
             onChange()
           }
-          await putAccess('/api/ai-access/assistants', { clientId: editing.clientId, access, executionMode })
+          await putAccess('/api/ai-access/assistants', { clientId: editing.clientId, access, executionMode, ...(password && { password }) })
           await onGrantChange()
         }}
       />

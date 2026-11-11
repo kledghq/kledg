@@ -104,10 +104,21 @@ describe('Consent page', () => {
     expect(screen.getByRole('radio', { name: /Automatique/ })).toBeChecked()
     expect(screen.getByText(AUTOMATIC_MODE_WARNING)).toBeInTheDocument()
     await user.click(screen.getByRole('radio', { name: /Validation dans Kledg/ }))
+    // Full control is confirmed with the password (KLEDG-R3-AUTH-01): nothing is sent without it
+    await user.click(screen.getByRole('button', { name: 'Autoriser' }))
+    expect(await screen.findByText('Saisissez votre mot de passe pour donner le contrôle total.')).toBeInTheDocument()
+    expect(auth.consent).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText(/Votre mot de passe/), 'secret-password')
     await user.click(screen.getByRole('button', { name: 'Autoriser' }))
 
     await waitFor(() => expect(auth.consent).toHaveBeenCalled())
-    expect(putBody()).toEqual({ clientId: CLAUDE, access: { allCompanies: true, companyIds: [] }, executionMode: 'validation' })
+    expect(putBody()).toEqual({
+      clientId: CLAUDE,
+      access: { allCompanies: true, companyIds: [] },
+      executionMode: 'validation',
+      fullControl: true,
+      password: 'secret-password',
+    })
     // Everything requested is granted: no narrowed scope.
     expect(auth.consent).toHaveBeenCalledWith({ accept: true })
   })

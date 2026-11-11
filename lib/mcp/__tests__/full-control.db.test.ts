@@ -512,7 +512,7 @@ describe.skipIf(!available)('full control MCP tools', () => {
       await setGrant({ ...OWNER }, target, { allCompanies: false, companyIds: [ids.aCompany] })
       expect((await call(created.key, 'delete_draft_entry', { companyId: ids.aCompany, entryId: first.id })).data.dryRun).toBe(true)
 
-      await setGrant({ ...OWNER }, target, { allCompanies: true, companyIds: [] }, 'automatic')
+      await setGrant({ ...OWNER }, target, { allCompanies: true, companyIds: [] }, 'automatic', { passwordChecked: true }) // the route checked the password
       const done = await call(created.key, 'delete_draft_entry', { companyId: ids.aCompany, entryId: second.id })
       expect(done.data.executed).toBe(true)
       expect(await prisma.accountingEntry.count({ where: { id: second.id } })).toBe(0)

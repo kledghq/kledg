@@ -6,6 +6,8 @@ import { TriangleAlert } from 'lucide-react'
 import { authClient } from '@/lib/auth-client'
 import { AuthShell } from '@/components/brand/auth-shell'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Field } from '@/components/shared'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -128,12 +130,19 @@ function ConsentForm() {
     }
   }, [clientId])
 
+  const [password, setPassword] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
+
   async function decide(accept: boolean) {
     setError(null)
     if (accept) {
       const invalid = accessError(access)
       if (invalid) {
         setAccessMessage(invalid)
+        return
+      }
+      if (level === 'admin' && !password) {
+        setPasswordMessage('Saisissez votre mot de passe pour donner le contrôle total.')
         return
       }
     }
@@ -145,7 +154,8 @@ function ConsentForm() {
         await putAccess('/api/ai-access/assistants', {
           clientId,
           access: { allCompanies: access.allCompanies, companyIds: access.companyIds },
-          ...(level === 'admin' && { executionMode }),
+          // Full control is confirmed with the password, checked by the server (KLEDG-R3-AUTH-01)
+          ...(level === 'admin' && { executionMode, fullControl: true, password }),
         })
       } catch (e) {
         setError(e instanceof Error ? e.message : "L'accès n'a pas pu être enregistré. Réessayez.")
@@ -244,6 +254,25 @@ function ConsentForm() {
           />
         )}
         {level === 'admin' && <ExecutionModePicker value={executionMode} onChange={setChosenMode} disabled={loading !== null} />}
+        {level === 'admin' && (
+          <Field
+            label="Votre mot de passe"
+            hint="Le contrôle total permet à l’assistant d’agir comme vous&nbsp;: confirmez avec votre mot de passe."
+            error={passwordMessage ?? undefined}
+            required
+          >
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                setPasswordMessage(null)
+              }}
+              disabled={loading !== null}
+            />
+          </Field>
+        )}
         <CompanyAccessPicker
           companies={companies}
           loading={companiesLoading}

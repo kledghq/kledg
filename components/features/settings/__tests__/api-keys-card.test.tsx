@@ -221,13 +221,15 @@ describe('ApiKeysCard', () => {
 
     await user.click(within(dialog).getByRole('checkbox', { name: /Alpha SAS/ }))
     await user.click(within(dialog).getByRole('radio', { name: /Automatique/ }))
+    // Leaving validation mode: the password, typed again
+    await user.type(within(dialog).getByLabelText(/Votre mot de passe/), 'secret-password')
     await user.click(within(dialog).getByRole('button', { name: "Enregistrer l'accès" }))
 
     await waitFor(() => expect(onChange).toHaveBeenCalled())
     expect(requestBody()).toEqual({
       url: '/api/ai-access/api-keys/k%2F1',
       method: 'PUT',
-      body: { access: { allCompanies: false, companyIds: ['c1', 'c2'] }, executionMode: 'automatic' },
+      body: { access: { allCompanies: false, companyIds: ['c1', 'c2'] }, executionMode: 'automatic', password: 'secret-password' },
     })
   })
 

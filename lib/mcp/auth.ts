@@ -8,7 +8,7 @@ import { clientIdOf, findConsentScopes, loadCompanyScope, type McpAccess, type M
 import { withUserContext } from '@/lib/rls/context'
 import { RateLimitError } from '@/lib/accounting/errors'
 import { enforceRateLimit } from '@/lib/rate-limit'
-import { getExecutionMode } from '@/lib/ai-access/manage-grants.service'
+import { fullControlConfirmed, getExecutionMode } from '@/lib/ai-access/manage-grants.service'
 import { verifyMcpApiKey } from './api-key'
 
 export type { McpAccess } from '@/lib/mcp/company-access'
@@ -98,7 +98,10 @@ export function withMcpUser(handler: (request: Request, access: McpAccess) => Pr
         const granted = String(claims.scope ?? '')
           .split(' ')
           .filter((scope) => consented.includes(scope))
-        const { canWrite, canAdmin } = capabilitiesOf(granted)
+        const { canWrite, canAdmin: adminScope } = capabilitiesOf(granted)
+        // Full control counts only once confirmed with the password in Kledg (KLEDG-R3-AUTH-01):
+        // a session alone, through the OAuth consent endpoint, gets drafts at most.
+        const canAdmin = adminScope && (await fullControlConfirmed(user.id, clientId))
         // Read on every request: a mode changed in Kledg applies to the next call.
         const caller: McpCaller = { kind: 'oauth', clientId }
         const executionMode = await getExecutionMode(user.id, caller)

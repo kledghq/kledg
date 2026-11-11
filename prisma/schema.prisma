@@ -1647,6 +1647,10 @@ model AiAccessGrant {
   /// How full control runs high-impact tools: "automatic" (executes on the call)
   /// or "validation" (approved by the user in Kledg first). lib/ai-access/access.ts
   executionMode String                 @default("automatic")
+  /// Last time the user typed their password to give this assistant full
+  /// control (KLEDG-R3-AUTH-01). An OAuth token's kledg:admin scope counts only
+  /// when set, so a session alone cannot plant a full control assistant.
+  fullControlConfirmedAt DateTime?
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   companies     AiAccessGrantCompany[]

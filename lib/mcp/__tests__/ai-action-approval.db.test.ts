@@ -149,7 +149,7 @@ describe.skipIf(!available)('approval of actions prepared by assistants', () => 
     const target = { kind: 'apiKey' as const, apiKeyId: created.id }
     await setGrant({ ...owner.user }, target, { allCompanies: true, companyIds: [] }, 'validation')
     expect(await approvalPageAvailable(owner.user.id)).toBe(true)
-    await setGrant({ ...owner.user }, target, { allCompanies: true, companyIds: [] }, 'automatic')
+    await setGrant({ ...owner.user }, target, { allCompanies: true, companyIds: [] }, 'automatic', { passwordChecked: true }) // the route checked the password
     expect(await approvalPageAvailable(owner.user.id)).toBe(false)
   })
 })
