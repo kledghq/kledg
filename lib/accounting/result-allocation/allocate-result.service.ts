@@ -33,6 +33,7 @@ const ACCOUNT_LABELS: Record<string, string> = {
   '1061': 'Réserve légale',
   '1068': 'Autres réserves',
   '457': 'Associés - Dividendes à payer',
+  '1209': 'Acomptes sur dividendes',
 }
 
 /** Balances of the accounts the allocation uses, in the fiscal year (validated entries). */
@@ -50,13 +51,17 @@ export async function allocationBalances(db: Db, companyId: string, fiscalYearId
     rows
       .filter((r) => r.code.startsWith(prefix))
       .reduce((s, r) => s + (parseCents(r.credit) ?? 0) - (parseCents(r.debit) ?? 0), 0)
-  const result = credit('120') + credit('129') // 1209 (acomptes sur dividendes) is left out
+  // 120 and its subaccounts, but never 1209 (acomptes sur dividendes): an interim dividend is not a loss of result
+  const interimBalance = credit('1209')
+  const result = credit('120') - interimBalance + credit('129')
+  const interimDividends = -interimBalance
   return {
     resultCents: result,
     legalReserveCents: Math.max(0, credit('1061')),
     capitalCents: Math.max(0, credit('101')),
     retainedEarningsCents: Math.max(0, credit('110')),
     priorLossesCents: Math.max(0, -credit('119')),
+    interimDividendsCents: Math.max(0, interimDividends),
   }
 }
 

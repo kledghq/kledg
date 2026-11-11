@@ -656,6 +656,25 @@ describe.skipIf(!available)('result allocation (affectation du résultat)', () =
     expect(handleError(again).message).toMatch(/déjà été affecté/)
   })
 
+  it('keeps an interim dividend (1209) out of the result and settles it with the dividend voted (PCG art. 941-12)', async () => {
+    const { c, next } = await closedSas()
+    // 3 000 € paid as an interim dividend before the meeting
+    const interim = await prisma.account.create({ data: { companyId: c.id, fiscalYearId: next, code: '1209', label: 'Acomptes sur dividendes', isPCG: true } })
+    const payable = await prisma.account.findFirst({ where: { companyId: c.id, fiscalYearId: next, code: '457' } })
+      ?? (await prisma.account.create({ data: { companyId: c.id, fiscalYearId: next, code: '457', label: 'Associés - Dividendes à payer', isPCG: true } }))
+    const accounts = new Map([['1209', interim.id], ['457', payable.id]])
+    await book(c, 'OD', '2026-03-31', [['1209', 3000, 0], ['457', 0, 3000]], { fiscalYearId: next, accounts })
+
+    const short = await allocateResult(c.id, next, { date: '2026-06-15', dividendsCents: 200_000, otherReservesCents: 0 }).then(() => null, (e: unknown) => e)
+    expect(handleError(short).message).toMatch(/acomptes sur dividendes/)
+
+    await allocateResult(c.id, next, { date: '2026-06-15', dividendsCents: 500_000, otherReservesCents: 0 })
+    const entry = await prisma.accountingEntry.findFirstOrThrow({ where: { fiscalYearId: next, reference: 'AFF-2025' }, include: { lines: { include: { account: true } } } })
+    const amounts = Object.fromEntries(entry.lines.map((l) => [l.account.code, Number(l.debit) - Number(l.credit)]))
+    // Same result and legal reserve as without the interim dividend; 1209 is settled, 457 gets the rest
+    expect(amounts).toEqual({ '120': 8600, '1061': -430, '1209': -3000, '457': -2000, '110': -3170 })
+  })
+
   it('refuses dividends above the distributable profit', async () => {
     const { c, next } = await closedSas()
     const error = await allocateResult(c.id, next, { date: '2026-06-15', dividendsCents: 900_000, otherReservesCents: 0 }).then(

@@ -50,6 +50,21 @@ describe('planAllocation', () => {
     expect(balanced(plan.lines)).toBe(0)
   })
 
+  it('settles the interim dividends already paid (1209) out of the dividend voted, the rest to 457', () => {
+    const plan = planAllocation({ ...base, interimDividendsCents: 300_000 }, { dividendsCents: 1_000_000, otherReservesCents: 0 }, { legalReserveRequired: true })
+    expect(plan.errors).toEqual([])
+    expect(plan.lines).toEqual([
+      { code: '120', debitCents: 2_000_000, creditCents: 0 },
+      { code: '1061', debitCents: 0, creditCents: 100_000 },
+      { code: '1209', debitCents: 0, creditCents: 300_000 },
+      { code: '457', debitCents: 0, creditCents: 700_000 },
+      { code: '110', debitCents: 0, creditCents: 900_000 },
+    ])
+    expect(balanced(plan.lines)).toBe(0)
+    // The dividend voted must cover what was already paid
+    expect(planAllocation({ ...base, interimDividendsCents: 300_000 }, { dividendsCents: 200_000, otherReservesCents: 0 }, { legalReserveRequired: true }).errors[0]).toMatch(/acomptes sur dividendes/)
+  })
+
   it('clears prior losses before the report à nouveau créditeur', () => {
     const plan = planAllocation({ ...base, priorLossesCents: 300_000 }, { dividendsCents: 0, otherReservesCents: 0 }, { legalReserveRequired: true })
     expect(plan.legalReserveCents).toBe(85_000)

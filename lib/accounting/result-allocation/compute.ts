@@ -30,6 +30,8 @@ export interface AllocationBalances {
   retainedEarningsCents: number
   /** Report à nouveau débiteur, prior losses (debit balance of 119). */
   priorLossesCents: number
+  /** Interim dividends already paid out of this result (debit balance of 1209, PCG art. 941-12); 0 when none. */
+  interimDividendsCents?: number
 }
 
 export interface AllocationChoice {
@@ -144,11 +146,21 @@ export function planAllocation(
   plan.retainedEarningsCents = rest - fromRetained
   if (errors.length > 0) return plan
 
+  // Interim dividends already paid are part of the dividend voted: they settle 1209, only the rest goes to 457
+  const interim = balances.interimDividendsCents ?? 0
+  if (interim > choice.dividendsCents) {
+    errors.push(
+      `Les dividendes votés (${euros(choice.dividendsCents)}) doivent couvrir les acomptes sur dividendes déjà versés (${euros(interim)}, compte 1209).`
+    )
+    return plan
+  }
+
   lines.push({ code: '120', debitCents: balances.resultCents, creditCents: 0 })
   if (fromRetained > 0) lines.push({ code: '110', debitCents: fromRetained, creditCents: 0 })
   if (legal > 0) lines.push({ code: '1061', debitCents: 0, creditCents: legal })
   if (choice.otherReservesCents > 0) lines.push({ code: '1068', debitCents: 0, creditCents: choice.otherReservesCents })
-  if (choice.dividendsCents > 0) lines.push({ code: '457', debitCents: 0, creditCents: choice.dividendsCents })
+  if (interim > 0) lines.push({ code: '1209', debitCents: 0, creditCents: interim })
+  if (choice.dividendsCents - interim > 0) lines.push({ code: '457', debitCents: 0, creditCents: choice.dividendsCents - interim })
   if (cleared > 0) lines.push({ code: '119', debitCents: 0, creditCents: cleared })
   if (rest > 0) lines.push({ code: '110', debitCents: 0, creditCents: rest })
   return plan
