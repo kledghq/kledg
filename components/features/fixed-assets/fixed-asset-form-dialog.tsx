@@ -645,7 +645,7 @@ export function FixedAssetFormDialog({
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Pour un bien acquis avant le premier exercice suivi dans Kledg : le cumul des amortissements des exercices précédents, au premier jour de ce premier exercice. Kledg répartit le reste sur la durée restante.
+                  Pour un bien acquis avant le premier exercice suivi dans Kledg&nbsp;: le cumul des amortissements des exercices précédents, au premier jour de ce premier exercice. Kledg répartit le reste sur la durée restante.
                 </p>
               </div>
             )}
