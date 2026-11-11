@@ -128,6 +128,19 @@ describe('sourceFactsOf', () => {
     expect(deriveStatus(first, sourceFactsOf(first, exempt), null, '2026-10-05').status).toBe('paid')
   })
 
+  it('keeps an IS acompte paid even when the filed returns say it was not due', () => {
+    const paidAnyway: SourceData = {
+      ...EMPTY,
+      corporateTax: new Map([['2026-12-31', { fiscalYearId: 'fy26', filedOn: null, acomptesPaid: [{ number: 2, paidOn: '2026-06-12', amountCents: 81_200 }], acomptesNotDue: [1, 2, 3, 4] }]]),
+    }
+    const second = deadline({ id: 'is-acompte:2026-12-31:2', ruleId: 'is-acompte', date: '2026-06-15', legalDate: '2026-06-15' })
+    expect(sourceFactsOf(second, paidAnyway)).toMatchObject({ notDue: false, paidOn: '2026-06-12', amountCents: 81_200 })
+    expect(deriveStatus(second, sourceFactsOf(second, paidAnyway), null, '2026-10-05')).toMatchObject({ status: 'paid', amountCents: 81_200 })
+    // The unpaid ones stay not due
+    const third = deadline({ id: 'is-acompte:2026-12-31:3', ruleId: 'is-acompte', date: '2026-09-15', legalDate: '2026-09-15' })
+    expect(deriveStatus(third, sourceFactsOf(third, paidAnyway), null, '2026-10-05').status).toBe('not-due')
+  })
+
   it('says a CFE of zero (or an acompte the avis does not ask) is not due', () => {
     expect(sourceFactsOf(deadline({ id: 'cfe:2026' }), data)).toMatchObject({ source: 'local-taxes', notDue: true, locked: [] })
     expect(sourceFactsOf(deadline({ id: 'cfe:2027' }), data)).toBeNull()
