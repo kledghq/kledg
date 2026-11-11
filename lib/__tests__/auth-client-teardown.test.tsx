@@ -1,21 +1,32 @@
 /**
- * A test file that mounts Better Auth's session store and ends within a
- * second: the store's delayed unmount must not run after jsdom is torn down
- * ("window is not defined", vitest.setup.ts).
+ * Better Auth's session store stays mounted for a second after its last
+ * listener leaves; unmountAuthClientStores (run by vitest.setup.ts after each
+ * file) unmounts it at once, before jsdom is torn down.
  */
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { authClient } from '@/lib/auth-client'
+import { authClientAtoms, unmountAuthClientStores } from './helpers/auth-client-stores'
 
 function SessionReader() {
   const { data } = authClient.useSession()
   return <p>{data ? 'connecté' : 'anonyme'}</p>
 }
 
-describe('auth client in a short test file', () => {
-  it('mounts the session store and leaves right away', () => {
+const session = () => (authClient.$store.atoms as unknown as Record<string, { active?: boolean }>).session
+
+describe('auth client stores in tests', () => {
+  it('finds the session store among the auth client atoms', () => {
+    expect(authClientAtoms()).toContain(session())
+  })
+
+  it('unmounts the session store at once instead of a second after its last listener', () => {
     const { unmount, getByText } = render(<SessionReader />)
     expect(getByText('anonyme')).toBeInTheDocument()
     unmount()
+    // Still mounted: nanostores waits a second before unmounting it
+    expect(session().active).toBe(true)
+    unmountAuthClientStores()
+    expect(session().active).toBe(false)
   })
 })
