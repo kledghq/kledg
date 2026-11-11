@@ -37,6 +37,7 @@ import {
 import { AnnexeExportQuerySchema } from '@/lib/annexe/schemas'
 import { exportAnnexe } from '@/lib/annexe/export-annexe.service'
 import { exportFixedAssetMovements, FixedAssetExportQuerySchema } from '@/lib/annexe/export-fixed-asset-movements.service'
+import { exportLiasse, LiasseExportQuerySchema } from '@/lib/liasse/export-liasse.service'
 import { CorporateTaxExportQuerySchema, exportCorporateTax } from '@/lib/corporate-tax/export-corporate-tax.service'
 import { CORPORATE_TAX_EXPORT } from '@/lib/corporate-tax/permissions'
 import { exportVatReturn, VatReturnExportQuerySchema } from '@/lib/vat-returns/export-vat-return.service'
@@ -89,6 +90,8 @@ const EXPORTS = {
   annexe: exportOf(REPORT_EXPORT, AnnexeExportQuerySchema, (companyId, query, group) => exportAnnexe(companyId, query.fiscalYearId, query.format, group)),
   /** GET /api/reports/fixed-asset-movements/export */
   fixed_asset_movements: exportOf(REPORT_EXPORT, FixedAssetExportQuerySchema, (companyId, query) => exportFixedAssetMovements(companyId, query)),
+  /** GET /api/reports/liasse/export */
+  liasse: exportOf(REPORT_EXPORT, LiasseExportQuerySchema, (companyId, query, group) => exportLiasse(companyId, query, group)),
   /** GET /api/companies/[id]/corporate-tax/export */
   corporate_tax: exportOf(CORPORATE_TAX_EXPORT, CorporateTaxExportQuerySchema, (companyId, query, group) => exportCorporateTax(companyId, query, { access: group })),
   /** GET /api/companies/[id]/vat-returns/export */
@@ -121,10 +124,10 @@ const text = (max: number) => z.string().max(max)
 const InputSchema = z.object({
   companyId: z.string().describe('Company id, from list_companies (the holding for report group).'),
   report: z.enum(REPORTS, { error: 'Rapport inconnu' }).describe('The file to generate.'),
-  fiscalYearId: text(100).optional().describe('Fiscal year id, from list_fiscal_years. Required for balance_sheet_*, income_statement_*, annexe and fixed_asset_movements; optional elsewhere (current or latest year; training_report: the last closed one).'),
+  fiscalYearId: text(100).optional().describe('Fiscal year id, from list_fiscal_years. Required for balance_sheet_*, income_statement_*, annexe, fixed_asset_movements and liasse; optional elsewhere (current or latest year; training_report: the last closed one).'),
   previousFiscalYearId: text(100).optional().describe('balance_sheet_excel: the N-1 column.'),
   variant: z.enum(['complete', 'simplified']).optional().describe('balance_sheet_*, income_statement_*: layout (complete by default).'),
-  format: text(10).optional().describe('annexe: pdf or md; fixed_asset_movements, corporate_tax, vat_return, local_taxes, remuneration: pdf or csv; financial_indicators, group: csv or xlsx. The default of the route otherwise.'),
+  format: text(10).optional().describe('annexe: pdf or md; fixed_asset_movements, liasse, corporate_tax, vat_return, local_taxes, remuneration: pdf or csv; financial_indicators, group: csv or xlsx. The default of the route otherwise.'),
   startDate: text(30).optional().describe('auxiliary_balance_excel, journal_excel, group (transactions): first day, yyyy-mm-dd.'),
   endDate: text(30).optional().describe('auxiliary_balance_excel, journal_excel, group (transactions): last day, yyyy-mm-dd.'),
   asOf: text(30).optional().describe('aged_balance_excel: the day of the aged balance, yyyy-mm-dd.'),
@@ -166,7 +169,7 @@ export function registerExportTools(server: McpServer, access: McpAccess, guard:
     {
       title: 'Exporter un état en fichier',
       description: describeTool({
-        summary: `Generates the file of a report, exactly as its download button in Kledg (same service, same checks), and returns it in the result as an embedded resource (base64 blob with its MIME type and file name): balance_sheet_pdf, balance_sheet_excel, income_statement_pdf, income_statement_excel, annexe (pdf or md), fixed_asset_movements (2054, 2055, 2033-C; pdf or csv), corporate_tax, vat_return, local_taxes, remuneration (pdf or csv), training_report (bilan pédagogique et financier, csv), financial_indicators (csv or xlsx), aged_balance_excel, auxiliary_balance_excel, journal_excel, cash_forecast (csv), group (holding and subsidiaries; csv or xlsx). Files above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB are refused: the user downloads them from Kledg. To read the figures, prefer the matching read tool (get_balance_sheet, get_vat_return...).`,
+        summary: `Generates the file of a report, exactly as its download button in Kledg (same service, same checks), and returns it in the result as an embedded resource (base64 blob with its MIME type and file name): balance_sheet_pdf, balance_sheet_excel, income_statement_pdf, income_statement_excel, annexe (pdf or md), fixed_asset_movements (2054, 2055, 2033-C; pdf or csv), liasse (liasse fiscale of the regime, box by box; pdf or csv), corporate_tax, vat_return, local_taxes, remuneration (pdf or csv), training_report (bilan pédagogique et financier, csv), financial_indicators (csv or xlsx), aged_balance_excel, auxiliary_balance_excel, journal_excel, cash_forecast (csv), group (holding and subsidiaries; csv or xlsx). Files above ${MAX_MCP_FILE_BYTES / 1024 / 1024} MB are refused: the user downloads them from Kledg. To read the figures, prefer the matching read tool (get_balance_sheet, get_vat_return...).`,
         access: 'read',
         permission: REPORT_EXPORT,
         amounts: 'euros',

@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- Liasse fiscale : la page **États, Liasse fiscale** liste tous les tableaux de la déclaration de résultat selon le régime d'impôt sur les sociétés (2065-SD et 2033-A-SD à 2033-G-SD au régime simplifié, 2065-SD et 2050-SD à 2059-G-SD au régime réel normal), avec la page de Kledg qui prépare chacun. Elle prépare case par case, avec le code officiel de chaque case, la déclaration 2065-SD et les tableaux 2033-D (provisions, amortissements dérogatoires, déficits, TVA), 2033-E (effectifs et valeur ajoutée), 2033-F (composition du capital) et 2033-G (filiales et participations) ; ce que les écritures et les fiches de la société ne disent pas est signalé « à remplir à la main », jamais deviné. Contrôles avec le bilan, le registre des provisions, la composition du capital et les titres de participation ; exports PDF et CSV ; outil MCP `get_liasse_fiscale`. Kledg prépare la liasse, il ne la dépose pas ([documentation](docs/liasse-fiscale.md)).
+
 ## [0.4.1] - 2026-10-08
 
 ### Corrigé

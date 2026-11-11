@@ -65,7 +65,7 @@ export interface DepreciationAccountMovement {
 }
 
 /** Entries cancelled by a contre-passation of the same year, and those reversals. */
-function cancelledEntries(lines: readonly LedgerLine[]): Set<string> {
+export function cancelledEntries(lines: readonly LedgerLine[]): Set<string> {
   const ids = new Set(lines.map((l) => l.entryId))
   const cancelled = new Set<string>()
   for (const l of lines) {
