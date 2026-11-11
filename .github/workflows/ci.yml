@@ -26,19 +26,28 @@ jobs:
           # tsc needs more than Node's default heap on this codebase
           NODE_OPTIONS: --max-old-space-size=6144
       - run: pnpm lint
+      - name: Every test file in exactly one test group
+        run: node scripts/test-groups.mjs check
 
   test:
+    name: test (${{ matrix.label }})
     runs-on: ubuntu-latest
-    # The test files are split in four shards that run in parallel, each with
-    # its own server. Database tests (*.db.test.ts, DB-backed route tests,
-    # authorization matrix) run against it: lib/__tests__/helpers/test-db.ts
-    # creates and migrates one database per test file, named
-    # <KLEDG_TEST_DB_PREFIX>_<name>. KLEDG_REQUIRE_TEST_DB makes a missing
-    # server fail the run instead of skipping those tests.
+    # One job per kind of test (scripts/test-groups.mjs), in parallel, each
+    # with its own server. Database tests (*.db.test.ts, DB-backed route
+    # tests, authorization matrix) run against it:
+    # lib/__tests__/helpers/test-db.ts creates and migrates one database per
+    # test file, named <KLEDG_TEST_DB_PREFIX>_<name>. KLEDG_REQUIRE_TEST_DB
+    # makes a missing server fail the run instead of skipping those tests.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        include:
+          - { group: sec, label: "security & authorization" }
+          - { group: routes, label: "API routes" }
+          - { group: mcp, label: "assistants (MCP)" }
+          - { group: books, label: "bookkeeping & banking" }
+          - { group: mods, label: "other modules" }
+          - { group: unit, label: "unit & UI" }
     services:
       postgres:
         image: postgres:17-alpine
@@ -50,7 +59,7 @@ jobs:
         options: --health-cmd pg_isready --health-interval 5s --health-retries 10
     env:
       KLEDG_TEST_DATABASE_URL: postgresql://kledg:kledg@localhost:5432/kledg_test
-      KLEDG_TEST_DB_PREFIX: kledg_ci_test_${{ matrix.shard }}
+      KLEDG_TEST_DB_PREFIX: kledg_ci_${{ matrix.group }}
       KLEDG_REQUIRE_TEST_DB: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -62,10 +71,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:run --shard=${{ matrix.shard }}/4
+      - run: node scripts/test-groups.mjs run ${{ matrix.group }}
 
   # The check required on main (repository ruleset): passes only when the
-  # static checks and every test shard passed.
+  # static checks and every test group passed.
   check:
     runs-on: ubuntu-latest
     needs: [static, test]

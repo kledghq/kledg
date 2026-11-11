@@ -22,7 +22,7 @@ Related docs: [architecture.md](architecture.md) (folders, principles),
 | Allowlists stay honest | `lib/__tests__/conventions-allowlist.test.ts` |
 | Migrations immutable and additive | `scripts/check-migrations.mjs` (CI) |
 | Every foreign key indexed | `lib/__tests__/foreign-key-indexes.db.test.ts` |
-| Authorization of every route and role, no secret in responses | `lib/api/__tests__/authorization-matrix.test.ts` |
+| Authorization of every route and role, no secret in responses | `lib/api/__tests__/authorization-matrix*.test.ts` (shared cases in `lib/api/__tests__/helpers/authorization-matrix.ts`) |
 | Every route, service and MCP tool has a test | `lib/__tests__/feature-tests.test.ts` |
 
 ## Architecture
