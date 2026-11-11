@@ -24,6 +24,7 @@ import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { createCompanyAddress, deleteAddressesIfUnused } from '@/lib/addresses/manage-addresses.service'
 import { optionalText } from '@/lib/api/zod-fields'
+import { changedSinceOrder, changedSinceWhere, changesPage, INVALID_CURSOR } from '@/lib/api/changed-since'
 import { writeAuditLog } from '@/lib/audit'
 import { paymentTermsErrors, type PaymentTerms } from '@/lib/reports/third-parties/payment-terms'
 import { checkIdentifiers } from './identifiers'
@@ -105,6 +106,7 @@ export const TIERS_SELECT = {
   paymentTermsEndOfMonth: true,
   qontoId: true,
   notes: true,
+  updatedAt: true,
   address: { select: { id: true, street: true, street2: true, postalCode: true, city: true, country: true } },
   _count: { select: { invoices: true } },
 } satisfies Prisma.TiersSelect
@@ -116,7 +118,14 @@ export function termsOfTiers(tiers: { paymentTermsDays: number | null; paymentTe
   return tiers.paymentTermsDays === null ? null : { days: tiers.paymentTermsDays, endOfMonth: tiers.paymentTermsEndOfMonth ?? false }
 }
 
-export async function listTiers(companyId: string, query: ListTiersQuery) {
+/**
+ * A page of the tiers of a company, by name. `cursor` is the nextCursor of
+ * the previous page; `total` counts every page. With `updatedSince` (a sync,
+ * MCP list_tiers): only the tiers changed at or after it, oldest change
+ * first (lib/api/changed-since.ts). A tiers changes with its own fields and
+ * its address (a new address row each time), not with its invoices.
+ */
+export async function listTiers(companyId: string, query: ListTiersQuery & { cursor?: string; updatedSince?: Date }) {
   const term = query.search?.trim()
   const where: Prisma.TiersWhereInput = {
     companyId,
@@ -132,11 +141,37 @@ export async function listTiers(companyId: string, query: ListTiersQuery) {
         }
       : {}),
   }
+  if (query.updatedSince) {
+    const [rows, total] = await Promise.all([
+      prisma.tiers.findMany({
+        where: { ...where, AND: [changedSinceWhere(query.updatedSince, query.cursor)] },
+        select: TIERS_SELECT,
+        orderBy: changedSinceOrder(),
+        take: query.limit + 1,
+      }),
+      prisma.tiers.count({ where: { ...where, updatedAt: { gte: query.updatedSince } } }),
+    ])
+    const { page, nextCursor } = changesPage(rows, query.limit)
+    return { tiers: page, total, truncated: nextCursor !== null, nextCursor }
+  }
+  // The cursor must be a tiers of the company: Prisma reads the sort values of the cursor row by its id alone.
+  if (query.cursor) {
+    const owned = await prisma.tiers.findFirst({ where: { id: query.cursor, companyId }, select: { id: true } })
+    if (!owned) throw new ValidationError(INVALID_CURSOR)
+  }
   const [rows, total] = await Promise.all([
-    prisma.tiers.findMany({ where, select: TIERS_SELECT, orderBy: [{ name: 'asc' }, { id: 'asc' }], take: query.limit }),
+    prisma.tiers.findMany({
+      where,
+      select: TIERS_SELECT,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: query.limit + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    }),
     prisma.tiers.count({ where }),
   ])
-  return { tiers: rows, total, truncated: total > rows.length }
+  const page = rows.slice(0, query.limit)
+  const nextCursor = rows.length > query.limit ? page[page.length - 1].id : null
+  return { tiers: page, total, truncated: nextCursor !== null, nextCursor }
 }
 
 export async function getTiers(companyId: string, id: string, db: Db = prisma): Promise<TiersRow> {

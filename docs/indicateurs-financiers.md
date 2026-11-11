@@ -10,6 +10,10 @@ principaux ratios. Chaque ligne indique ses comptes et les lignes des
 formulaires officiels dont elle provient. Les mêmes chiffres alimentent
 l'export CSV et Excel, quatre widgets du [tableau de bord](tableau-de-bord.md)
 et les outils MCP `get_sig` et `get_financial_ratios` ([serveur MCP](mcp.md)).
+Mois par mois, l'outil MCP `get_monthly_pnl` donne produits, chiffre
+d'affaires, charges et résultat
+(`lib/reports/get-monthly-pnl.service.ts`, même agrégat que le graphique
+« Produits et charges par mois » du [tableau de bord](tableau-de-bord.md)).
 
 Le code est dans `lib/reports/financial-indicators` : `sig.ts` (SIG et CAF),
 `balance-indicators.ts` (BFR, trésorerie, dettes), `indicators.ts` (délais

@@ -147,6 +147,19 @@ Bloc **Règlements** de la fiche, `GET /api/invoices/[id]/payments/candidates`, 
 - **Paiement complet** : dès que les règlements couvrent la facture, Kledg lettre la ligne de tiers de la facture avec les lignes des règlements par le service de lettrage (groupe équilibré, écritures validées, même exercice, code suivant du compte). Si ce n'est pas encore possible (écriture de la facture en brouillon, règlement sur l'exercice suivant), la facture est « payée », la raison est affichée et **Lettrer avec ses règlements** relance le lettrage plus tard. Un règlement sur l'exercice suivant se lettre avec les à-nouveaux dans Lettrage.
 - Une facture lettrée à la main dans Lettrage est « payée ». Retirer un règlement d'une facture lettrée exige de la délettrer d'abord.
 
+## Synchronisation
+
+Un outil qui recopie les factures et les tiers ailleurs (un CRM, un outil de pilotage) les lit par les outils MCP `list_invoices` et `list_tiers` avec `updatedSince` : seules les lignes modifiées depuis cet instant, la plus ancienne modification d'abord, page par page (`cursor`, `nextCursor` ; [conventions du serveur MCP](mcp.md#conventions-communes)). Chaque facture porte l'identifiant de son tiers (`tiersId`), sa devise, la date de son dernier règlement (`lastPaymentDate`, date de l'écriture du règlement) et sa date de modification (`updatedAt`) ; chaque tiers son email, son adresse et sa date de modification.
+
+Le statut, le payé, le reste dû et le numéro d'écriture d'une facture se déduisent d'autres lignes que la facture. Pour qu'une synchronisation ne manque aucun changement de statut, des déclencheurs de la base (migration `20261204090000_invoice_change_tracking`) avancent `updatedAt` de la facture, quel que soit le chemin :
+
+- règlement enregistré, retiré ou supprimé avec sa ligne (`invoice_payments`) ;
+- lettrage ou délettrage d'une ligne de son écriture, avec ses règlements ou à la main dans Lettrage ;
+- validation de son écriture (numéro définitif) ;
+- suppression de son écriture en brouillon depuis les écritures, qui la ramène en brouillon (lien effacé par la base).
+
+La modification d'un tiers (nom, email, adresse) ne change pas ses factures : elle se lit dans `list_tiers`. Le nombre de factures d'un tiers (`invoiceCount`) ne change pas non plus sa date de modification.
+
 ## Import Qonto
 
 Bouton **Importer de Qonto** des pages de factures, `POST /api/invoices/import-qonto` (droits `entries:create` et `banking:read`, limité comme tout appel bancaire). Lecture seule chez Qonto, avec la clé API déjà enregistrée pour la société.
