@@ -63,7 +63,10 @@ describe.skipIf(!available)('authorization matrix', () => {
 // Runs without a database: the inventory of handlers against the cases above.
 describe('authorization matrix coverage', () => {
   it('[KLEDG-R3-AUTHZ-06] has a case for every companyRoute handler of app/api', () => {
-    const source = readFileSync(path.join(process.cwd(), 'lib/api/__tests__/helpers/authorization-matrix.ts'), 'utf8')
+    // The cases live in the shared module and in the matrix files (some groups call routes of their own)
+    const dir = path.join(process.cwd(), 'lib/api/__tests__')
+    const matrixFiles = readdirSync(dir).filter((name) => /^authorization-matrix.*\.test\.ts$/.test(name)).map((name) => path.join(dir, name))
+    const source = [path.join(dir, 'helpers/authorization-matrix.ts'), ...matrixFiles].map((file) => readFileSync(file, 'utf8')).join('\n')
     const modules = new Map<string, string>()
     for (const match of source.matchAll(/^\s+(\w+): \(\) => import\('@\/(app\/api\/[^']+)\/route'\)/gm)) modules.set(match[2], match[1])
     const covered = new Set([...source.matchAll(/route: '(\w+)',\s*method: '(\w+)'/g)].map((m) => `${m[1]} ${m[2]}`))
