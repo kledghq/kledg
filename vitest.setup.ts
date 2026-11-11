@@ -6,17 +6,11 @@ afterEach(() => {
   cleanup()
 })
 
-// Better Auth keeps the session in nanostores, which unmount a store one
-// second after its last listener leaves. In a test file that ends sooner, that
-// unmount ran after jsdom was torn down and failed the run with "window is not
-// defined": unmount the auth client's stores now (nanostores' test cleanup).
+// Unmount Better Auth's session stores before jsdom is torn down
+// (lib/__tests__/helpers/auth-client-stores.ts).
 afterAll(async () => {
-  const client = await import('@/lib/auth-client').catch(() => null)
-  const atoms = (client?.authClient as { $store?: { atoms?: Record<string, object> } } | undefined)?.$store?.atoms
-  for (const atom of Object.values(atoms ?? {})) {
-    const clean = Object.getOwnPropertySymbols(atom).find((symbol) => symbol.description === 'clean')
-    if (clean) (atom as Record<symbol, () => void>)[clean]()
-  }
+  const helper = await import('@/lib/__tests__/helpers/auth-client-stores').catch(() => null)
+  helper?.unmountAuthClientStores()
 })
 
 // jsdom does not implement Pointer Capture or scrollIntoView; Radix primitives
