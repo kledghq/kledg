@@ -38,6 +38,7 @@ import { fullControlTool, type RegisterTool } from './define'
 import { companyLock, entryTargets, rowTargets, ruleTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
+import { rulesPreview } from './rule-preview'
 
 const transactionId = z.string().min(1).describe('Bank transaction id, from list_bank_transactions.')
 
@@ -175,7 +176,7 @@ const unreconcileTransactionTool = fullControlTool({
 const runRules = fullControlTool({
   name: 'run_rules',
   title: "Exécuter les règles d'affectation",
-  description: `Runs the assignment rules engine (règles d'affectation) on unreconciled bank transactions of the current fiscal year, or on the given ones: each transaction that meets every condition of an enabled rule gets its DRAFT entry and is reconciled (several matching rules: highest priority, then most conditions); reconciled transactions are skipped, so running it twice creates nothing twice. ${ACTS_AS_USER} ${TWO_STEP} The dry run counts the transactions processed, matched and that would be applied.`,
+  description: `Runs the assignment rules engine (règles d'affectation) on unreconciled bank transactions of the current fiscal year, or on the given ones: each transaction that meets every condition of an enabled rule gets its DRAFT entry and is reconciled (several matching rules: highest priority, then most conditions); reconciled transactions are skipped, so running it twice creates nothing twice. ${ACTS_AS_USER} ${TWO_STEP} The dry run counts the transactions processed, matched and that would be applied, and lists each rule that would apply: its name, the accounts it books to, its number of transactions and whether an assistant created or changed it (and when).`,
   input: {
     transactionIds: z.array(z.string().min(1)).min(1).max(500).optional().describe('Only these transactions (default: every unreconciled transaction of the current fiscal year).'),
   },
@@ -184,11 +185,21 @@ const runRules = fullControlTool({
   never: 'validates the entries the rules create (drafts), or reconciles a transaction twice.',
   idempotent: true,
   confirmation: true,
-  // The dry run only counts: the rules themselves are bound to the approval (update_rule before the execution refuses it).
+  // The rules themselves are bound to the approval too (update_rule before the execution refuses it).
   targetState: ({ companyId }) => ruleTargets(companyId),
   async preview({ companyId, transactionIds }) {
     const result = await processTransactions({ companyId, transactionIds, autoApply: false })
-    return { processed: result.processed, matched: result.matched, wouldApply: result.applicable, errors: result.errors }
+    const rules = await rulesPreview(companyId, result.applicableByRule)
+    return {
+      processed: result.processed,
+      matched: result.matched,
+      wouldApply: result.applicable,
+      errors: result.errors,
+      // What the person approving sees: each rule, its accounts, its transactions, and an assistant's change of it
+      rules: rules.listed,
+      rulesTotal: rules.total,
+      rulesChangedByAssistant: rules.byAssistant,
+    }
   },
   execute: ({ companyId, transactionIds }) => processTransactions({ companyId, transactionIds, autoApply: true }),
   audit: ({ transactionIds }, result) => ({ transactionIds: transactionIds ?? 'all', applied: result.applied, processed: result.processed }),

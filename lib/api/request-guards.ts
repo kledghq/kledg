@@ -83,6 +83,22 @@ async function readCapped(request: Request, limit: number, error: () => Error): 
   return bytes
 }
 
+/**
+ * The body of a request the route wrappers do not guard (the MCP endpoint
+ * authenticates itself): read once with the same count as guardRequest,
+ * 413 beyond `maxBytes`, and a request rebuilt from the bytes read. Safe
+ * methods are returned unchanged.
+ */
+export async function capRequestBody(request: Request, maxBytes: number): Promise<Request> {
+  if (!STATE_CHANGING.has(request.method)) return request
+  const bytes = await readCapped(request, maxBytes, () => tooLarge({ maxBodyBytes: maxBytes }, maxBytes))
+  return new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: bytes.byteLength > 0 ? bytes : undefined,
+  })
+}
+
 function mediaType(request: Request): string {
   return (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
 }

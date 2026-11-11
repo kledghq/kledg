@@ -92,7 +92,7 @@ describe.skipIf(!available)('income statement layout services', () => {
   })
 
   describe('read', () => {
-    it('returns the active lines as a tree, and creates the PCG default on first read', async () => {
+    it('returns the active lines as a tree, and the PCG default built in memory on a read, nothing stored', async () => {
       const root = await line({ lineLabel: 'Charges', section: 'charges', balanceType: 'auto', order: 2 })
       await line({ lineLabel: 'Produits', section: 'produits', balanceType: 'auto', order: 1 })
       await line({ lineLabel: 'Achats', parentId: root.id, accountCodes: ['60'], balanceType: 'debit', order: 2 })
@@ -105,12 +105,17 @@ describe.skipIf(!available)('income statement layout services', () => {
       const all = await getIncomeStatementLineConfigs(ids.company, 'simplified', true)
       expect(all[1].children?.map((l) => l.lineLabel)).toEqual(['Ancienne', 'Achats'])
 
-      // No layout yet for the other company: the simplified default of form 2033-B is created.
+      // No layout yet for the other company: the simplified default of form 2033-B, read without storing it.
       const created = await getIncomeStatementConfig(ids.other, 'simplified')
       expect(created.lines.map((l) => l.lineLabel)).toEqual(
         [...SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026].sort((a, b) => a.order - b.order).map((e) => e.lineLabel),
       )
+      expect(created.isDefault).toBe(true)
+      expect(await prisma.incomeStatementLineConfig.count({ where: { companyId: ids.other } })).toBe(0)
+      // Stored on demand (a change of a line), with the same line ids
+      const stored = await getOrCreateDefaultIncomeStatementConfig(ids.other, 'simplified')
       expect(await prisma.incomeStatementLineConfig.count({ where: { companyId: ids.other } })).toBe(countEntries(SIMPLIFIED_INCOME_STATEMENT_CONFIG_2026))
+      expect(stored.lines.map((l) => l.id)).toEqual(created.lines.map((l) => l.id))
     })
   })
 

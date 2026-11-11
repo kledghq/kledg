@@ -119,6 +119,13 @@ interface ToolBase<S extends Shape, R> {
    * follow the connection's execution mode. Default 'admin'.
    */
   level?: 'write' | 'admin'
+  /**
+   * Rights in other companies the arguments name (the source of a copy),
+   * checked right after the tool's own rights and before anything else
+   * runs: the dry run, the rows bound to an approval (targetState) and the
+   * execution never read a company the user or the connection may not reach.
+   */
+  authorizeArgs?: (args: Args<S>, ctx: FullControlContext) => Promise<void>
   /** `_meta` of the tool: an MCP Apps template (viewMeta), ChatGPT file params. */
   meta?: Record<string, unknown>
   /**
@@ -315,6 +322,7 @@ export function registerFullControlTool<S extends Shape, P, R>(
             companyIds: () => guard.companyIds(),
           },
         }
+        if (tool.authorizeArgs) await tool.authorizeArgs(args, ctx)
         const highImpact =
           tool.confirmation &&
           (tool.highImpactWhen ? tool.highImpactWhen(args) : !tool.highImpactActions || tool.highImpactActions.includes(String(action)))

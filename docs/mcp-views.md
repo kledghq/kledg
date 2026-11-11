@@ -143,11 +143,21 @@ label, signed amount, date) and a "Rapprocher" button that calls
 `reconcile_transaction` with `entryId`, or with the rule's journal, date and
 counterpart lines (the draft entry is created by the tool). The others keep
 "Proposer une écriture" (`ui/message`) and "Pointer sans écriture".
-`reconcile_transaction` is a direct write (`confirmation: false`), so the
-button acts the same in validation and automatic mode: a confirmation click,
-then the call, which the server checks again (grant, role, rate limit,
-audit log; 409 when the transaction was reconciled meanwhile). The view only
-shows what the server returned.
+`reconcile_transaction` is a high-impact tool whose impact depends on its
+arguments (`highImpactWhen`, `lib/mcp/full-control/banking.ts`):
+
+- with the rule's counterpart lines it only creates a DRAFT entry, reviewed
+  before it counts: a direct write, a confirmation click then the call;
+- with `entryId` (link an existing entry) or `withoutEntry` ("Pointer sans
+  écriture") nothing is left to review, so it follows the execution mode
+  like `bulk_reconcile mark_reconciled`: in validation mode the call
+  returns the dry run and a pending action the user approves in Kledg ("Approuver
+  dans Kledg", then "Exécuter après approbation"); in automatic mode the
+  view sends `dryRun: true` first and executes on "Confirmer".
+
+The server checks every call again (grant, role, rate limit, audit log; 409
+when the transaction was reconciled meanwhile). The view only shows what the
+server returned.
 
 ## Security
 
@@ -170,7 +180,7 @@ shows what the server returned.
   in Kledg, the view cannot) then "Exécuter après approbation", which
   calls again with the `actionId`. In automatic mode the view sends
   `dryRun: true` first and executes only on "Confirmer". A direct write
-  (`reconcile_transaction`, "Rapprocher" or "Pointer sans écriture") needs
+  ("Rapprocher" with a rule's lines, which creates a draft entry) needs
   a second click, counted only from 600 ms after the question is shown (the
   second half of a double click is ignored) and within 10 seconds (a later
   click asks again); every button is disabled while a call runs.

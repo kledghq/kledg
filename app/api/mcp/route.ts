@@ -5,6 +5,8 @@ import { registerKledgTools } from '@/lib/mcp/tools'
 import { registerKledgPrompts } from '@/lib/mcp/prompts'
 import { registerKledgViews } from '@/lib/mcp/views'
 import { instructionsFor } from '@/lib/mcp/instructions'
+import { capRequestBody } from '@/lib/api/request-guards'
+import { handleError } from '@/lib/accounting/errors'
 
 export const maxDuration = 60
 
@@ -49,4 +51,24 @@ const handler = withMcpUser((request, access) => {
   return Promise.resolve(mcp(request))
 })
 
-export { handler as GET, handler as POST, handler as DELETE }
+/**
+ * Largest MCP request body: the biggest tool arguments are a file of 5 MB
+ * sent in base64 (about 6.7 MB, lib/mcp/full-control/files.ts) with its
+ * JSON-RPC envelope. The endpoint is not wrapped by companyRoute, so it caps
+ * its own body like guardRequest does (lib/api/request-guards.ts): read
+ * once, counted, 413 beyond, before authentication or parsing.
+ */
+const MAX_MCP_BODY_BYTES = 8 * 1024 * 1024
+
+async function cappedHandler(request: Request): Promise<Response> {
+  let capped: Request
+  try {
+    capped = await capRequestBody(request, MAX_MCP_BODY_BYTES)
+  } catch (error) {
+    const { message, statusCode } = handleError(error)
+    return Response.json({ error: message }, { status: statusCode })
+  }
+  return handler(capped)
+}
+
+export { cappedHandler as GET, cappedHandler as POST, cappedHandler as DELETE }

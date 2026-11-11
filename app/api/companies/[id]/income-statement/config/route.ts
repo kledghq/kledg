@@ -9,7 +9,7 @@ import { createIncomeStatementConfigLine } from '@/lib/reports/config/manage-lay
 import { CreateIncomeStatementConfigLineSchema } from '@/lib/reports/config/schemas'
 import { VariantQuerySchema } from '@/lib/reports/report-query'
 
-/** GET ?variant=: the layout, created from the PCG default the first time. */
+/** GET ?variant=: the layout; the PCG default built in memory (isDefault) until a line is changed, nothing stored by the read. */
 export const GET = companyRoute(
   { company: fromParam('id'), permission: { settings: ['read'] }, query: VariantQuerySchema },
   async ({ companyId, query }) => NextResponse.json(await getIncomeStatementConfig(companyId, query.variant)),

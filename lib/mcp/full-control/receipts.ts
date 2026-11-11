@@ -7,8 +7,9 @@
  * Draft-level tools (kledg:write, `level: 'write'`), registered for every
  * connection that may write (lib/mcp/receipts-tools.ts) with the rights of
  * their routes (app/api/receipts/**): staging and the expense report need
- * expenses:submit (every role), matching banking:read, attaching
- * banking:reconcile. Attaching writes outside the drafts (at Qonto, which
+ * expenses:submit (every role), matching banking:read and expenses:submit
+ * (it records the fields read, so an archived company refuses it, like its
+ * POST route), attaching banking:reconcile. Attaching writes outside the drafts (at Qonto, which
  * Kledg cannot undo, or a receipt counted as provided): it is high impact.
  * On a draft-level connection it always waits for the user's approval in
  * Kledg; with full control it follows the execution mode (define.ts). The
@@ -280,7 +281,8 @@ export const fileReceiptTool = fullControlTool({
     label: z.string().max(300).optional().describe('expense: label of the line; omitted, the merchant.'),
   },
   permission: { banking: ['read'] },
-  actions: { attach: { banking: ['reconcile'] }, expense: { expenses: ['submit'] }, discard: { expenses: ['submit'] } },
+  // match records the fields read on the receipt: a write, like its route (POST, refused on an archived company)
+  actions: { match: { expenses: ['submit'] }, attach: { banking: ['reconcile'] }, expense: { expenses: ['submit'] }, discard: { expenses: ['submit'] } },
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, VAT rates in percent.',
   never: 'submits, validates or posts an expense report, reconciles a transaction or books an entry.',
