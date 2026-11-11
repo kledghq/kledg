@@ -35,6 +35,7 @@ const ACCOUNTS = [
 
 const input = (overrides: Partial<ValueAddedInput> = {}): ValueAddedInput => ({
   form: { id: '2033-E', number: '2033-E-SD' },
+  notice: '2033-NOT-SD',
   codes: VALUE_ADDED_CODES_2033E,
   fiscalYear: { startDate: '2026-01-01', endDate: '2026-12-31' },
   duration: { months: 12, days: 365 },

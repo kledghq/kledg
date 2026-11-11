@@ -54,6 +54,7 @@ const VIEW = assembleLiasse({
         movements: [{ code: '151100', openingCents: 100_000, increaseCents: 50_000, decreaseCents: 0, closingCents: 150_000 }],
         register: [],
         balanceSheet: { regulated: { box: '140', cents: 0 }, riskCharges: { box: '154', cents: 150_000 } },
+        incomeStatement: null,
       },
       deficits: { known: true, openingCents: 0, imputedCents: 0, createdCents: 0 },
       deficitsWhy: '',

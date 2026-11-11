@@ -240,6 +240,31 @@ describe.skipIf(!available)('liasse fiscale routes', () => {
     expect(exported.status).toBe(409)
   })
 
+  it('prepares the tables of the régime réel normal from the same books', async () => {
+    await prisma.company.update({ where: { id: ids.company }, data: { corporateTaxRegime: 'normal' } })
+    try {
+      const response = await call('viewer', route.liasse.GET, `/api/reports/liasse?${q()}`)
+      expect(response.status).toBe(200)
+      view = (await response.json()) as LiasseView
+      expect(view.regime).toBe('normal')
+      expect(view.forms.map((f) => f.id)).toEqual(['2065', '2056', '2057', '2058-B', '2058-C', '2059-E', '2059-F', '2059-G'])
+      expect(view.tables.find((t) => t.id === '2059-A')).toMatchObject({ status: 'manual' })
+      // 2056: litiges 1 000 € at the start, the fine 750 € (amendes et pénalités), dotations tied to 6815
+      expect([cents('2056', '4A'), cents('2056', '4P'), cents('2056', 'UB'), cents('2056', 'UE')]).toEqual([100_000, 75_000, 75_000, 75_000])
+      expect(form('2056').checks.find((c) => c.id === 'income-statement-dotations')).toMatchObject({ ok: true })
+      // 2057: customers 2 400 €, suppliers 360 €, VAT to pay 340 €
+      expect([cents('2057', 'UX'), cents('2057', '8B'), cents('2057', 'VW')]).toEqual([24_000_000, 3_600_000, 3_400_000])
+      expect(cellByBox(form('2057'), 'VU')).toMatchObject({ source: 'manual' })
+      // 2058-B: the non deductible fine in slot 8X; 2058-C: VAT of the year, no previous result to allocate
+      expect(cents('2058-B', '8X')).toBe(75_000)
+      expect([cents('2058-C', 'YY'), cents('2058-C', '0D')]).toEqual([4_000_000, 0])
+      expect(cellByBox(form('2059-E'), 'YP')).toMatchObject({ source: 'answer' })
+      expect(cellByBox(form('2059-F'), 'P2')?.value).toEqual({ kind: 'count', value: 2 })
+    } finally {
+      await prisma.company.update({ where: { id: ids.company }, data: { corporateTaxRegime: 'simplified' } })
+    }
+  })
+
   it('never reads another company: 404 for its member, 404 for a fiscal year of another company, 401 anonymous', async () => {
     expect((await call('outsider', route.liasse.GET, `/api/reports/liasse?${q()}`)).status).toBe(404)
     const foreignYear = new URLSearchParams({ companyId: ids.company, fiscalYearId: ids.otherFy }).toString()
