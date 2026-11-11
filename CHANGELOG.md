@@ -4,6 +4,16 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.5.2] - 2026-11-11
+
+### Sécurité
+
+- Image Docker : l'outil de migration passe à Prisma 7.10.1, avec l'application, ce qui corrige les alertes de ses dépendances (mysql2, deepmerge-ts, valibot, @hono/node-server).
+
+### Modifié
+
+- CI : une tâche par type de tests (sécurité et autorisations, routes d'API, assistants, comptabilité et banque, autres modules, unitaires et interface), en parallèle ; la matrice d'autorisations est répartie par rôle sur plusieurs fichiers. Une exécution complète prend environ 4 minutes au lieu de 15.
+
 ## [0.5.1] - 2026-11-11
 
 ### Corrigé
