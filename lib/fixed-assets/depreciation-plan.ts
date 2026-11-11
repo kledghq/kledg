@@ -19,7 +19,9 @@
  * amount is spread over the remaining useful life (PCG art. 214-14, a change
  * of estimate applied prospectively). Fully depreciated already: nothing
  * after. Past the plan's end with something left: the rest in the month of
- * the opening day. The day counts by calendar month.
+ * the opening day. An opening day inside a month splits that month at the
+ * day: its days before carry their share of the opening amount, its days
+ * from the opening day their share of the rest (`opening` of the plan).
  *
  * Dates are calendar days stored at midnight UTC: every computation uses UTC
  * components, so the plan does not depend on the server timezone.
@@ -102,6 +104,12 @@ export interface DepreciationPlan {
   duration: number
   /** Last day in service of a linear plan that ends mid-month (its last month's amount covers the days up to it); absent otherwise. */
   end?: Date
+  /**
+   * Opening day inside a month: the part of that month's amount that belongs
+   * to its days before `asOf` (cents); the days from `asOf` carry the rest.
+   * Absent without opening depreciation or when it falls on its month's first day in service.
+   */
+  opening?: { asOf: Date; beforeCents: number }
 }
 
 /**
@@ -130,6 +138,20 @@ function spread(weights: number[], totalCents: number): number[] {
   })
 }
 
+/** First day in service, last day and day count of the month `y`-`m` in the plan. */
+function serviceDaysOfMonth(plan: DepreciationPlan, y: number, m: number): { firstDay: number; length: number } {
+  const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+  const firstDay = plan.start.getUTCFullYear() === y && plan.start.getUTCMonth() === m ? plan.start.getUTCDate() : 1
+  const lastDay = plan.end && plan.end.getUTCFullYear() === y && plan.end.getUTCMonth() === m ? plan.end.getUTCDate() : daysInMonth
+  return { firstDay, length: lastDay - firstDay + 1 }
+}
+
+/** Days in service of the month of `day` before `day`, between 0 and the month's days in service. */
+function serviceDaysBefore(plan: DepreciationPlan, day: Date): { elapsed: number; length: number } {
+  const { firstDay, length } = serviceDaysOfMonth(plan, day.getUTCFullYear(), day.getUTCMonth())
+  return { elapsed: Math.min(Math.max(day.getUTCDate() - firstDay, 0), Math.max(length, 0)), length }
+}
+
 /**
  * The plan with the depreciation booked before `asOf` set to `openingCents`
  * (at most the base) and the months from `asOf` on rescaled to the rest.
@@ -144,25 +166,44 @@ export function withOpeningDepreciation(plan: DepreciationPlan, openingCents: nu
   const before = keys.filter((k) => k < pivot)
   const after = keys.filter((k) => k >= pivot)
   const centsOf = (k: string) => toCents(plan.byMonth.get(k) ?? 0) ?? 0
-  const byMonth = new Map<string, number>()
+  const amounts = new Map<string, number>()
+  const add = (k: string, cents: number) => cents && amounts.set(k, (amounts.get(k) ?? 0) + cents)
+
+  // The opening month is split at the opening day: its days before go with the months before
+  const pivotCents = centsOf(pivot)
+  const { elapsed, length } = serviceDaysBefore(plan, asOf)
+  const pivotBefore = pivotCents && length > 0 ? Math.round((pivotCents * elapsed) / length) : 0
+  const beforeWeights = [...before.map(centsOf), pivotBefore]
+  const afterWeights = [pivotCents - pivotBefore, ...after.filter((k) => k !== pivot).map(centsOf)]
+  const beforeKeys = [...before, pivot]
+  const afterKeys = [pivot, ...after.filter((k) => k !== pivot)]
 
   // Before: the months of the plan carry the opening amount; none, the month before the opening day
+  let openingInPivot = 0
   if (opening > 0) {
-    const weights = before.map(centsOf)
-    if (weights.some((w) => w > 0)) spread(weights, opening).forEach((c, i) => c && byMonth.set(before[i], fromCents(c)))
-    else {
+    if (beforeWeights.some((w) => w > 0)) {
+      spread(beforeWeights, opening).forEach((c, i) => {
+        add(beforeKeys[i], c)
+        if (i === beforeKeys.length - 1) openingInPivot = c
+      })
+    } else {
       const previous = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() - 1, 1))
-      byMonth.set(monthKey(previous.getUTCFullYear(), previous.getUTCMonth()), fromCents(opening))
+      add(monthKey(previous.getUTCFullYear(), previous.getUTCMonth()), opening)
     }
   }
-  // After: the rest over the remaining months, in their proportions; past the plan's end, in the opening month
+  // After: the rest over the remaining days, in their proportions; past the plan's end, in the opening month
   const rest = baseCents - opening
   if (rest > 0) {
-    const weights = after.map(centsOf)
-    if (weights.some((w) => w > 0)) spread(weights, rest).forEach((c, i) => c && byMonth.set(after[i], fromCents(c)))
-    else byMonth.set(pivot, fromCents(rest))
+    if (afterWeights.some((w) => w > 0)) spread(afterWeights, rest).forEach((c, i) => add(afterKeys[i], c))
+    else add(pivot, rest)
   }
-  return { ...plan, byMonth }
+  const byMonth = new Map<string, number>()
+  for (const [k, cents] of amounts) byMonth.set(k, fromCents(cents))
+  const result: DepreciationPlan = { ...plan, byMonth }
+  delete result.opening
+  // The opening day cuts its month: the days before it carry only their share of the opening amount
+  if (pivotBefore > 0) result.opening = { asOf, beforeCents: openingInPivot }
+  return result
 }
 
 /** The plan from the asset's own terms, without opening depreciation. */
@@ -345,11 +386,17 @@ function cumulativeCentsBefore(plan: DepreciationPlan, day: Date): number {
   const monthCents = toCents(plan.byMonth.get(pivot) ?? 0) ?? 0
   if (!monthCents) return total
   // The month's amount runs over its days in service: from the in-service day in the first month
-  const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
-  const firstDay = plan.start.getUTCFullYear() === y && plan.start.getUTCMonth() === m ? plan.start.getUTCDate() : 1
-  const lastDay = plan.end && plan.end.getUTCFullYear() === y && plan.end.getUTCMonth() === m ? plan.end.getUTCDate() : daysInMonth
-  const elapsed = Math.min(day.getUTCDate() - firstDay, lastDay - firstDay + 1)
-  if (elapsed > 0) total += Math.round((monthCents * elapsed) / (lastDay - firstDay + 1))
+  const { elapsed, length } = serviceDaysBefore(plan, day)
+  if (length <= 0 || elapsed <= 0) return total
+  const opening = plan.opening
+  if (opening && monthKey(opening.asOf.getUTCFullYear(), opening.asOf.getUTCMonth()) === pivot) {
+    // The opening month: its days before the opening day carry `beforeCents`, the others the rest
+    const cut = serviceDaysBefore(plan, opening.asOf).elapsed
+    if (elapsed <= cut) return total + (cut > 0 ? Math.round((opening.beforeCents * elapsed) / cut) : 0)
+    const afterCents = monthCents - opening.beforeCents
+    return total + opening.beforeCents + Math.round((afterCents * (elapsed - cut)) / (length - cut))
+  }
+  total += Math.round((monthCents * elapsed) / length)
   return total
 }
 

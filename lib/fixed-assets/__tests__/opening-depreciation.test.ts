@@ -120,4 +120,28 @@ describe('declining method on fiscal years (BOI-BIC-AMT-20-20-30-20)', () => {
     expect(sumPlanCentsForPeriod(plan, day('2025-01-01'), day('2025-12-31'))).toBe(116_667)
     expect(sumPlanCentsForPeriod(buildDepreciationPlan({ ...declining, fiscalYearClosingMonth: 12 }), day('2025-01-01'), day('2025-12-31'))).toBe(116_667)
   })
+  it('an opening day inside a month splits that month: the days before add up to the opening amount', () => {
+    // 4 000 € booked up to 14 March 2025 (a fiscal year opening on 15 March)
+    const plan = buildDepreciationPlan({ ...asset, openingDepreciation: 4_000, openingDepreciationDate: day('2025-03-15') })
+    expect(sumPlanCentsForPeriod(plan, day('2000-01-01'), day('2025-03-14'))).toBe(400_000)
+    expect(sumPlanCentsForPeriod(plan, day('2025-03-15'), day('2100-12-31'))).toBe(800_000)
+    // A fiscal year from 15 March to 14 March: the months add up across the cut
+    const firstYear = sumPlanCentsForPeriod(plan, day('2025-03-15'), day('2026-03-14'))
+    const secondYear = sumPlanCentsForPeriod(plan, day('2026-03-15'), day('2027-03-14'))
+    expect(firstYear + secondYear + sumPlanCentsForPeriod(plan, day('2027-03-15'), day('2100-12-31'))).toBe(800_000)
+    expect(total(plan)).toBe(1_200_000)
+  })
+
+  it('an opening day on the first of the month changes nothing in that month', () => {
+    const plan = buildDepreciationPlan({ ...asset, openingDepreciation: 4_000, openingDepreciationDate: day('2025-03-01') })
+    expect(plan.opening).toBeUndefined()
+    expect(sumPlanCentsForPeriod(plan, day('2000-01-01'), day('2025-02-28'))).toBe(400_000)
+    expect(total(plan)).toBe(1_200_000)
+  })
+
+  it('nothing booked before a mid-month opening day: the days before it carry nothing', () => {
+    const plan = buildDepreciationPlan({ ...asset, openingDepreciation: 0, openingDepreciationDate: day('2025-03-15') })
+    expect(sumPlanCentsForPeriod(plan, day('2000-01-01'), day('2025-03-14'))).toBe(0)
+    expect(total(plan)).toBe(1_200_000)
+  })
 })
