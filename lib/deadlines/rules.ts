@@ -244,7 +244,7 @@ export const RULES = {
     category: 'juridique',
     form: 'Capitaux propres inférieurs à la moitié du capital',
     summary:
-      "Quand les comptes approuvés font apparaître des capitaux propres inférieurs à la moitié du capital social, les associés décident, dans les quatre mois qui suivent l'approbation, s'il y a lieu à dissolution anticipée de la société ; la décision est publiée.",
+      "Quand les comptes approuvés font apparaître des capitaux propres inférieurs à la moitié du capital social, les associés décident, dans les quatre mois qui suivent l'approbation, s'il y a lieu à dissolution anticipée de la société\u00a0; la décision est publiée.",
     sources: [L223_42, L225_248],
   },
   'capitaux-propres-reconstitution': {
