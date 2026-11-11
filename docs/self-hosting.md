@@ -381,7 +381,7 @@ Le workflow le gère : à la première mise à jour, il retrouve le commit de Kl
 
 ### Fichiers de workflow
 
-GitHub interdit au jeton des Actions de modifier les fichiers `.github/workflows`. Le workflow garde donc vos fichiers de workflow tels quels et le signale dans la pull request. Pour qu'ils suivent aussi Kledg, créez le secret de dépôt `KLEDG_UPDATE_TOKEN` (*Settings, Secrets and variables, Actions*) avec un jeton fine-grained limité au dépôt (Contents, Pull requests et Workflows en lecture et écriture). La page **Mises à jour** met elle-même à jour le workflow *Update from Kledg* avec son propre jeton.
+Le workflow pousse la branche de mise à jour avec le jeton des Actions, jamais avec un jeton personnel : GitHub ne lance alors aucun autre workflow sur cette branche, si bien que rien de la mise à jour ne s'exécute dans votre dépôt, avec vos secrets, avant que vous l'ayez relue. Ce jeton ne peut pas modifier les fichiers `.github/workflows` : le workflow garde vos fichiers de workflow tels quels et liste dans la pull request ceux que Kledg a changés, à reporter à la main après relecture. La page **Mises à jour** met elle-même à jour le workflow *Update from Kledg* avec son propre jeton. Le secret `KLEDG_UPDATE_TOKEN` des versions précédentes n'est plus utilisé : supprimez-le de votre dépôt.
 
 ### Choisir ce que vous suivez
 
