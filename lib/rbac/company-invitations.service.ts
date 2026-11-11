@@ -299,6 +299,7 @@ export async function inviteMember(input: InviteInput): Promise<InviteResult> {
     }
   }
 
+  await recordDelivery(created.id, delivery)
   await writeAuditLog('info', 'Invitation envoyée', {
     action: 'MEMBER_INVITED',
     companyId: input.companyId,
@@ -306,6 +307,11 @@ export async function inviteMember(input: InviteInput): Promise<InviteResult> {
   })
   const [invitation] = await summarize([created], now)
   return { invitation, ...delivery }
+}
+
+/** Whether the current link went to the mailbox or back to the inviter (acceptInvitation relies on it). */
+async function recordDelivery(invitationId: string, delivery: { emailSent: boolean }): Promise<void> {
+  await prisma.companyInvitation.update({ where: { id: invitationId }, data: { linkShared: !delivery.emailSent } })
 }
 
 async function openInvitationOf(companyId: string, invitationId: string) {
@@ -350,6 +356,7 @@ export async function resendInvitation(input: {
   const delivery = inAmbientTransaction()
     ? await deferredInvitationEmail(updated, token, input.inviter)
     : await sendInvitationEmail(updated, token, input.inviter)
+  await recordDelivery(current.id, delivery)
   await writeAuditLog('info', 'Invitation renvoyée', {
     action: 'MEMBER_INVITATION_RESENT',
     companyId: input.companyId,
@@ -406,7 +413,7 @@ const findByToken = (token: string) =>
   TOKEN_FORMAT.test(token)
     ? prisma.companyInvitation.findUnique({
         where: { tokenHash: hashInvitationToken(token) },
-        select: { id: true, companyId: true, email: true, role: true, invitedById: true, expiresAt: true, acceptedAt: true, revokedAt: true },
+        select: { id: true, companyId: true, email: true, role: true, invitedById: true, expiresAt: true, acceptedAt: true, revokedAt: true, linkShared: true },
       })
     : Promise.resolve(null)
 
@@ -429,7 +436,8 @@ export async function readInvitation(token: string, now: Date = new Date()): Pro
       roleLabel: ROLE_LABELS[invitation.role] ?? invitation.role,
       inviterName: inviter ? inviter.name?.trim() || inviter.email : null,
       expiresAt: invitation.expiresAt,
-      confirmedAccount: Boolean(account?.emailVerified),
+      // Sign in rather than create: a confirmed account, or any account when the link was handed over by the inviter (acceptInvitation)
+      confirmedAccount: Boolean(account?.emailVerified) || (Boolean(account) && invitation.linkShared),
       signUpAllowed,
     }
   })
@@ -437,6 +445,10 @@ export async function readInvitation(token: string, now: Date = new Date()): Pro
 
 /** Who accepts: the signed-in user, or a new account created from the link. */
 export type Acceptor = { user: InvitationActor } | { newAccount: { name: string; password: string } }
+
+/** An existing account invited with a link handed over by the inviter: only signing in to it accepts. */
+export const EXISTING_ACCOUNT_SIGN_IN_MESSAGE =
+  "Un compte existe déjà pour cette adresse\u00a0: connectez-vous avec ce compte pour accepter l'invitation."
 
 export interface AcceptResult {
   companyId: string
@@ -473,14 +485,21 @@ export async function acceptInvitation(token: string, acceptor: Acceptor, now: D
         throw new ForbiddenError(WRONG_ACCOUNT_MESSAGE)
       }
       // An unconfirmed address proves nothing about who registered it (KLEDG-SEC-011): the link's form resets it.
-      if (!account.emailVerified) throw new ConflictError("Confirmez d'abord l'adresse de votre compte, ou choisissez un mot de passe depuis ce lien.")
+      // A link the inviter passed on by hand cannot reset it, so signing in to the account is the proof then.
+      if (!account.emailVerified && !invitation.linkShared) {
+        throw new ConflictError("Confirmez d'abord l'adresse de votre compte, ou choisissez un mot de passe depuis ce lien.")
+      }
       userId = account.id
     } else {
       if (account?.emailVerified) throw new ConflictError(ACCOUNT_EXISTS_MESSAGE)
       if (!(await isActionAllowed('invitation-sign-up', null))) throw new ForbiddenError(SIGN_UP_REFUSED_MESSAGE)
       const name = acceptor.newAccount.name.trim() || invitation.email.split('@')[0]
+      if (account && invitation.linkShared) {
+        // The link went to the inviter, not to the mailbox: it proves nothing about who owns this address
+        throw new ConflictError(EXISTING_ACCOUNT_SIGN_IN_MESSAGE)
+      }
       if (account) {
-        // Registered but never confirmed: taken over like a new account, its sessions and keys gone.
+        // Registered but never confirmed, and the link came by email: taken over like a new account, its sessions and keys gone.
         await resetUnconfirmedAccount(account.id, name, acceptor.newAccount.password)
         userId = account.id
       } else {

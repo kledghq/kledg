@@ -245,6 +245,37 @@ describe.skipIf(!available)('company invitations (issue #13)', () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { id: squatter.user.id } })).emailVerified).toBe(true)
   })
 
+  it('never takes over an existing account with a link the inviter got back instead of an email: no account takeover', async () => {
+    // The instance administrator created by /setup, address never confirmed
+    const admin = await auth.api.createUser({ body: { email: 'admin@instance.fr', password: 'admin-password-123', name: 'Admin', role: 'admin' } })
+    state.emailEnabled = false
+    const body = await (await invite('companyAdmin', 'admin@instance.fr', 'viewer')).json()
+    expect(body.link).toBeDefined()
+    const token = body.link.split('/').pop() as string
+
+    // The company administrator holds the link: choosing a password is refused, the account is untouched
+    expect((await service.readInvitation(token))?.confirmedAccount).toBe(true)
+    await expect(service.acceptInvitation(token, { newAccount: { name: 'Pirate', password: 'pirate-password-42' } })).rejects.toThrow(service.EXISTING_ACCOUNT_SIGN_IN_MESSAGE)
+    await expect(auth.api.signInEmail({ body: { email: 'admin@instance.fr', password: 'pirate-password-42' } })).rejects.toThrow()
+    const kept = await prisma.user.findUniqueOrThrow({ where: { id: admin.user.id } })
+    expect(kept).toMatchObject({ role: 'admin', emailVerified: false })
+
+    // The account's owner, signed in, accepts it
+    const accepted = await service.acceptInvitation(token, { user: { id: admin.user.id, email: 'admin@instance.fr', role: 'admin' } })
+    expect(accepted).toMatchObject({ userId: admin.user.id, createdUser: false })
+  })
+
+  it('records whether the link went by email, and a resend by email allows the takeover again', async () => {
+    state.emailEnabled = false
+    await invite('companyAdmin', 'salarie@atelier.fr', 'viewer')
+    const row = await prisma.companyInvitation.findFirstOrThrow({ where: { email: 'salarie@atelier.fr' } })
+    expect(row.linkShared).toBe(true)
+    state.emailEnabled = true
+    const resent = await call('companyAdmin', 'POST', 'resend', { id: ids.a, invitationId: row.id })
+    expect(resent.status).toBe(200)
+    expect((await prisma.companyInvitation.findUniqueOrThrow({ where: { id: row.id } })).linkShared).toBe(false)
+  })
+
   it('refuses an expired, revoked or replaced link, and an unknown token', async () => {
     await invite('companyAdmin', 'expert@cabinet.fr', 'accountant')
     const first = tokenSentTo('expert@cabinet.fr')

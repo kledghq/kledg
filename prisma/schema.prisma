@@ -3074,6 +3074,10 @@ model CompanyInvitation {
   expiresAt    DateTime
   lastSentAt   DateTime  @default(now())
   sendCount    Int       @default(1)
+  /// The current link went back to the inviter (no email delivery), so
+  /// holding it proves nothing about the mailbox: accepting never takes over
+  /// an existing account then (KLEDG-SEC-011). True for rows created before.
+  linkShared   Boolean   @default(true)
   acceptedAt   DateTime?
   acceptedById String?
   revokedAt    DateTime?
