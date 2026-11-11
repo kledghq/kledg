@@ -4,8 +4,13 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.5.0] - 2026-11-11
+
 ### Ajouté
 
+- Capitaux propres inférieurs à la moitié du capital social : la page **Approbation des comptes** le signale, le calendrier ajoute la décision des associés sur la dissolution anticipée (dans les quatre mois de l'approbation) et la reconstitution des capitaux propres, et les documents d'approbation proposent la résolution correspondante (Code de commerce, art. L223-42 et L225-248).
+- Immobilisations acquises avant le premier exercice suivi dans Kledg : saisissez les amortissements déjà comptabilisés et la date à laquelle ils sont arrêtés ; le reste de la base amortissable est réparti sur la durée restante (PCG, art. 214-14). Migration `20261205090000_fixed_asset_opening_depreciation` (colonnes ajoutées, additive).
+- Échéances : les acomptes d'impôt sur les sociétés sont indiqués « Non dus » quand l'impôt de référence déposé est de 3 000 € ou moins (CGI, art. 1668).
 - Liasse fiscale : la page **États, Liasse fiscale** liste tous les tableaux de la déclaration de résultat selon le régime d'impôt sur les sociétés (2065-SD et 2033-A-SD à 2033-G-SD au régime simplifié, 2065-SD et 2050-SD à 2059-G-SD au régime réel normal), avec la page de Kledg qui prépare chacun. Elle prépare case par case, avec le code officiel de chaque case, la déclaration 2065-SD et les tableaux 2033-D (provisions, amortissements dérogatoires, déficits, TVA), 2033-E (effectifs et valeur ajoutée), 2033-F (composition du capital) et 2033-G (filiales et participations) ; ce que les écritures et les fiches de la société ne disent pas est signalé « à remplir à la main », jamais deviné. Contrôles avec le bilan, le registre des provisions, la composition du capital et les titres de participation ; exports PDF et CSV ; outil MCP `get_liasse_fiscale`. Kledg prépare la liasse, il ne la dépose pas ([documentation](docs/liasse-fiscale.md)).
 - Liasse fiscale du régime réel normal : la page prépare aussi les tableaux 2056 (provisions), 2057 (échéances des créances et des dettes, d'après les réponses de l'annexe), 2058-B (déficits, provisions non déductibles), 2058-C (affectation du résultat de l'exercice précédent et renseignements divers), 2059-E, 2059-F et 2059-G, avec des contrôles contre le bilan, le compte de résultat et l'affectation votée. Les tableaux 2054 bis et 2059-A à 2059-D (réévaluation, plus et moins-values, réserve spéciale) restent à remplir à la main.
 - Serveur MCP, synchronisation : `list_invoices` et `list_tiers` se lisent page par page (`cursor`, `nextCursor`) et, avec `updatedSince`, ne renvoient que les lignes modifiées depuis un instant, la plus ancienne d'abord. Chaque facture donne aussi l'identifiant de son tiers (`tiersId`), sa devise, la date de son dernier règlement (`lastPaymentDate`) et sa date de modification (`updatedAt`) ; chaque tiers son email, son adresse et sa date de modification. Un règlement enregistré ou retiré, le lettrage, la validation ou la suppression de l'écriture d'une facture comptent comme des modifications de la facture ([documentation](docs/factures-et-tiers.md#synchronisation)). Migration `20261204090000_invoice_change_tracking` (fonctions et déclencheurs ajoutés, additive).
@@ -14,11 +19,34 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Modifié
 
-- **À faire avant la mise à jour (instances auto-hébergées)** : 1. vérifiez que la page **Configuration** n'affiche plus « Ancien format de chiffrement », sinon lancez `pnpm secrets:reencrypt` avec l'environnement de l'instance (ou redémarrez le serveur de la version actuelle) et reconnectez ce qu'il signale illisible ; 2. si une société utilise la clôture automatique mensuelle des périodes, définissez `CRON_SECRET` (`openssl rand -base64 32`) dans les variables de l'hébergeur et dans votre planificateur hors Vercel, puis redéployez.
+- Assistants IA : le contrôle total et le mode automatique demandent votre mot de passe, et cette confirmation est effacée quand l'accès passe sous le contrôle total. Les approbations détaillent ce qu'elles feront (règles appliquées et leurs comptes, paires rapprochées) ; rapprocher une transaction avec une écriture existante ou sans écriture, marquer une échéance déposée ou payée et enregistrer le dépôt d'une déclaration passent par l'approbation dans Kledg. Migrations `20261208090000_ai_grant_full_control_confirmation` et `20261213090000_ai_grant_full_control_follows_consent` (colonne et déclencheur ajoutés).
+- Exercices : un exercice ne peut plus chevaucher un autre exercice, clôturé ou non, ni être raccourci en laissant des écritures hors de ses dates.
+- Import FEC : 200 000 lignes et 50 exercices au plus par fichier ; l'aperçu d'un import demande les mêmes droits que l'import. La page **Écritures** désactive Importer et Nouvelle écriture, avec la raison, pour les rôles qui ne peuvent pas s'en servir.
+- Notes de frais : un membre en lecture seule ne voit et n'utilise que les justificatifs rattachés à la banque et les siens ; un justificatif ne sert qu'à une note de frais ; une note créée ou soumise pour quelqu'un d'autre compte comme la sienne pour la validation.
+- Workflow *Update from Kledg* version 3 : il pousse la branche de mise à jour avec le jeton des Actions et garde vos fichiers de workflow, en listant dans la pull request ceux que Kledg a changés.
+- Dépendances : Next.js 16.4.3 (correctifs de sécurité), jsdom 30, TypeScript 6, react-day-picker 10, TanStack Table 9, et les mises à jour des alertes Dependabot (zod, vite, vitest, undici, fast-uri, minimatch). Les actions GitHub sont épinglées à leur commit.
+- **À faire avant la mise à jour (instances auto-hébergées)** : 1. vérifiez que la page **Configuration** n'affiche plus « Ancien format de chiffrement », sinon lancez `pnpm secrets:reencrypt` avec l'environnement de l'instance (ou redémarrez le serveur de la version actuelle) et reconnectez ce qu'il signale illisible ; 2. si une société utilise la clôture automatique mensuelle des périodes, définissez `CRON_SECRET` (`openssl rand -base64 32`) dans les variables de l'hébergeur et dans votre planificateur hors Vercel, puis redéployez. 3. si votre dépôt a un secret `KLEDG_UPDATE_TOKEN`, supprimez-le : le workflow *Update from Kledg* (version 3, installée par la page **Mises à jour**) pousse désormais la branche de mise à jour avec le seul jeton des Actions.
 - Secrets chiffrés : l'ancien format (sans lien à sa ligne) n'est plus lu que par le passage de rechiffrement (démarrage du serveur, avant la première requête, et `pnpm secrets:reencrypt`). Ailleurs, une valeur restée dans cet ancien format est refusée avec un message qui demande de lancer `pnpm secrets:reencrypt` ([documentation](docs/configuration.md#ancien-format-de-chiffrement)).
 - Clôture automatique des périodes : `/api/cron/period-locks` exige désormais `CRON_SECRET`. Sans lui, la clôture automatique ne s'exécute pas (la route répond `skipped: "cron-secret-missing"`, le journal du serveur l'indique une fois) ; la synchronisation bancaire garde son fonctionnement sans secret ([documentation](docs/configuration.md)).
 - Image Docker : l'outil de migration (Prisma CLI) s'installe depuis un fichier de verrouillage versionné (`docker/migrator/package-lock.json`, `npm ci`), aux versions et empreintes de `pnpm-lock.yaml`.
 - CI : les dépôts récupérés par `actions/checkout` ne gardent plus le jeton GitHub (`persist-credentials: false`) ; la publication d'une version le reçoit seulement à l'étape `gh release create`.
+
+### Corrigé
+
+- Rapprochement bancaire : l'écriture utilise le compte 512 du compte bancaire de la transaction, et non le compte par défaut de la société.
+- Subventions d'investissement : modifier une subvention garde le montant déjà viré au résultat.
+- Affectation du résultat : les dividendes intercalaires (1209) ne réduisent plus le résultat à affecter ; l'affectation les solde et ne verse au 457 que le reste (PCG, art. 941-12).
+- Amortissements : un mois coupé par la clôture n'est compté qu'une fois entre deux exercices, et le mode dégressif suit les exercices de la société (BOI-BIC-AMT-20-20-30-20).
+- Échéances : un acompte d'impôt sur les sociétés payé reste « Payé » même quand il n'était pas dû.
+- Accueil du mode simple : plus d'erreur 500 sur la prévision de trésorerie.
+- Suppression d'une société (bac à sable de démonstration compris) beaucoup plus rapide : toutes les clés étrangères sont indexées. Migration `20261204090000_index_foreign_keys` (index ajoutés).
+
+### Sécurité
+
+- Invitations : un lien remis à l'invitant (instance sans email) ne réinitialise ni ne confirme un compte de l'adresse invitée ; l'acceptation vérifie que l'invitant peut toujours inviter. Migration `20261211090000_invitation_link_shared` (colonne ajoutée).
+- Mot de passe : la route de Better Auth n'est plus ouverte en HTTP, le changement passe par la page du compte et sa limite par utilisateur.
+- Imports CSV et FEC bornés avant lecture ; routes Qonto comptées dans la limite des appels bancaires, justificatifs vérifiés d'après leur contenu, comptes Qonto exclus de la synchronisation non consultables.
+- Serveur MCP : les outils de lecture n'écrivent plus, le corps des requêtes est limité à 8 Mo, les accès entre sociétés sont vérifiés avant toute lecture.
 
 ## [0.4.1] - 2026-10-08
 
