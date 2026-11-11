@@ -64,6 +64,7 @@ vi.mock('@/components/features/import/last-import-summary', () => ({
 }))
 
 import EntriesPage from '../page'
+import { CompanyAccessProvider } from '@/components/features/companies/company-access'
 
 let store: Map<string, string>
 let fetchMock: ReturnType<typeof vi.fn>
@@ -118,6 +119,19 @@ describe('entries page', () => {
     expect(await screen.findByText('VE-3')).toBeInTheDocument()
     expect(entryQueries().at(-1)).toEqual({ companyId: 'c1', fiscalYearId: 'fy-2026', limit: '50', cursor: 'cursor-2' })
     expect(screen.queryByRole('button', { name: 'Charger plus' })).not.toBeInTheDocument()
+  })
+
+  it('disables the import and the new entry for a read-only member, and says why', async () => {
+    render(
+      <CompanyAccessProvider value={{ granted: { entries: ['read'], reports: ['read'] }, roleLabel: 'Lecture seule' }}>
+        <EntriesPage />
+      </CompanyAccessProvider>,
+    )
+    await screen.findByText('VE-1')
+    expect(screen.getByRole('button', { name: 'Importer' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Nouvelle écriture' })).toBeDisabled()
+    expect(screen.queryByRole('link', { name: 'Nouvelle écriture' })).not.toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent('Lecture seule')
   })
 
   it('opens on the drafts from the dashboard link', async () => {
