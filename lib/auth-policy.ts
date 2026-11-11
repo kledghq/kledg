@@ -37,6 +37,15 @@ export function isOrganizationMutationPath(path: string): boolean {
  */
 const ACCOUNT_ROUTE_ONLY_PATHS = new Set(['/change-email', '/delete-user', '/delete-user/callback'])
 
+/**
+ * API keys are created only by app/api/ai-access/api-keys (password for full
+ * control, company grant, notice email, audit entry): Better Auth's endpoint
+ * is closed over HTTP, the route calls it in process.
+ */
+export function isApiKeyRouteOnlyPath(path: string): boolean {
+  return path === '/api-key/create'
+}
+
 export function isAccountRouteOnlyPath(path: string): boolean {
   return ACCOUNT_ROUTE_ONLY_PATHS.has(path)
 }

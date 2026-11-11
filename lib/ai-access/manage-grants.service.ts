@@ -21,7 +21,7 @@
 import { prisma } from '@/lib/prisma'
 import type { CurrentUser } from '@/lib/session'
 import { COMPANY_NOT_FOUND_MESSAGE, isGlobalAdmin } from '@/lib/rbac/authorize'
-import { NotFoundError } from '@/lib/accounting/errors'
+import { ValidationError, NotFoundError } from '@/lib/accounting/errors'
 import {
   ALL_COMPANIES,
   DEFAULT_EXECUTION_MODE,
@@ -75,6 +75,12 @@ export function executionModeOf(stored: string | null | undefined): ExecutionMod
  * the next call. A connection without a grant reaches no company anyway; it
  * reads as 'validation' (fail closed).
  */
+/** Whether the user confirmed full control of this assistant with their password (setGrant). */
+export async function fullControlConfirmed(userId: string, clientId: string): Promise<boolean> {
+  const grant = await prisma.aiAccessGrant.findFirst({ where: { userId, clientId }, select: { fullControlConfirmedAt: true } })
+  return Boolean(grant?.fullControlConfirmedAt)
+}
+
 export async function getExecutionMode(userId: string, target: GrantTarget): Promise<ExecutionMode> {
   const grant = await prisma.aiAccessGrant.findFirst({ where: targetWhere(userId, target), select: { executionMode: true } })
   return executionModeOf(grant?.executionMode)
@@ -142,19 +148,39 @@ async function assertTargetOwned(user: CurrentUser, target: GrantTarget): Promis
  * Applies to the next MCP call: the grant is read on every tool call, never
  * copied into a token.
  */
+export interface GrantConfirmation {
+  /** The route checked the user's password on this request (assertCurrentPassword). */
+  passwordChecked?: boolean
+  /** Full control is being given to this assistant: recorded only with passwordChecked. */
+  fullControl?: boolean
+}
+
+export const PASSWORD_FOR_FULL_CONTROL_MESSAGE =
+  'Saisissez votre mot de passe pour donner le contrôle total à cet assistant.'
+export const PASSWORD_FOR_AUTOMATIC_MESSAGE =
+  "Saisissez votre mot de passe pour passer cette connexion en exécution automatique\u00a0: ses actions importantes ne vous seront plus soumises."
+
 export async function setGrant(
   user: CurrentUser,
   target: GrantTarget,
   access: CompanyAccess,
   executionMode?: ExecutionMode,
+  confirmation: GrantConfirmation = {},
 ): Promise<ConnectionAccess> {
   await assertTargetOwned(user, target)
+  if (confirmation.fullControl && !confirmation.passwordChecked) throw new ValidationError(PASSWORD_FOR_FULL_CONTROL_MESSAGE)
+  // Leaving validation mode turns every future approval off: the password, like creating a full control key
+  if (executionMode === 'automatic' && !confirmation.passwordChecked) {
+    const current = await prisma.aiAccessGrant.findFirst({ where: targetWhere(user.id, target), select: { executionMode: true } })
+    if (current?.executionMode === 'validation') throw new ValidationError(PASSWORD_FOR_AUTOMATIC_MESSAGE)
+  }
   const companyIds = access.allCompanies ? [] : [...new Set(access.companyIds)]
   await assertCompaniesAccessible(user, companyIds)
 
   const saved = await prisma.$transaction(async (tx) => {
-    const update = { allCompanies: access.allCompanies, ...(executionMode && { executionMode }) }
-    const create = { allCompanies: access.allCompanies, executionMode: executionMode ?? DEFAULT_EXECUTION_MODE }
+    const confirmed = confirmation.fullControl && confirmation.passwordChecked ? { fullControlConfirmedAt: new Date() } : {}
+    const update = { allCompanies: access.allCompanies, ...(executionMode && { executionMode }), ...confirmed }
+    const create = { allCompanies: access.allCompanies, executionMode: executionMode ?? DEFAULT_EXECUTION_MODE, ...confirmed }
     const grant =
       target.kind === 'oauth'
         ? await tx.aiAccessGrant.upsert({

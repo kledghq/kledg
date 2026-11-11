@@ -15,7 +15,7 @@ import { sendEmail } from './email'
 import { changeEmailVerificationEmail, resetPasswordEmail, verifyEmailEmail, welcomeEmail } from './email/templates'
 import { actionRefusalMessage, authActionOf, isActionAllowed } from './instance'
 import { REQUIRE_EMAIL_VERIFICATION } from './instance/policy'
-import { authRateLimit, isAccountRouteOnlyPath, isOrganizationMutationPath, isUserRouteOnlyPath } from './auth-policy'
+import { authRateLimit, isAccountRouteOnlyPath, isOrganizationMutationPath, isApiKeyRouteOnlyPath, isUserRouteOnlyPath } from './auth-policy'
 import { isEmailChangeToken } from './account/verification-token'
 import { isWelcomeReset } from './email/welcome-context'
 import { revokeDelegatedAccess } from './account/revoke-delegated-access'
@@ -182,6 +182,9 @@ function createAuth() {
       }
       if (isAccountRouteOnlyPath(ctx.path)) {
         throw new APIError('FORBIDDEN', { message: 'Utilisez la page Profil de Kledg pour cette action.' })
+      }
+      if (isApiKeyRouteOnlyPath(ctx.path)) {
+        throw new APIError('FORBIDDEN', { message: 'Créez les clés API depuis la page Clés API de Kledg.' })
       }
       if (isUserRouteOnlyPath(ctx.path)) {
         throw new APIError('FORBIDDEN', { message: 'Utilisez la page Utilisateurs de Kledg pour cette action.' })

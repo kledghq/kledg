@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Field } from '@/components/shared'
 import {
   Dialog,
   DialogContent,
@@ -31,7 +33,8 @@ interface DialogProps {
    * level only).
    */
   executionMode?: ExecutionMode
-  onSave: (access: CompanyAccess, level?: AccessLevel, executionMode?: ExecutionMode) => Promise<void>
+  /** The password typed again, when leaving validation mode (the server checks it). */
+  onSave: (access: CompanyAccess, level?: AccessLevel, executionMode?: ExecutionMode, password?: string) => Promise<void>
 }
 
 /**
@@ -55,8 +58,16 @@ function AccessForm({ onOpenChange, title, companies, companiesLoading, initial,
   const showMode = mode !== undefined && (!level || chosenLevel === 'admin')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Leaving validation mode turns the approvals off: the password, typed again
+  const needsPassword = showMode && executionMode === 'validation' && mode === 'automatic'
+  const [password, setPassword] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
 
   const save = async () => {
+    if (needsPassword && !password) {
+      setPasswordMessage('Saisissez votre mot de passe.')
+      return
+    }
     const invalid = accessError(value)
     if (invalid) {
       setError(invalid)
@@ -64,7 +75,9 @@ function AccessForm({ onOpenChange, title, companies, companiesLoading, initial,
     }
     setSaving(true)
     try {
-      await onSave({ allCompanies: value.allCompanies, companyIds: value.companyIds }, chosenLevel, showMode ? mode : undefined)
+      const chosen = { allCompanies: value.allCompanies, companyIds: value.companyIds }
+      if (needsPassword) await onSave(chosen, chosenLevel, mode, password)
+      else await onSave(chosen, chosenLevel, showMode ? mode : undefined)
       toast.success('Accès mis à jour')
       onOpenChange(false)
     } catch (e) {
@@ -96,6 +109,25 @@ function AccessForm({ onOpenChange, title, companies, companiesLoading, initial,
         />
       )}
       {showMode && mode && <ExecutionModePicker value={mode} onChange={setMode} disabled={saving} />}
+      {needsPassword && (
+        <Field
+          label="Votre mot de passe"
+          hint="En exécution automatique, les actions importantes ne vous seront plus soumises&nbsp;: confirmez avec votre mot de passe."
+          error={passwordMessage ?? undefined}
+          required
+        >
+          <Input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              setPasswordMessage(null)
+            }}
+            disabled={saving}
+          />
+        </Field>
+      )}
       <CompanyAccessPicker
         companies={companies}
         loading={companiesLoading}

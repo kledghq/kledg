@@ -159,12 +159,18 @@ describe('OAuthConnectionsCard', () => {
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('radio', { name: /Validation dans Kledg/ })).toBeChecked()
     await user.click(within(dialog).getByRole('radio', { name: /Automatique/ }))
+    // Leaving validation mode asks for the password, checked by the server
+    await user.click(within(dialog).getByRole('button', { name: "Enregistrer l'accès" }))
+    expect(await within(dialog).findByText('Saisissez votre mot de passe.')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+    await user.type(within(dialog).getByLabelText(/Votre mot de passe/), 'secret-password')
     await user.click(within(dialog).getByRole('button', { name: "Enregistrer l'accès" }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))).toEqual({
       clientId: 'https://chatgpt.com/client',
       access: { allCompanies: false, companyIds: ['c1'] },
       executionMode: 'automatic',
+      password: 'secret-password',
     })
   })
 

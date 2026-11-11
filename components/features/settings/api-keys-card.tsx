@@ -321,9 +321,9 @@ export function ApiKeysCard({
         executionMode={
           editing && apiKeyLevelOf(editing.permissions) === 'admin' ? (grants.get(editing.id)?.executionMode ?? 'automatic') : undefined
         }
-        onSave={async (access, _level, executionMode) => {
+        onSave={async (access, _level, executionMode, password) => {
           if (!editing) return
-          await putAccess(`/api/ai-access/api-keys/${encodeURIComponent(editing.id)}`, { access, executionMode })
+          await putAccess(`/api/ai-access/api-keys/${encodeURIComponent(editing.id)}`, { access, executionMode, ...(password && { password }) })
           await onChange()
         }}
       />

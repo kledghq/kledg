@@ -345,8 +345,15 @@ describe.skipIf(!available)('assistant access level and revocation', () => {
       const full = await connect(clientId, cookie, ALL_SCOPES)
       expect(scopesOfJwt(full.access_token).sort()).toEqual(['kledg:admin', 'kledg:read', 'kledg:write'])
       expect((await consentOf(OWNER.id, clientId)).scopes).toContain('kledg:admin')
+      // KLEDG-R3-AUTH-01: the consent alone (a session, no password) gives drafts at most
+      expect(await accessOf(full.access_token)).toEqual({ canWrite: true, canAdmin: false })
+      // Confirmed with the password in Kledg (the consent page, through PUT /api/ai-access/assistants): full control
+      const { setGrant } = await import('@/lib/ai-access/manage-grants.service')
+      await setGrant({ ...OWNER } as never, { kind: 'oauth', clientId }, { allCompanies: true, companyIds: [] }, undefined, { fullControl: true, passwordChecked: true })
       expect(await accessOf(full.access_token)).toEqual({ canWrite: true, canAdmin: true })
       expect(await toolNames(full.access_token)).toContain('create_draft_entry')
+      // Without the password, the route refuses to record full control
+      await expect(setGrant({ ...OWNER } as never, { kind: 'oauth', clientId }, { allCompanies: true, companyIds: [] }, undefined, { fullControl: true })).rejects.toThrow(/mot de passe/)
     })
 
     it('is refused to a read only connection', async () => {
@@ -370,6 +377,32 @@ describe.skipIf(!available)('assistant access level and revocation', () => {
       // The old token still says kledg:admin; the consent no longer does.
       expect(await accessOf(full.access_token)).toEqual({ canWrite: true, canAdmin: false })
       for (const stored of await refreshTokens(OWNER.id, clientId)) expect(stored.scopes).not.toContain('kledg:admin')
+    })
+  })
+
+  describe('password for full control and automatic mode (KLEDG-R3-AUTH-01)', () => {
+    it("closes Better Auth's API key creation over HTTP: keys come from Kledg's route only", async () => {
+      const cookie = await signIn(OWNER)
+      const response = await authRequest('/api-key/create', {
+        method: 'POST',
+        cookie,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Clé directe' }),
+      })
+      expect(response.status).toBe(403)
+      expect(await prisma.apikey.count({ where: { name: 'Clé directe' } })).toBe(0)
+    })
+
+    it('leaves validation mode only with the password', async () => {
+      const clientId = await registerClient()
+      const { setGrant } = await import('@/lib/ai-access/manage-grants.service')
+      const all = { allCompanies: true, companyIds: [] }
+      await setGrant({ ...OWNER } as never, { kind: 'oauth', clientId }, all, 'validation')
+      await expect(setGrant({ ...OWNER } as never, { kind: 'oauth', clientId }, all, 'automatic')).rejects.toThrow(/mot de passe/)
+      const switched = await setGrant({ ...OWNER } as never, { kind: 'oauth', clientId }, all, 'automatic', { passwordChecked: true })
+      expect(switched.executionMode).toBe('automatic')
+      // Going back to validation needs nothing
+      expect((await setGrant({ ...OWNER } as never, { kind: 'oauth', clientId }, all, 'validation')).executionMode).toBe('validation')
     })
   })
 
