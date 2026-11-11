@@ -8,6 +8,8 @@ import type { PCGWarning } from '@/lib/accounting/services'
 import { handleError, ValidationError } from '@/lib/accounting/errors'
 import { fromCents } from '@/lib/utils/money'
 import { importAmountCents } from './amount'
+import { assertCsvWithinLimits } from '@/lib/api/files'
+import { ACCOUNTING_IMPORT_MAX_ROWS } from './excel'
 import { loadExistingEntries } from './duplicate-entries'
 import { journalAccounts } from './journal-accounts'
 
@@ -42,6 +44,8 @@ interface ImportResult {
  * Parse un fichier CSV
  */
 export function parseCSV(content: string): Record<string, string>[] {
+  // The same row limit as an Excel import, checked before Papa Parse builds every row in memory
+  assertCsvWithinLimits(content, ACCOUNTING_IMPORT_MAX_ROWS)
   const result = Papa.parse<Record<string, string>>(content, {
     header: true,
     skipEmptyLines: true,

@@ -11,6 +11,7 @@ import { parseCamt053 } from './camt053'
 import { decodeText, looksBinary } from './encoding'
 import { parseOfx } from './ofx'
 import { parseTabular, splitCsv, type Cell } from './tabular'
+import { STATEMENT_MAX_ROWS } from './limits'
 import type { ParseResult, StatementFormat, TabularOptions } from './types'
 
 function detectFormat(bytes: Uint8Array, text?: string): StatementFormat {
@@ -43,7 +44,7 @@ function rejectBinary(bytes: Uint8Array): void {
 }
 
 /** Last row a statement sheet may use (a year of a busy account is a few thousand lines). */
-export const STATEMENT_MAX_ROWS = 100_000
+export { STATEMENT_MAX_ROWS } from './limits'
 
 async function readWorkbook(bytes: Uint8Array, sheetName?: string): Promise<{ rows: Cell[][]; sheetNames: string[] }> {
   const { workbook, deadline } = await loadWorkbook(bytes, 'Fichier Excel invalide ou corrompu.')

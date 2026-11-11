@@ -333,6 +333,9 @@ it must hold for every code path, by the database (trigger in a migration).
   only through `loadWorkbook` and `readSheetRows` (`lib/api/xlsx.ts`): they
   bound cells, rows, columns and time, and never let ExcelJS expand a range
   cell by cell; never `row.values` or `eachRow({ includeEmpty: true })`.
+  Parse an uploaded CSV only after `assertCsvWithinLimits` (rows and
+  `MAX_CSV_CELLS`, counted on the text): Papa Parse builds every row in
+  memory at once.
 - **Rate limits** (tested by `lib/__tests__/rate-limit.test.ts`): every
   limit of Kledg's own code is a named rule of `RATE_LIMITS` in
   `lib/rate-limit.ts` (window, maximum, French message), applied with
