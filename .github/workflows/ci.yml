@@ -40,6 +40,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+        env:
+          # tsc needs more than Node's default heap on this codebase
+          NODE_OPTIONS: --max-old-space-size=6144
       - run: pnpm lint
       - run: pnpm test:run
 
