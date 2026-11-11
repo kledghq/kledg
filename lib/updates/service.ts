@@ -40,11 +40,13 @@ function isChannel(value: unknown): value is Channel {
  * Marker of the current workflow version: an installed file without it is
  * upgraded. Version 1 handled copies with unrelated history (BEGIN
  * kledg-merge); version 2 passes step outputs through the environment,
- * never inside a script, and pins actions/checkout (KLEDG-R3-INPUT-06).
+ * never inside a script, and pins actions/checkout (KLEDG-R3-INPUT-06);
+ * version 3 pushes with the workflow's own token only, so no workflow of the
+ * update runs before review (CI/CD audit).
  * Bump it with every change of .github/workflows/update-from-kledg.yml that
  * instances must get.
  */
-export const WORKFLOW_MARKER = '# kledg-workflow-version: 2'
+export const WORKFLOW_MARKER = '# kledg-workflow-version: 3'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 let delay = sleep
