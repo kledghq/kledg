@@ -109,6 +109,7 @@ const RESOLUTION_TITLES: Record<(typeof RESOLUTION_IDS)[number], string> = {
   approval: 'Approbation des comptes',
   agreements: 'Conventions réglementées',
   allocation: 'Affectation du résultat',
+  continuation: 'Décision sur la dissolution anticipée de la société',
   powers: 'Pouvoirs pour les formalités',
 }
 

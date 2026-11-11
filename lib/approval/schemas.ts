@@ -27,7 +27,7 @@ const text = (max: number) =>
 const cents = z.number().int('Montant en centimes entier').min(0, 'Montant positif attendu').max(1e15)
 const votes = z.number().int('Nombre de voix entier').min(0, 'Nombre de voix positif').max(1e12)
 
-export const RESOLUTION_IDS = ['approval', 'agreements', 'allocation', 'powers'] as const
+export const RESOLUTION_IDS = ['approval', 'agreements', 'allocation', 'continuation', 'powers'] as const
 export type ResolutionId = (typeof RESOLUTION_IDS)[number]
 
 export const DECISION_MODES = ['meeting', 'written', 'sole'] as const

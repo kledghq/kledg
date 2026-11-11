@@ -198,6 +198,21 @@ function resolutionBlocks(id: ResolutionId, input: Input, subject: string): Bloc
     }
     case 'allocation':
       return allocationParagraphs(pack.plan, input, subject)
+    case 'continuation': {
+      const alert = pack.equityAlert
+      const article = regime.form === 'SARL' || regime.form === 'EURL' ? 'L. 223-42' : 'L. 225-248'
+      const restore = alert ? longDate(alert.restoreBy) : null
+      return [
+        {
+          kind: 'paragraph',
+          text: `${subject}, ${regime.sole ? '' : 'statuant aux conditions de quorum et de majorité requises pour la modification des statuts, '}constate que les comptes de ${endLabel(context)} font apparaître des capitaux propres de ${alert ? eur(alert.equityCents) : '[montant]'}, inférieurs à la moitié du capital social. En application de l'article ${article} du Code de commerce, ${lower(subject)} décide qu'il n'y a pas lieu à dissolution anticipée de la société.`,
+        },
+        {
+          kind: 'paragraph',
+          text: `${subject} prend acte que la société est tenue, au plus tard à la clôture du deuxième exercice suivant celui au cours duquel les pertes ont été constatées${restore ? `, soit le ${restore} pour des exercices de douze mois` : ''}, de reconstituer ses capitaux propres à concurrence d'une valeur au moins égale à la moitié du capital social, ou de réduire son capital dans les conditions prévues par la loi.`,
+        },
+      ]
+    }
     case 'powers':
       return [
         {

@@ -37,7 +37,9 @@ export const SOURCES = {
   L225_253: com('L225-253'),
   L225_37: com('L225-37'),
   // Equity below half the share capital
+  L223_30: com('L223-30'),
   L223_42: com('L223-42'),
+  L225_96: com('L225-96'),
   L225_248: com('L225-248'),
   L227_1: com('L227-1'),
   L227_9: com('L227-9', 'LEGIARTI000051322706'),
