@@ -35,7 +35,7 @@ import {
 import type { TabularOptions } from '@/lib/banking/import/types'
 import { day } from '@/lib/mcp/tool-result'
 import { fullControlTool, type RegisterTool } from './define'
-import { companyLock, rowTargets, ruleTargets } from './fingerprint'
+import { companyLock, entryTargets, rowTargets, ruleTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { accountIdsByCode, euros, fiscalYearOfDay, isoDate, journalIdByCode } from './resolve'
 
@@ -76,12 +76,31 @@ const reconcileInput = {
 const reconcileTransaction = fullControlTool({
   name: 'reconcile_transaction',
   title: 'Rapprocher une transaction',
-  description: `Reconciles a bank transaction (rapprochement): with counterpart lines, creates the DRAFT entry (bank line added by Kledg) and links it, atomically; with entryId, links an existing entry; with withoutEntry, only marks it reconciled. Refused (409) when the transaction is already reconciled, so a retry never creates a second entry. ${ACTS_AS_USER}`,
+  description: `Reconciles a bank transaction (rapprochement): with counterpart lines, creates the DRAFT entry (bank line added by Kledg) and links it, atomically; with entryId, links an existing entry; with withoutEntry, only marks it reconciled. Refused (409) when the transaction is already reconciled, so a retry never creates a second entry. ${ACTS_AS_USER} Linking an existing entry or marking reconciled without an entry takes the transaction off the lists to process with nothing to review, like bulk_reconcile mark_reconciled: ${TWO_STEP}`,
   input: reconcileInput,
   permission: { banking: ['reconcile'] },
   amounts: 'euros',
   never: 'validates the draft entry it creates.',
-  confirmation: false,
+  confirmation: true,
+  // A draft entry is reviewed before it counts; a link or a pointage is not (KLEDG-R3-MCP-10)
+  highImpactWhen: ({ lines, entryId, withoutEntry }) => !(lines && lines.length > 0) && (Boolean(entryId) || withoutEntry === true),
+  targetState: ({ companyId, transactionId, entryId }) => [
+    companyLock(companyId),
+    ...rowTargets('bank_transactions', companyId, transactionId),
+    ...(entryId ? entryTargets(companyId, [entryId]) : []),
+  ],
+  preview: async ({ companyId, transactionId, entryId, withoutEntry }) => {
+    const transaction = await loadTransaction(companyId, transactionId)
+    return {
+      transaction: { id: transaction.id, date: day(transaction.date), label: transaction.label, amount: Number(transaction.amount), side: transaction.side, reconciled: transaction.reconciled },
+      effect: entryId
+        ? "Transaction rapprochée avec l'écriture existante indiquée."
+        : withoutEntry
+          ? 'Transaction marquée rapprochée sans écriture (pointage).'
+          : 'Écriture en brouillon créée avec la ligne de banque, transaction rapprochée.',
+      entryId: entryId ?? null,
+    }
+  },
   async execute({ companyId, transactionId, entryId, journalCode, date, description, reference, lines, withoutEntry }) {
     if (lines && lines.length > 0) {
       const transaction = await loadTransaction(companyId, transactionId)

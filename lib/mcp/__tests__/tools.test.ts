@@ -55,7 +55,7 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   reverse_entry: true,
   update_draft_entry: false,
   delete_draft_entry: true,
-  reconcile_transaction: false,
+  reconcile_transaction: true,
   unreconcile_transaction: true,
   run_rules: true,
   list_rules: false,
