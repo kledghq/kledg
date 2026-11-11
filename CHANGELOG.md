@@ -4,6 +4,13 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.5.1] - 2026-11-11
+
+### Corrigé
+
+- Immobilisations : des amortissements cumulés à l'ouverture datés en milieu de mois (un exercice ouvert le 15 mars) s'appliquaient dès le premier jour de ce mois, si bien qu'une partie du reste à amortir tombait sur les jours d'avant. Le mois est désormais coupé au jour près : les jours avant la date totalisent exactement le montant saisi.
+- CI : l'étape de vérification des types dispose de 6 Go de mémoire ; une instance qui ajoute du code à Kledg dépassait la limite par défaut de Node.
+
 ## [0.5.0] - 2026-11-11
 
 ### Ajouté
