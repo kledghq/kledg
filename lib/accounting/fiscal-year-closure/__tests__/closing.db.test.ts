@@ -313,6 +313,69 @@ describe.skipIf(!available)('fiscal year closing', () => {
     expect(await prisma.fiscalYear.count({ where: { companyId: c.id } })).toBe(2)
   })
 
+  // The foreign keys of entries and lines to the fiscal year take a key-share lock on its row, which the
+  // closing's FOR UPDATE excludes: writes and closings are serialized by the database itself.
+  it('a write that arrives while the year is being closed waits, then is refused (draft through the service or straight in the database)', async () => {
+    const c = await createCompany()
+    const { lockFiscalYearRow } = await import('../lock')
+    // A closing in progress: the row is held, then the year is closed
+    const closing = prisma.$transaction(async (tx) => {
+      await lockFiscalYearRow(tx, c.fy2025, c.id)
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      await tx.$executeRaw`UPDATE "fiscal_years" SET "isClosed" = true, "closedAt" = now() WHERE "id" = ${c.fy2025}`
+    })
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    const [service, direct] = await Promise.allSettled([
+      book(c, 'OD', '2025-12-30', [['606', 500, 0], ['512', 0, 500]], { status: 'draft' }),
+      rawDraft(c, '2025-12-30', [['606', 500, 0], ['512', 0, 500]]),
+    ])
+    await closing
+    expect(service.status).toBe('rejected')
+    expect(direct.status).toBe('rejected')
+    expect(String((direct as PromiseRejectedResult).reason)).toMatch(/KLEDG_FISCAL_YEAR_CLOSED/)
+    expect(await prisma.accountingEntry.count({ where: { companyId: c.id } })).toBe(0)
+  })
+
+  it('a closing that starts while an entry is being validated waits for it and closes with it in the balances', async () => {
+    const c = await createCompany()
+    await bookYear(c)
+    const { createEntryInTx } = await import('@/lib/accounting/services/entry-lifecycle.service')
+    // A validated entry of 500,00 € in flight when the closing starts
+    const inFlight = prisma.$transaction(
+      async (tx) => {
+        await createEntryInTx(tx, {
+          companyId: c.id,
+          fiscalYearId: c.fy2025,
+          journalId: c.journals.get('OD')!,
+          date: day('2025-12-30'),
+          description: 'En vol',
+          status: 'validated',
+          lines: [
+            { accountId: c.accounts.get('606')!, debit: 500 },
+            { accountId: c.accounts.get('512')!, credit: 500 },
+          ],
+        })
+        await new Promise((resolve) => setTimeout(resolve, 800))
+      },
+      { timeout: 20_000 },
+    )
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    const result = await closeFiscalYear(c.id, c.fy2025)
+    await inFlight
+    expect(result.success).toBe(true)
+    // The closing entry clears 606 entirely: the in-flight 500 € is in it
+    const closingLines = await prisma.entryLine.findMany({
+      where: { accountingEntry: { companyId: c.id, journal: { code: 'CL' } }, account: { code: '606' } },
+      select: { debit: true, credit: true },
+    })
+    const balance606 = await prisma.entryLine.aggregate({
+      where: { accountingEntry: { companyId: c.id, fiscalYearId: c.fy2025 }, account: { code: '606' } },
+      _sum: { debit: true, credit: true },
+    })
+    expect(Number(balance606._sum.debit) - Number(balance606._sum.credit)).toBe(0)
+    expect(closingLines.length).toBeGreaterThan(0)
+  })
+
   it('writes nothing when the closing fails half way', async () => {
     const c = await createCompany()
     await bookYear(c)
