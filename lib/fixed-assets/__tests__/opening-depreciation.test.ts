@@ -79,3 +79,45 @@ describe('opening accumulated depreciation', () => {
     expect(year(plan, 2025) / year(plan, 2026)).toBeCloseTo(year(base, 2025) / year(base, 2026), 3)
   })
 })
+
+describe('fiscal years closing mid-month (code review)', () => {
+  // 12 000 € over 4 years from 15 March 2025: 3 000 € a year; fiscal years 15/03 to 14/03
+  const midMonth = { ...asset, depreciationDuration: 4, depreciationStartDate: day('2025-03-15') }
+  const plan = buildDepreciationPlan(midMonth)
+  const fy = (y: number) => sumPlanCentsForPeriod(plan, day(`${y}-03-15`), day(`${y + 1}-03-14`))
+
+  it('splits the month shared by two fiscal years instead of counting it in both', () => {
+    // A full year of service is 3 000 € to the cent or so, not 13/12 of it
+    expect(Math.abs(fy(2025) - 300_000)).toBeLessThanOrEqual(1)
+    expect(Math.abs(fy(2026) - 300_000)).toBeLessThanOrEqual(1)
+    // The years add up exactly to the base, never beyond
+    const total = [2025, 2026, 2027, 2028].reduce((s, y) => s + fy(y), 0)
+    expect(total).toBe(1_200_000)
+  })
+
+  it('keeps whole-month periods as they were', () => {
+    const calendar = buildDepreciationPlan(asset)
+    expect(sumPlanCentsForPeriod(calendar, day('2023-01-01'), day('2023-12-31'))).toBe(240_000)
+  })
+})
+
+describe('declining method on fiscal years (BOI-BIC-AMT-20-20-30-20)', () => {
+  // 10 000 € over 5 years, coefficient 1,75 (35 %), in service in September 2025
+  const declining = { ...asset, acquisitionValue: 10_000, depreciationDuration: 5, depreciationMethod: 'declining', depreciationStartDate: day('2025-09-01') }
+
+  it('applies the first-year prorata and the rate per fiscal year closing in June', () => {
+    const plan = buildDepreciationPlan({ ...declining, fiscalYearClosingMonth: 6 })
+    // Year ending 30/06/2026: 10 000 x 35 % x 10/12 = 2 916,67 €
+    expect(sumPlanCentsForPeriod(plan, day('2025-07-01'), day('2026-06-30'))).toBe(291_667)
+    // Next year on the net book value: (10 000 - 2 916,67) x 35 % = 2 479,17 €
+    expect(sumPlanCentsForPeriod(plan, day('2026-07-01'), day('2027-06-30'))).toBe(247_917)
+    expect(sumPlanCentsForPeriod(plan, day('2000-01-01'), day('2100-12-31'))).toBe(1_000_000)
+  })
+
+  it('keeps calendar years when the fiscal year closes in December', () => {
+    const plan = buildDepreciationPlan(declining)
+    // 2025: 10 000 x 35 % x 4/12 = 1 166,67 €
+    expect(sumPlanCentsForPeriod(plan, day('2025-01-01'), day('2025-12-31'))).toBe(116_667)
+    expect(sumPlanCentsForPeriod(buildDepreciationPlan({ ...declining, fiscalYearClosingMonth: 12 }), day('2025-01-01'), day('2025-12-31'))).toBe(116_667)
+  })
+})
