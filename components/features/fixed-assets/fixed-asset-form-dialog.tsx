@@ -60,6 +60,9 @@ const fixedAssetSchema = z.object({
   depreciationAccountId: z.string(),
   expenseAccountId: z.string(),
   isFullyPaid: z.boolean(),
+  // Amortissements comptabilisés avant le premier exercice suivi dans Kledg
+  openingDepreciation: z.number().min(0, 'Montant invalide').optional().nullable(),
+  openingDepreciationDate: z.string().optional().nullable(),
   // Coûts d'emprunt (Art. 213-9)
   borrowingCostsMethod: z.enum(['capitalize', 'expense']).optional(),
   borrowingCostsDirectlyAttributable: z.number().min(0).optional(),
@@ -72,6 +75,15 @@ const fixedAssetSchema = z.object({
   // Amortissement-related fields are only required when a depreciation
   // method is actually used. "none" = bien non amortissable.
   if (data.depreciationMethod === 'none') return
+
+  const hasOpeningAmount = data.openingDepreciation != null && !Number.isNaN(data.openingDepreciation)
+  if (hasOpeningAmount !== Boolean(data.openingDepreciationDate)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: [hasOpeningAmount ? 'openingDepreciationDate' : 'openingDepreciation'],
+      message: 'Indiquez le montant et la date des amortissements déjà comptabilisés, ou aucun des deux',
+    })
+  }
 
   if (!data.depreciationStartDate) {
     ctx.addIssue({
@@ -132,6 +144,8 @@ interface FixedAssetFormDialogProps {
     depreciationAccountId: string
     expenseAccountId: string
     isFullyPaid: boolean
+    openingDepreciation?: number | null
+    openingDepreciationDate?: string | null
   } | null
   accounts: Account[]
   submitting: boolean
@@ -408,6 +422,8 @@ export function FixedAssetFormDialog({
       depreciationAccountId: '',
       expenseAccountId: '',
       isFullyPaid: false,
+      openingDepreciation: null,
+      openingDepreciationDate: null,
       borrowingCostsMethod: 'expense',
       borrowingCostsDirectlyAttributable: 0,
       borrowingCostsGeneral: 0,
@@ -436,6 +452,8 @@ export function FixedAssetFormDialog({
         depreciationAccountId: editingAsset.depreciationAccountId,
         expenseAccountId: editingAsset.expenseAccountId,
         isFullyPaid: editingAsset.isFullyPaid || false,
+        openingDepreciation: editingAsset.openingDepreciation ?? null,
+        openingDepreciationDate: editingAsset.openingDepreciationDate ? editingAsset.openingDepreciationDate.split('T')[0] : null,
       })
     } else if (open && !editingAsset) {
       reset({
@@ -454,6 +472,8 @@ export function FixedAssetFormDialog({
         depreciationAccountId: '',
         expenseAccountId: '',
         isFullyPaid: false,
+        openingDepreciation: null,
+        openingDepreciationDate: null,
       })
     }
   }, [open, editingAsset, reset])
@@ -584,6 +604,51 @@ export function FixedAssetFormDialog({
                 </div>
               )}
             </div>
+            {watch('depreciationMethod') !== 'none' && (
+              <div className="space-y-2">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="openingDepreciation">Amortissements déjà comptabilisés</Label>
+                    <div className="relative">
+                      <Input
+                        id="openingDepreciation"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        {...register('openingDepreciation', { setValueAs: (v) => (v === '' || v === null ? null : Number(v)) })}
+                        placeholder="0.00"
+                        className="pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">€</span>
+                    </div>
+                    {errors.openingDepreciation && <p className="text-sm text-destructive">{errors.openingDepreciation.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="openingDepreciationDate">Arrêtés au</Label>
+                    <DatePicker
+                      id="openingDepreciationDate"
+                      date={watch('openingDepreciationDate') ? new Date(watch('openingDepreciationDate') + 'T00:00:00') : undefined}
+                      onDateChange={(date) => {
+                        if (date) {
+                          const year = date.getFullYear()
+                          const month = String(date.getMonth() + 1).padStart(2, '0')
+                          const day = String(date.getDate()).padStart(2, '0')
+                          setValue('openingDepreciationDate', `${year}-${month}-${day}`, { shouldDirty: true })
+                        } else {
+                          setValue('openingDepreciationDate', null, { shouldDirty: true })
+                        }
+                      }}
+                      placeholder="jj/mm/aaaa"
+                    />
+                    {errors.openingDepreciationDate && <p className="text-sm text-destructive">{errors.openingDepreciationDate.message}</p>}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pour un bien acquis avant le premier exercice suivi dans Kledg : le cumul des amortissements des exercices précédents, au premier jour de ce premier exercice. Kledg répartit le reste sur la durée restante.
+                </p>
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="disposalDate">Date de cession</Label>

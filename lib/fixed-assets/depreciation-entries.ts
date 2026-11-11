@@ -89,6 +89,8 @@ export async function findUnpostedDepreciation(
       depreciationDuration: asset.depreciationDuration,
       decliningCoefficient: asset.decliningCoefficient,
       depreciationStartDate: asset.depreciationStartDate,
+      openingDepreciation: asset.openingDepreciation,
+      openingDepreciationDate: asset.openingDepreciationDate,
     })
     const end =
       asset.disposalDate && asset.disposalDate < fiscalYear.endDate ? asset.disposalDate : fiscalYear.endDate

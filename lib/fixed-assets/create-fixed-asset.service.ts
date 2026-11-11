@@ -42,6 +42,8 @@ export interface CreateFixedAssetInput {
   depreciationAccountId?: string | null
   expenseAccountId?: string | null
   isFullyPaid?: boolean | null
+  openingDepreciation?: AmountInput
+  openingDepreciationDate?: string | Date | null
 }
 
 const MISSING_FIELDS = "Champs obligatoires manquants : libellé, date et valeur d'acquisition, compte d'immobilisation."
@@ -51,6 +53,27 @@ type Db = Prisma.TransactionClient | typeof prisma
 export interface CreateFixedAssetOptions {
   /** Entry that books the acquisition, created in the same transaction. */
   acquisitionEntryId?: string | null
+}
+
+/**
+ * The depreciation booked before Kledg followed the asset (issue #30): an
+ * amount and the day it is counted at, both or neither, the day on or after
+ * the start of depreciation, the amount at most the depreciable base.
+ */
+export function openingDepreciationOf(
+  input: { openingDepreciation?: AmountInput; openingDepreciationDate?: string | Date | null },
+  depreciationStart: Date,
+  baseCents: number,
+): { cents: number; date: Date } | null {
+  const cents = amountCents(input.openingDepreciation, "Amortissements cumulés à l'ouverture")
+  const date = dateOf(input.openingDepreciationDate, "Date des amortissements cumulés à l'ouverture")
+  if (cents === null && date === null) return null
+  if (cents === null || date === null) {
+    throw new ValidationError("Indiquez le montant des amortissements cumulés à l'ouverture et la date à laquelle il est arrêté, ou aucun des deux.")
+  }
+  if (date < depreciationStart) throw new ValidationError("La date des amortissements cumulés à l'ouverture précède le début de l'amortissement.")
+  if (cents > baseCents) throw new ValidationError("Les amortissements cumulés à l'ouverture dépassent le montant amortissable.")
+  return { cents, date }
 }
 
 export async function createFixedAsset(companyId: string, input: CreateFixedAssetInput) {
@@ -89,6 +112,7 @@ export async function createFixedAssetInTx(db: Db, companyId: string, input: Cre
     throw new ValidationError("Choisissez le compte d'amortissement (28) et le compte de dotation (6811).")
   }
   const depreciationStartDate = startDate ?? acquisitionDate
+  const opening = openingDepreciationOf(input, depreciationStartDate, amortizableCents ?? acquisitionCents)
 
   await assertAllOwned(
     [assetAccountId, depreciationAccountId, expenseAccountId],
@@ -141,6 +165,8 @@ export async function createFixedAssetInTx(db: Db, companyId: string, input: Cre
       depreciationAccountId,
       expenseAccountId,
       isFullyPaid: input.isFullyPaid || false,
+      openingDepreciation: opening ? centsToDecimal(opening.cents) : null,
+      openingDepreciationDate: opening?.date ?? null,
       acquisitionEntryId: options.acquisitionEntryId ?? null,
     },
     include: { assetAccount: true, depreciationAccount: true, expenseAccount: true },

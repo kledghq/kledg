@@ -866,6 +866,11 @@ model FixedAsset {
   expenseAccountId      String // Compte de charge d'amortissement (ex: 681)
   isActive              Boolean   @default(true) // Indique si l'immobilisation est active
   isFullyPaid           Boolean   @default(false) // Indique si l'immobilisation est entièrement payée
+  /// Depreciation booked before openingDepreciationDate, outside Kledg (an asset
+  /// acquired before the first fiscal year in Kledg): the plan's months before
+  /// that day add up to it (lib/fixed-assets/depreciation-plan.ts). Both or neither.
+  openingDepreciation     Decimal?  @db.Decimal(15, 2)
+  openingDepreciationDate DateTime?
   /// Entry that booked the acquisition, when Kledg created the asset with it
   /// (simple mode, durable equipment). The asset goes with that entry: deleting
   /// the draft deletes the asset first (deleteFixedAssetsAcquiredByEntryInTx),

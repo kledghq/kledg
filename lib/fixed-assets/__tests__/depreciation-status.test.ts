@@ -32,6 +32,8 @@ const asset = {
   isActive: true,
   isFullyPaid: true,
   acquisitionEntryId: null,
+  openingDepreciation: null,
+  openingDepreciationDate: null,
   createdAt: day('2025-03-15'),
   updatedAt: day('2025-03-15'),
 } satisfies DepreciationStatusInput['fixedAsset']

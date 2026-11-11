@@ -11,6 +11,16 @@
  *   runs from the in-service date, prorata temporis; the annual allowance
  *   (base x rate) is reduced in proportion to the time of use in the year.
  *
+ * Opening accumulated depreciation: an asset acquired before the first fiscal
+ * year Kledg follows may carry the depreciation booked before it
+ * (openingDepreciation, as of openingDepreciationDate). The months before
+ * that day then add up to it, and the months after it are rescaled so the
+ * plan still ends on the base at its original end: the remaining depreciable
+ * amount is spread over the remaining useful life (PCG art. 214-14, a change
+ * of estimate applied prospectively). Fully depreciated already: nothing
+ * after. Past the plan's end with something left: the rest in the month of
+ * the opening day. The day counts by calendar month.
+ *
  * Dates are calendar days stored at midnight UTC: every computation uses UTC
  * components, so the plan does not depend on the server timezone.
  */
@@ -41,6 +51,9 @@ export interface FixedAssetPlanInput {
   depreciationDuration: Num
   decliningCoefficient: Num
   depreciationStartDate: Date
+  /** Depreciation booked before openingDepreciationDate, outside Kledg; both set or both absent. */
+  openingDepreciation?: Num
+  openingDepreciationDate?: Date | null
 }
 
 function monthKey(year: number, monthIndex: number): string {
@@ -94,6 +107,62 @@ export interface DepreciationPlan {
 export function buildDepreciationPlan(
   asset: FixedAssetPlanInput
 ): DepreciationPlan {
+  const plan = buildTheoreticalPlan(asset)
+  if (asset.openingDepreciation === null || asset.openingDepreciation === undefined || !asset.openingDepreciationDate) return plan
+  return withOpeningDepreciation(plan, amountCents(asset.openingDepreciation), toUtcDateOnly(new Date(asset.openingDepreciationDate)))
+}
+
+/** Spreads `totalCents` over `weights` in proportion, rounded on the cumulative amount (the parts add up exactly). */
+function spread(weights: number[], totalCents: number): number[] {
+  const sum = weights.reduce((a, b) => a + b, 0)
+  let done = 0
+  let cumulativeWeight = 0
+  return weights.map((w) => {
+    cumulativeWeight += w
+    const cumulative = sum > 0 ? Math.round((totalCents * cumulativeWeight) / sum) : 0
+    const part = cumulative - done
+    done = cumulative
+    return part
+  })
+}
+
+/**
+ * The plan with the depreciation booked before `asOf` set to `openingCents`
+ * (at most the base) and the months from `asOf` on rescaled to the rest.
+ * Pure; see the module comment.
+ */
+export function withOpeningDepreciation(plan: DepreciationPlan, openingCents: number, asOf: Date): DepreciationPlan {
+  const baseCents = toCents(plan.baseAmount) ?? 0
+  if (plan.method === 'none' || baseCents <= 0) return plan
+  const opening = Math.min(Math.max(0, openingCents), baseCents)
+  const pivot = monthKey(asOf.getUTCFullYear(), asOf.getUTCMonth())
+  const keys = [...plan.byMonth.keys()].sort()
+  const before = keys.filter((k) => k < pivot)
+  const after = keys.filter((k) => k >= pivot)
+  const centsOf = (k: string) => toCents(plan.byMonth.get(k) ?? 0) ?? 0
+  const byMonth = new Map<string, number>()
+
+  // Before: the months of the plan carry the opening amount; none, the month before the opening day
+  if (opening > 0) {
+    const weights = before.map(centsOf)
+    if (weights.some((w) => w > 0)) spread(weights, opening).forEach((c, i) => c && byMonth.set(before[i], fromCents(c)))
+    else {
+      const previous = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() - 1, 1))
+      byMonth.set(monthKey(previous.getUTCFullYear(), previous.getUTCMonth()), fromCents(opening))
+    }
+  }
+  // After: the rest over the remaining months, in their proportions; past the plan's end, in the opening month
+  const rest = baseCents - opening
+  if (rest > 0) {
+    const weights = after.map(centsOf)
+    if (weights.some((w) => w > 0)) spread(weights, rest).forEach((c, i) => c && byMonth.set(after[i], fromCents(c)))
+    else byMonth.set(pivot, fromCents(rest))
+  }
+  return { ...plan, byMonth }
+}
+
+/** The plan from the asset's own terms, without opening depreciation. */
+function buildTheoreticalPlan(asset: FixedAssetPlanInput): DepreciationPlan {
   const method = (asset.depreciationMethod || 'linear') as
     | 'linear'
     | 'declining'

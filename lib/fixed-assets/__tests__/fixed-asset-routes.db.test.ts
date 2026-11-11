@@ -183,6 +183,34 @@ describe.skipIf(!available)('fixed asset routes', () => {
     expect(foreignAccount.status).toBe(404)
   })
 
+  it('takes the depreciation booked before Kledg for an older asset, and the year suggests only the rest (issue #30)', async () => {
+    // 3 000 € over 3 years from 1 January 2023: full years booked, 2 000 € at 1 January 2025, 1 000 € left
+    const older = { ...newAsset(), label: 'Serveur', acquisitionDate: '2023-01-01', acquisitionValue: 3000, depreciationStartDate: '2023-01-01' }
+    const half = await call(routes.assets.POST, 'POST', '/api/fixed-assets', { ...older, openingDepreciation: 2000 })
+    expect(half.status).toBe(400)
+    expect((await half.json()).error).toMatch(/Indiquez le montant des amortissements cumulés/)
+    const above = await call(routes.assets.POST, 'POST', '/api/fixed-assets', { ...older, openingDepreciation: 3500, openingDepreciationDate: '2025-01-01' })
+    expect(above.status).toBe(400)
+
+    const created = await call(routes.assets.POST, 'POST', '/api/fixed-assets', { ...older, openingDepreciation: '2000', openingDepreciationDate: '2025-01-01' })
+    expect(created.status).toBe(201)
+    const asset = (await created.json()) as { id: string; openingDepreciation: string }
+    expect(Number(asset.openingDepreciation)).toBe(2000)
+
+    // The 2025 allowance is what is left, not the plan's 1 000 € plus the prorata gap of 2023
+    const record = await call(routes.records.POST, 'POST', `/api/fixed-assets/${asset.id}/depreciation`, { fiscalYearId: ids.fy, periodType: 'year' }, { id: asset.id })
+    expect(record.status).toBe(201)
+    expect(Number(((await record.json()) as { amount: string }).amount)).toBe(1000)
+
+    // Cleared by an empty amount; the database refuses an amount without its day
+    const cleared = await call(routes.asset.PATCH, 'PATCH', `/api/fixed-assets/${asset.id}`, { openingDepreciation: null, openingDepreciationDate: null }, { id: asset.id })
+    expect(cleared.status).toBe(200)
+    expect(((await cleared.json()) as { openingDepreciation: string | null }).openingDepreciation).toBeNull()
+    await expect(prisma.fixedAsset.update({ where: { id: asset.id }, data: { openingDepreciation: 10 } })).rejects.toThrow()
+    await prisma.fixedAssetDepreciation.deleteMany({ where: { fixedAssetId: asset.id } })
+    await prisma.fixedAsset.delete({ where: { id: asset.id } })
+  })
+
   it('records depreciation, replaces it, and refuses invalid periods', async () => {
     const path = `/api/fixed-assets/${ids.fixedAsset}/depreciation`
     const params = { id: ids.fixedAsset }

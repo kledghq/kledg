@@ -76,6 +76,21 @@ export function fixedAssetUpdateData(input: UpdateFixedAssetInput): Prisma.Fixed
   if (input.expenseAccountId) data.expenseAccountId = input.expenseAccountId
   if (input.isFullyPaid !== undefined && input.isFullyPaid !== null) data.isFullyPaid = input.isFullyPaid
   if (input.isActive !== undefined && input.isActive !== null) data.isActive = input.isActive
+  // Opening depreciation: the pair together; an empty amount clears both (the database checks they go together)
+  if (input.openingDepreciation !== undefined || input.openingDepreciationDate !== undefined) {
+    if (!input.openingDepreciation && !input.openingDepreciationDate) {
+      data.openingDepreciation = null
+      data.openingDepreciationDate = null
+    } else {
+      const cents = amountCents(input.openingDepreciation, "Amortissements cumulés à l'ouverture")
+      const date = dateOf(input.openingDepreciationDate, "Date des amortissements cumulés à l'ouverture")
+      if (cents === null || date === null) {
+        throw new ValidationError("Indiquez le montant des amortissements cumulés à l'ouverture et la date à laquelle il est arrêté, ou aucun des deux.")
+      }
+      data.openingDepreciation = centsToDecimal(cents)
+      data.openingDepreciationDate = date
+    }
+  }
   return data
 }
 

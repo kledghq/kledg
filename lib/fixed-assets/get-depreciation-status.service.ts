@@ -135,6 +135,8 @@ export function buildDepreciationStatus({ fixedAsset, fiscalYears, records, now 
     depreciationDuration: fixedAsset.depreciationDuration,
     decliningCoefficient: fixedAsset.decliningCoefficient,
     depreciationStartDate: new Date(fixedAsset.depreciationStartDate),
+    openingDepreciation: fixedAsset.openingDepreciation,
+    openingDepreciationDate: fixedAsset.openingDepreciationDate,
   })
   // Suggestions are kept in cents until the response.
   const suggestedCents = (from: Date, to: Date) => sumPlanCentsForPeriod(plan, from, to)
