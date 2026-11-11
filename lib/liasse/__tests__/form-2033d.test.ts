@@ -46,6 +46,7 @@ function input(overrides: Partial<Form2033DInput> = {}): Form2033DInput {
       movements: provisionMovements(LINES),
       register: REGISTER,
       balanceSheet: { regulated: { box: '140', cents: 0 }, riskCharges: { box: '154', cents: 150_000 } },
+      incomeStatement: null,
     },
     deficits: { known: true, openingCents: 1_200_000, imputedCents: 800_000, createdCents: 0 },
     deficitsWhy: '',

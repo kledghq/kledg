@@ -32,7 +32,7 @@ import { formatCentsFr } from '@/lib/utils/money'
 import { amount, cell, check, manual, sumCells, type LiasseCheck, type LiasseRow, type LiasseSection } from './cells'
 
 export type ProvisionColumn = 'opening' | 'increase' | 'decrease' | 'closing'
-const COLUMNS: readonly ProvisionColumn[] = ['opening', 'increase', 'decrease', 'closing']
+export const PROVISION_COLUMNS: readonly ProvisionColumn[] = ['opening', 'increase', 'decrease', 'closing']
 
 export const PROVISION_COLUMN_LABELS: Record<ProvisionColumn, string> = {
   opening: "Montant au début de l'exercice",
@@ -147,19 +147,19 @@ export function provisionTotals(defs: readonly ProvisionDef[], movements: readon
     for (const id of def.of) {
       const part = out.get(id)
       if (!part) continue
-      for (const col of COLUMNS) t[col] += part[col]
+      for (const col of PROVISION_COLUMNS) t[col] += part[col]
     }
     out.set(def.id, t)
   }
   return out
 }
 
-function gridRow(def: ProvisionDef, totals: LineTotals & { accounts: string[] }): LiasseRow {
+export function gridRow(def: ProvisionDef, totals: LineTotals & { accounts: string[] }): LiasseRow {
   return {
     id: def.id,
     label: def.label,
     total: def.kind === 'total',
-    cells: COLUMNS.map((col) => cell(def.codes[col], PROVISION_COLUMN_LABELS[col], amount(totals[col]), 'books', def.kind === 'line' ? { accounts: totals.accounts } : {})),
+    cells: PROVISION_COLUMNS.map((col) => cell(def.codes[col], PROVISION_COLUMN_LABELS[col], amount(totals[col]), 'books', def.kind === 'line' ? { accounts: totals.accounts } : {})),
   }
 }
 
@@ -186,6 +186,32 @@ export interface ProvisionsInput {
   register: readonly ProvisionRegisterItem[]
   /** Balance sheet lines of the company's layout: provisions réglementées and provisions pour risques et charges, with their box; null when the layout has none. */
   balanceSheet: { regulated: { box: string; cents: number } | null; riskCharges: { box: string; cents: number } | null }
+  /** Dotations and reprises of provisions in the income statement; null: not checked. */
+  incomeStatement: IncomeStatementProvisions | null
+}
+
+export interface IncomeStatementProvisions {
+  operating: { dotationsCents: number; reprisesCents: number }
+  financial: { dotationsCents: number; reprisesCents: number }
+  exceptional: { dotationsCents: number; reprisesCents: number }
+}
+
+/**
+ * Dotations and reprises of provisions and dépréciations in the income
+ * statement (PCG art. 946-68 and 947-78, chart amended by règlement ANC
+ * 2022-06): 6815, 6816, 6817 and 7815, 7816, 7817 (exploitation); 6865,
+ * 6866 and 7865, 7866 (financières); 6872 to 6876 and 7872 to 7876
+ * (exceptionnelles). The amortissements (6811, 6861, 6862, 6871, 7811) are
+ * not provisions.
+ */
+export function incomeStatementProvisions(accounts: ReadonlyArray<{ code: string; debitCents: number; creditCents: number }>): IncomeStatementProvisions {
+  const debit = (prefixes: string[]) => accounts.filter((a) => prefixes.some((p) => a.code.startsWith(p))).reduce((s, a) => s + a.debitCents - a.creditCents, 0)
+  const credit = (prefixes: string[]) => -debit(prefixes)
+  return {
+    operating: { dotationsCents: debit(['6815', '6816', '6817']), reprisesCents: credit(['7815', '7816', '7817']) },
+    financial: { dotationsCents: debit(['6865', '6866']), reprisesCents: credit(['7865', '7866']) },
+    exceptional: { dotationsCents: debit(['6872', '6873', '6874', '6875', '6876']), reprisesCents: credit(['7872', '7873', '7874', '7875', '7876']) },
+  }
 }
 
 export interface ProvisionsResult {
@@ -200,7 +226,7 @@ export interface ProvisionsResult {
 export function provisions2033D(input: ProvisionsInput): ProvisionsResult {
   const totals = provisionTotals(PROVISIONS_2033D, input.movements)
   const derogatory = totals.get('derogatory')!
-  const noDerogatory = COLUMNS.every((col) => derogatory[col] === 0)
+  const noDerogatory = PROVISION_COLUMNS.every((col) => derogatory[col] === 0)
 
   // A. The relevé, with the "dont 30 %" line after the derogatory depreciation.
   const rows: LiasseRow[] = []
@@ -211,7 +237,7 @@ export function provisions2033D(input: ProvisionsInput): ProvisionsResult {
       rows.push({
         id: 'exceptional30',
         label: 'Dont majorations exceptionnelles de 30 %',
-        cells: COLUMNS.map((col) =>
+        cells: PROVISION_COLUMNS.map((col) =>
           noDerogatory
             ? cell(codes[col], PROVISION_COLUMN_LABELS[col], amount(0), 'books', { note: "Aucun amortissement dérogatoire dans les écritures (compte 145)." })
             : manual(codes[col], PROVISION_COLUMN_LABELS[col], "Kledg ne distingue pas les majorations exceptionnelles de 30 % dans le compte 145 : indiquez la part qui en relève."),
@@ -261,7 +287,7 @@ export function provisions2033D(input: ProvisionsInput): ProvisionsResult {
   const nonDeductibleCents = nonDeductible.reduce((s, p) => s + p.movementCents, 0)
 
   const sections: LiasseSection[] = [
-    { id: 'provisions', title: 'I A. Relevé des provisions, amortissements dérogatoires', columns: COLUMNS.map((col) => PROVISION_COLUMN_LABELS[col]), rows },
+    { id: 'provisions', title: 'I A. Relevé des provisions, amortissements dérogatoires', columns: PROVISION_COLUMNS.map((col) => PROVISION_COLUMN_LABELS[col]), rows },
     {
       id: 'derogatory',
       title: 'I B. Mouvements affectant la provision pour amortissements dérogatoires',
@@ -332,6 +358,27 @@ export function provisionChecks(
         `Provisions pour risques et charges à la fin et bilan (case ${sheet.riskCharges.box})`,
         risks === sheet.riskCharges.cents,
         `Le bilan montre ${euro(sheet.riskCharges.cents)} de provisions pour risques et charges, le relevé ${euro(risks)} : un compte 15 est rangé ailleurs dans la présentation du bilan.`,
+      ),
+    )
+  }
+  if (input.incomeStatement) {
+    const lines = defs.filter((d) => d.kind === 'line')
+    const books = (col: ProvisionColumn) => lines.reduce((s, d) => s + totals.get(d.id)![col], 0)
+    const is = input.incomeStatement
+    const dotations = is.operating.dotationsCents + is.financial.dotationsCents + is.exceptional.dotationsCents
+    const reprises = is.operating.reprisesCents + is.financial.reprisesCents + is.exceptional.reprisesCents
+    checks.push(
+      check(
+        'income-statement-dotations',
+        'Dotations du relevé et dotations aux provisions du compte de résultat',
+        books('increase') === dotations,
+        `Les dotations du relevé (${euro(books('increase'))}) diffèrent des dotations aux provisions et dépréciations du compte de résultat (${euro(dotations)}, comptes 6815 à 6817, 6865, 6866, 6872 à 6876) : une provision est dotée par un autre compte, ou une dotation n'a pas sa contrepartie dans un compte de provision.`,
+      ),
+      check(
+        'income-statement-reprises',
+        'Reprises du relevé et reprises sur provisions du compte de résultat',
+        books('decrease') === reprises,
+        `Les reprises du relevé (${euro(books('decrease'))}) diffèrent des reprises sur provisions et dépréciations du compte de résultat (${euro(reprises)}, comptes 7815 à 7817, 7865, 7866, 7872 à 7876) : une provision utilisée ou reprise est passée par un autre compte.`,
       ),
     )
   }

@@ -83,6 +83,43 @@ export interface ValueAddedCodes {
   cessation: string | null
 }
 
+/** 2059-E-SD 2026. */
+export const VALUE_ADDED_CODES_2059E: ValueAddedCodes = {
+  employees: 'YP',
+  apprentices: 'YF',
+  disabled: 'YG',
+  craft: 'RL',
+  sales: 'OA',
+  royalties: 'OK',
+  gains: 'OL',
+  total1: 'OX',
+  otherIncome: 'OH',
+  capitalized: 'OE',
+  subsidies: 'OF',
+  stockIncrease: 'OD',
+  recoveries: 'XT',
+  total2: 'OM',
+  purchases: 'ON',
+  stockDecrease: 'OQ',
+  external: 'OR',
+  rents: 'OS',
+  taxes: 'OZ',
+  otherCharges: 'OW',
+  capitalizedCharges: 'OU',
+  leasedDepreciation: 'O9',
+  losses: 'OY',
+  total3: 'OJ',
+  valueAdded: 'OG',
+  cvae: 'SA',
+  mono: 'EV',
+  turnover12: 'GX',
+  cvaeEmployees: 'EY',
+  groupTurnover: 'HX',
+  periodStart: 'GY',
+  periodEnd: 'GZ',
+  cessation: 'HR',
+}
+
 export const VALUE_ADDED_CODES_2033E: ValueAddedCodes = {
   employees: '376',
   apprentices: '657',
@@ -121,6 +158,8 @@ export const VALUE_ADDED_CODES_2033E: ValueAddedCodes = {
 
 export interface ValueAddedInput {
   form: { id: string; number: string }
+  /** Notice of the liasse, named in the explanations: 2033-NOT-SD or 2032-NOT-SD. */
+  notice: string
   codes: ValueAddedCodes
   fiscalYear: { startDate: string; endDate: string }
   duration: FiscalYearDuration
@@ -142,6 +181,17 @@ function balance(accounts: readonly AccountTotals[], prefixes: readonly string[]
 const frDay = (iso: string) => iso.split('-').reverse().join('/')
 
 export function buildValueAddedForm(input: ValueAddedInput): LiasseForm {
+  const form = valueAddedForm(input)
+  if (input.notice === '2033-NOT-SD') return form
+  const swap = (t: string) => t.replaceAll('notice 2033-NOT-SD', `notice ${input.notice}`)
+  return {
+    ...form,
+    sections: form.sections.map((sec) => ({ ...sec, rows: sec.rows.map((r) => ({ ...r, cells: r.cells.map((c) => (c.note ? { ...c, note: swap(c.note) } : c)) })) })),
+    required: { ...form.required, reason: form.required.reason ? swap(form.required.reason) : null },
+  }
+}
+
+function valueAddedForm(input: ValueAddedInput): LiasseForm {
   const { accounts, codes } = input
   const books = (box: string, label: string, prefixes: string[], except: string[], side: 'credit' | 'debit') => {
     const b = balance(accounts, prefixes, except, side)

@@ -21,7 +21,7 @@ import { ownedFiscalYear } from '@/lib/accounting/manage-fiscal-years.service'
 import { CLOSING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
 import { isOpeningJournal } from '@/lib/fec/format'
 import type { LedgerLine } from '@/lib/annexe/movements'
-import { parseStoredAnnexeDetails } from '@/lib/annexe/get-annexe.service'
+import { loadAccountYears, parseStoredAnnexeDetails } from '@/lib/annexe/get-annexe.service'
 import { parseStoredDetails } from '@/lib/approval/get-approval.service'
 import { buildCorporateTax } from '@/lib/corporate-tax/load-corporate-tax.service'
 import { durationOf } from '@/lib/corporate-tax/rules'
@@ -38,13 +38,17 @@ import { todayParis } from '@/lib/accounting/entry-date'
 import { calendarDayOf } from '@/lib/utils/date'
 import { parseCents, toCents } from '@/lib/utils/money'
 import { assembleLiasse, type LiasseView } from './build-liasse'
-import { buildCapitalForm, buildSubsidiariesForm, CAPITAL_CODES_2033F, type AddressText, type CompanyIdentity, type HolderIdentity, type SubsidiaryIdentity } from './capital'
+import { buildCapitalForm, buildSubsidiariesForm, CAPITAL_CODES_2033F, CAPITAL_CODES_2059F, DECLARATION_THRESHOLD_HUNDREDTHS, type AddressText, type CompanyIdentity, type HolderIdentity, type SubsidiaryIdentity } from './capital'
 import type { LiasseForm } from './cells'
 import type { DeficitsInput } from './deficits'
 import { buildForm2033D } from './form-2033d'
 import { buildCoverForm } from './form-2065'
-import { isProvisionAccount, provisionMovements, type ProvisionRegisterItem, type ProvisionsInput } from './provisions'
-import { buildValueAddedForm, VALUE_ADDED_CODES_2033E } from './value-added'
+import { incomeStatementProvisions, isProvisionAccount, provisionMovements, type ProvisionRegisterItem, type ProvisionsInput } from './provisions'
+import { buildForm2056 } from './form-2056'
+import { buildForm2057 } from './form-2057'
+import { buildForm2058B } from './form-2058b'
+import { buildForm2058C } from './form-2058c'
+import { buildValueAddedForm, VALUE_ADDED_CODES_2033E, VALUE_ADDED_CODES_2059E } from './value-added'
 import { VAT_COLLECTED_PREFIX, VAT_DEDUCTIBLE_PREFIX, VAT_SETTLEMENT_PREFIXES, vatTotals, type VatLine } from './vat'
 
 export const LiasseQuerySchema = z.object({ fiscalYearId: z.string({ error: "L'exercice est requis" }).min(1, "L'exercice est requis").max(64) })
@@ -239,6 +243,19 @@ async function loadSubsidiaries(companyId: string, fiscalYearId: string, access:
   return { subsidiaries: [...fromGroup, ...fromAnnexe], unreachable: report.unreachable.length, unattributed: report.unattributed.filter((u) => u.accountCode.startsWith('261')) }
 }
 
+/**
+ * The allocation voted at the approval of the accounts of the fiscal year
+ * before (the one the 2058-C-SD of this year shows), when recorded in Kledg.
+ */
+async function loadPreviousAllocation(companyId: string, startDate: Date) {
+  const previous = await prisma.fiscalYear.findFirst({ where: { companyId, endDate: { lt: startDate } }, orderBy: { endDate: 'desc' }, select: { id: true, year: true } })
+  if (!previous) return null
+  const row = await prisma.accountsApproval.findUnique({ where: { fiscalYearId_companyId: { fiscalYearId: previous.id, companyId } }, select: { details: true } })
+  if (!row) return null
+  const allocation = parseStoredDetails(row.details).allocation
+  return { year: previous.year, dividendsCents: allocation.dividendsCents, otherReservesCents: allocation.otherReservesCents }
+}
+
 export async function getLiasse(companyId: string, fiscalYearId: string, access: GroupAccess | null, now?: Date): Promise<LiasseView> {
   const fy = await ownedFiscalYear(companyId, fiscalYearId)
   const fiscalYear = { id: fy.id, year: fy.year, startDate: day(fy.startDate), endDate: day(fy.endDate), isClosed: fy.isClosed }
@@ -279,6 +296,7 @@ export async function getLiasse(companyId: string, fiscalYearId: string, access:
     movements: provisionMovements(ledger),
     register,
     balanceSheet: { regulated: boxValue(boxes.regulated), riskCharges: boxValue(boxes.riskCharges) },
+    incomeStatement: incomeStatementProvisions(accounts),
   }
   const computation = is.computation
   const deficits: DeficitsInput | null = computation
@@ -307,10 +325,13 @@ export async function getLiasse(companyId: string, fiscalYearId: string, access:
       salariesCents,
     }),
   ]
+  const duration = durationOf(fiscalYear.startDate, fiscalYear.endDate)
+  const vat = vatTotals(vatLines)
+  const listed = subsidiaries.filter((x) => x.ownershipHundredths >= DECLARATION_THRESHOLD_HUNDREDTHS).length
   if (regime === 'simplified') {
     forms.push(
-      buildForm2033D({ provisions, deficits, deficitsWhy, vat: vatTotals(vatLines) }),
-      buildValueAddedForm({ form: { id: '2033-E', number: '2033-E-SD' }, codes: VALUE_ADDED_CODES_2033E, fiscalYear, duration: durationOf(fiscalYear.startDate, fiscalYear.endDate), accounts, employees }),
+      buildForm2033D({ provisions, deficits, deficitsWhy, vat }),
+      buildValueAddedForm({ form: { id: '2033-E', number: '2033-E-SD' }, notice: '2033-NOT-SD', codes: VALUE_ADDED_CODES_2033E, fiscalYear, duration, accounts, employees }),
       buildCapitalForm({
         form: { id: '2033-F', number: '2033-F-SD', title: 'Composition du capital social' },
         codes: CAPITAL_CODES_2033F,
@@ -319,16 +340,32 @@ export async function getLiasse(companyId: string, fiscalYearId: string, access:
         holders: holders.holders,
         compositionChecks: holders.composition.checks,
       }),
-      buildSubsidiariesForm({
-        form: { id: '2033-G', number: '2033-G-SD', title: 'Filiales et participations' },
-        countBox: '905',
-        identifier: 'siren',
-        company: identity,
-        subsidiaries,
-        unreachable,
-        titresCents,
-        unattributed,
+      buildSubsidiariesForm({ form: { id: '2033-G', number: '2033-G-SD', title: 'Filiales et participations' }, countBox: '905', identifier: 'siren', company: identity, subsidiaries, unreachable, titresCents, unattributed }),
+    )
+  } else {
+    const [accountYears, previousAllocation] = await Promise.all([loadAccountYears(companyId, fy.id), loadPreviousAllocation(companyId, fy.startDate)])
+    const debts = findLine(sheet.passif.lines, 'EC')
+    const leasing = annexe.commitments?.items.filter((c) => c.kind === 'leasing' && c.amountCents !== null).reduce((sum, c) => sum + (c.amountCents ?? 0), 0) ?? null
+    forms.push(
+      buildForm2056(provisions),
+      buildForm2057({
+        accounts: accountYears,
+        receivableMaturities: annexe.receivableMaturities,
+        debtMaturities: annexe.debtMaturities,
+        balanceSheetDebtsCents: debts ? (toCents(debts.value) ?? 0) : null,
       }),
+      buildForm2058B({ deficits, deficitsWhy, register }),
+      buildForm2058C({ accounts: accountYears, vat, approvedAllocation: previousAllocation, leasingCommitmentsCents: leasing || null, subsidiaries: { listed, unreachable } }),
+      buildValueAddedForm({ form: { id: '2059-E', number: '2059-E-SD' }, notice: '2032-NOT-SD', codes: VALUE_ADDED_CODES_2059E, fiscalYear, duration, accounts, employees }),
+      buildCapitalForm({
+        form: { id: '2059-F', number: '2059-F-SD', title: 'Composition du capital social' },
+        codes: CAPITAL_CODES_2059F,
+        identifier: 'siret',
+        company: identity,
+        holders: holders.holders,
+        compositionChecks: holders.composition.checks,
+      }),
+      buildSubsidiariesForm({ form: { id: '2059-G', number: '2059-G-SD', title: 'Filiales et participations' }, countBox: 'P5', identifier: 'siret', company: identity, subsidiaries, unreachable, titresCents, unattributed }),
     )
   }
   const warnings = drafts > 0 ? [`${drafts} écriture${drafts > 1 ? 's' : ''} en brouillon sur l'exercice : elle${drafts > 1 ? 's' : ''} ne compte${drafts > 1 ? 'nt' : ''} qu'une fois validée${drafts > 1 ? 's' : ''}.`] : []

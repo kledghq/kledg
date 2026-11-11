@@ -57,6 +57,9 @@ export interface CapitalCodes {
 }
 
 /** 2033-F-SD prints 901 to 906 (its notice names them P1 to P4, the codes of 2059-F-SD). */
+/** 2059-F-SD prints P1 to P6. */
+export const CAPITAL_CODES_2059F: CapitalCodes = { legalHolders: 'P1', legalShares: 'P3', naturalHolders: 'P2', naturalShares: 'P4', totalHolders: 'P5', totalShares: 'P6' }
+
 export const CAPITAL_CODES_2033F: CapitalCodes = { legalHolders: '901', legalShares: '902', naturalHolders: '903', naturalShares: '904', totalHolders: '905', totalShares: '906' }
 
 export interface HolderIdentity {
@@ -114,7 +117,7 @@ function identification(company: CompanyIdentity, identifier: 'siren' | 'siret')
 }
 
 const notRequiredForIndividual = (legalType: string | null) =>
-  legalType === INDIVIDUAL ? { value: false, reason: "Les entreprises individuelles n'ont pas à servir ce tableau (notice 2033-NOT-SD)." } : null
+  legalType === INDIVIDUAL ? { value: false, reason: "Les entreprises individuelles n'ont pas à servir ce tableau (notices 2033-NOT-SD et 2032-NOT-SD, annexe III au CGI, art. 38)." } : null
 
 /** Composition du capital social (2033-F-SD, 2059-F-SD). */
 export function buildCapitalForm(input: CapitalInput): LiasseForm {
