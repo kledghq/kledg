@@ -8,7 +8,10 @@
  * - POST .../match, .../attach, .../expense and DELETE: the fields the user
  *   confirmed, the transaction found, the receipt kept by Kledg for a bank
  *   without receipt API, an expense report brouillon, a discard;
- * - French 400s, roles (403) and other companies (404).
+ * - French 400s, roles (403) and other companies (404);
+ * - a member's expense receipts: listed, served and reusable by that member
+ *   and the validators only, on one report only, and never filed by a
+ *   colleague as their own expense.
  * Skipped when the test database server is unreachable.
  */
 
@@ -31,11 +34,12 @@ const available = await testDatabaseAvailable()
 
 type Handler = (request: Request, context?: { params: Promise<Record<string, string>> }) => Promise<Response>
 let prisma: typeof import('@/lib/prisma').prisma
-const routes = {} as Record<'staged' | 'one' | 'match' | 'attach' | 'expense', Record<string, Handler>>
+const routes = {} as Record<'staged' | 'one' | 'match' | 'attach' | 'expense' | 'receiptOptions' | 'proxy' | 'reports', Record<string, Handler>>
 
 const USERS = {
   accountant: { id: 'u-accountant', email: 'accountant@test.local', name: 'Comptable', role: 'user' },
   viewer: { id: 'u-viewer', email: 'viewer@test.local', name: 'Lecteur', role: 'user' },
+  colleague: { id: 'u-colleague', email: 'colleague@test.local', name: 'Collègue', role: 'user' },
   memberB: { id: 'u-b', email: 'b@test.local', name: 'B', role: 'user' },
 } as const
 type Who = keyof typeof USERS | 'anonymous'
@@ -64,6 +68,39 @@ async function json(who: Who, route: 'match' | 'attach' | 'expense' | 'one', met
   return routes[route][method](request, { params: Promise.resolve({ id }) })
 }
 
+async function receiptOptions(who: Who, companyId: string): Promise<string[]> {
+  as(who)
+  const response = await routes.receiptOptions.GET(new NextRequest(`http://localhost/api/expense-reports/receipts?companyId=${companyId}`))
+  expect(response.status).toBe(200)
+  return ((await response.json()) as { receipts: Array<{ id: string }> }).receipts.map((r) => r.id)
+}
+
+async function proxy(who: Who, attachmentId: string) {
+  as(who)
+  return routes.proxy.GET(new NextRequest(`http://localhost/api/banking/attachments/${attachmentId}/proxy`), { params: Promise.resolve({ attachmentId }) })
+}
+
+async function reportWithReceipt(who: Who, companyId: string, attachmentId: string) {
+  as(who)
+  const body = {
+    companyId,
+    periodStart: '2026-10-01',
+    periodEnd: '2026-10-31',
+    lines: [{ date: '2026-10-06', label: 'Repas', amountInclTaxCents: 3_100, receiptKind: 'RECEIPT', receiptAttachmentId: attachmentId }],
+  }
+  return routes.reports.POST(
+    new NextRequest('http://localhost/api/expense-reports', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
+  )
+}
+
+/** A receipt staged and matched by `who`, with its fields confirmed. */
+async function stagedBy(who: Who, companyId: string, marker: number, fields: Record<string, unknown>): Promise<string> {
+  const response = await upload(who, companyId, new File([new Uint8Array([...JPEG, marker])], `recu-${marker}.jpg`, { type: 'image/jpeg' }))
+  const id = ((await response.json()) as { receipt: { id: string } }).receipt.id
+  expect((await json(who, 'match', 'POST', id, { fields })).status).toBe(200)
+  return id
+}
+
 describe.skipIf(!available)('receipt drop zone routes', () => {
   beforeAll(async () => {
     await prepareTestDatabase('receipt_routes')
@@ -73,9 +110,12 @@ describe.skipIf(!available)('receipt drop zone routes', () => {
     routes.match = (await import('@/app/api/receipts/staged/[id]/match/route')) as unknown as Record<string, Handler>
     routes.attach = (await import('@/app/api/receipts/staged/[id]/attach/route')) as unknown as Record<string, Handler>
     routes.expense = (await import('@/app/api/receipts/staged/[id]/expense/route')) as unknown as Record<string, Handler>
+    routes.receiptOptions = (await import('@/app/api/expense-reports/receipts/route')) as unknown as Record<string, Handler>
+    routes.proxy = (await import('@/app/api/banking/attachments/[attachmentId]/proxy/route')) as unknown as Record<string, Handler>
+    routes.reports = (await import('@/app/api/expense-reports/route')) as unknown as Record<string, Handler>
     for (const user of Object.values(USERS)) await prisma.user.create({ data: { id: user.id, email: user.email, name: user.name, role: user.role } })
     for (const [prefix, members] of [
-      ['a', [['u-accountant', 'accountant'], ['u-viewer', 'viewer']]],
+      ['a', [['u-accountant', 'accountant'], ['u-viewer', 'viewer'], ['u-colleague', 'viewer']]],
       ['b', [['u-b', 'companyAdmin']]],
     ] as const) {
       const company = await prisma.company.create({ data: { name: `Société ${prefix}`, slug: `societe-${prefix}`, siren: prefix === 'a' ? '111111111' : '222222222' } })
@@ -148,5 +188,41 @@ describe.skipIf(!available)('receipt drop zone routes', () => {
     const discarded = await json('viewer', 'one', 'DELETE', id)
     expect(discarded.status).toBe(200)
     expect(await discarded.json()).toMatchObject({ receipt: { status: 'discarded', hasFile: false } })
+  })
+
+  it("keeps a member's expense receipt to them and to the validators, on one report", async () => {
+    const id = await stagedBy('viewer', ids.aCompany, 10, { amountCents: 3_100, date: '2026-10-06', merchant: 'Le Zinc', paymentHint: 'personal_card' })
+    expect((await json('viewer', 'expense', 'POST', id, {})).status).toBe(201)
+    const attachmentId = (await prisma.stagedReceipt.findUniqueOrThrow({ where: { id } })).attachmentId as string
+    expect(attachmentId).toBeTruthy()
+
+    // Its author and a validator see and open it; another member does neither
+    expect(await receiptOptions('viewer', ids.aCompany)).toContain(attachmentId)
+    expect(await receiptOptions('accountant', ids.aCompany)).toContain(attachmentId)
+    expect(await receiptOptions('colleague', ids.aCompany)).not.toContain(attachmentId)
+    expect((await proxy('viewer', attachmentId)).status).toBe(200)
+    expect((await proxy('accountant', attachmentId)).status).toBe(200)
+    expect((await proxy('colleague', attachmentId)).status).toBe(404)
+
+    // Another member cannot put it on their own report
+    const stolen = await reportWithReceipt('colleague', ids.aCompany, attachmentId)
+    expect(stolen.status).toBe(400)
+    expect(((await stolen.json()) as { error: string }).error).toMatch(/justificatif introuvable/)
+    // A validator sees it but cannot justify a second expense with it
+    const reused = await reportWithReceipt('accountant', ids.aCompany, attachmentId)
+    expect(reused.status).toBe(409)
+    expect(((await reused.json()) as { error: string }).error).toMatch(/déjà le justificatif/)
+    expect(await prisma.expenseLine.count({ where: { receiptAttachmentId: attachmentId } })).toBe(1)
+  })
+
+  it("never lets a validator file a colleague's staged receipt as their own expense", async () => {
+    const id = await stagedBy('viewer', ids.aCompany, 11, { amountCents: 4_200, date: '2026-10-07', merchant: 'Taxi', paymentHint: 'personal_card' })
+    const response = await json('accountant', 'expense', 'POST', id, {})
+    expect(response.status).toBe(409)
+    expect(((await response.json()) as { error: string }).error).toMatch(/déposé par un autre membre/)
+    expect(await prisma.stagedReceipt.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: 'staged', expenseReportId: null })
+    expect(await prisma.expenseReport.count({ where: { companyId: ids.aCompany, createdById: USERS.accountant.id } })).toBe(0)
+    // Its author still can
+    expect((await json('viewer', 'expense', 'POST', id, {})).status).toBe(201)
   })
 })

@@ -25,17 +25,17 @@
 
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import type { CompanyGuard } from '@/lib/mcp/company-access'
+import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import { json, run } from '@/lib/mcp/tool-result'
 import { READ_ONLY, describeTool } from '@/lib/mcp/tool-meta'
 import { MCP_FILE_BUDGET, documentMimeType, fileResult } from '@/lib/mcp/file-result'
 import type { Permission } from '@/lib/rbac/authorize'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { limitBankCalls } from '@/lib/banking/guard'
-import { qontoClientFor } from '@/lib/integrations/providers/qonto/get-credentials'
 import { assertDeclaredFileSize, fetchQontoFile } from '@/lib/integrations/providers/qonto/files'
-import { listQontoStatements, StatementsBodySchema } from '@/lib/integrations/providers/qonto/list-qonto-statements.service'
-import { listQontoTransactionAttachments, readQontoReceipt } from '@/lib/integrations/providers/qonto/read-qonto-attachments.service'
+import { getCompanyQontoStatement, listQontoStatements, StatementsBodySchema } from '@/lib/integrations/providers/qonto/list-qonto-statements.service'
+import { assertReceiptVisibleTo, listQontoTransactionAttachments, readQontoReceipt } from '@/lib/integrations/providers/qonto/read-qonto-attachments.service'
+import { receiptActorOf } from '@/lib/receipts/actor'
 import { readInvoiceAttachment } from '@/lib/invoices/read-invoice-attachment.service'
 import type { QontoStatement, QontoTransactionAttachment } from '@/lib/integrations/providers/qonto/types'
 
@@ -79,7 +79,7 @@ type FileSource = keyof typeof FILE_SOURCES
 
 const companyId = z.string().describe('Company id, from list_companies.')
 
-export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
+export function registerDocumentTools(server: McpServer, access: McpAccess, guard: CompanyGuard) {
   server.registerTool(
     'get_qonto_statements',
     {
@@ -113,7 +113,7 @@ export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
         if (statementId !== undefined) {
           if (!QONTO_ID.test(statementId)) throw new ValidationError(INVALID_STATEMENT)
           await limitBankCalls(companyId)
-          const { statement } = await (await qontoClientFor(companyId)).getStatement(statementId)
+          const { statement } = await getCompanyQontoStatement(companyId, statementId)
           return json({ statement: statementView(statement) })
         }
         await limitBankCalls(companyId)
@@ -179,6 +179,7 @@ export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
         const base = `companies/${args.companyId}/files/${args.source}`
         if (args.source === 'bank_receipt') {
           if (!args.attachmentId) throw new ValidationError('attachmentId est requis pour un justificatif.')
+          await assertReceiptVisibleTo(args.companyId, args.attachmentId, await receiptActorOf(access.user, args.companyId))
           const receipt = await readQontoReceipt(args.companyId, args.attachmentId, args.transactionUuid, MCP_FILE_BUDGET)
           return fileResult({ content: receipt.body, fileName: receipt.fileName, contentType: documentMimeType(receipt.contentType) }, base, { source: args.source })
         }
@@ -189,7 +190,7 @@ export function registerDocumentTools(server: McpServer, guard: CompanyGuard) {
         }
         if (!args.statementId || !QONTO_ID.test(args.statementId)) throw new ValidationError(INVALID_STATEMENT)
         await limitBankCalls(args.companyId)
-        const { statement } = await (await qontoClientFor(args.companyId)).getStatement(args.statementId)
+        const { statement } = await getCompanyQontoStatement(args.companyId, args.statementId)
         if (!statement?.file?.file_url) throw new NotFoundError('Relevé non trouvé ou fichier non disponible')
         // Qonto file URLs are signed and valid for 30 minutes; they come from Qonto's answer, never from the arguments.
         assertDeclaredFileSize(statement.file.file_size, MCP_FILE_BUDGET)

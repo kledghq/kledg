@@ -94,6 +94,14 @@ function storedCredentials() {
   db.integration.findFirst.mockResolvedValue({ credentials: { login: 'acme', secretKey: SECRET }, credentialsEncrypted: false })
 }
 
+/** The Qonto accounts the company syncs: acme-1 (FR76AAA) and acme-2 (FR76BBB). */
+function syncedAccounts() {
+  db.bankAccount.findMany.mockResolvedValue([
+    { externalAccountId: 'FR76AAA', iban: 'FR76AAA', providerData: { id: 'acme-1', iban: 'FR76AAA' } },
+    { externalAccountId: 'acme-2', iban: 'FR76BBB', providerData: { id: 'acme-2' } },
+  ])
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   state.user = { id: 'user-1', email: 'a@test.local', name: null, role: 'user' }
@@ -250,7 +258,10 @@ describe('Qonto credential checks', () => {
 })
 
 describe('/api/qonto/statements', () => {
-  beforeEach(storedCredentials)
+  beforeEach(() => {
+    storedCredentials()
+    syncedAccounts()
+  })
 
   it('reads the filters of the query string', async () => {
     stubQonto({ '/statements': ok({ statements: [], meta: { total_count: 0 } }) })
@@ -277,10 +288,42 @@ describe('/api/qonto/statements', () => {
   })
 
   it('returns every statement with getAll, from the body too', async () => {
-    stubQonto({ '/statements': ok({ statements: [{ id: 's1' }], meta: { total_count: 1, next_page: null } }) })
+    stubQonto({ '/statements': ok({ statements: [{ id: 's1', bank_account_id: 'acme-1' }], meta: { total_count: 1, next_page: null } }) })
     const response = await call(statementsRoute.POST, 'POST', '/api/qonto/statements', { body: { companyId: COMPANY, getAll: true, ibans: ['FR76AAA'] } })
     expect(response.status).toBe(200)
-    expect(response.json).toEqual({ statements: [{ id: 's1' }], meta: { total_count: 1 } })
+    expect(response.json).toEqual({ statements: [{ id: 's1', bank_account_id: 'acme-1' }], meta: { total_count: 1 } })
+    expect(qontoCalls[0].searchParams.getAll('bank_account_ids[]')).toEqual(['acme-1'])
+  })
+
+  it('reads the statements of the accounts the company syncs only', async () => {
+    stubQonto({
+      '/statements': ok({
+        statements: [
+          { id: 's1', bank_account_id: 'acme-1' },
+          { id: 's2', bank_account_id: 'acme-private' },
+        ],
+        meta: { total_count: 2 },
+      }),
+    })
+    // No filter: the synced accounts
+    const all = await call(statementsRoute.GET, 'GET', `/api/qonto/statements?companyId=${COMPANY}`)
+    expect(all.status).toBe(200)
+    expect(qontoCalls[0].searchParams.getAll('bank_account_ids[]')).toEqual(['acme-1', 'acme-2'])
+    expect((all.json as { statements: Array<{ id: string }> }).statements.map((s) => s.id)).toEqual(['s1'])
+    expect(db.bankAccount.findMany.mock.calls[0][0]?.where).toMatchObject({ shouldSync: true, bankConnection: { companyId: COMPANY } })
+
+    // Another account of the Qonto organization is dropped from the filters
+    qontoCalls.length = 0
+    await call(statementsRoute.GET, 'GET', `/api/qonto/statements?companyId=${COMPANY}&bank_account_ids[]=acme-private,acme-2`)
+    expect(qontoCalls[0].searchParams.getAll('bank_account_ids[]')).toEqual(['acme-2'])
+    expect(qontoCalls[0].searchParams.getAll('ibans[]')).toEqual([])
+
+    // Only accounts the company does not sync: nothing, and Qonto is not asked
+    qontoCalls.length = 0
+    const none = await call(statementsRoute.POST, 'POST', '/api/qonto/statements', { body: { companyId: COMPANY, ibans: ['FR76ZZZ'], bankAccountIds: ['acme-private'] } })
+    expect(none.status).toBe(200)
+    expect(none.json).toMatchObject({ statements: [], meta: { total_count: 0 } })
+    expect(qontoCalls).toEqual([])
   })
 })
 
@@ -301,7 +344,17 @@ describe('GET /api/qonto/transactions/[id]/attachments', () => {
     expect(qontoCalls).toEqual([])
   })
 
+  it('refuses a Qonto uuid that is not a transaction of the company, without calling Qonto', async () => {
+    db.bankTransaction.findFirst.mockResolvedValue(null)
+    stubQonto({})
+    const response = await call(attachmentsRoute.GET, 'GET', `/api/qonto/transactions/${QONTO_UUID}/attachments?companyId=${COMPANY}`, { params: { id: QONTO_UUID } })
+    expect(response.status).toBe(404)
+    expect(db.bankTransaction.findFirst.mock.calls[0][0]?.where).toMatchObject({ bankAccount: { bankConnection: { companyId: COMPANY } } })
+    expect(qontoCalls).toEqual([])
+  })
+
   it('lists the attachments of a Qonto transaction with a bounded page size', async () => {
+    db.bankTransaction.findFirst.mockResolvedValue({ providerData: { id: QONTO_UUID } })
     stubQonto({ '/attachments': ok({ attachments: [{ id: 'att-1' }], meta: {} }) })
     const path = `/api/qonto/transactions/${QONTO_UUID}/attachments?companyId=${COMPANY}&per_page=20`
     const response = await call(attachmentsRoute.GET, 'GET', path, { params: { id: QONTO_UUID } })

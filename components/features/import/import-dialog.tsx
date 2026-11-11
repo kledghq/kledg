@@ -59,6 +59,8 @@ export interface ImportResult {
   errors?: string[]
   /** FEC import: entries refused (the import is then entirely cancelled). */
   refused?: Array<{ entry: string; line: number; reason: string }>
+  /** Every refused entry: `refused` lists the first ones only. */
+  refusedCount?: number
   /** FEC import: imported anyway, worth checking. */
   warnings?: string[]
   message?: string
@@ -419,7 +421,7 @@ export function ImportDialog({
         <DialogContent className="sm:max-w-lg">
           {(() => {
             // FEC imports are atomic: refused entries cancel the whole import
-            const refusedCount = result?.refused?.length ?? 0
+            const refusedCount = result?.refusedCount ?? result?.refused?.length ?? 0
             const errorsCount = refusedCount > 0 ? refusedCount : result?.errors?.length ?? 0
             const warnings = result?.warnings ?? []
             const createdCount = result?.entriesCreated ?? 0

@@ -8,7 +8,9 @@
  * - a draft entry must balance, with no negative/overflow amount and at most
  *   two decimals;
  * - a transaction cannot be reconciled twice into two links;
- * - result allocation is guarded on an open year.
+ * - result allocation is guarded on an open year;
+ * - a fiscal year never overlaps another one of the company (closed or not),
+ *   and new dates never leave entries of the year outside it.
  *
  * Plus a pure FEC-import tampering block (no DB): unbalanced or malformed
  * entries are refused.
@@ -27,6 +29,8 @@ const state = await vi.hoisted(async () => {
 })
 
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => state.user }))
+// Fiscal years created through the routes: their PCG chart is not what these tests check
+vi.mock('@/prisma/seeds/pcg', () => ({ seedPCG: async () => undefined }))
 
 import { prepareTestDatabase, testDatabaseAvailable } from '@/lib/__tests__/helpers/test-db'
 import { makeCall, seedTenants, type Handler } from './helpers/tenants'
@@ -62,6 +66,8 @@ describe.skipIf(!available)('business logic integrity', () => {
     routes.resultAllocation ??= (await import(
       '@/app/api/companies/[id]/fiscal-years/[fiscalYearId]/result-allocation/route'
     )) as unknown as Record<string, Handler>
+    routes.fiscalYears ??= (await import('@/app/api/companies/[id]/fiscal-years/route')) as unknown as Record<string, Handler>
+    routes.fiscalYear ??= (await import('@/app/api/companies/[id]/fiscal-years/[fiscalYearId]/route')) as unknown as Record<string, Handler>
     await reseed()
   }, 60_000)
 
@@ -204,6 +210,74 @@ describe.skipIf(!available)('business logic integrity', () => {
     })
     expect(tx?.reconciled).toBe(true)
     expect(linked).toBe(1)
+  })
+
+  it('refuses a fiscal year overlapping a closed year, whatever its year number', async () => {
+    await prisma.fiscalYear.update({ where: { id: ids.aFy }, data: { isClosed: true, closedAt: new Date('2027-02-01T00:00:00Z') } })
+    const response = await call('companyAdmin', {
+      route: routes.fiscalYears,
+      method: 'POST',
+      path: `/api/companies/${ids.aCompany}/fiscal-years`,
+      params: { id: ids.aCompany },
+      body: { year: 1999, startDate: '2026-06-01', endDate: '2027-05-31' },
+    })
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toMatch(/chevauchent l'exercice 2026/)
+    expect(await prisma.fiscalYear.count({ where: { companyId: ids.aCompany, year: 1999 } })).toBe(0)
+  })
+
+  it('refuses a fiscal year overlapping an open year', async () => {
+    const create = (year: number, startDate: string, endDate: string) =>
+      call('companyAdmin', {
+        route: routes.fiscalYears,
+        method: 'POST',
+        path: `/api/companies/${ids.aCompany}/fiscal-years`,
+        params: { id: ids.aCompany },
+        body: { year, startDate, endDate },
+      })
+    expect((await create(2027, '2026-12-31', '2027-12-31')).status).toBe(409)
+    expect(await prisma.fiscalYear.count({ where: { companyId: ids.aCompany, year: 2027 } })).toBe(0)
+    expect((await create(2027, '2027-01-01', '2027-12-31')).status).toBe(201)
+  })
+
+  it('never creates two overlapping years at once', async () => {
+    const create = (year: number, startDate: string, endDate: string) =>
+      call('companyAdmin', {
+        route: routes.fiscalYears,
+        method: 'POST',
+        path: `/api/companies/${ids.aCompany}/fiscal-years`,
+        params: { id: ids.aCompany },
+        body: { year, startDate, endDate },
+      })
+    const statuses = (await Promise.all([create(2027, '2027-01-01', '2027-12-31'), create(2028, '2027-06-01', '2028-05-31')])).map((r) => r.status)
+    expect(statuses.sort()).toEqual([201, 409])
+  })
+
+  it('refuses new dates leaving entries of the year outside it, or overlapping a closed year', async () => {
+    const patch = (fiscalYearId: string, startDate: string, endDate: string) =>
+      call('companyAdmin', {
+        route: routes.fiscalYear,
+        method: 'PATCH',
+        path: `/api/companies/${ids.aCompany}/fiscal-years/${fiscalYearId}`,
+        params: { id: ids.aCompany, fiscalYearId },
+        body: { startDate, endDate },
+      })
+
+    // The seed's entries are dated 2026-03-01 and 2026-03-02
+    const shrunk = await patch(ids.aFy, '2026-04-01', '2026-12-31')
+    expect(shrunk.status).toBe(409)
+    expect((await shrunk.json()).error).toMatch(/2 écritures de l'exercice 2026 seraient en dehors/)
+    expect((await patch(ids.aFy, '2026-01-01', '2026-12-30')).status).toBe(200)
+    expect((await patch(ids.aFy, '2026-01-01', '2026-12-31')).status).toBe(200)
+
+    await prisma.fiscalYear.update({ where: { id: ids.aFy }, data: { isClosed: true, closedAt: new Date('2027-02-01T00:00:00Z') } })
+    const next = await prisma.fiscalYear.create({
+      data: { companyId: ids.aCompany, year: 2027, startDate: new Date('2027-01-01T00:00:00Z'), endDate: new Date('2027-12-31T00:00:00Z') },
+    })
+    const overlapping = await patch(next.id, '2026-06-01', '2027-12-31')
+    expect(overlapping.status).toBe(409)
+    expect((await overlapping.json()).error).toMatch(/chevauchent l'exercice 2026 \(clôturé/)
+    expect((await prisma.fiscalYear.findUniqueOrThrow({ where: { id: next.id } })).startDate.toISOString()).toBe('2027-01-01T00:00:00.000Z')
   })
 
   it('guards result allocation on an open fiscal year', async () => {

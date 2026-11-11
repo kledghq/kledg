@@ -295,6 +295,43 @@ describe.skipIf(!available)('expense reports (PostgreSQL)', () => {
       expect((await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'validate' }, BOSS)).selfValidated).toBe(true)
     })
 
+    it('treats a report the validator recorded or submitted for a claimant without user as their own', async () => {
+      const paper = await claimants.createClaimant(books.companyId, { kind: 'DIRIGEANT', name: 'Dominique Petit' })
+      const recorded = await reports.createExpenseReport(books.companyId, { ...period, claimantId: paper.id, lines: [meal()] }, BOSS)
+      await reports.runExpenseWorkflow(books.companyId, recorded.id, { action: 'submit' }, BOSS)
+      expect((await reports.getExpenseReport(books.companyId, recorded.id, BOSS)).ownValidation).toBe('sole-validator')
+      // The only validator: allowed, and recorded as a self-validation
+      expect((await reports.runExpenseWorkflow(books.companyId, recorded.id, { action: 'validate' }, BOSS)).selfValidated).toBe(true)
+
+      // Another validator exists: refused, whether the validator recorded the report or only submitted it
+      await addMember(books.companyId, 'u-admin', 'companyAdmin')
+      const ADMIN: ExpenseActor = { userId: 'u-admin', canManage: true }
+      const second = await reports.createExpenseReport(books.companyId, { ...period, claimantId: paper.id, lines: [meal()] }, BOSS)
+      await reports.runExpenseWorkflow(books.companyId, second.id, { action: 'submit' }, BOSS)
+      await expect(reports.runExpenseWorkflow(books.companyId, second.id, { action: 'validate' }, BOSS)).rejects.toThrow(/votre propre note de frais/)
+      const third = await reports.createExpenseReport(books.companyId, { ...period, claimantId: paper.id, lines: [meal()] }, ADMIN)
+      await reports.runExpenseWorkflow(books.companyId, third.id, { action: 'submit' }, BOSS)
+      await expect(reports.runExpenseWorkflow(books.companyId, third.id, { action: 'validate' }, BOSS)).rejects.toThrow(/votre propre note de frais/)
+      expect((await reports.runExpenseWorkflow(books.companyId, second.id, { action: 'validate' }, ADMIN)).selfValidated).toBe(false)
+    })
+
+    it('keeps the claimant of a submitted report: neither its user link nor the report’s claimant changes before validation', async () => {
+      await addMember(books.companyId, 'u-admin', 'companyAdmin')
+      const own = await reports.createExpenseReport(books.companyId, { ...period, lines: [meal()] }, BOSS)
+      await reports.runExpenseWorkflow(books.companyId, own.id, { action: 'submit' }, BOSS)
+      const claimantId = (await prisma.expenseReport.findUniqueOrThrow({ where: { id: own.id } })).claimantId
+      await expect(claimants.updateClaimant(books.companyId, claimantId, { userId: null })).rejects.toThrow(/note de frais soumise/)
+      expect((await prisma.expenseClaimant.findUniqueOrThrow({ where: { id: claimantId } })).userId).toBe('u-boss')
+      // Other fields still change
+      expect((await claimants.updateClaimant(books.companyId, claimantId, { name: 'Bastien Boss' })).name).toBe('Bastien Boss')
+
+      const paper = await claimants.createClaimant(books.companyId, { kind: 'DIRIGEANT', name: 'Dominique Petit' })
+      await expect(reports.updateExpenseReport(books.companyId, own.id, { ...period, claimantId: paper.id, lines: [meal()] }, BOSS)).rejects.toThrow(
+        /bénéficiaire/,
+      )
+      expect((await prisma.expenseReport.findUniqueOrThrow({ where: { id: own.id } })).claimantId).toBe(claimantId)
+    })
+
     it('refuses to validate a line of category "Autre dépense" without an account', async () => {
       const report = await reports.createExpenseReport(books.companyId, { ...period, lines: [meal({ category: 'OTHER' })] }, EMPLOYEE)
       await reports.runExpenseWorkflow(books.companyId, report.id, { action: 'submit' }, EMPLOYEE)

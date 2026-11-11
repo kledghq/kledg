@@ -166,8 +166,15 @@ export async function updateClaimant(companyId: string, id: string, input: z.inf
   try {
     const updated = await prisma.$transaction(async (tx) => {
       await lockClaimants(tx, companyId)
-      const current = await tx.expenseClaimant.findFirst({ where: { id, companyId }, select: { id: true, auxiliaryAccountNumber: true } })
+      const current = await tx.expenseClaimant.findFirst({ where: { id, companyId }, select: { id: true, auxiliaryAccountNumber: true, userId: true } })
       if (!current) throw new NotFoundError(CLAIMANT_NOT_FOUND)
+      // The linked user decides whose report it is when it is validated (self-validation.ts): it holds while one is submitted
+      if (input.userId !== undefined && (input.userId ?? null) !== current.userId) {
+        const submitted = await tx.expenseReport.count({ where: { claimantId: id, companyId, status: 'SUBMITTED' } })
+        if (submitted > 0) {
+          throw new ConflictError('Ce bénéficiaire a une note de frais soumise\u00a0: son utilisateur lié change une fois la note validée ou renvoyée en brouillon.')
+        }
+      }
       if (input.personId) await assertPersonOfCompany(tx, companyId, input.personId)
       if (input.userId) await assertMemberOfCompany(tx, companyId, input.userId)
       await assertLinksFree(tx, companyId, input, id)

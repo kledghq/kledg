@@ -15,11 +15,17 @@
  * - only French VAT rates are accepted (VAT paid abroad is not deducted in
  *   France: it is entered at 0 % and stays in the charge);
  * - every line is dated within the report's period, and a receipt
- *   attachment is one of the company's;
+ *   attachment is one of the company's the actor may use (a bank
+ *   transaction's, or their own unless they validate:
+ *   lib/receipts/actor.ts) and justifies no line of another report;
  * - the author edits and submits a brouillon; a validator (expenses:validate)
  *   edits a brouillon or a soumise, returns a soumise to its author with a
  *   note, validates it, and reopens a validée that is not posted; a posted
  *   report changes only after its draft entry is deleted;
+ * - a report is a validator's own when its claimant is linked to them, or
+ *   when they recorded or submitted it: they validate it only as the
+ *   company's sole validator (self-validation.ts), and the claimant of a
+ *   soumise does not change under them;
  * - numbers NDF-0001, NDF-0002... are given under a lock per company.
  */
 
@@ -46,6 +52,7 @@ import { mealLineTreatment, type MealTaker } from './exploitant-meals'
 import { claimantMealRole, mealRulesOn } from './meal-rule.service'
 import { checkApprovedState } from '@/lib/approved-state/guard'
 import { OWN_REPORT_OTHER_VALIDATOR_MESSAGE, ownValidation, type OwnValidation } from './self-validation'
+import { receiptAttachmentsVisibleTo } from '@/lib/receipts/actor'
 
 export const REPORT_NOT_FOUND = 'Note de frais introuvable'
 
@@ -253,6 +260,8 @@ export async function listExpenseReports(companyId: string, actor: ExpenseActor,
 const DETAIL_SELECT = {
   ...SUMMARY_SELECT,
   returnNote: true,
+  createdById: true,
+  submittedById: true,
   claimant: { select: { id: true, name: true, kind: true, auxiliaryAccountNumber: true, userId: true, accountCode: true, personId: true } },
   lines: {
     orderBy: { position: 'asc' },
@@ -315,8 +324,9 @@ export async function getExpenseReport(companyId: string, id: string, actor: Exp
   const meals = await reportMealRule(prisma, companyId, row)
   const summary = summaryOf(row, actor)
   // A submitted report of the acting validator: may they validate it themselves (self-validation.ts)?
+  const authored = summary.own || row.createdById === actor.userId || row.submittedById === actor.userId
   const ownValidationOf: OwnValidation | null =
-    summary.own && actor.canManage && row.status === 'SUBMITTED' ? await ownValidation(companyId, actor.userId) : null
+    authored && actor.canManage && row.status === 'SUBMITTED' ? await ownValidation(companyId, actor.userId) : null
   return {
     ...summary,
     ownValidation: ownValidationOf,
@@ -441,13 +451,30 @@ async function prepareLines(
   claimantId: string,
   reportId: string | null,
   input: { periodStart: string; periodEnd: string; lines: ExpenseLineBody[] },
+  actor: ExpenseActor,
 ): Promise<PreparedReport> {
   if (input.periodStart > input.periodEnd) throw new ValidationError('La période commence après sa fin.')
   const { rules } = await listCategoryRules(companyId, tx)
-  const attachmentIds = [...new Set(input.lines.map((l) => l.receiptAttachmentId).filter((v): v is string => !!v))]
+  const attachmentIds = [...new Set(input.lines.map((l) => l.receiptAttachmentId).filter((v): v is string => !!v))].sort()
+  // One receipt justifies one report: two reports saved at once never take the same one
+  for (const attachmentId of attachmentIds) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:expense-receipt:${attachmentId}`}))`
   const ownAttachments = attachmentIds.length
-    ? new Set((await tx.attachment.findMany({ where: { id: { in: attachmentIds }, companyId }, select: { id: true } })).map((a) => a.id))
+    ? new Set(
+        (
+          await tx.attachment.findMany({
+            where: { id: { in: attachmentIds }, companyId, ...receiptAttachmentsVisibleTo({ userId: actor.userId, seesAll: actor.canManage }) },
+            select: { id: true },
+          })
+        ).map((a) => a.id),
+      )
     : new Set<string>()
+  const usedElsewhere = attachmentIds.length
+    ? await tx.expenseLine.findMany({
+        where: { receiptAttachmentId: { in: attachmentIds }, report: { companyId }, ...(reportId ? { reportId: { not: reportId } } : {}) },
+        select: { receiptAttachmentId: true, report: { select: { number: true } } },
+      })
+    : []
+  const reportUsing = new Map(usedElsewhere.map((l) => [l.receiptAttachmentId as string, l.report.number]))
 
   const errors: string[] = []
   const prepared = input.lines.map((line, index) => {
@@ -469,6 +496,11 @@ async function prepareLines(
     return { body: line, category, accountCode, mileage }
   })
   if (errors.length > 0) throw new ValidationError(errors.join(' '))
+  const reused = input.lines.flatMap((line, index) => {
+    const number = line.receiptAttachmentId ? reportUsing.get(line.receiptAttachmentId) : undefined
+    return number ? [`Ligne ${index + 1}\u00a0: ce justificatif est déjà le justificatif d’une dépense de la note de frais ${number}.`] : []
+  })
+  if (reused.length > 0) throw new ConflictError(`${reused.join(' ')} Une pièce justifie une seule note de frais\u00a0: choisissez un autre justificatif.`)
 
   const baselines = await mileageBaselines(tx, companyId, claimantId, reportId, input.lines.filter((l) => l.kind === 'MILEAGE').map((l) => l.date))
   const lineInputs = assignPriorDistances(
@@ -559,11 +591,23 @@ export async function lockExpenseReport(tx: Prisma.TransactionClient, companyId:
   await checkApprovedState(tx, { kind: 'expenseReport', companyId, id })
   const report = await tx.expenseReport.findUniqueOrThrow({
     where: { id },
-    select: { id: true, number: true, status: true, entryId: true, claimantId: true, claimant: { select: { userId: true } }, _count: { select: { lines: true } } },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      entryId: true,
+      claimantId: true,
+      createdById: true,
+      submittedById: true,
+      claimant: { select: { userId: true } },
+      _count: { select: { lines: true } },
+    },
   })
   const own = actor !== null && report.claimant.userId === actor.userId
   if (actor && !actor.canManage && !own) throw new NotFoundError(REPORT_NOT_FOUND)
-  return { ...report, own }
+  // Separation of duties also covers a report the validator recorded or submitted for a claimant without user (self-validation.ts)
+  const authored = own || (actor !== null && (report.createdById === actor.userId || report.submittedById === actor.userId))
+  return { ...report, own, authored }
 }
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const
@@ -571,7 +615,7 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const
 export async function createExpenseReport(companyId: string, input: CreateExpenseReportInput, actor: ExpenseActor, options: { source?: string } = {}): Promise<ExpenseReportDetail> {
   const id = await prisma.$transaction(async (tx) => {
     const claimantId = await resolveClaimant(tx, companyId, actor, input.claimantId)
-    const prepared = await prepareLines(tx, companyId, claimantId, null, input)
+    const prepared = await prepareLines(tx, companyId, claimantId, null, input, actor)
     const number = await nextNumber(tx, companyId)
     const created = await tx.expenseReport.create({
       data: {
@@ -605,8 +649,13 @@ export async function updateExpenseReport(companyId: string, id: string, input: 
   const number = await prisma.$transaction(async (tx) => {
     const report = await lockExpenseReport(tx, companyId, id, actor)
     assertEditable(report, actor)
-    const claimantId = input.claimantId && input.claimantId !== report.claimantId ? await resolveClaimant(tx, companyId, actor, input.claimantId) : report.claimantId
-    const prepared = await prepareLines(tx, companyId, claimantId, id, input)
+    const changesClaimant = !!input.claimantId && input.claimantId !== report.claimantId
+    // Its author never hands a submitted report to another claimant: it would stop reading as their own when they validate it
+    if (changesClaimant && report.status === 'SUBMITTED' && report.authored) {
+      throw new ConflictError(`La note de frais ${report.number} est soumise\u00a0: son bénéficiaire ne change pas. Renvoyez-la en brouillon ou demandez à un autre valideur de la corriger.`)
+    }
+    const claimantId = changesClaimant ? await resolveClaimant(tx, companyId, actor, input.claimantId) : report.claimantId
+    const prepared = await prepareLines(tx, companyId, claimantId, id, input, actor)
     await tx.expenseLine.deleteMany({ where: { reportId: id } })
     await tx.expenseReport.update({
       where: { id },
@@ -664,7 +713,7 @@ export async function appendExpenseLines(companyId: string, id: string, lines: E
       periodEnd: calendarDayOf(current.periodEnd) as string,
       lines: [...current.lines.map(lineBodyOf), ...lines],
     }
-    const prepared = await prepareLines(tx, companyId, report.claimantId, id, input)
+    const prepared = await prepareLines(tx, companyId, report.claimantId, id, input, actor)
     await tx.expenseLine.deleteMany({ where: { reportId: id } })
     await tx.expenseReport.update({ where: { id }, data: { ...amountData(prepared.totals), lines: { create: prepared.lines } } })
     return report.number
@@ -723,8 +772,9 @@ export async function runExpenseWorkflow(
         requireManager()
         if (report.status !== 'SUBMITTED') throw new ConflictError(`La note de frais ${report.number} doit être soumise avant d’être validée.`)
         await assertPostable(tx, companyId, id)
-        // Its own author validates it only as the company's sole validator, and that is recorded.
-        if (report.own) {
+        // Its own author (claimant linked to them, or recorded or submitted by them) validates it
+        // only as the company's sole validator, and that is recorded.
+        if (report.authored) {
           if ((await ownValidation(companyId, actor.userId, tx)) === 'refused') throw new ConflictError(OWN_REPORT_OTHER_VALIDATOR_MESSAGE)
           selfValidated = true
         }

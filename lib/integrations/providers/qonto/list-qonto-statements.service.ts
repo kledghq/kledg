@@ -2,10 +2,40 @@
  * Monthly bank statements of a company's Qonto accounts, read from the
  * Qonto API with the company's stored credentials only
  * (https://docs.qonto.com/api-reference/business-api/transactions-statements/statements/list-statements).
+ *
+ * A Qonto organization may hold accounts the company does not follow in
+ * Kledg (unticked at connection, or followed through another connection):
+ * only the statements of the accounts it syncs (shouldSync) are listed or
+ * served, whatever account ids or IBANs the request names.
  */
 
 import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { NotFoundError } from '@/lib/accounting/errors'
 import { qontoClientFor } from './get-credentials'
+import { isQontoAccountId } from './account-id'
+import type { QontoStatement } from './types'
+
+export const STATEMENT_NOT_FOUND = 'Relevé non trouvé ou fichier non disponible'
+
+const normalizeIban = (iban: string) => iban.replace(/\s/g, '').toUpperCase()
+
+/**
+ * The Qonto ids (and their IBANs) of the bank accounts the company syncs.
+ * Qonto accounts are stored by IBAN, or by id when the IBAN is masked; the
+ * id is in the account data Qonto returned at the last sync.
+ */
+export async function syncedQontoAccounts(companyId: string): Promise<Array<{ id: string; iban: string | null }>> {
+  const accounts = await prisma.bankAccount.findMany({
+    where: { shouldSync: true, bankConnection: { companyId, provider: 'QONTO' } },
+    select: { externalAccountId: true, iban: true, providerData: true },
+  })
+  return accounts.flatMap((account) => {
+    const data = account.providerData as { id?: unknown } | null
+    const id = typeof data?.id === 'string' && data.id ? data.id : isQontoAccountId(account.externalAccountId) ? account.externalAccountId : null
+    return id ? [{ id, iban: account.iban ? normalizeIban(account.iban) : null }] : []
+  })
+}
 
 const SORT_BY = z.enum(['period:asc', 'period:desc'], { error: 'Tri invalide : period:asc ou period:desc.' })
 const page = z.coerce.number().int().min(1).max(10_000)
@@ -82,21 +112,39 @@ export const StatementsBodySchema = z.object({
 
 /**
  * One page of statements (Qonto's response), or with `getAll` every
- * statement as `{ statements, meta: { total_count } }`.
+ * statement as `{ statements, meta: { total_count } }`. The account ids and
+ * IBANs asked for are narrowed to the accounts the company syncs (all of
+ * them when none is asked for); Qonto is always asked by account id.
  */
 export async function listQontoStatements(companyId: string, filters: StatementFilters) {
+  const synced = await syncedQontoAccounts(companyId)
+  const askedIds = new Set(filters.bankAccountIds ?? [])
+  const askedIbans = new Set((filters.ibans ?? []).map(normalizeIban))
+  const filtered = askedIds.size > 0 || askedIbans.size > 0
+  const accountIds = synced.filter((a) => !filtered || askedIds.has(a.id) || (a.iban !== null && askedIbans.has(a.iban))).map((a) => a.id)
+  if (accountIds.length === 0) return { statements: [] as QontoStatement[], meta: { total_count: 0 } }
+
+  const allowed = new Set(accountIds)
+  const ofCompany = (statements: QontoStatement[]) => statements.filter((s) => allowed.has(s.bank_account_id))
   const client = await qontoClientFor(companyId)
-  const nonEmpty = (values?: string[]) => (values && values.length > 0 ? values : undefined)
   const common = {
     sortBy: filters.sortBy,
-    bankAccountIds: nonEmpty(filters.bankAccountIds),
-    ibans: nonEmpty(filters.ibans),
+    bankAccountIds: accountIds,
     periodFrom: filters.periodFrom || undefined,
     periodTo: filters.periodTo || undefined,
   }
   if (filters.getAll) {
-    const statements = await client.getAllStatements(common)
+    const statements = ofCompany(await client.getAllStatements(common))
     return { statements, meta: { total_count: statements.length } }
   }
-  return client.getStatements({ ...common, page: filters.page, perPage: filters.perPage })
+  const page = await client.getStatements({ ...common, page: filters.page, perPage: filters.perPage })
+  return { ...page, statements: ofCompany(page.statements ?? []) }
+}
+
+/** A statement of an account the company syncs (Qonto's response), or a 404. */
+export async function getCompanyQontoStatement(companyId: string, statementId: string): Promise<{ statement: QontoStatement }> {
+  const synced = await syncedQontoAccounts(companyId)
+  const response = await (await qontoClientFor(companyId)).getStatement(statementId)
+  if (!response?.statement || !synced.some((a) => a.id === response.statement.bank_account_id)) throw new NotFoundError(STATEMENT_NOT_FOUND)
+  return response
 }

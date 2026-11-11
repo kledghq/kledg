@@ -108,6 +108,8 @@ beforeEach(() => {
   state.roles = ['companyAdmin']
   qontoCalls.length = 0
   storedCredentials()
+  // The company syncs the Qonto account acc-1
+  db.bankAccount.findMany.mockResolvedValue([{ externalAccountId: 'FR76AAA', iban: 'FR76AAA', providerData: { id: 'acc-1' } }])
 })
 
 afterEach(() => {
@@ -191,6 +193,13 @@ describe('GET /api/qonto/statements/[id]', () => {
     expect(qontoCalls).toEqual([])
   })
 
+  it('answers 404 for a statement of an account the company does not sync', async () => {
+    stubQonto({ [`/statements/${STATEMENT_ID}`]: ok({ statement: { ...statement().statement, bank_account_id: 'acc-private' } }) })
+    const response = await call(statementRoute, get(path(STATEMENT_ID)), { id: STATEMENT_ID })
+    expect(response.status).toBe(404)
+    expect(response.json).toEqual({ error: 'Relevé non trouvé ou fichier non disponible' })
+  })
+
   it('maps a statement Qonto does not know to its French 502 message', async () => {
     stubQonto({ [`/statements/${STATEMENT_ID}`]: refused(404) })
     const response = await call(statementRoute, get(path(STATEMENT_ID)), { id: STATEMENT_ID })
@@ -229,6 +238,16 @@ describe('GET /api/qonto/statements/[id]/proxy', () => {
     expect(response.headers.get('content-disposition')).toContain(`releve-${STATEMENT_ID}.pdf`)
   })
 
+  it('never serves the statement of an account the company does not sync', async () => {
+    stubQonto({
+      [`/statements/${STATEMENT_ID}`]: ok({ statement: { ...statement().statement, bank_account_id: 'acc-private' } }),
+      '/s/aout.pdf': () => new Response('%PDF-1.7 releve', { status: 200 }),
+    })
+    const response = await call(statementProxyRoute, get(path), { id: STATEMENT_ID })
+    expect(response.status).toBe(404)
+    expect(qontoCalls).toHaveLength(1)
+  })
+
   it('answers 404 when the statement has no file', async () => {
     stubQonto({ [`/statements/${STATEMENT_ID}`]: ok(statement({ file_url: '' })) })
     const response = await call(statementProxyRoute, get(path), { id: STATEMENT_ID })
@@ -265,6 +284,7 @@ describe('POST /api/qonto/transactions/[id]/attachments/upload', () => {
 
   it('sends the file to the Qonto transaction with an idempotency key', async () => {
     state.roles = ['accountant']
+    db.bankTransaction.findFirst.mockResolvedValue({ providerData: { id: TX_UUID } })
     stubQonto({ [`/transactions/${TX_UUID}/attachments`]: () => new Response(null, { status: 200 }) })
     const response = await call(uploadRoute, upload(pdf()), { id: TX_UUID })
     expect(response.status).toBe(200)
@@ -285,6 +305,15 @@ describe('POST /api/qonto/transactions/[id]/attachments/upload', () => {
     // The type sent to Qonto is the one read from the bytes, and the call counts in the company's bank limit
     expect(sent.type).toBe('application/pdf')
     expect(limitBankCalls).toHaveBeenCalledWith(COMPANY)
+  })
+
+  it('answers 404 for a transaction Kledg has not stored for the company, without calling Qonto', async () => {
+    state.roles = ['accountant']
+    db.bankTransaction.findFirst.mockResolvedValue(null)
+    stubQonto({})
+    expect((await call(uploadRoute, upload(pdf()), { id: TX_UUID })).status).toBe(404)
+    expect(db.bankTransaction.findFirst.mock.calls[0][0]?.where).toMatchObject({ bankAccount: { bankConnection: { companyId: COMPANY } } })
+    expect(qontoCalls).toEqual([])
   })
 
   it('refuses a viewer (403) and a non-member (404) without calling Qonto', async () => {
@@ -325,6 +354,7 @@ describe('POST /api/qonto/transactions/[id]/attachments/upload', () => {
   })
 
   it('reports a Qonto rate limit in French as a 429', async () => {
+    db.bankTransaction.findFirst.mockResolvedValue({ providerData: { id: TX_UUID } })
     stubQonto({ [`/transactions/${TX_UUID}/attachments`]: refused(429) })
     const response = await call(uploadRoute, upload(pdf()), { id: TX_UUID })
     expect(response.status).toBe(429)

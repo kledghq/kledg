@@ -17,6 +17,8 @@ import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { limitBankCalls } from '@/lib/banking/guard'
 import { readReceiptFile } from '@/lib/receipts/receipt-file-store'
+import { receiptAttachmentsVisibleTo } from '@/lib/receipts/actor'
+import type { StagedReceiptActor } from '@/lib/receipts/stage-receipt.service'
 import { getQontoCredentials, qontoClientFor } from './get-credentials'
 import { QontoInvoicing } from './invoicing'
 import { PROVIDER_FILE_BUDGET, assertDeclaredFileSize, fetchQontoFile, type FileBudget } from './files'
@@ -32,13 +34,17 @@ export const TransactionAttachmentsQuerySchema = z.object({
 })
 
 /**
- * The Qonto UUID of a transaction given by its UUID, or by its external id
- * in Kledg (then it must be a transaction of the company synced from Qonto).
+ * The Qonto UUID of a transaction of the company synced from Qonto, given by
+ * its UUID or by its external id in Kledg. A UUID Kledg has not stored for
+ * the company is "introuvable": the company's Qonto key also reaches the
+ * accounts of the organization the company does not follow.
  */
-async function qontoTransactionUuid(companyId: string, ref: string): Promise<string> {
-  if (UUID.test(ref)) return ref
+export async function qontoTransactionUuid(companyId: string, ref: string): Promise<string> {
   const transaction = await prisma.bankTransaction.findFirst({
-    where: { ...transactionOfCompany(companyId), externalTransactionId: ref },
+    where: {
+      ...transactionOfCompany(companyId),
+      ...(UUID.test(ref) ? { OR: [{ externalTransactionId: ref }, { providerData: { path: ['id'], equals: ref } }] } : { externalTransactionId: ref }),
+    },
     select: { providerData: true },
   })
   if (!transaction?.providerData) throw new NotFoundError('Transaction introuvable')
@@ -99,6 +105,21 @@ async function unsyncedAttachment(companyId: string, attachmentRef: string, tran
     providerData: null as Prisma.JsonValue,
     bankTransaction: null as { externalTransactionId: string } | null,
   }
+}
+
+/**
+ * Refuses (404, like a missing receipt) a stored receipt the member may not
+ * open: a colleague's expense receipt for a member who neither reconciles
+ * nor validates (lib/receipts/actor.ts). A receipt Qonto lists but Kledg
+ * has not synced yet belongs to a bank transaction: readQontoReceipt checks
+ * the transaction.
+ */
+export async function assertReceiptVisibleTo(companyId: string, attachmentRef: string, viewer: StagedReceiptActor): Promise<void> {
+  if (viewer.seesAll) return
+  const stored = await prisma.attachment.findFirst({ where: { ...attachmentWhere(attachmentRef), companyId }, select: { id: true } })
+  if (!stored) return
+  const visible = await prisma.attachment.findFirst({ where: { id: stored.id, companyId, ...receiptAttachmentsVisibleTo(viewer) }, select: { id: true } })
+  if (!visible) throw new NotFoundError(RECEIPT_NOT_FOUND)
 }
 
 export interface QontoReceipt {
