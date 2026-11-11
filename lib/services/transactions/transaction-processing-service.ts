@@ -34,6 +34,8 @@ export interface TransactionProcessingResult {
   matched: number
   /** Matched by a rule the run may apply (what autoApply would apply). */
   applicable: number
+  /** The `applicable` transactions per rule the run applies to them (ruleId: count), for the dry run. */
+  applicableByRule: Record<string, number>
   applied: number
   /** Reconciled meanwhile (another run or a user): skipped, nothing created. */
   skipped: number
@@ -144,6 +146,7 @@ export async function processTransactions(
     processed: 0,
     matched: 0,
     applicable: 0,
+    applicableByRule: {},
     applied: 0,
     skipped: 0,
     errors: [],
@@ -164,7 +167,10 @@ export async function processTransactions(
         results.matched++
 
         const bestRule = pickRule(onlyAutoCreate ? matchingRules.filter((m) => m.autoCreate) : matchingRules)
-        if (bestRule) results.applicable++
+        if (bestRule) {
+          results.applicable++
+          results.applicableByRule[bestRule.ruleId] = (results.applicableByRule[bestRule.ruleId] ?? 0) + 1
+        }
         if (autoApply && bestRule) {
           try {
             const applyResult = await applyRule(

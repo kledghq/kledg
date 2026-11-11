@@ -81,6 +81,13 @@ async function tracked(companyId: string, context: CompanyContext, deadline: Dea
   return item
 }
 
+/** A deadline of the company with its current status (the dry run of mark_declaration), without writing. */
+export async function getTrackedDeadline(companyId: string, deadlineId: string, options: { now?: Date } = {}): Promise<TrackedDeadline> {
+  const today = day(todayUtc(options.now))
+  const { deadline, context } = await findDeadline(companyId, deadlineId, today)
+  return tracked(companyId, context, deadline, today)
+}
+
 export async function markDeclaration(
   companyId: string,
   body: MarkDeclarationInput,

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { NoCompanySelected } from '@/components/features/companies/no-company-selected'
 import { PageHeader } from '@/components/shared'
 import { ImportDialog, type ImportResult } from '@/components/features/import/import-dialog'
+import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
 import { LastImportSummary } from '@/components/features/import/last-import-summary'
 import { responseError, useCursorList } from '@/hooks/use-cursor-list'
 import { useDefaultFiscalYear } from '@/hooks/use-default-fiscal-year'
@@ -31,6 +32,10 @@ export default function EntriesPage() {
   const companyId = params?.companyId as string
   const [journals, setJournals] = useState<Journal[]>([])
   const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const { can, denied } = useCompanyAccess()
+  const canCreate = can({ entries: ['create'] })
+  // The import creates fiscal years and journals as needed: same rights as the API route
+  const canImport = can({ entries: ['create'], ledger: ['manage'] })
   // ?statut=brouillon (link "Voir les brouillons" of the dashboard) opens the list on the drafts.
   const searchParams = useSearchParams()
   const [filters, setFilters] = useState<EntriesFiltersType>(() =>
@@ -125,19 +130,33 @@ export default function EntriesPage() {
         docsHref={docsUrl('doubleEntry')}
         actions={
           <>
-            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+            <Button
+              variant="outline"
+              onClick={() => setImportDialogOpen(true)}
+              disabled={!canImport}
+              title={canImport ? undefined : denied('importer des écritures')}
+            >
               <Upload aria-hidden />
               Importer
             </Button>
-            <Button asChild>
-              <Link href={`/${companyId}/entries/new`}>
+            {canCreate ? (
+              <Button asChild>
+                <Link href={`/${companyId}/entries/new`}>
+                  <Plus aria-hidden />
+                  Nouvelle écriture
+                </Link>
+              </Button>
+            ) : (
+              <Button disabled title={denied('saisir une écriture')}>
                 <Plus aria-hidden />
                 Nouvelle écriture
-              </Link>
-            </Button>
+              </Button>
+            )}
           </>
         }
       />
+
+      {!canCreate ? <AccessNotice>{denied('saisir ni importer des écritures')}</AccessNotice> : !canImport ? <AccessNotice>{denied('importer des écritures')}</AccessNotice> : null}
 
       {lastImportResult && <LastImportSummary result={lastImportResult} onDismiss={dismissLastImportResult} />}
 

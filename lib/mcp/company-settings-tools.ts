@@ -113,7 +113,7 @@ export function registerCompanySettingsTools(server: McpServer, guard: CompanyGu
       title: 'Mise en page des états',
       description: describeTool({
         summary:
-          'Returns the layout of the balance sheet or of the income statement (variant complete or simplified): its lines with their accounts, sense and order (view layout, created from the PCG default the first time), one line (view line with lineId), the history of a balance sheet line (view history with lineId, and version, or version1 and version2 to compare), or the balance sheet templates (view templates). Change it with manage_statement_layout (full control).',
+          'Returns the layout of the balance sheet or of the income statement (variant complete or simplified): its lines with their accounts, sense and order (view layout; for the income statement, the PCG default until the company changes a line, built without storing anything: isDefault true), one line (view line with lineId), the history of a balance sheet line (view history with lineId, and version, or version1 and version2 to compare), or the balance sheet templates (view templates). Change it with manage_statement_layout (full control).',
         access: 'read',
         permission: { settings: ['read'] },
         amounts: 'none',

@@ -446,10 +446,12 @@ function reconcileQuestion(match: UniqueMatch): string {
 /**
  * The transactions to reconcile. With full control and `matches` (the
  * unique match of each transaction the server found, computed only when
- * the user may reconcile), a transaction that has one gets "Rapprocher",
- * a direct call of reconcile_transaction with that entry (or the rule's
- * lines) after a confirmation click; the others keep "Proposer une
- * écriture" (a message to the assistant) and "Pointer sans écriture".
+ * the user may reconcile), a transaction that has one gets "Rapprocher":
+ * reconcile_transaction with the rule's lines (a draft entry, a direct call
+ * after a confirmation click) or with that entry (high impact: approved in
+ * Kledg in validation mode, dry run then "Confirmer" in automatic mode);
+ * the others keep "Proposer une écriture" (a message to the assistant) and
+ * "Pointer sans écriture" (high impact too).
  */
 export function bankTransactionsList(
   companyId: string,

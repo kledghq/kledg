@@ -9,7 +9,7 @@ import { enforceRateLimit } from '@/lib/rate-limit'
  * The FEC content is sent inline: the body may be as large as an upload.
  */
 export const POST = companyRoute(
-  { company: fromBody(), permission: { entries: ['read'] }, body: PreviewFecFiscalYearsBody, maxBodyBytes: MAX_UPLOAD_BYTES },
+  { company: fromBody(), permission: { entries: ['create'], ledger: ['manage'] }, body: PreviewFecFiscalYearsBody, maxBodyBytes: MAX_UPLOAD_BYTES },
   async ({ companyId, user, body }) => {
     await enforceRateLimit('import', user.id)
     return NextResponse.json(await previewImportFiscalYears(companyId, body))

@@ -78,7 +78,8 @@ export function sourceFactsOf(deadline: Pick<Deadline, 'id' | 'ruleId'>, data: S
       const row = data.corporateTax.get(end)
       if (!row) return null
       const paid = row.acomptesPaid.find((a) => a.number === Number(n))
-      const notDue = row.acomptesNotDue.includes(Number(n))
+      // An acompte paid all the same stays paid: it is imputed on the balance or refunded (CGI art. 1668, 2)
+      const notDue = !paid && row.acomptesNotDue.includes(Number(n))
       return {
         source: 'corporate-tax',
         paidOn: paid?.paidOn ?? null,

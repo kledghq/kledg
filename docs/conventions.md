@@ -277,6 +277,7 @@ it must hold for every code path, by the database (trigger in a migration).
 | Definitive number given at validation, in fiscal year sequence | `validateEntryInTx` under `lockEntryNumbering` | |
 | A closed fiscal year never changes (PCG art. 1031-4) | `assertFiscalYearOpen`, `assertDateInOpenFiscalYear` | `kledg_lock_closed_year_*`, `kledg_lock_closed_fiscal_years` |
 | Entries are created through one path | `createEntryInTx` (drafts) and `validateEntryInTx` | |
+| The fiscal years of a company never overlap, closed or not, and keep their entries within their dates | `createFiscalYear`, `updateFiscalYearDates`, the FEC import (`lib/accounting/manage-fiscal-years.service.ts`) under `lockCompanyFiscalYears` | |
 | Lettering groups balance, one code sequence per account, never in a closed year (`docs/lettrage-et-tiers.md`) | `lib/lettering/lettering.service.ts` under an advisory lock per account | the triggers leave `letteringCode` and `letteringDate` free on validated lines |
 | An invoice posts once, to the fiscal year containing its date only, with accounts of that year's chart; its amounts come from its lines in cents (`docs/factures-et-tiers.md`) | `lib/invoices/post-invoice.service.ts` under the invoice row lock, `lib/invoices/amounts.ts` | check constraints on `invoices` (TTC = HT + TVA), `invoice_payments.entryLineId` unique |
 
@@ -335,7 +336,10 @@ it must hold for every code path, by the database (trigger in a migration).
   cell by cell; never `row.values` or `eachRow({ includeEmpty: true })`.
   Parse an uploaded CSV only after `assertCsvWithinLimits` (rows and
   `MAX_CSV_CELLS`, counted on the text): Papa Parse builds every row in
-  memory at once.
+  memory at once. A FEC is bounded by its parser on every path (import,
+  preview, MCP): `MAX_FEC_LINES` counted on the text, the first
+  `MAX_FEC_PARSE_ERRORS` unreadable lines kept with their count,
+  `MAX_FEC_FISCAL_YEARS` per file (`lib/import/fec/parser.ts`, `plan.ts`).
 - **Rate limits** (tested by `lib/__tests__/rate-limit.test.ts`): every
   limit of Kledg's own code is a named rule of `RATE_LIMITS` in
   `lib/rate-limit.ts` (window, maximum, French message), applied with

@@ -24,6 +24,7 @@ const DOCS_PAGES = {
   install: 'installer-kledg',
   hosting: 'choisir-son-hebergement',
   docker: 'heberger-avec-docker',
+  liasseFiscale: 'la-liasse-fiscale',
 } as const
 
 export type DocsPage = keyof typeof DOCS_PAGES

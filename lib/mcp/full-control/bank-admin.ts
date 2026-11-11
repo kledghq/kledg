@@ -19,7 +19,7 @@ import { forAssistant, routeBody } from '@/lib/mcp/euros'
 import { limitBankCalls } from '@/lib/banking/guard'
 import { disconnectConnection, setBankAccountSync, setConnectionSyncedAccounts, updateBankAccount } from '@/lib/banking/connections.service'
 import { selectBankAccount } from '@/lib/banking/select-bank-account.service'
-import { AutoReconcileBodySchema, autoReconcile } from '@/lib/services/banking/reconciliation-service'
+import { AutoReconcileBodySchema, autoReconcile, previewAutoReconcile } from '@/lib/services/banking/reconciliation-service'
 import { BulkTransactionsSchema, deleteTransactions, reconcileTransactions, unreconcileTransactions } from '@/lib/transactions/bulk-transactions.service'
 import { applyRuleToTransaction } from '@/lib/transactions/rule-executor'
 import { duplicateRule, findRule } from '@/lib/transactions/manage-rules.service'
@@ -32,6 +32,7 @@ import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { isoDate } from './resolve'
 import { decodeBase64File, receiptTypeOf } from './files'
 import { companyLock, rowTargets, ruleTargets } from './fingerprint'
+import { assistantRuleChanges } from './rule-preview'
 
 const transactionIds = z.array(z.string().min(1).max(64)).min(1).max(500).describe('Transaction ids, from list_bank_transactions.')
 
@@ -43,6 +44,51 @@ async function transactionsOf(companyId: string, ids: string[]) {
     orderBy: { date: 'asc' },
   })
   return { found: forAssistant(rows), notFound: ids.filter((id) => !rows.some((row) => row.id === id)) }
+}
+
+/** Pairs listed at most in the dry run of auto_match (the total is always given). */
+export const MAX_PREVIEW_PAIRS = 50
+
+/**
+ * The dry run of auto_match: the pairs the run would link (the same
+ * selection and matcher, lib/services/banking/reconciliation-service.ts),
+ * each transaction with its entry, the first MAX_PREVIEW_PAIRS listed, and
+ * the transactions released because their entry was deleted.
+ */
+async function autoMatchPreview(companyId: string, startDate: string | undefined, endDate: string | undefined) {
+  const period = routeBody(AutoReconcileBodySchema, { startDate, endDate })
+  const plan = await previewAutoReconcile({ companyId, ...period })
+  const listed = plan.pairs.slice(0, MAX_PREVIEW_PAIRS)
+  const [transactions, entries] = await Promise.all([
+    prisma.bankTransaction.findMany({
+      where: { id: { in: listed.map((p) => p.transactionId) }, bankAccount: { bankConnection: { companyId } } },
+      select: { id: true, date: true, label: true, amount: true, side: true },
+    }),
+    prisma.accountingEntry.findMany({
+      where: { id: { in: listed.map((p) => p.entryId) }, companyId },
+      select: { id: true, entryNumber: true, date: true, description: true, status: true },
+    }),
+  ])
+  const transactionById = new Map(transactions.map((t) => [t.id, t]))
+  const entryById = new Map(entries.map((e) => [e.id, e]))
+  return {
+    pairsTotal: plan.pairs.length,
+    pairs: listed.map(({ entryId, transactionId }) => {
+      const t = transactionById.get(transactionId)
+      const e = entryById.get(entryId)
+      return {
+        transaction: forAssistant(t ? { id: t.id, date: t.date, label: t.label, amount: t.amount, side: t.side } : { id: transactionId }),
+        entry: forAssistant(e ? { id: e.id, number: e.entryNumber, date: e.date, description: e.description, status: e.status } : { id: entryId }),
+      }
+    }),
+    entriesAnalysed: plan.analysed,
+    truncated: plan.truncated,
+    releasedTransactions: plan.releasedTransactionIds.length,
+    bankJournal: plan.hasBankJournal,
+    effect: plan.hasBankJournal
+      ? 'Chaque transaction listée sera rapprochée de son écriture (aucune écriture créée ni validée).'
+      : 'Aucun journal BQ\u00a0: aucune écriture bancaire à rapprocher.',
+  }
 }
 
 const manageBankAccountsTool = fullControlTool({
@@ -101,7 +147,7 @@ const manageBankAccountsTool = fullControlTool({
 const bulkReconcileTool = fullControlTool({
   name: 'bulk_reconcile',
   title: 'Rapprocher en masse',
-  description: `Reconciliation of several transactions, like the Transactions and Rapprochement pages: action mark_reconciled marks transactionIds reconciled without an entry; action unreconcile undoes their reconciliation (deletes the draft entries it created, refused per transaction when the entry is validated); action auto_match matches the entries of the BQ journal with unreconciled transactions of the same amount, side and date within a day, over a period; action apply_rule applies the assignment rule ruleId to transactionId (a draft entry, reconciled at once; 409 if already reconciled). Failures are reported per transaction. ${ACTS_AS_USER} Every action is high impact, like run_rules: ${TWO_STEP}`,
+  description: `Reconciliation of several transactions, like the Transactions and Rapprochement pages: action mark_reconciled marks transactionIds reconciled without an entry; action unreconcile undoes their reconciliation (deletes the draft entries it created, refused per transaction when the entry is validated); action auto_match matches the entries of the BQ journal with unreconciled transactions of the same amount, side and date within a day, over a period (both startDate and endDate, else the open fiscal years; its dry run lists the transaction and entry pairs it would link, the first ${MAX_PREVIEW_PAIRS}, with their total); action apply_rule applies the assignment rule ruleId to transactionId (a draft entry, reconciled at once; 409 if already reconciled). Failures are reported per transaction. ${ACTS_AS_USER} Every action is high impact, like run_rules: ${TWO_STEP}`,
   input: {
     action: z.enum(['mark_reconciled', 'unreconcile', 'auto_match', 'apply_rule']),
     transactionIds: transactionIds.optional(),
@@ -132,14 +178,7 @@ const bulkReconcileTool = fullControlTool({
         effect: 'Écriture en brouillon créée par la règle, transaction rapprochée.',
       }
     }
-    if (action === 'auto_match') {
-      const where = {
-        bankAccount: { bankConnection: { companyId } },
-        reconciled: false,
-        ...((startDate || endDate) && { date: { ...(startDate && { gte: new Date(`${startDate}T00:00:00.000Z`) }), ...(endDate && { lte: new Date(`${endDate}T00:00:00.000Z`) }) } }),
-      }
-      return { action, unreconciledTransactions: await prisma.bankTransaction.count({ where }), startDate: startDate ?? null, endDate: endDate ?? null }
-    }
+    if (action === 'auto_match') return { action, startDate: startDate ?? null, endDate: endDate ?? null, ...(await autoMatchPreview(companyId, startDate, endDate)) }
     return { action, transactions: ids ? await transactionsOf(companyId, ids) : null }
   },
   async execute({ companyId, action, transactionIds: ids, transactionId, ruleId, startDate, endDate }) {
@@ -221,10 +260,12 @@ const syncBankDataTool = fullControlTool({
       orderBy: { priority: 'desc' },
     })
     const unreconciled = await prisma.bankTransaction.count({ where: { bankAccount: { bankConnection: { companyId } }, reconciled: false } })
+    const changes = await assistantRuleChanges(companyId, rules.map((r) => r.id))
     return {
       scope,
       maxDays: maxDays ?? null,
-      autoCreateRules: rules,
+      // Each rule the refresh applies, and whether an assistant created or changed it (and when)
+      autoCreateRules: rules.map((rule) => ({ ...rule, byAssistant: changes.get(rule.id) ?? null })),
       unreconciledTransactions: unreconciled,
       effect: 'Synchronisation des banques, puis écritures en brouillon créées par les règles «\u00a0Créer automatiquement l’écriture\u00a0» pour les transactions qui leur correspondent, rapprochées.',
     }

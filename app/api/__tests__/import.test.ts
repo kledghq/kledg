@@ -232,6 +232,13 @@ describe('POST /api/import/preview-fiscal-years', () => {
     expect(previewFECFiscalYears).not.toHaveBeenCalled()
   })
 
+  it('answers 403 to a viewer, who cannot run the import either', async () => {
+    vi.mocked(getUserRolesForCompany).mockResolvedValueOnce(['viewer'])
+    const response = await previewRoute(preview({ companyId: 'company-1', content: 'x' }))
+    expect(response.status).toBe(403)
+    expect(previewFECFiscalYears).not.toHaveBeenCalled()
+  })
+
   it('answers 404 to a non member', async () => {
     vi.mocked(getUserRolesForCompany).mockResolvedValueOnce([])
     const response = await previewRoute(preview({ companyId: 'company-2', content: 'x' }))

@@ -47,6 +47,7 @@ Chaque page renvoie à son guide sur le site.
 - [Organisme de formation](organisme-de-formation.md) : exonération de TVA, coefficient de déduction, bilan pédagogique et financier, taxe sur les salaires
 - [Déclarations de TVA](declarations-tva.md) : CA3 et CA12, lignes et cases, liquidation
 - [Impôt sur les sociétés](impot-societes.md) : résultat fiscal, taux, acomptes, écritures
+- [Liasse fiscale](liasse-fiscale.md) : tableaux de la déclaration de résultat selon le régime, case par case, ce qui reste à remplir à la main, contrôles
 - [Impôts locaux (CFE, CVAE)](impots-locaux.md) : CFE, CVAE, plafonnement
 - [Échéances et suivi des déclarations](echeances.md) : calendrier, statuts, dépôts et paiements
 - [Vue groupe](vue-groupe.md) : espace groupe d'une holding, flux et éliminations

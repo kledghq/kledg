@@ -15,7 +15,9 @@
  * - lines with a zero amount carry nothing and are skipped (reported);
  * - auxiliary accounts (CompAuxNum/CompAuxLib), lettrage (EcritureLet,
  *   DateLet), validation date, document reference and date, and foreign
- *   currency amounts are kept.
+ *   currency amounts are kept;
+ * - a file spread over more than MAX_FEC_FISCAL_YEARS fiscal years is
+ *   refused as a whole (a FEC covers one fiscal year, LPF art. A47 A-1).
  */
 
 import { centsToFecAmount, sumCents } from '@/lib/utils/money'
@@ -25,6 +27,13 @@ import { isFiscalYearClosed, fiscalYearDays, type GuardedFiscalYear } from '@/li
 import { parseFecAmount, parseFecDay, type ParsedFecLine } from './parser'
 import type { RefusedFecEntry } from './types'
 import { plural, pluralWord } from '@/lib/utils/plural'
+import { ValidationError } from '@/lib/accounting/errors'
+
+/**
+ * Most fiscal years one file may create or fill. A FEC covers one fiscal
+ * year; a history of several years in one file stays far below this.
+ */
+export const MAX_FEC_FISCAL_YEARS = 50
 
 export interface PlanContext {
   closingMonth: number
@@ -203,7 +212,14 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
       } else {
         const known = fiscalYears.get(found.year)
         fiscalYear = known ?? found
-        if (!known) fiscalYears.set(found.year, found)
+        if (!known) {
+          if (fiscalYears.size >= MAX_FEC_FISCAL_YEARS) {
+            throw new ValidationError(
+              `Fichier FEC sur plus de ${MAX_FEC_FISCAL_YEARS} exercices\u00a0: vérifiez les dates d'écriture (EcritureDate) ou découpez le fichier par exercice.`,
+            )
+          }
+          fiscalYears.set(found.year, found)
+        }
         yearKey = String(found.year)
       }
     }
@@ -240,7 +256,9 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
   const usedNumbers = new Map<number, Set<string>>()
   let zeroLines = 0
   for (const g of groups.values()) {
-    const firstLine = Math.min(...g.lines.map((l) => l.lineNumber))
+    // A loop, not Math.min(...lines): an entry may hold more lines than the call stack takes arguments
+    let firstLine = g.lines[0].lineNumber
+    for (const l of g.lines) if (l.lineNumber < firstLine) firstLine = l.lineNumber
     const label = `${g.journalCode || '(sans journal)'} n° ${g.number || '(sans numéro)'}`
     const refuse = (reason: string) => refused.push({ entry: label, line: firstLine, reason })
 

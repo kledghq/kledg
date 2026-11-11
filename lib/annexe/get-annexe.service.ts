@@ -31,7 +31,7 @@ const day = (value: Date) => calendarDayOf(value) as string
 const cents = (value: { toString(): string } | null | undefined) => (value == null ? 0 : (parseCents(value) ?? 0))
 
 /** Opening balance (opening entries) and movements of the year (other entries, closing excluded) of every account, from validated entries. */
-async function loadAccountYears(companyId: string, fiscalYearId: string): Promise<AccountYear[]> {
+export async function loadAccountYears(companyId: string, fiscalYearId: string): Promise<AccountYear[]> {
   const journals = await prisma.journal.findMany({ where: { companyId }, select: { code: true } })
   const opening = journals.map((j) => j.code).filter(isOpeningJournal)
   const where = (codes: { in: string[] } | { notIn: string[] }) => ({
@@ -93,7 +93,7 @@ async function registerSummary(companyId: string, endDate: Date): Promise<Regist
 }
 
 /** The saved answers, read leniently: a stored value that no longer validates starts again from empty. */
-function parseStoredAnnexeDetails(json: unknown): AnnexeDetails {
+export function parseStoredAnnexeDetails(json: unknown): AnnexeDetails {
   const parsed = AnnexeDetailsSchema.safeParse(json ?? {})
   return parsed.success ? parsed.data : emptyAnnexeDetails()
 }

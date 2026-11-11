@@ -8,6 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DateDisplay, EmptyState, Field, StatusBadge, type StatusTone } from '@/components/shared'
+import { ActionPreview, hasReadablePreview } from './action-preview'
+import { requesterName } from './requester-name'
+
+export { requesterName }
 
 interface AiAction {
   id: string
@@ -56,18 +60,8 @@ const TOOL_LABELS: Record<string, string> = {
   update_rule: "Modifier une règle d'affectation automatique",
   add_rule_from_template: 'Ajouter une règle de la bibliothèque',
   copy_rules_from_company: "Copier des règles d'une autre société",
-}
-
-/**
- * The name of the assistant that asked, shown as data between « »: an OAuth
- * client chooses its own name at registration (it could call itself
- * "Kledg"), so it never reads as part of the sentence. Invisible and
- * control characters are dropped and the name is cut short.
- */
-export function requesterName(callerName: string | null): string {
-  const name = (callerName ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim()
-  if (!name) return 'un assistant'
-  return `l'assistant «\u00a0${name.length > 60 ? `${name.slice(0, 59)}\u2026` : name}\u00a0»`
+  mark_declaration: 'Marquer une échéance déposée ou payée',
+  record_tax_filing: "Enregistrer le dépôt d'une déclaration",
 }
 
 /** Arguments shown without the file content of an import (base64). */
@@ -152,7 +146,7 @@ export function AiActionsList({ highlight }: { highlight: string | null }) {
         bordered
         icon={ShieldCheck}
         title="Aucune action en attente"
-        description="Quand un assistant en contrôle total prépare une action à fort impact, elle apparaît ici avec son aperçu."
+        description="Quand un assistant prépare une action à fort impact, elle apparaît ici avec son aperçu."
       />
     )
   }
@@ -176,11 +170,15 @@ export function AiActionsList({ highlight }: { highlight: string | null }) {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div>
-                <p className="mb-1 text-xs font-medium">Aperçu de ce qui sera fait</p>
-                <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap break-all">
-                  {JSON.stringify(action.preview, null, 2)}
-                </pre>
+              <div className="space-y-2">
+                <p className="text-xs font-medium">Aperçu de ce qui sera fait</p>
+                <ActionPreview preview={action.preview} />
+                <details open={!hasReadablePreview(action.preview)}>
+                  <summary className="text-muted-foreground cursor-pointer text-xs pointer-coarse:py-3">Aperçu complet</summary>
+                  <pre className="bg-muted mt-1 max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap break-all">
+                    {JSON.stringify(action.preview, null, 2)}
+                  </pre>
+                </details>
               </div>
               <details>
                 <summary className="text-muted-foreground cursor-pointer text-xs pointer-coarse:py-3">Paramètres exacts</summary>

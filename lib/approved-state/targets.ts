@@ -198,7 +198,8 @@ export async function loadTargetState(db: Db, ref: TargetRef, options: { lock?: 
     case 'entry': {
       if (lock) {
         await db.$queryRaw`SELECT "id" FROM "accounting_entries" WHERE "id" = ${ref.id} AND "companyId" = ${ref.companyId} FOR UPDATE`
-        await db.$queryRaw`SELECT "id" FROM "entry_lines" WHERE "accountingEntryId" = ${ref.id} ORDER BY "id" FOR UPDATE`
+        // Scoped like the entry: lines of an entry of another company are never locked.
+        await db.$queryRaw`SELECT "id" FROM "entry_lines" WHERE "accountingEntryId" = ${ref.id} AND "companyId" = ${ref.companyId} ORDER BY "id" FOR UPDATE`
       }
       return db.accountingEntry.findFirst({
         where: { id: ref.id, companyId: ref.companyId },

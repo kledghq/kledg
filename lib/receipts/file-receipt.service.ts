@@ -499,6 +499,10 @@ export async function expenseFromStagedReceipt(
   options: { source?: string } = {},
 ): Promise<ExpenseResult> {
   const row = await findStagedReceipt(companyId, id, actor)
+  // A receipt is the expense of whoever paid it: a validator reaches colleagues' receipts, never to claim them
+  if (row.uploadedById !== expenseActor.userId) {
+    throw new ConflictError('Ce justificatif a été déposé par un autre membre\u00a0: seul son auteur peut en faire une note de frais.')
+  }
   const fields = fieldsOf(row)
   if (row.status === 'expense' && row.expenseReportId) {
     const report = await prisma.expenseReport.findFirst({ where: { id: row.expenseReportId, companyId }, select: { id: true, number: true, totalInclTax: true, _count: { select: { lines: true } } } })
