@@ -350,6 +350,24 @@ describe.skipIf(!available)('round 3 AUTH regressions', () => {
     await expectEvicted(planted)
   })
 
+  it('closes Better Auth password change over HTTP: only the account route (rate limited per user) changes it', async () => {
+    const cookie = await signIn(VICTIM.email)
+    const direct = await authRequest('/change-password', {
+      method: 'POST',
+      cookie,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: PASSWORD, newPassword: 'a brand new long password' }),
+    })
+    expect(direct.status).toBe(403)
+    // The password is unchanged
+    await signIn(VICTIM.email)
+    expect((await authRequest('/sign-in/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: VICTIM.email, password: 'a brand new long password' }),
+    })).status).toBe(401)
+  })
+
   it('[KLEDG-R3-AUTH-01] a refused password change revokes nothing', async () => {
     const planted = await plantPersistence(await signIn(VICTIM.email))
     const changed = await kledgRoute('@/app/api/account/password/route', 'POST', '/api/account/password', await signIn(VICTIM.email), {
