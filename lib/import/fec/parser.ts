@@ -15,6 +15,10 @@
  *
  * Amounts and dates are parsed later (plan.ts), entry by entry, so that a bad
  * value refuses its entry with a precise message.
+ *
+ * Bounded whatever the file holds: the records are counted on the text
+ * before anything is split (MAX_FEC_LINES), and only the first
+ * MAX_FEC_PARSE_ERRORS unreadable records are kept, with their total count.
  */
 
 import type { FECColumnMapping } from '@/lib/import/types'
@@ -25,6 +29,17 @@ import { parseAmount } from '@/lib/utils/money'
 import { isIsoDate } from '@/lib/utils/date'
 
 export type FecEncoding = 'UTF-8' | 'ISO-8859-15'
+
+/**
+ * Most records a FEC may hold. An upload is 20 MB at most (lib/api/files.ts)
+ * and a real FEC record is 100 to 200 bytes, so no genuine file reaches it;
+ * a file of empty or one-character lines would otherwise build millions of
+ * objects.
+ */
+export const MAX_FEC_LINES = 200_000
+
+/** Unreadable records reported in detail; the others are only counted. */
+export const MAX_FEC_PARSE_ERRORS = 1_000
 
 /** Decodes FEC bytes: UTF-8 when valid (BOM removed), ISO 8859-15 otherwise. */
 export function decodeFecBytes(bytes: Uint8Array): { text: string; encoding: FecEncoding } {
@@ -44,8 +59,10 @@ export interface ParsedFecLine extends FECLine {
 export interface ParsedFecFile {
   lines: ParsedFecLine[]
   separator: 'tab' | 'pipe' | 'semicolon'
-  /** Records that could not be read (wrong number of fields...). */
+  /** Records that could not be read (wrong number of fields...), the first MAX_FEC_PARSE_ERRORS only. */
   errors: Array<{ line: number; message: string }>
+  /** Every record that could not be read, including those beyond `errors`. */
+  errorCount: number
   warnings: string[]
 }
 
@@ -70,11 +87,28 @@ function amountWithSense(amount: string, sense: string): { Debit: string; Credit
   return null
 }
 
+/** Refuses, before any split, a text with more than MAX_FEC_LINES records (CR/LF, LF or CR). */
+function assertFecWithinLimits(content: string): void {
+  let records = 1
+  for (let i = 0; i < content.length; i++) {
+    const c = content.charCodeAt(i)
+    if (c === 10 || (c === 13 && content.charCodeAt(i + 1) !== 10)) records++
+  }
+  // The header and a final line break are not records
+  if (records > MAX_FEC_LINES + 2) {
+    throw new ValidationError(
+      `Fichier FEC trop long\u00a0: ${MAX_FEC_LINES.toLocaleString('fr-FR')} lignes au plus. Découpez-le en plusieurs fichiers (par période).`,
+    )
+  }
+}
+
 /**
  * Parses a FEC (already decoded). Throws a ValidationError when the file
- * cannot be read at all (no header, unknown separator, missing fields).
+ * cannot be read at all (no header, unknown separator, missing fields) or
+ * is longer than MAX_FEC_LINES.
  */
 export function parseFecFile(content: string, columnMapping?: FECColumnMapping): ParsedFecFile {
+  assertFecWithinLimits(content)
   const rows = content.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/)
   const firstIndex = rows.findIndex((r) => r.trim() !== '')
   if (firstIndex < 0) throw new ValidationError('Fichier FEC vide')
@@ -116,16 +150,18 @@ export function parseFecFile(content: string, columnMapping?: FECColumnMapping):
 
   const lines: ParsedFecLine[] = []
   const errors: ParsedFecFile['errors'] = []
+  let errorCount = 0
+  const reject = (line: number, message: () => string) => {
+    errorCount++
+    if (errors.length < MAX_FEC_PARSE_ERRORS) errors.push({ line, message: message() })
+  }
   for (let i = firstIndex + 1; i < rows.length; i++) {
     const raw = rows[i]
     if (raw.trim() === '') continue
     const lineNumber = i + 1
     const values = raw.split(separatorChar)
     if (values.length !== header.length) {
-      errors.push({
-        line: lineNumber,
-        message: `${values.length} zones au lieu de ${header.length} (séparateur dans un libellé ?)`,
-      })
+      reject(lineNumber, () => `${values.length} zones au lieu de ${header.length} (séparateur dans un libellé ?)`)
       continue
     }
     const get = (field: string): string => {
@@ -156,7 +192,7 @@ export function parseFecFile(content: string, columnMapping?: FECColumnMapping):
     if (withSense) {
       const converted = amountWithSense(unquote(values[montantIndex] ?? ''), unquote(values[sensIndex] ?? ''))
       if (!converted) {
-        errors.push({ line: lineNumber, message: `Sens « ${unquote(values[sensIndex] ?? '')} » inconnu (attendu D ou C)` })
+        reject(lineNumber, () => `Sens « ${unquote(values[sensIndex] ?? '')} » inconnu (attendu D ou C)`)
         continue
       }
       line.Debit = converted.Debit
@@ -164,7 +200,7 @@ export function parseFecFile(content: string, columnMapping?: FECColumnMapping):
     }
     lines.push(line)
   }
-  return { lines, separator, errors, warnings }
+  return { lines, separator, errors, errorCount, warnings }
 }
 
 /**

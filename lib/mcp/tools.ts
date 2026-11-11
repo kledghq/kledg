@@ -834,7 +834,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerCompanySettingsTools(server, guard)
   registerTransactionReadTools(server, guard)
   registerExportTools(server, access, guard)
-  registerDocumentTools(server, guard)
+  registerDocumentTools(server, access, guard)
   registerCompanyLookupTools(server, access)
 
   // Full control (kledg:admin): validate, reconcile, import, close... Never

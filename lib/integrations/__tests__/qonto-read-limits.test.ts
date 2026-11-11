@@ -55,6 +55,7 @@ describe('readQontoReceipt', () => {
 describe('listQontoTransactionAttachments', () => {
   it('counts one bank call per listing', async () => {
     client.listTransactionAttachments.mockResolvedValue({ attachments: [] })
+    db.bankTransaction.findFirst.mockResolvedValue({ providerData: { id: UUID } } as never)
     await listQontoTransactionAttachments('c1', UUID, {})
     expect(limitBankCalls).toHaveBeenCalledWith('c1')
   })

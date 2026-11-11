@@ -33,6 +33,7 @@ import type { BankEntryToMatch } from '@/lib/reconciliation/bank-line-match'
 import type { FECImportOptions, FiscalYearInfo, ImportResult } from '@/lib/import/fec/types'
 import { plural } from '@/lib/utils/plural'
 import { groupRefusals } from '@/lib/import/fec/refusal-report'
+import { assertNoFiscalYearOverlap, lockCompanyFiscalYears } from '@/lib/accounting/manage-fiscal-years.service'
 
 // Re-export public types
 export type { FECLine, ImportResult, FECImportOptions, FiscalYearInfo } from '@/lib/import/fec/types'
@@ -91,13 +92,29 @@ function fiscalYearInfos(
   parsed: ParsedFecFile,
   createdIds: Map<number, string> = new Map(),
 ): FiscalYearInfo[] {
+  // One pass over the entries and one over the lines: the number of years only sizes the maps
+  const byYear = new Map<number, { entries: number; lines: number; accounts: Set<string>; journals: Set<string> }>()
+  const yearOfLine = new Map<number, number>()
+  for (const fy of plan.fiscalYears) byYear.set(fy.year, { entries: 0, lines: 0, accounts: new Set(), journals: new Set() })
+  for (const entry of plan.entries) {
+    const counts = byYear.get(entry.fiscalYear)
+    if (!counts) continue
+    counts.entries++
+    counts.lines += entry.lines.length
+    for (const line of entry.lines) yearOfLine.set(line.lineNumber, entry.fiscalYear)
+  }
+  for (const line of parsed.lines) {
+    const year = yearOfLine.get(line.lineNumber)
+    const counts = year === undefined ? undefined : byYear.get(year)
+    if (!counts) continue
+    counts.accounts.add(line.CompteNum)
+    counts.journals.add(line.JournalCode)
+  }
+  const existingByYear = new Map(existing.map((e) => [e.year, e]))
   // Fiscal years of refused entries count too (e.g. a closed year)
-  const years = new Map(plan.fiscalYears.map((fy) => [fy.year, fy]))
-  return [...years.values()].map((fy) => {
-    const entries = plan.entries.filter((e) => e.fiscalYear === fy.year)
-    const known = existing.find((e) => e.year === fy.year)
-    const lineNumbers = new Set(entries.flatMap((e) => e.lines.map((l) => l.lineNumber)))
-    const lines = parsed.lines.filter((l) => lineNumbers.has(l.lineNumber))
+  return plan.fiscalYears.map((fy) => {
+    const known = existingByYear.get(fy.year)
+    const counts = byYear.get(fy.year)!
     return {
       id: known?.id ?? createdIds.get(fy.year) ?? '',
       year: fy.year,
@@ -105,13 +122,16 @@ function fiscalYearInfos(
       endDate: dayToDate(fy.end).toISOString(),
       wasCreated: !known,
       isClosed: known?.isClosed ?? false,
-      entriesCount: entries.length,
-      linesCount: entries.reduce((n, e) => n + e.lines.length, 0),
-      accountsCount: new Set(lines.map((l) => l.CompteNum)).size,
-      journalsCount: new Set(lines.map((l) => l.JournalCode)).size,
+      entriesCount: counts.entries,
+      linesCount: counts.lines,
+      accountsCount: counts.accounts.size,
+      journalsCount: counts.journals.size,
     }
   })
 }
+
+/** Refused entries returned in detail; `refusedCount` gives the total. */
+export const MAX_REPORTED_REFUSALS = 1_000
 
 /** Validation instant stored for a FEC ValidDate: noon UTC, the same day in France. */
 function validationInstant(day: CalendarDay): Date {
@@ -150,7 +170,7 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
     const parsed = parseFecFile(text, columnMapping)
     result.separator = parsed.separator
     result.warnings!.push(...parsed.warnings)
-    if (parsed.lines.length === 0 && parsed.errors.length === 0) {
+    if (parsed.lines.length === 0 && parsed.errorCount === 0) {
       result.errors.push('Le fichier FEC ne contient aucune écriture.')
       return result
     }
@@ -158,10 +178,14 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
     const ctx = await loadPlanContext(companyId, cleanEntryNumbers)
     const plan = planFecImport(parsed.lines, ctx)
     result.warnings!.push(...plan.warnings)
-    result.refused = [
+    const refused = [
       ...parsed.errors.map((e) => ({ entry: '(ligne illisible)', line: e.line, reason: e.message })),
       ...plan.refused,
     ].sort((a, b) => a.line - b.line)
+    // Parse errors beyond the ones the parser kept are counted, not listed
+    const refusedCount = parsed.errorCount + plan.refused.length
+    result.refused = refused.slice(0, MAX_REPORTED_REFUSALS)
+    result.refusedCount = refusedCount
 
     // Mapped accounts and journals must belong to the company
     const mappedAccountIds = Object.values(accountMapping).filter((id): id is string => !!id)
@@ -179,12 +203,15 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
       result.errors.push("Correspondance de journaux invalide : un journal choisi n'appartient pas à cette société.")
     }
 
-    if (result.refused.length > 0) {
+    if (refusedCount > 0) {
       result.errors.push(
-        `${plural(result.refused.length, 'écriture refusée', 'écritures refusées')} : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.`,
+        `${plural(refusedCount, 'écriture refusée', 'écritures refusées')} : aucune écriture n'a été importée. Corrigez le fichier puis relancez l'import.`,
         // One message per distinct reason, with its count and first lines
         ...groupRefusals(result.refused),
       )
+      if (refusedCount > result.refused.length) {
+        result.errors.push(`Seules les ${MAX_REPORTED_REFUSALS.toLocaleString('fr-FR')} premières écritures refusées sont détaillées.`)
+      }
     }
     if (result.errors.length > 0) {
       result.fiscalYears = fiscalYearInfos(plan, ctx.fiscalYears, parsed)
@@ -241,7 +268,8 @@ interface WriteOptions {
 async function writePlan(db: Prisma.TransactionClient, companyId: string, plan: FecImportPlan, options: WriteOptions) {
   const company = await db.company.findUniqueOrThrow({ where: { id: companyId }, select: { closingDay: true, closingMonth: true } })
 
-  // Fiscal years
+  // Fiscal years: created under the per-company lock, never over another year (closed or not)
+  if (plan.fiscalYears.some((fy) => !fy.id)) await lockCompanyFiscalYears(db, companyId)
   const fiscalYearIds = new Map<number, string>()
   const created = new Map<number, string>()
   for (const fy of plan.fiscalYears) {
@@ -249,6 +277,7 @@ async function writePlan(db: Prisma.TransactionClient, companyId: string, plan: 
       fiscalYearIds.set(fy.year, fy.id)
       continue
     }
+    await assertNoFiscalYearOverlap(db, companyId, { start: dayToDate(fy.start), end: dayToDate(fy.end) })
     const row = await db.fiscalYear.create({
       data: {
         companyId,

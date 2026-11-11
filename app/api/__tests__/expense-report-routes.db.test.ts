@@ -219,9 +219,15 @@ describe.skipIf(!available)('expense report routes (PostgreSQL)', () => {
     expect((await (await call('boss', 'rule', 'PATCH', `/api/expense-category-rules/${ruleId}`, { priority: 3 }, { id: ruleId })).json()).priority).toBe(3)
     expect((await call('boss', 'rule', 'DELETE', `/api/expense-category-rules/${ruleId}`, undefined, { id: ruleId })).status).toBe(204)
 
-    await prisma.attachment.create({ data: { companyId: books.companyId, fileName: 'ticket-a.pdf' } })
+    // A receipt of a bank transaction is the company's; one without transaction (a colleague's photo) is its author's and the validators'
+    const bankAccount = await prisma.bankAccount.findFirstOrThrow({ where: { bankConnection: { companyId: books.companyId } }, select: { id: true } })
+    const transaction = await prisma.bankTransaction.create({ data: { bankAccountId: bankAccount.id, externalTransactionId: 'ndf-receipt-tx', amount: 12, date: new Date('2026-03-05T00:00:00Z'), side: 'debit', label: 'Papeterie' } })
+    await prisma.attachment.create({ data: { companyId: books.companyId, fileName: 'ticket-a.pdf', bankTransactionId: transaction.id } })
+    await prisma.attachment.create({ data: { companyId: books.companyId, fileName: 'photo-collegue.jpg' } })
     await prisma.attachment.create({ data: { companyId: other.companyId, fileName: 'ticket-b.pdf' } })
     const receipts = await (await call('employee', 'receipts', 'GET', `/api/expense-reports/receipts?companyId=${books.companyId}`)).json()
     expect(receipts.receipts.map((r: { fileName: string }) => r.fileName)).toEqual(['ticket-a.pdf'])
+    const all = await (await call('boss', 'receipts', 'GET', `/api/expense-reports/receipts?companyId=${books.companyId}`)).json()
+    expect(all.receipts.map((r: { fileName: string }) => r.fileName).sort()).toEqual(['photo-collegue.jpg', 'ticket-a.pdf'])
   })
 })

@@ -166,7 +166,12 @@ async function seed() {
 
   // Qonto connected for A only, a receipt of A and one of B, a Qonto invoice of A and one of B.
   const { bankConnectionContext, encrypt } = await import('@/lib/integrations/encryption')
-  await prisma.bankConnection.create({ data: { companyId: ids.aCompany, provider: 'QONTO', login: 'qonto-login', secretKeyEncrypted: encrypt('qonto-secret', process.env.ENCRYPTION_KEY!, bankConnectionContext(ids.aCompany, 'QONTO')) } })
+  const qonto = await prisma.bankConnection.create({ data: { companyId: ids.aCompany, provider: 'QONTO', login: 'qonto-login', secretKeyEncrypted: encrypt('qonto-secret', process.env.ENCRYPTION_KEY!, bankConnectionContext(ids.aCompany, 'QONTO')) } })
+  // The Qonto account A syncs (its statements are readable) and the transaction of the receipts
+  const qontoAccount = await prisma.bankAccount.create({ data: { bankConnectionId: qonto.id, externalAccountId: 'FR7616958000011234567890123', iban: 'FR7616958000011234567890123', name: 'Compte Qonto', providerData: { id: 'acc-1' } } })
+  await prisma.bankTransaction.create({
+    data: { bankAccountId: qontoAccount.id, externalTransactionId: 'qonto-tx-1', amount: 20, date: new Date('2025-03-10T00:00:00Z'), side: 'debit', label: 'Papeterie', providerData: { id: TX_UUID } },
+  })
   for (const prefix of ['a', 'b'] as const) {
     const attachment = await prisma.attachment.create({
       data: { companyId: ids[`${prefix}Company`], externalAttachmentId: `att-${prefix}`, transactionUuid: TX_UUID, fileName: `recu-${prefix}.pdf`, fileContentType: 'application/pdf' },

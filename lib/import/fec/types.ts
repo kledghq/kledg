@@ -68,7 +68,10 @@ export interface ImportResult {
   journalsCreated: number;
   /** One French message per refused entry or blocking problem. */
   errors: string[];
+  /** Refused entries, the first MAX_REPORTED_REFUSALS (lib/import/fec.ts) only. */
   refused?: RefusedFecEntry[];
+  /** Every refused entry, including those beyond `refused`. */
+  refusedCount?: number;
   /** Imported anyway, worth checking (French). */
   warnings?: string[];
   fiscalYears?: FiscalYearInfo[];

@@ -9,8 +9,8 @@ import { readFileSync } from 'fs'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
 import { FEC_FIELDS } from '@/lib/fec/format'
-import { decodeFecBytes, parseFecAmount, parseFecDay, parseFecFile } from '../parser'
-import { cleanEntryNumber, planFecImport, standardFiscalYear, type PlanContext } from '../plan'
+import { decodeFecBytes, MAX_FEC_LINES, MAX_FEC_PARSE_ERRORS, parseFecAmount, parseFecDay, parseFecFile } from '../parser'
+import { cleanEntryNumber, MAX_FEC_FISCAL_YEARS, planFecImport, standardFiscalYear, type PlanContext } from '../plan'
 
 const fixture = (name: string) => new Uint8Array(readFileSync(path.join(__dirname, 'fixtures', name)))
 
@@ -87,6 +87,37 @@ describe('parseFecFile', () => {
 
   it('refuses a file without the mandatory fields', () => {
     expect(() => parseFecFile('JournalCode\tDebit\nOD\t1')).toThrow(/zones absentes/)
+  })
+})
+
+describe('FEC size and shape limits', () => {
+  it('refuses a file with too many lines before parsing it', () => {
+    const content = HEADER + '\n' + 'x\n'.repeat(MAX_FEC_LINES + 1)
+    expect(() => parseFecFile(content)).toThrow(/Fichier FEC trop long/)
+    // At the limit, the file is read
+    expect(parseFecFile(HEADER + '\n' + 'x\n'.repeat(MAX_FEC_LINES)).errorCount).toBe(MAX_FEC_LINES)
+  })
+
+  it('keeps the first parse errors only, with their total count', () => {
+    const parsed = parseFecFile(fec(...Array.from({ length: MAX_FEC_PARSE_ERRORS + 500 }, () => 'a\tb')))
+    expect(parsed.errors).toHaveLength(MAX_FEC_PARSE_ERRORS)
+    expect(parsed.errorCount).toBe(MAX_FEC_PARSE_ERRORS + 500)
+    expect(parsed.errors[0].line).toBe(2)
+    expect(parsed.errors[0].message).toMatch(`2 zones au lieu de ${FEC_FIELDS.length}`)
+  })
+
+  it('refuses a file spread over too many fiscal years', () => {
+    const rows = Array.from({ length: MAX_FEC_FISCAL_YEARS + 1 }, (_, i) => row({ EcritureNum: String(i), EcritureDate: `${1900 + i}0115`, Debit: '1,00' }))
+    expect(() => plan(fec(...rows))).toThrow(/exercices/)
+    expect(plan(fec(...rows.slice(0, MAX_FEC_FISCAL_YEARS))).fiscalYears).toHaveLength(MAX_FEC_FISCAL_YEARS)
+  })
+
+  it('plans an entry of many lines without overflowing the stack', () => {
+    const lines = Array.from({ length: 150_000 }, (_, i) => row({ Debit: i % 2 === 0 ? '1,00' : '', Credit: i % 2 === 0 ? '' : '1,00' }))
+    const planned = plan([HEADER, ...lines].join('\r\n'))
+    expect(planned.refused).toEqual([])
+    expect(planned.entries).toHaveLength(1)
+    expect(planned.entries[0].firstLine).toBe(2)
   })
 })
 

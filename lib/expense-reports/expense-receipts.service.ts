@@ -9,31 +9,41 @@
  * readQontoReceipt: the company's own Qonto key, Qonto file hosts only,
  * public addresses, no redirect, timeout, byte budget); the line keeps the
  * attachment id, checked against the company when the report is saved.
+ *
+ * A member who neither reconciles nor validates reaches the receipts of the
+ * bank transactions and their own receipts only (lib/receipts/actor.ts
+ * receiptAttachmentsVisibleTo): a colleague's expense receipt is never
+ * listed, served nor accepted on their lines.
  */
 
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { calendarDayOf } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
+import { receiptAttachmentsVisibleTo } from '@/lib/receipts/actor'
+import type { StagedReceiptActor } from '@/lib/receipts/stage-receipt.service'
 
 /** ?companyId=&search= */
 export const ReceiptOptionsQuerySchema = z.object({ search: z.string().trim().max(100).optional() })
 
-/** Receipts of the company the line editor offers: the latest Qonto attachments, with their transaction. */
-export async function listReceiptOptions(companyId: string, search?: string) {
+/** Receipts the line editor offers to the actor: the latest attachments they may use, with their transaction. */
+export async function listReceiptOptions(companyId: string, actor: StagedReceiptActor, search?: string) {
   const term = search?.trim()
   const rows = await prisma.attachment.findMany({
     where: {
       companyId,
-      ...(term
-        ? {
-            OR: [
-              { fileName: { contains: term, mode: 'insensitive' } },
-              { bankTransaction: { label: { contains: term, mode: 'insensitive' } } },
-              { bankTransaction: { counterpartyName: { contains: term, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
+      AND: [
+        receiptAttachmentsVisibleTo(actor),
+        term
+          ? {
+              OR: [
+                { fileName: { contains: term, mode: 'insensitive' } },
+                { bankTransaction: { label: { contains: term, mode: 'insensitive' } } },
+                { bankTransaction: { counterpartyName: { contains: term, mode: 'insensitive' } } },
+              ],
+            }
+          : {},
+      ],
     },
     select: {
       id: true,

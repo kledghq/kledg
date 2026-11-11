@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { companyRoute, fromQuery } from '@/lib/api/route'
 import { fileResponseHeaders } from '@/lib/api/files'
-import { qontoClientFor } from '@/lib/integrations/providers/qonto/get-credentials'
+import { getCompanyQontoStatement, STATEMENT_NOT_FOUND } from '@/lib/integrations/providers/qonto/list-qonto-statements.service'
 import { fetchQontoFile } from '@/lib/integrations/providers/qonto/files'
 import { limitBankCalls } from '@/lib/banking/guard'
 
@@ -14,7 +14,8 @@ const QONTO_ID = /^[A-Za-z0-9-]{1,100}$/
  * Serves the PDF of a Qonto bank statement with safe headers.
  *
  * The statement is read with the stored credentials of the company, so it
- * belongs to the company's own Qonto organization, and the file URL fetched
+ * belongs to the company's own Qonto organization, of an account the
+ * company syncs (404 otherwise), and the file URL fetched
  * upstream comes from that Qonto response (never from the request), checked
  * against Qonto's file hosts (lib/integrations/providers/qonto/files.ts).
  */
@@ -27,9 +28,9 @@ export const GET = companyRoute(
     }
 
     await limitBankCalls(companyId)
-    const { statement } = await (await qontoClientFor(companyId)).getStatement(statementId)
-    if (!statement?.file?.file_url) {
-      throw new NotFoundError('Relevé non trouvé ou fichier non disponible')
+    const { statement } = await getCompanyQontoStatement(companyId, statementId)
+    if (!statement.file?.file_url) {
+      throw new NotFoundError(STATEMENT_NOT_FOUND)
     }
 
     // Qonto file URLs are signed and valid for 30 minutes
