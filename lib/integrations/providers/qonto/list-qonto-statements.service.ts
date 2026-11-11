@@ -117,6 +117,8 @@ export const StatementsBodySchema = z.object({
  * them when none is asked for); Qonto is always asked by account id.
  */
 export async function listQontoStatements(companyId: string, filters: StatementFilters) {
+  // First: a company without Qonto gets its French "not connected" message
+  const client = await qontoClientFor(companyId)
   const synced = await syncedQontoAccounts(companyId)
   const askedIds = new Set(filters.bankAccountIds ?? [])
   const askedIbans = new Set((filters.ibans ?? []).map(normalizeIban))
@@ -126,7 +128,6 @@ export async function listQontoStatements(companyId: string, filters: StatementF
 
   const allowed = new Set(accountIds)
   const ofCompany = (statements: QontoStatement[]) => statements.filter((s) => allowed.has(s.bank_account_id))
-  const client = await qontoClientFor(companyId)
   const common = {
     sortBy: filters.sortBy,
     bankAccountIds: accountIds,

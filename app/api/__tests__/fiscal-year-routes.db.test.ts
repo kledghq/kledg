@@ -130,7 +130,7 @@ describe.skipIf(!available)('fiscal year routes', () => {
     expect((await json(foreign)).error).toBe('Exercice introuvable pour cette société.')
   })
 
-  it('changes the dates of an open year, not of a closed one nor over another open year', async () => {
+  it('changes the dates of an open year, not of a closed one nor over another year', async () => {
     await prisma.fiscalYear.create({
       data: { companyId: ids.company, year: 2026, startDate: new Date('2025-07-01T00:00:00Z'), endDate: new Date('2026-06-30T00:00:00Z') },
     })
@@ -141,8 +141,8 @@ describe.skipIf(!available)('fiscal year routes', () => {
     expect(await json(updated)).toMatchObject({ endDate: '2025-06-29T00:00:00.000Z' })
 
     const overlap = await patch({ startDate: '2024-07-01', endDate: '2025-08-31' })
-    expect(overlap.status).toBe(400)
-    expect((await json(overlap)).error).toBe("Ces dates chevauchent l'exercice ouvert 2026.")
+    expect(overlap.status).toBe(409)
+    expect((await json(overlap)).error).toBe("Ces dates chevauchent l'exercice 2026 (ouvert, du 01/07/2025 au 30/06/2026)\u00a0: deux exercices ne peuvent pas couvrir le même jour.")
     expect((await patch({ startDate: '2024-07-01' })).status).toBe(400)
 
     await prisma.fiscalYear.update({ where: { id: ids.fy }, data: { isClosed: true } })
