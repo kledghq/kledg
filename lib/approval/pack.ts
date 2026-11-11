@@ -29,7 +29,7 @@ import type { ApprovalDetails, AttendanceStatus, ConfidentialityOption, Resoluti
 import { equityBelowHalfCapital, type EquityAlert } from './equity'
 import { proposeCategory, SIZE_LABELS, type SizeCategory } from './size'
 import { SOURCES, type LegalSource } from './sources'
-import { voteOutcome, type VoteContext, type VoteOutcome } from './votes'
+import { extraordinaryOutcome, voteOutcome, type VoteContext, type VoteOutcome } from './votes'
 
 export interface ApprovalHolder {
   id: string
@@ -254,6 +254,13 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
   }
   const reportProduced = reportRequired === true || details.managementReport.produce
 
+  const equityAlert = equityBelowHalfCapital({
+    form: regime?.form ?? null,
+    capitalCents: context.company.shareCapitalCents ?? (context.balances.capitalCents > 0 ? context.balances.capitalCents : null),
+    equityCents: context.equityCents,
+    fiscalYear: context.fiscalYear,
+    approvedOn: details.approvedOn ?? null,
+  })
   // Resolutions and their outcome.
   const voteContext: VoteContext = {
     totalVotes,
@@ -263,15 +270,24 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
   }
   const resolutionIds: ResolutionId[] = ['approval']
   if (regime?.regulatedAgreements && !(regime.sole && details.regulatedAgreements !== 'some')) resolutionIds.push('agreements')
-  resolutionIds.push('allocation', 'powers')
+  resolutionIds.push('allocation')
+  // Equity below half the capital: the associés decide on an early dissolution (C. com. L223-42, L225-248)
+  const continuation = Boolean(equityAlert && regime && regime.form !== 'SCI')
+  if (continuation) resolutionIds.push('continuation')
+  resolutionIds.push('powers')
   const RESOLUTION_TITLES: Record<ResolutionId, string> = {
     approval: 'Approbation des comptes annuels',
     agreements: 'Conventions réglementées',
     allocation: 'Affectation du résultat',
+    continuation: 'Décision sur la dissolution anticipée de la société',
     powers: 'Pouvoirs pour les formalités',
   }
   const resolutions: PackResolution[] = regime
-    ? resolutionIds.map((id) => ({ id, title: RESOLUTION_TITLES[id], outcome: voteOutcome(regime, voteContext, details.votes[id]) }))
+    ? resolutionIds.map((id) => ({
+        id,
+        title: RESOLUTION_TITLES[id],
+        outcome: id === 'continuation' ? extraordinaryOutcome(regime, voteContext, details.votes[id]) : voteOutcome(regime, voteContext, details.votes[id]),
+      }))
     : []
 
   // Deadlines (shared with the calendar, lib/deadlines/engine.ts).
@@ -377,7 +393,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
     }
     documents.push({
       id: 'decision',
-      title: decisionTitle(regime, mode as DecisionMode),
+      title: decisionTitle(regime, mode as DecisionMode, continuation),
       required: true,
       reason: regime.sole
         ? `L’associé unique approuve les comptes et décide de l’affectation du résultat ; la décision est consignée au registre. ${regime.register.text}`
@@ -436,6 +452,12 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
     items.push({ text: "Proposition d'affectation du résultat et décision d'affectation votée (procès-verbal ou décision de l'associé unique, ou un extrait).", sources: regime.filing.sources })
     if (details.hasAuditor) items.push({ text: 'Rapport du commissaire aux comptes sur les comptes annuels.', sources: regime.filing.sources })
     if (chosen !== 'none') items.push({ text: chosen === 'simplified' ? 'Déclaration de publication simplifiée.' : 'Déclaration de confidentialité.', sources: [SOURCES.L232_25, SOURCES.R123_111_1] })
+    if (continuation) {
+      items.push({
+        text: "Décision sur la dissolution anticipée (capitaux propres inférieurs à la moitié du capital) : dépôt au greffe et avis dans un journal d'annonces légales, dans le mois qui suit la décision.",
+        sources: regime.form === 'SARL' || regime.form === 'EURL' ? [SOURCES.L223_42] : [SOURCES.L225_248],
+      })
+    }
     items.push({
       text: "En cas de refus d'approbation : une copie de la délibération, dans le même délai.",
       sources: regime.filing.sources,
@@ -488,13 +510,6 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
   if (reportProduced && details.hasAuditor && regime?.form !== 'SCI') {
     warnings.push("Le rapport de gestion d'une société dont les comptes sont certifiés indique les délais de paiement des fournisseurs et des clients (C. com. art. L. 441-14 et D. 441-6) : ajoutez ce tableau, Kledg ne le génère pas encore.")
   }
-  const equityAlert = equityBelowHalfCapital({
-    form: regime?.form ?? null,
-    capitalCents: context.company.shareCapitalCents ?? (context.balances.capitalCents > 0 ? context.balances.capitalCents : null),
-    equityCents: context.equityCents,
-    fiscalYear: context.fiscalYear,
-    approvedOn: details.approvedOn ?? null,
-  })
   if (equityAlert) warnings.push(equityAlert.message)
   if (regime?.form === 'SA') warnings.push("Une SA établit aussi le rapport sur le gouvernement d'entreprise (C. com. art. L. 225-37), que Kledg ne génère pas.")
   if (category && proposal.category !== category) {
@@ -505,7 +520,7 @@ export function buildApprovalPack(context: ApprovalContext, details: ApprovalDet
     regime,
     unsupported,
     decisionMode: mode,
-    decisionTitle: regime && mode ? decisionTitle(regime, mode) : null,
+    decisionTitle: regime && mode ? decisionTitle(regime, mode, continuation) : null,
     holders,
     totalVotes,
     presentVotes,

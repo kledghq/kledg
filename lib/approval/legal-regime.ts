@@ -263,11 +263,12 @@ export function regimeOf(form: ApprovalForm): ApprovalRegime {
 }
 
 /** The title of the document that records the decision. */
-export function decisionTitle(regime: ApprovalRegime, mode: DecisionMode): string {
+export function decisionTitle(regime: ApprovalRegime, mode: DecisionMode, extraordinary = false): string {
   if (regime.sole) return "Décision de l'associé unique"
   if (mode === 'written') return 'Procès-verbal des décisions des associés prises par consultation écrite'
-  if (regime.form === 'SA') return "Procès-verbal de l'assemblée générale ordinaire annuelle"
   if (regime.form === 'SAS') return 'Procès-verbal des décisions collectives des associés'
+  // A decision on an early dissolution is extraordinary: the same meeting is then a mixed one
+  if (extraordinary) return "Procès-verbal de l'assemblée générale mixte (ordinaire annuelle et extraordinaire)"
   return "Procès-verbal de l'assemblée générale ordinaire annuelle"
 }
 

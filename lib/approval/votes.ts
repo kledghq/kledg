@@ -136,3 +136,37 @@ function resultWording(adopted: boolean | null, unanimous: boolean, forVotes: nu
   const detail = `${voix(forVotes)} pour, ${voix(against)} contre et ${abstentions(abstain)}`
   return adopted ? `Cette résolution, mise aux voix, est adoptée par ${detail}.` : `Cette résolution, mise aux voix, est rejetée par ${detail}.`
 }
+
+/**
+ * The extraordinary decision on an early dissolution after a loss of half
+ * the capital (C. com. L223-42, L225-248): taken at the majority required
+ * to amend the statuts.
+ * - SARL (L223-30): quorum of a quarter of the parts on first call, a fifth
+ *   on second call; adopted by two thirds of the parts held by the associés
+ *   present or represented (a SARL formed before 3 August 2005 keeps three
+ *   quarters of the parts unless its statuts changed it).
+ * - SA (L225-96): quorum of a quarter of the voting shares on first call, a
+ *   fifth on second call; two thirds of the votes cast.
+ * - SAS: the rule of the statuts, which Kledg does not model: adopted only
+ *   when unanimous, otherwise the outcome is left to the user.
+ * - EURL and SASU: the associé unique decides alone.
+ */
+export function extraordinaryOutcome(regime: ApprovalRegime, context: VoteContext, vote: VoteInput | undefined): VoteOutcome {
+  if (regime.majority === 'sole') return { adopted: true, quorumMet: true, wording: "Cette décision est prise par l'associé unique." }
+  if (context.totalVotes <= 0) return { adopted: null, quorumMet: null, wording: '' }
+  const legal = regime.majority === 'sarl' || regime.majority === 'sa'
+  const quorum = legal ? context.presentVotes * (context.secondCall ? 5 : 4) >= context.totalVotes : true
+  if (!quorum) {
+    return { adopted: false, quorumMet: false, wording: "Le quorum requis pour une décision extraordinaire n'étant pas atteint, cette résolution n'a pu être valablement mise aux voix." }
+  }
+  if (!vote) return { adopted: null, quorumMet: quorum, wording: '' }
+  const forVotes = vote.unanimous ? context.presentVotes : vote.for
+  const against = vote.unanimous ? 0 : vote.against
+  const abstain = vote.unanimous ? 0 : vote.abstain
+  if (forVotes + against + abstain === 0) return { adopted: null, quorumMet: quorum, wording: '' }
+  let adopted: boolean | null
+  if (regime.majority === 'sarl') adopted = forVotes * 3 >= context.presentVotes * 2
+  else if (regime.majority === 'sa') adopted = forVotes * 3 >= (forVotes + against) * 2
+  else adopted = forVotes === context.totalVotes ? true : null
+  return { adopted, quorumMet: quorum, wording: resultWording(adopted, vote.unanimous, forVotes, against, abstain) }
+}
