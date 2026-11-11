@@ -55,6 +55,7 @@ import { registerBankingReadTools } from '@/lib/mcp/banking-tools'
 import { registerThirdPartyReadTools } from '@/lib/mcp/third-party-tools'
 import { registerDraftTools } from '@/lib/mcp/drafts'
 import { registerReceiptTools } from '@/lib/mcp/receipts-tools'
+import { registerFilingTools } from '@/lib/mcp/full-control/filings'
 import { auditDraftWrite } from '@/lib/mcp/drafts/define'
 import { registerLedgerReadTools } from '@/lib/mcp/ledger-read-tools'
 import { registerCompanySettingsTools } from '@/lib/mcp/company-settings-tools'
@@ -849,6 +850,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
 
   // Receipts photographed in the assistant (docs/justificatifs-photo.md): capture view, staging, filing.
   registerReceiptTools(server, access, guard)
+  registerFilingTools(server, access, guard)
 
   server.registerTool(
     'create_draft_entry',

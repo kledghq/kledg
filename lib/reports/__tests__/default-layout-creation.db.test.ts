@@ -1,6 +1,7 @@
 /**
- * The default statement layouts are created on the first report of a company
- * and variant. Two reports computed at once (a N vs N-1 comparison, two users,
+ * The default balance sheet layouts are created on the first report of a
+ * company and variant; the income statement one is built in memory by a read
+ * and stored by the first change of a line (ensureIncomeStatementLayout). Two reports computed at once (a N vs N-1 comparison, two users,
  * the balance sheet and its check against the income statement) must create
  * one layout, not one each: a duplicated layout has every line twice, an
  * account goes to one copy (ties are broken by line id) while a reader of the
@@ -25,7 +26,7 @@ import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balan
 import { generateBalanceSheetComparison } from '@/lib/reports/balance-sheet/generate-comparison.service'
 import { generateIncomeStatement } from '@/lib/reports/income-statement/generate-income-statement.service'
 import { createDefaultBalanceSheetConfig } from '@/lib/reports/balance-sheet/config/create-default-pcg-config.service'
-import { createDefaultIncomeStatementConfig } from '@/lib/reports/income-statement/config/create-default-pcg-config.service'
+import { createDefaultIncomeStatementConfig, ensureIncomeStatementLayout } from '@/lib/reports/income-statement/config/create-default-pcg-config.service'
 
 const available = await testDatabaseAvailable()
 
@@ -77,9 +78,12 @@ describe.skipIf(!available)('creation of the default statement layouts', () => {
     expect(await balanceSheetRows(companyId, variant)).toBe(expectedRows.get(`bs:${variant}`))
   })
 
-  it.each(['complete', 'simplified'] as const)('creates one %s income statement layout for two reports computed at once', async (variant) => {
+  it.each(['complete', 'simplified'] as const)('stores no %s income statement layout for reports (a read), and one for two writes at once', async (variant) => {
     const { companyId, fy2024, fy2025 } = await freshCompany()
     await Promise.all([generateIncomeStatement(companyId, fy2025, variant), generateIncomeStatement(companyId, fy2024, variant)])
+    // The PCG default is built in memory until a line is changed
+    expect(await incomeStatementRows(companyId, variant)).toBe(0)
+    await Promise.all([ensureIncomeStatementLayout(companyId, variant), ensureIncomeStatementLayout(companyId, variant)])
     expect(await incomeStatementRows(companyId, variant)).toBe(expectedRows.get(`is:${variant}`))
   })
 

@@ -21,7 +21,11 @@ import {
 } from '../balance-sheet/config/manage-config-history.service'
 import { applyBalanceSheetTemplate, createBalanceSheetTemplate, usableTemplateWhere } from '../balance-sheet/config/manage-templates.service'
 import { updateBalanceSheetLineConfig } from '../balance-sheet/config/update-balance-sheet-line-config.service'
-import { createDefaultIncomeStatementConfig } from '../income-statement/config/create-default-pcg-config.service'
+import {
+  createDefaultIncomeStatementConfig,
+  ensureIncomeStatementLayout,
+  variantOfDefaultLineId,
+} from '../income-statement/config/create-default-pcg-config.service'
 import { createIncomeStatementLineConfig } from '../income-statement/config/create-income-statement-line-config.service'
 import { deleteIncomeStatementLineConfig } from '../income-statement/config/delete-income-statement-line-config.service'
 import { updateIncomeStatementLineConfig } from '../income-statement/config/update-income-statement-line-config.service'
@@ -190,8 +194,19 @@ export async function runBalanceSheetTemplateAction(companyId: string, userId: s
   return { created: false, result: await applyBalanceSheetTemplate(input.templateId, companyId) }
 }
 
+/**
+ * Stores the default layout of the variant before a change of a line, when
+ * the company has none yet: the page and get_statement_layout show the
+ * default built in memory, whose line ids are those of the stored copy.
+ */
+async function ensureLayoutOf(companyId: string, ...lineIds: Array<string | null | undefined>): Promise<void> {
+  const variants = new Set(lineIds.map((id) => (id ? variantOfDefaultLineId(id) : null)).filter((v) => v !== null))
+  for (const variant of variants) await ensureIncomeStatementLayout(companyId, variant)
+}
+
 /** Creates an income statement line; the service checks that the parent is of the company and variant. */
-export function createIncomeStatementLine(companyId: string, input: z.infer<typeof CreateIncomeStatementLineSchema>) {
+export async function createIncomeStatementLine(companyId: string, input: z.infer<typeof CreateIncomeStatementLineSchema>) {
+  await ensureIncomeStatementLayout(companyId, input.reportVariant)
   return createIncomeStatementLineConfig({
     companyId,
     reportVariant: input.reportVariant,
@@ -211,7 +226,8 @@ export function createIncomeStatementLine(companyId: string, input: z.infer<type
 }
 
 /** POST .../income-statement/config: a line given in full (codes, sense, order). */
-export function createIncomeStatementConfigLine(companyId: string, input: z.infer<typeof CreateIncomeStatementConfigLineSchema>) {
+export async function createIncomeStatementConfigLine(companyId: string, input: z.infer<typeof CreateIncomeStatementConfigLineSchema>) {
+  await ensureIncomeStatementLayout(companyId, input.reportVariant)
   return createIncomeStatementLineConfig({
     ...input,
     companyId,
@@ -226,6 +242,7 @@ export async function updateIncomeStatementLine(
   lineId: string,
   input: z.infer<typeof UpdateIncomeStatementLineSchema>,
 ) {
+  await ensureLayoutOf(companyId, lineId, input.parentId)
   await getIncomeStatementLine(companyId, lineId)
   if (input.parentId) await getIncomeStatementLine(companyId, input.parentId)
   return updateIncomeStatementLineConfig(lineId, input)
@@ -233,6 +250,7 @@ export async function updateIncomeStatementLine(
 
 /** Deactivates an income statement line of the company. */
 export async function deleteIncomeStatementLine(companyId: string, lineId: string): Promise<void> {
+  await ensureLayoutOf(companyId, lineId)
   await getIncomeStatementLine(companyId, lineId)
   await deleteIncomeStatementLineConfig(lineId)
 }

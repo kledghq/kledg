@@ -67,13 +67,18 @@ export interface ReconcileBankEntriesResult {
   failed: number
 }
 
-/** The unreconciled transactions of the company dated within the entries' days, plus or minus one day. */
-async function candidateTransactions(companyId: string, entries: readonly BankEntryToMatch[]) {
+/**
+ * The unreconciled transactions of the company dated within the entries'
+ * days, plus or minus one day; `released` adds transactions the run releases
+ * first (the dry run, which releases nothing).
+ */
+async function candidateTransactions(companyId: string, entries: readonly BankEntryToMatch[], released: readonly string[] = []) {
   const times = entries.map((e) => startOfDay(e.date).getTime())
   const first = addUtcDays(new Date(Math.min(...times)), -1)
   const afterLast = addUtcDays(new Date(Math.max(...times)), 2)
+  const open = released.length > 0 ? { OR: [{ reconciled: false }, { id: { in: [...released] } }] } : { reconciled: false }
   const rows = await prisma.bankTransaction.findMany({
-    where: { bankAccount: { bankConnection: { companyId } }, reconciled: false, date: { gte: first, lt: afterLast } },
+    where: { bankAccount: { bankConnection: { companyId } }, ...open, date: { gte: first, lt: afterLast } },
     select: { id: true, date: true, amount: true, side: true, bankAccount: { select: { ledgerAccountCode: true } } },
   })
   return rows.map((t) => ({ id: t.id, date: t.date, amount: t.amount, side: t.side, ledgerAccountCode: t.bankAccount.ledgerAccountCode }))
@@ -126,32 +131,21 @@ async function unreconcileOrphanedTransactions(companyId: string): Promise<numbe
       AND NOT EXISTS (SELECT 1 FROM "accounting_entries" e WHERE e."id" = t."reconciledWith" AND e."companyId" = ${companyId})`
 }
 
-/**
- * Automatically reconciles bank entries with bank transactions: entries of
- * the BQ journal in the period (both bounds), else in the open fiscal
- * years, not yet linked, at most MAX_AUTO_RECONCILE_ENTRIES per run.
- */
-export async function autoReconcile(options: AutoReconciliationOptions): Promise<AutoReconciliationResult> {
-  const { companyId, startDate, endDate } = options
+/** Transactions marked reconciled whose entry no longer exists (what unreconcileOrphanedTransactions releases). */
+async function orphanedTransactionIds(companyId: string): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT t."id" FROM "bank_transactions" t
+    JOIN "bank_accounts" a ON a."id" = t."bankAccountId"
+    JOIN "bank_connections" c ON c."id" = a."bankConnectionId"
+    WHERE c."companyId" = ${companyId} AND t."reconciled" = true AND t."reconciledWith" IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM "accounting_entries" e WHERE e."id" = t."reconciledWith" AND e."companyId" = ${companyId})`
+  return rows.map((r) => r.id)
+}
 
-  const unreconciledOrphanedCount = await unreconcileOrphanedTransactions(companyId)
-
+/** The entries of the BQ journal a run analyses, oldest first, without those already linked; null without a BQ journal. */
+async function entriesToMatch(companyId: string, startDate: string | undefined, endDate: string | undefined) {
   const journalBQ = await journalByCode(prisma, companyId, 'BQ')
-
-  if (!journalBQ) {
-    return {
-      success: true,
-      matched: 0,
-      reconciledCount: 0,
-      total: 0,
-      unreconciledOrphanedCount,
-      message:
-        unreconciledOrphanedCount > 0
-          ? `${plural(unreconciledOrphanedCount, 'transaction dé-rapprochée', 'transactions dé-rapprochées')} (écriture supprimée). Aucun journal BQ.`
-          : 'Aucun journal BQ : aucune écriture bancaire à rapprocher.',
-    }
-  }
-
+  if (!journalBQ) return null
   const whereClause: Prisma.AccountingEntryWhereInput = {
     companyId,
     journalId: journalBQ.id,
@@ -182,7 +176,72 @@ export async function autoReconcile(options: AutoReconciliationOptions): Promise
   const toMatch = batch
     .filter((entry) => !linked.has(entry.id))
     .map((entry) => ({ id: entry.id, date: entry.date, lines: entry.lines.map((l) => ({ accountCode: l.account.code, debit: l.debit, credit: l.credit })) }))
+  return { toMatch, truncated }
+}
 
+export interface AutoReconciliationPreview {
+  /** Transactions marked reconciled whose entry was deleted: released first. */
+  releasedTransactionIds: string[]
+  /** Entries analysed (BQ journal, the period or the open fiscal years, not linked yet). */
+  analysed: number
+  /** Only the oldest MAX_AUTO_RECONCILE_ENTRIES entries are analysed. */
+  truncated: boolean
+  /** The pairs the run would link, oldest entry first. */
+  pairs: Array<{ entryId: string; transactionId: string }>
+  hasBankJournal: boolean
+}
+
+/**
+ * The dry run of autoReconcile: the same entries, the same matcher, chunk
+ * by chunk as the run claims them (a transaction taken by a chunk is not a
+ * candidate of the next), nothing written.
+ */
+export async function previewAutoReconcile(options: AutoReconciliationOptions): Promise<AutoReconciliationPreview> {
+  const { companyId, startDate, endDate } = options
+  const releasedTransactionIds = await orphanedTransactionIds(companyId)
+  const selection = await entriesToMatch(companyId, startDate, endDate)
+  if (!selection) return { releasedTransactionIds, analysed: 0, truncated: false, pairs: [], hasBankJournal: false }
+  const ordered = [...selection.toMatch].sort((a, b) => a.date.getTime() - b.date.getTime())
+  const taken = new Set<string>()
+  const pairs: Array<{ entryId: string; transactionId: string }> = []
+  for (let i = 0; i < ordered.length; i += CHUNK) {
+    const chunk = ordered.slice(i, i + CHUNK)
+    const candidates = (await candidateTransactions(companyId, chunk, releasedTransactionIds)).filter((t) => !taken.has(t.id))
+    for (const pair of matchBankEntries(chunk, candidates)) {
+      taken.add(pair.transactionId)
+      pairs.push(pair)
+    }
+  }
+  return { releasedTransactionIds, analysed: ordered.length, truncated: selection.truncated, pairs, hasBankJournal: true }
+}
+
+/**
+ * Automatically reconciles bank entries with bank transactions: entries of
+ * the BQ journal in the period (both bounds), else in the open fiscal
+ * years, not yet linked, at most MAX_AUTO_RECONCILE_ENTRIES per run.
+ */
+export async function autoReconcile(options: AutoReconciliationOptions): Promise<AutoReconciliationResult> {
+  const { companyId, startDate, endDate } = options
+
+  const unreconciledOrphanedCount = await unreconcileOrphanedTransactions(companyId)
+
+  const selection = await entriesToMatch(companyId, startDate, endDate)
+
+  if (!selection) {
+    return {
+      success: true,
+      matched: 0,
+      reconciledCount: 0,
+      total: 0,
+      unreconciledOrphanedCount,
+      message:
+        unreconciledOrphanedCount > 0
+          ? `${plural(unreconciledOrphanedCount, 'transaction dé-rapprochée', 'transactions dé-rapprochées')} (écriture supprimée). Aucun journal BQ.`
+          : 'Aucun journal BQ : aucune écriture bancaire à rapprocher.',
+    }
+  }
+
+  const { toMatch, truncated } = selection
   const { matched, failed } = await reconcileBankEntries(companyId, toMatch)
 
   const parts: string[] = []

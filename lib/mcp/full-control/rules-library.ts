@@ -9,7 +9,7 @@
 
 import { z } from 'zod'
 import { addRuleFromTemplate } from '@/lib/rules-library/manage-rule-templates.service'
-import { MAX_COPIED_RULES, copyRulesFromCompany } from '@/lib/rules-library/copy-rules.service'
+import { MAX_COPIED_RULES, READ_RULES, copyRulesFromCompany } from '@/lib/rules-library/copy-rules.service'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
 import { AUTO_CREATE_EFFECT, AUTO_CREATE_STEP } from './banking'
@@ -67,6 +67,8 @@ const copyRulesFromCompanyTool = fullControlTool({
     enabled: z.boolean().default(false).describe('Activate the copies at once; inactive by default so their accounts are checked first.'),
   },
   permission: { ledger: ['manage'] },
+  // The source is checked before its rules are read or locked for the approval (targetState).
+  authorizeArgs: ({ sourceCompanyId }, ctx) => ctx.group.require(sourceCompanyId, READ_RULES),
   amounts: 'none',
   never: 'changes the source company, or runs the copied rules.',
   targetState: ({ companyId, sourceCompanyId }) => [companyLock(companyId), ...ruleTargets(companyId), ...ruleTargets(sourceCompanyId)],

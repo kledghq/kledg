@@ -775,13 +775,21 @@ describe.skipIf(!available)('MCP tools covering the API', () => {
 
       const inputs = await ok(writer, 'save_corporate_tax_inputs', { companyId: ids.aCompany, fiscalYearId: ids.aFy, deficitsOpening: 1000.25, capitalPaidUp: true })
       expect(inputs.changes).toBeTruthy()
-      const filing = await ok(writer, 'record_tax_filing', {
+      // A record settles a deadline: approved by the user in Kledg first
+      const filingArgs = {
         companyId: ids.aCompany,
         tax: 'corporate_tax',
         corporateTax: { fiscalYearId: ids.aFy, filedOn: '2026-05-15', resultBeforeDeficits: 5000, deficitsImputed: 1000.25, corporateTax: 600, reducedRate: true },
-      })
+      }
+      const dry = await ok(writer, 'record_tax_filing', filingArgs)
+      expect(dry.dryRun).toBe(true)
+      await approve(dry.actionId)
+      const filing = await ok(writer, 'record_tax_filing', { ...filingArgs, actionId: dry.actionId })
       expect(filing.message).toMatch(/Dépôt enregistré/)
-      await ok(writer, 'record_tax_filing', { companyId: ids.aCompany, tax: 'corporate_tax', action: 'remove', fiscalYearId: ids.aFy })
+      const removeArgs = { companyId: ids.aCompany, tax: 'corporate_tax', action: 'remove', fiscalYearId: ids.aFy }
+      const removal = await ok(writer, 'record_tax_filing', removeArgs)
+      await approve(removal.actionId)
+      await ok(writer, 'record_tax_filing', { ...removeArgs, actionId: removal.actionId })
       const badAmount = await call(writer, 'save_corporate_tax_inputs', { companyId: ids.aCompany, fiscalYearId: ids.aFy, deficitsOpening: 10.001 })
       expect(badAmount.text).toBe('deficitsOpening : montant invalide, en euros avec deux décimales au plus.')
     })

@@ -1,11 +1,15 @@
 /**
  * MCP tools of the local taxes and of the declarations tracker
- * (lib/mcp/local-tax-tools.ts, lib/mcp/drafts/declarations.ts):
+ * (lib/mcp/local-tax-tools.ts, lib/mcp/full-control/filings.ts):
  * get_local_taxes and list_declarations_status read with reports:read at
  * every level, amounts in euros; mark_declaration exists only with
- * kledg:write, checks entries:create, sends the amount in cents to the
- * service and is audited. Services are mocked (the PostgreSQL tests of
- * lib/declarations and lib/local-taxes run them). Kledg never files nor pays.
+ * kledg:write, checks entries:create, waits for the user's approval in
+ * Kledg on a draft-level connection (dry run with the deadline's status,
+ * nothing recorded), and with full control in automatic mode sends the
+ * amount in cents to the service and is audited. Services are mocked (the
+ * PostgreSQL tests of lib/declarations and lib/local-taxes run them, and
+ * lib/__tests__/security/mcp-approvals.db.test.ts the approval). Kledg never
+ * files nor pays.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,12 +40,20 @@ vi.mock('@/lib/declarations/mark-declaration.service', async (importOriginal) =>
   ...(await importOriginal<typeof import('@/lib/declarations/mark-declaration.service')>()),
   markDeclaration: vi.fn(),
   clearDeclaration: vi.fn(),
+  getTrackedDeadline: vi.fn(),
+}))
+vi.mock('@/lib/mcp/full-control/pending-actions', () => ({
+  createPendingAction: vi.fn(async () => ({ id: 'act_1', approvalUrl: 'http://localhost:3000/ai-actions?action=act_1', expiresAt: new Date('2026-10-05T10:30:00.000Z') })),
+  claimApprovedAction: vi.fn(),
+  finishAction: vi.fn(),
+  releaseAction: vi.fn(),
 }))
 
 import { registerKledgTools } from '@/lib/mcp/tools'
 import { loadLocalTaxes, type LocalTaxesView } from '@/lib/local-taxes/load-local-taxes.service'
 import { loadDeadlinesView, type DeadlinesView } from '@/lib/deadlines/load-deadlines.service'
-import { clearDeclaration, markDeclaration } from '@/lib/declarations/mark-declaration.service'
+import { clearDeclaration, getTrackedDeadline, markDeclaration } from '@/lib/declarations/mark-declaration.service'
+import { createPendingAction } from '@/lib/mcp/full-control/pending-actions'
 import { deriveStatus, type TrackedDeadline } from '@/lib/declarations/status'
 import type { Deadline } from '@/lib/deadlines/types'
 import { writeAuditLog } from '@/lib/audit'
@@ -49,11 +61,17 @@ import type { ToolResult } from '@/lib/mcp/tool-result'
 
 type Handler = (args: Record<string, unknown>) => Promise<ToolResult>
 
-function tools(canWrite: boolean) {
+function tools(canWrite: boolean, fullControl = false) {
   const handlers = new Map<string, Handler>()
   registerKledgTools(
     { registerTool: (name: string, _config: unknown, handler: Handler) => handlers.set(name, handler) } as never,
-    { user: { id: 'u1', email: 'a@b.c', name: 'Camille', role: 'user' }, canWrite, canAdmin: false, caller: { kind: 'apiKey', apiKeyId: 'k1' }, executionMode: 'validation' },
+    {
+      user: { id: 'u1', email: 'a@b.c', name: 'Camille', role: 'user' },
+      canWrite,
+      canAdmin: fullControl,
+      caller: { kind: 'apiKey', apiKeyId: 'k1' },
+      executionMode: fullControl ? 'automatic' : 'validation',
+    },
   )
   return handlers
 }
@@ -177,26 +195,36 @@ describe('mark_declaration', () => {
     expect(tools(true).has('mark_declaration')).toBe(true)
   })
 
-  it('records a payment with entries:create, the amount in cents, and audits the call', async () => {
+  it('waits for the approval in Kledg on a draft-level connection: a dry run with the deadline, nothing recorded', async () => {
+    vi.mocked(getTrackedDeadline).mockResolvedValue(CFE)
+    const data = parse(await tools(true).get('mark_declaration')!({ companyId: 'c1', deadlineId: 'cfe:2026', paidOn: '2026-06-12', amount: 1750 }))
+    expect(guard.require).toHaveBeenCalledWith('c1', { entries: ['create'] })
+    expect(data).toMatchObject({ dryRun: true, actionId: 'act_1', preview: { deadline: { deadlineId: 'cfe:2026', status: 'todo' }, change: { paidOn: '2026-06-12', amount: 1750 } } })
+    expect(createPendingAction).toHaveBeenCalled()
+    expect(markDeclaration).not.toHaveBeenCalled()
+  })
+
+  it('with full control in automatic mode, records a payment, the amount in cents, and audits the call', async () => {
     vi.mocked(markDeclaration).mockResolvedValue(ACOMPTE)
-    const data = parse(await tools(true).get('mark_declaration')!({ companyId: 'c1', deadlineId: 'cfe-acompte:2026', paidOn: '2026-06-12', amount: 1750, attachmentReference: ' Télépaiement 4321 ' }))
+    const data = parse(await tools(true, true).get('mark_declaration')!({ companyId: 'c1', deadlineId: 'cfe-acompte:2026', paidOn: '2026-06-12', amount: 1750, attachmentReference: ' Télépaiement 4321 ' }))
     expect(guard.require).toHaveBeenCalledWith('c1', { entries: ['create'] })
     expect(markDeclaration).toHaveBeenCalledWith(
       'c1',
       expect.objectContaining({ deadlineId: 'cfe-acompte:2026', paidOn: '2026-06-12', amountCents: 175_000, attachmentReference: 'Télépaiement 4321' }),
       { userId: 'u1', source: 'mcp' },
     )
-    expect(data).toMatchObject({ changes: { deadlineId: 'cfe-acompte:2026', status: 'paid' }, deadline: { status: 'paid' } })
-    expect(data.message).toMatch(/Payée/)
-    expect(writeAuditLog).toHaveBeenCalledWith('info', expect.stringContaining('mark_declaration'), expect.objectContaining({ action: 'MCP_WRITE', companyId: 'c1' }))
+    expect(data.executed).toBe(true)
+    expect(data.result).toMatchObject({ changes: { deadlineId: 'cfe-acompte:2026', status: 'paid' }, deadline: { status: 'paid' } })
+    expect(data.result.message).toMatch(/Payée/)
+    expect(writeAuditLog).toHaveBeenCalledWith('info', expect.stringContaining('mark_declaration'), expect.objectContaining({ action: 'MCP_FULL_CONTROL', companyId: 'c1' }))
   })
 
   it('clears a record, and asks for something to record', async () => {
     vi.mocked(clearDeclaration).mockResolvedValue(CFE)
-    const cleared = parse(await tools(true).get('mark_declaration')!({ companyId: 'c1', deadlineId: 'cfe:2026', clear: true }))
+    const cleared = parse(await tools(true, true).get('mark_declaration')!({ companyId: 'c1', deadlineId: 'cfe:2026', clear: true }))
     expect(clearDeclaration).toHaveBeenCalledWith('c1', 'cfe:2026', { source: 'mcp' })
-    expect(cleared.changes).toMatchObject({ cleared: true, status: 'todo' })
-    const empty = await tools(true).get('mark_declaration')!({ companyId: 'c1', deadlineId: 'cfe:2026' })
+    expect(cleared.result.changes).toMatchObject({ cleared: true, status: 'todo' })
+    const empty = await tools(true, true).get('mark_declaration')!({ companyId: 'c1', deadlineId: 'cfe:2026' })
     expect(empty.isError).toBe(true)
     expect(markDeclaration).not.toHaveBeenCalled()
   })

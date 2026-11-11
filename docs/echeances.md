@@ -123,7 +123,11 @@ Outils MCP ([mcp.md](mcp.md)) : `list_tax_deadlines` (dates et règles),
 `list_declarations_status` (statuts, filtres par catégorie et par statut,
 comptes par statut) et, avec l'accès brouillons, `mark_declaration`
 (enregistre ou retire ; refuse ce qu'un autre module enregistre). Aucun ne
-dépose ni ne paie.
+dépose ni ne paie. Un enregistrement retire le rappel de l'échéance : sans
+le contrôle total, `mark_declaration` (comme `record_tax_filing` pour la TVA
+et l'IS) renvoie un aperçu et attend que l'utilisateur l'approuve dans Kledg
+(page Actions IA à approuver) ; avec le contrôle total, il suit le mode
+d'exécution de la connexion.
 
 ## Stockage
 

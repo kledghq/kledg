@@ -158,3 +158,52 @@ describe('requesterName', () => {
     expect(requesterName('x'.repeat(100))).toHaveLength("l'assistant «\u00a0".length + 60 + 2)
   })
 })
+
+describe('readable preview of a bulk action', () => {
+  it('lists the rules of run_rules with their accounts, transactions and the assistant that created one', async () => {
+    actions = [
+      action({
+        id: 'rules',
+        tool: 'run_rules',
+        args: {},
+        preview: {
+          processed: 43,
+          wouldApply: 42,
+          rulesTotal: 2,
+          rulesChangedByAssistant: 1,
+          rules: [
+            { ruleId: 'r1', name: 'Virements Martin', journalCode: 'BQ', accounts: ['455'], transactions: 40, byAssistant: { change: 'created', tool: 'create_rule', assistant: 'Claude', at: '2026-10-03T09:58:00.000Z' } },
+            { ruleId: 'r2', name: 'Frais bancaires', journalCode: 'BQ', accounts: ['627'], transactions: 2, byAssistant: null },
+          ],
+        },
+      }),
+    ]
+    render(<AiActionsList highlight={null} />)
+    expect(await screen.findByText('Virements Martin')).toBeInTheDocument()
+    expect(screen.getByText('40 transactions')).toBeInTheDocument()
+    expect(screen.getByText('455')).toBeInTheDocument()
+    expect(screen.getByText(/Créée par l'assistant «.Claude.» le/)).toBeInTheDocument()
+    expect(screen.getByText('1 créée ou modifiée par un assistant')).toBeInTheDocument()
+    expect(screen.getByText('Frais bancaires')).toBeInTheDocument()
+  })
+
+  it('lists the transaction and entry pairs of auto_match, with the total', async () => {
+    actions = [
+      action({
+        id: 'match',
+        tool: 'bulk_reconcile',
+        args: { action: 'auto_match' },
+        preview: {
+          action: 'auto_match',
+          pairsTotal: 51,
+          pairs: [{ transaction: { id: 't1', date: '2025-04-02', label: 'VIR MARTIN', amount: 250, side: 'debit' }, entry: { id: 'e1', number: 'BQ-0001', date: '2025-04-02', description: 'Fournisseur Martin' } }],
+        },
+      }),
+    ]
+    render(<AiActionsList highlight={null} />)
+    expect(await screen.findByText('Rapprochements qui seront faits (51)')).toBeInTheDocument()
+    expect(screen.getByText('VIR MARTIN')).toBeInTheDocument()
+    expect(screen.getByText('Fournisseur Martin', { exact: false, selector: 'p' })).toBeInTheDocument()
+    expect(screen.getByText('Les 1 premiers sont listés.')).toBeInTheDocument()
+  })
+})

@@ -17,7 +17,6 @@ import { registerAnnexeDraftTools } from './annexe'
 import { registerSimpleModeDraftTools } from './simple-mode'
 import { registerVatReturnDraftTools } from './vat-returns'
 import { registerCorporateTaxDraftTools } from './corporate-tax'
-import { registerDeclarationDraftTools } from './declarations'
 import { registerRecordDraftTools } from './records'
 import { registerRemunerationDraftTools } from './remuneration'
 import { registerTrainingDraftTools } from './training'
@@ -33,7 +32,6 @@ export function registerDraftTools(server: McpServer, access: McpAccess, guard: 
   registerSimpleModeDraftTools(register)
   registerVatReturnDraftTools(register)
   registerCorporateTaxDraftTools(register)
-  registerDeclarationDraftTools(register)
   registerRecordDraftTools(register)
   registerRemunerationDraftTools(register)
   registerTrainingDraftTools(register)

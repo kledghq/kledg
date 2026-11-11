@@ -38,6 +38,8 @@ export interface IncomeStatementConfig {
   companyId: string
   reportVariant: 'complete' | 'simplified'
   lines: IncomeStatementLineConfig[]
+  /** True when the company stores no layout of the variant: the PCG default, built in memory. */
+  isDefault?: boolean
 }
 
 /**
