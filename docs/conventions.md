@@ -21,6 +21,7 @@ Related docs: [architecture.md](architecture.md) (folders, principles),
 | Client code never reaches server modules | `lib/__tests__/architecture.test.ts` |
 | Allowlists stay honest | `lib/__tests__/conventions-allowlist.test.ts` |
 | Migrations immutable and additive | `scripts/check-migrations.mjs` (CI) |
+| Every foreign key indexed | `lib/__tests__/foreign-key-indexes.db.test.ts` |
 | Authorization of every route and role, no secret in responses | `lib/api/__tests__/authorization-matrix.test.ts` |
 | Every route, service and MCP tool has a test | `lib/__tests__/feature-tests.test.ts` |
 
@@ -196,6 +197,8 @@ hooks/                   client hooks
   `-- kledg:allow-destructive <reason>` (checked by
   `scripts/check-migrations.mjs` in CI). Invariants that must hold for every
   code path are database triggers in a migration, not only service checks.
+  Every foreign key column gets an `@@index` starting with it: deleting a
+  parent row otherwise scans the whole referencing table once per row.
 
 ## Money
 

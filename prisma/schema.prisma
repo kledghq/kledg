@@ -336,6 +336,7 @@ model Account {
   @@unique([companyId, code, fiscalYearId])
   @@index([companyId])
   @@index([fiscalYearId])
+  @@index([parentId])
   @@map("accounts")
 }
 
@@ -404,6 +405,7 @@ model AccountingEntry {
   @@index([fiscalYearId])
   @@index([date])
   @@index([companyId, date])
+  @@index([journalId])
   @@map("accounting_entries")
 }
 
@@ -515,6 +517,7 @@ model BankConnection {
   @@unique([companyId, provider])
   @@index([companyId])
   @@index([provider])
+  @@index([selectedAccountId])
   @@map("bank_connections")
 }
 
@@ -557,6 +560,7 @@ model BankAccount {
   @@index([shouldSync])
   @@index([iban])
   @@index([integrationResourceId])
+  @@index([supersededById])
   @@map("bank_accounts")
 }
 
@@ -887,6 +891,9 @@ model FixedAsset {
 
   @@index([companyId])
   @@index([acquisitionEntryId])
+  @@index([assetAccountId])
+  @@index([depreciationAccountId])
+  @@index([expenseAccountId])
   @@map("fixed_assets")
 }
 
@@ -1363,6 +1370,7 @@ model Invitation {
 
   @@index([organizationId])
   @@index([email])
+  @@index([inviterId])
   @@map("invitation")
 }
 
@@ -1639,6 +1647,7 @@ model AiAccessGrant {
   companies     AiAccessGrantCompany[]
 
   @@unique([userId, clientId])
+  @@index([clientId])
   @@map("ai_access_grants")
 }
 
@@ -3142,5 +3151,8 @@ model StagedReceipt {
   @@index([uploadedById])
   @@index([expiresAt])
   @@index([fileId])
+  @@index([bankTransactionId])
+  @@index([attachmentId])
+  @@index([expenseReportId])
   @@map("staged_receipts")
 }
