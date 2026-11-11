@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
 import { calendarDayOf } from '@/lib/utils/date'
 import { parseCents, toCents } from '@/lib/utils/money'
-import { buildDepreciationPlan } from '@/lib/fixed-assets/depreciation-plan'
+import { buildDepreciationPlan, closingMonthOf } from '@/lib/fixed-assets/depreciation-plan'
 import { cumulativeDepreciationCents, type CumulativeDepreciationInput } from '@/lib/fixed-assets/cumulative-depreciation'
 import { allowanceAccountLabel, type ProvisionCategory, type ProvisionNature } from '@/lib/provisions/rules'
 import type { FinancedAsset, GrantSpreading } from '@/lib/investment-grants/schedule'
@@ -125,6 +125,7 @@ function assetAtYearEnd(
     depreciationStartDate: asset.depreciationStartDate,
     openingDepreciation: asset.openingDepreciation,
     openingDepreciationDate: asset.openingDepreciationDate,
+    fiscalYearClosingMonth: closingMonthOf(endDate),
   })
   const recorded = new Map<string, number>()
   for (const r of asset.depreciations) recorded.set(r.fiscalYearId, (recorded.get(r.fiscalYearId) ?? 0) + cents(r.amount))

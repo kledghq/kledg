@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { ownedFiscalYear } from '@/lib/accounting/manage-fiscal-years.service'
 import { CLOSING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
 import { isOpeningJournal } from '@/lib/fec/format'
-import { buildDepreciationPlan } from '@/lib/fixed-assets/depreciation-plan'
+import { buildDepreciationPlan, closingMonthOf } from '@/lib/fixed-assets/depreciation-plan'
 import { cumulativeDepreciationCents } from '@/lib/fixed-assets/cumulative-depreciation'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
 import type { BalanceSheetLine } from '@/lib/reports/balance-sheet/types'
@@ -95,7 +95,7 @@ async function loadRegister(companyId: string, fy: { startDate: Date; endDate: D
   ])
   const dayBefore = addUtcDays(fy.startDate, -1)
   return assets.map((asset) => {
-    const plan = buildDepreciationPlan(asset)
+    const plan = buildDepreciationPlan({ ...asset, fiscalYearClosingMonth: closingMonthOf(fy.endDate) })
     const recorded = new Map<string, number>()
     for (const r of asset.depreciations) recorded.set(r.fiscalYearId, (recorded.get(r.fiscalYearId) ?? 0) + cents(r.amount))
     const input = { plan, fiscalYears: years, recordedByFiscalYear: recorded, disposalDate: asset.disposalDate }

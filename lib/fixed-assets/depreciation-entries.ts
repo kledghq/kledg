@@ -18,7 +18,7 @@
 
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { buildDepreciationPlan, sumPlanCentsForPeriod } from './depreciation-plan'
+import { buildDepreciationPlan, closingMonthOf, sumPlanCentsForPeriod } from './depreciation-plan'
 import { ClosedFiscalYearError, NotFoundError } from '@/lib/accounting/errors'
 import {
   createValidatedEntry,
@@ -91,6 +91,7 @@ export async function findUnpostedDepreciation(
       depreciationStartDate: asset.depreciationStartDate,
       openingDepreciation: asset.openingDepreciation,
       openingDepreciationDate: asset.openingDepreciationDate,
+      fiscalYearClosingMonth: closingMonthOf(fiscalYear.endDate),
     })
     const end =
       asset.disposalDate && asset.disposalDate < fiscalYear.endDate ? asset.disposalDate : fiscalYear.endDate
