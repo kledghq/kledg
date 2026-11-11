@@ -4,6 +4,8 @@ import { ValidationError } from '@/lib/accounting/errors'
 import { companyRoute, fromForm } from '@/lib/api/route'
 import { assertFileSize } from '@/lib/api/files'
 import { qontoClientFor } from '@/lib/integrations/providers/qonto/get-credentials'
+import { limitBankCalls } from '@/lib/banking/guard'
+import { checkReceiptFile, receiptFileName } from '@/lib/receipts/file-type'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -32,15 +34,15 @@ export const POST = companyRoute(
     }
     assertFileSize(file)
 
-    // Vérifier le type de fichier (JPEG, PNG ou PDF uniquement)
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf']
-    if (!allowedTypes.includes(file.type)) {
-      throw new ValidationError('Type de fichier non autorisé. Seuls JPEG, PNG et PDF sont acceptés.')
-    }
+    // The type is read from the bytes, never from the browser's label (JPEG, PNG or PDF), like the staged receipts
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const check = checkReceiptFile(bytes)
+    if (!check.ok) throw new ValidationError(check.message)
 
+    await limitBankCalls(companyId)
     const qontoClient = await qontoClientFor(companyId)
-
-    await qontoClient.uploadTransactionAttachment(transactionId, file, randomUUID())
+    const checked = new File([bytes], receiptFileName(file.name, check.contentType), { type: check.contentType })
+    await qontoClient.uploadTransactionAttachment(transactionId, checked, randomUUID())
 
     return NextResponse.json({
       success: true,
