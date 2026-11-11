@@ -9,26 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  static:
     runs-on: ubuntu-latest
-    # Database tests (*.db.test.ts, DB-backed route tests, authorization
-    # matrix) run against this server: lib/__tests__/helpers/test-db.ts
-    # creates and migrates one database per test file, named
-    # <KLEDG_TEST_DB_PREFIX>_<name>. KLEDG_REQUIRE_TEST_DB makes a missing
-    # server fail the run instead of skipping those tests.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: kledg
-          POSTGRES_PASSWORD: kledg
-          POSTGRES_DB: kledg_test
-        ports: ["5432:5432"]
-        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
-    env:
-      KLEDG_TEST_DATABASE_URL: postgresql://kledg:kledg@localhost:5432/kledg_test
-      KLEDG_TEST_DB_PREFIX: kledg_ci_${{ github.job }}
-      KLEDG_REQUIRE_TEST_DB: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -44,7 +26,54 @@ jobs:
           # tsc needs more than Node's default heap on this codebase
           NODE_OPTIONS: --max-old-space-size=6144
       - run: pnpm lint
-      - run: pnpm test:run
+
+  test:
+    runs-on: ubuntu-latest
+    # The test files are split in four shards that run in parallel, each with
+    # its own server. Database tests (*.db.test.ts, DB-backed route tests,
+    # authorization matrix) run against it: lib/__tests__/helpers/test-db.ts
+    # creates and migrates one database per test file, named
+    # <KLEDG_TEST_DB_PREFIX>_<name>. KLEDG_REQUIRE_TEST_DB makes a missing
+    # server fail the run instead of skipping those tests.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kledg
+          POSTGRES_PASSWORD: kledg
+          POSTGRES_DB: kledg_test
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      KLEDG_TEST_DATABASE_URL: postgresql://kledg:kledg@localhost:5432/kledg_test
+      KLEDG_TEST_DB_PREFIX: kledg_ci_test_${{ matrix.shard }}
+      KLEDG_REQUIRE_TEST_DB: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:run --shard=${{ matrix.shard }}/4
+
+  # The check required on main (repository ruleset): passes only when the
+  # static checks and every test shard passed.
+  check:
+    runs-on: ubuntu-latest
+    needs: [static, test]
+    if: always()
+    steps:
+      - name: Static checks and tests passed
+        run: |
+          [ "${{ needs.static.result }}" = success ] && [ "${{ needs.test.result }}" = success ] || { echo "static: ${{ needs.static.result }}, test: ${{ needs.test.result }}"; exit 1; }
 
   migrations:
     runs-on: ubuntu-latest
