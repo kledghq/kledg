@@ -101,6 +101,8 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/banking/ponto/route.ts': /guardBankConnect\(/,
   'app/api/banking/attachments/sync/route.ts': /limitBankCalls\(/,
   'app/api/integrations/sync/route.ts': /limitBankCalls\(/,
+  'app/api/qonto/statements/[id]/route.ts': /limitBankCalls\(/,
+  'app/api/qonto/transactions/[id]/attachments/upload/route.ts': /limitBankCalls\(/,
   'app/api/integrations/[id]/sync/route.ts': /limitBankCalls\(/,
   'app/api/integrations/verify/route.ts': /guardBankConnect\(/,
   'app/api/integrations/route.ts': /guardBankConnect\(/,
