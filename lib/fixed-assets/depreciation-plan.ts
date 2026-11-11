@@ -51,6 +51,8 @@ export interface FixedAssetPlanInput {
   depreciationDuration: Num
   decliningCoefficient: Num
   depreciationStartDate: Date
+  /** Month (1 to 12) the company's fiscal years close: the years of the declining method; December when absent. */
+  fiscalYearClosingMonth?: number | null
   /** Depreciation booked before openingDepreciationDate, outside Kledg; both set or both absent. */
   openingDepreciation?: Num
   openingDepreciationDate?: Date | null
@@ -98,6 +100,8 @@ export interface DepreciationPlan {
   method: 'linear' | 'declining' | 'none'
   /** Effective duration (years). */
   duration: number
+  /** Last day in service of a linear plan that ends mid-month (its last month's amount covers the days up to it); absent otherwise. */
+  end?: Date
 }
 
 /**
@@ -195,7 +199,7 @@ function buildTheoreticalPlan(asset: FixedAssetPlanInput): DepreciationPlan {
     const coef = given > 0 ? given : legalDecliningCoefficient(duration)
     return {
       ...empty,
-      byMonth: buildDecliningMonthlyMap(baseCents, duration, coef, start),
+      byMonth: buildDecliningMonthlyMap(baseCents, duration, coef, start, (asset.fiscalYearClosingMonth ?? 12) - 1),
       duration,
     }
   }
@@ -232,7 +236,9 @@ function buildTheoreticalPlan(asset: FixedAssetPlanInput): DepreciationPlan {
     }
   }
 
-  return { byMonth, baseAmount, start, method, duration }
+  // Linear prorata temporis ends the day before the anniversary of the start: its last month is cut there
+  const end = new Date(Date.UTC(start.getUTCFullYear() + Math.round(1 / annualRate), start.getUTCMonth(), start.getUTCDate() - 1))
+  return { byMonth, baseAmount, start, method, duration, ...(start.getUTCDate() > 1 && { end }) }
 }
 
 /**
@@ -243,17 +249,23 @@ function buildTheoreticalPlan(asset: FixedAssetPlanInput): DepreciationPlan {
  * remainder on the last one, and the last year takes what is left, so the
  * months of a year add up to its allowance and the plan ends exactly on the
  * base.
+ *
+ * The years are the company's fiscal years (BOI-BIC-AMT-20-20-30-20: the
+ * allowance and the first-year prorata apply per exercice): the first runs
+ * from the month of the start to the closing month, then twelve months at
+ * a time. December by default (calendar years).
  */
 function buildDecliningMonthlyMap(
   baseCents: number,
   duration: number,
   coefficient: number,
-  depreciationStart: Date
+  depreciationStart: Date,
+  closingMonth = 11
 ): Map<string, number> {
   const decliningRate = (1 / duration) * coefficient
   const firstMonth = depreciationStart.getUTCMonth()
   const startYear = depreciationStart.getUTCFullYear()
-  const firstYearMonths = 12 - firstMonth
+  const firstYearMonths = ((closingMonth - firstMonth + 12) % 12) + 1
   const isFirstYearPartial = firstYearMonths < 12
   const maxYears = duration + (isFirstYearPartial ? 1 : 0)
 
@@ -288,20 +300,21 @@ function buildDecliningMonthlyMap(
     }
     if (yearCents > bookCents || y === maxYears - 1) yearCents = bookCents // ends exactly on the base
 
-    const calYear = startYear + y
     const monthsCount =
       y === 0 && isFirstYearPartial
         ? firstYearMonths
         : y === maxYears - 1 && isFirstYearPartial
           ? 12 - firstYearMonths
           : 12
-    const monthStart = y === 0 ? firstMonth : 0
+    // First month of this fiscal year, counted from January of year 0
+    const blockStart = startYear * 12 + firstMonth + (y === 0 ? 0 : firstYearMonths + 12 * (y - 1))
 
     // Rounded on the cumulative amount: the months add up to the allowance
     let spreadCents = 0
     for (let i = 0; i < monthsCount; i++) {
       const cumulative = Math.round((yearCents * (i + 1)) / monthsCount)
-      result.set(monthKey(calYear, monthStart + i), fromCents(cumulative - spreadCents))
+      const g = blockStart + i
+      result.set(monthKey(Math.floor(g / 12), g % 12), fromCents(cumulative - spreadCents))
       spreadCents = cumulative
     }
     bookCents -= yearCents
@@ -318,23 +331,47 @@ export function sumPlanForPeriod(
   return fromCents(sumPlanCentsForPeriod(plan, from, to))
 }
 
-/** Sum of the plan's monthly amounts for the months of [from, to] (UTC calendar months), in cents. */
+/**
+ * Depreciation of the plan before `day` (midnight UTC), in cents: the whole
+ * months before its month, plus the share of its month already elapsed, by
+ * day. Rounded once, so periods computed as differences add up exactly.
+ */
+function cumulativeCentsBefore(plan: DepreciationPlan, day: Date): number {
+  const y = day.getUTCFullYear()
+  const m = day.getUTCMonth()
+  const pivot = monthKey(y, m)
+  let total = 0
+  for (const [key, euros] of plan.byMonth) if (key < pivot) total += toCents(euros) ?? 0
+  const monthCents = toCents(plan.byMonth.get(pivot) ?? 0) ?? 0
+  if (!monthCents) return total
+  // The month's amount runs over its days in service: from the in-service day in the first month
+  const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+  const firstDay = plan.start.getUTCFullYear() === y && plan.start.getUTCMonth() === m ? plan.start.getUTCDate() : 1
+  const lastDay = plan.end && plan.end.getUTCFullYear() === y && plan.end.getUTCMonth() === m ? plan.end.getUTCDate() : daysInMonth
+  const elapsed = Math.min(day.getUTCDate() - firstDay, lastDay - firstDay + 1)
+  if (elapsed > 0) total += Math.round((monthCents * elapsed) / (lastDay - firstDay + 1))
+  return total
+}
+
+/**
+ * Depreciation of the plan for the days of [from, to] (calendar days, UTC),
+ * in cents. A month cut by the period counts for its days only: with a
+ * fiscal year closing mid-month (14 March), the month shared by two years is
+ * split between them instead of counted in both. Periods made of whole
+ * months give the sum of those months, as before.
+ */
 export function sumPlanCentsForPeriod(
   plan: DepreciationPlan,
   from: Date,
   to: Date
 ): number {
-  let totalCents = 0
-  const firstYear = from.getUTCFullYear()
-  const lastYear = to.getUTCFullYear()
-  for (let y = firstYear; y <= lastYear; y++) {
-    const monthStart = y === firstYear ? from.getUTCMonth() : 0
-    const monthEnd = y === lastYear ? to.getUTCMonth() : 11
-    for (let m = monthStart; m <= monthEnd; m++) {
-      totalCents += toCents(plan.byMonth.get(monthKey(y, m)) ?? 0) ?? 0
-    }
-  }
-  return totalCents
+  const after = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate() + 1))
+  return Math.max(0, cumulativeCentsBefore(plan, after) - cumulativeCentsBefore(plan, from))
+}
+
+/** The closing month (1 to 12) of fiscal years ending on `endDate`: the years of the declining method. */
+export function closingMonthOf(endDate: Date | null | undefined): number | undefined {
+  return endDate ? new Date(endDate).getUTCMonth() + 1 : undefined
 }
 
 export { monthKey }

@@ -268,7 +268,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `reverse_entry` | Contre-passer une écriture validée (date d'origine ou date choisie dans un exercice ouvert) | `entries:create, validate` | Oui |
 | `update_draft_entry` | Modifier un brouillon (journal, date, libellé, lignes) ; une écriture validée est refusée | `entries:update` | Non |
 | `delete_draft_entry` | Supprimer un brouillon ; une écriture validée est refusée | `entries:delete` | Oui |
-| `reconcile_transaction` | Rapprocher une transaction : écriture en brouillon créée avec la ligne de banque, ou écriture existante, ou pointage sans écriture ; 409 si déjà rapprochée | `banking:reconcile` | Non |
+| `reconcile_transaction` | Rapprocher une transaction : écriture en brouillon créée avec la ligne de banque, ou écriture existante, ou pointage sans écriture ; 409 si déjà rapprochée. Le lien à une écriture existante et le pointage sans écriture sortent la transaction des listes à traiter sans rien à relire : approuvés comme `bulk_reconcile mark_reconciled` (KLEDG-R3-MCP-10) ; le brouillon créé avec des lignes reste immédiat | `banking:reconcile` | Lien ou pointage |
 | `unreconcile_transaction` | Annuler un rapprochement (supprime le brouillon qu'il a créé ; refusé si l'écriture est validée ou l'exercice clôturé) | `banking:reconcile` | Oui |
 | `run_rules` | Exécuter les règles d'affectation sur les transactions à rapprocher | `banking:reconcile` | Oui |
 | `list_rules` | Règles d'affectation, avec conditions et lignes | `banking:read` | Non |

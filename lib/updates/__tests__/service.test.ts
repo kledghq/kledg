@@ -71,7 +71,7 @@ describe('prepareUpdate', () => {
   })
 
   it('[KLEDG-R3-INPUT-06] upgrades a version 1 workflow (expressions inside scripts)', async () => {
-    const v1 = UPDATE_WORKFLOW.replace('# kledg-workflow-version: 2', '')
+    const v1 = UPDATE_WORKFLOW.replace('# kledg-workflow-version: 3', '')
     expect(v1).toContain('# BEGIN kledg-merge')
     const fake = fakeGitHub({
       ...workflowRoutes({ file: v1 }),
@@ -84,6 +84,20 @@ describe('prepareUpdate', () => {
       expect(put?.body).toMatchObject({ sha: 'filesha', message: 'Update the Kledg update workflow' })
       expect(Buffer.from((put?.body as { content: string }).content, 'base64').toString()).toBe(UPDATE_WORKFLOW)
     }
+  })
+
+  it('upgrades a version 2 workflow, which pushed with a personal token (CI/CD audit)', async () => {
+    const v2 = UPDATE_WORKFLOW.replace('# kledg-workflow-version: 3', '# kledg-workflow-version: 2')
+    const fake = fakeGitHub({
+      ...workflowRoutes({ file: v2 }),
+      'PUT /repos/acme/compta/contents/.github/workflows/update-from-kledg.yml': { body: {} },
+    })
+    await prepareUpdate(copy, 'releases')
+    const put = fake.calls.find((c) => c.method === 'PUT')
+    expect(Buffer.from((put?.body as { content: string }).content, 'base64').toString()).toBe(UPDATE_WORKFLOW)
+    // The installed workflow never reads a personal token
+    expect(UPDATE_WORKFLOW).not.toContain('secrets.KLEDG_UPDATE_TOKEN')
+    expect(UPDATE_WORKFLOW).toContain("HAS_WORKFLOW_TOKEN: 'false'")
   })
 
   it('explains the missing Workflows permission', async () => {

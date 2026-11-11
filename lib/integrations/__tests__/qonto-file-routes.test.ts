@@ -48,6 +48,7 @@ import { GET as accountsRoute } from '@/app/api/qonto/accounts/route'
 import { GET as statementRoute } from '@/app/api/qonto/statements/[id]/route'
 import { GET as statementProxyRoute } from '@/app/api/qonto/statements/[id]/proxy/route'
 import { POST as uploadRoute } from '@/app/api/qonto/transactions/[id]/attachments/upload/route'
+import { RECEIPT_FILE_MESSAGES } from '@/lib/receipts/file-type'
 
 const db = asPrismaMock(prisma)
 
@@ -169,6 +170,8 @@ describe('GET /api/qonto/statements/[id]', () => {
     expect(response.status).toBe(200)
     expect(response.json).toEqual(statement())
     expect(qontoCalls.map((c) => c.url.pathname)).toEqual([`/v2/statements/${STATEMENT_ID}`])
+    // Counted in the company's bank API limit
+    expect(limitBankCalls).toHaveBeenCalledWith(COMPANY)
   })
 
   it('refuses an id that could change the Qonto path, before calling Qonto', async () => {
@@ -279,6 +282,9 @@ describe('POST /api/qonto/transactions/[id]/attachments/upload', () => {
     const sent = (init?.body as FormData).get('file') as File
     expect(sent.name).toBe('facture.pdf')
     expect(await sent.text()).toBe('%PDF-1.7 facture')
+    // The type sent to Qonto is the one read from the bytes, and the call counts in the company's bank limit
+    expect(sent.type).toBe('application/pdf')
+    expect(limitBankCalls).toHaveBeenCalledWith(COMPANY)
   })
 
   it('refuses a viewer (403) and a non-member (404) without calling Qonto', async () => {
@@ -296,11 +302,9 @@ describe('POST /api/qonto/transactions/[id]/attachments/upload', () => {
       [upload(pdf()), 'tx-123', 'Identifiant de transaction invalide.'],
       [upload(null), TX_UUID, 'Joignez un fichier (JPEG, PNG ou PDF).'],
       [upload('pas un fichier'), TX_UUID, 'Joignez un fichier (JPEG, PNG ou PDF).'],
-      [
-        upload(new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' })),
-        TX_UUID,
-        'Type de fichier non autorisé. Seuls JPEG, PNG et PDF sont acceptés.',
-      ],
+      [upload(new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' })), TX_UUID, RECEIPT_FILE_MESSAGES.type],
+      // The browser's label is not trusted: an HTML page labelled as a PDF is refused from its bytes
+      [upload(new File(['<html><script>alert(1)</script></html>'], 'facture.pdf', { type: 'application/pdf' })), TX_UUID, RECEIPT_FILE_MESSAGES.type],
     ]
     for (const [request, id, message] of cases) {
       const response = await call(uploadRoute, request, { id })

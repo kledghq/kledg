@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { ValidationError } from '@/lib/accounting/errors'
 import { companyRoute, fromQuery } from '@/lib/api/route'
 import { qontoClientFor } from '@/lib/integrations/providers/qonto/get-credentials'
+import { limitBankCalls } from '@/lib/banking/guard'
 
 /** Qonto ids are UUIDs: never let a path segment reach the Qonto API path. */
 const QONTO_ID = /^[A-Za-z0-9-]{1,100}$/
@@ -20,6 +21,8 @@ export const GET = companyRoute(
     if (!statementId || !QONTO_ID.test(statementId)) {
       throw new ValidationError('Identifiant de relevé invalide.')
     }
+    // Every bank API call counts in the company's limit: a loop here would use up its Qonto quota
+    await limitBankCalls(companyId)
     const statement = await (await qontoClientFor(companyId)).getStatement(statementId)
     return NextResponse.json(statement)
   },

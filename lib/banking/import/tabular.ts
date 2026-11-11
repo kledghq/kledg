@@ -24,6 +24,8 @@ import type {
   TabularOptions,
 } from './types'
 import { plural, pluralWord } from '@/lib/utils/plural'
+import { assertCsvWithinLimits } from '@/lib/api/files'
+import { STATEMENT_MAX_ROWS } from './limits'
 
 export type Cell = string | number | Date | null | undefined
 
@@ -182,6 +184,8 @@ function isComplete(mapping: ColumnMapping): boolean {
 
 /** Splits CSV text with the delimiter that gives the most rows of the same width. */
 export function splitCsv(text: string, forced?: string): { delimiter: string; rows: string[][] } {
+  // Before Papa Parse builds every row in memory: the statement row limit, and a cell budget
+  assertCsvWithinLimits(text, STATEMENT_MAX_ROWS)
   const candidates = forced ? [forced] : [';', '\t', ',', '|']
   const sample = text.slice(0, 64 * 1024)
   let best = candidates[0]

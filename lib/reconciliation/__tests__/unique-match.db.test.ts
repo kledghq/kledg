@@ -222,31 +222,36 @@ describe.skipIf(!available)('unique reconciliation match and the Rapprocher butt
     }
   })
 
-  it('reconciles through the button in validation mode: a direct call, checked by the server, no pending action', async () => {
+  it("reconciles through the button in validation mode: linking an entry is approved in Kledg, the rule's draft is direct", async () => {
     const key = await apiKey('admin', 'validation')
     const item = await list(key)
     const dupont = item('VIR CLIENT DUPONT')
     expect(dupont.match).toMatchObject({ kind: 'entry', entryId: ids.dupont })
     const [reconcile] = dupont.actions
-    expect(reconcile).toMatchObject({ kind: 'tool', label: 'Rapprocher', tool: 'reconcile_transaction', highImpact: false })
+    expect(reconcile).toMatchObject({ kind: 'tool', label: 'Rapprocher', tool: 'reconcile_transaction', highImpact: true })
     expect(dupont.actions.some((a) => a.label === 'Proposer une écriture')).toBe(false)
     expect(item('PRLV ASSURANCE').actions.map((a) => a.label)).toEqual(['Proposer une écriture', 'Pointer sans écriture'])
 
-    const pendingBefore = await prisma.mcpPendingAction.count()
-    const result = JSON.parse((await rpc(key, 'tools/call', { name: reconcile.tool, arguments: reconcile.arguments })).content![0].text)
-    expect(result).toMatchObject({ transactionId: ids['VIR CLIENT DUPONT'], reconciled: true, entryId: ids.dupont })
-    expect(await prisma.mcpPendingAction.count()).toBe(pendingBefore)
+    // Linking the entry waits for the user's approval in Kledg, then runs once
+    const dry = JSON.parse((await rpc(key, 'tools/call', { name: reconcile.tool, arguments: reconcile.arguments })).content![0].text)
+    expect(dry).toMatchObject({ dryRun: true })
+    expect(await prisma.bankTransaction.findUniqueOrThrow({ where: { id: ids['VIR CLIENT DUPONT'] } })).toMatchObject({ reconciled: false })
+    const { decideAction } = await import('@/lib/mcp/full-control/pending-actions')
+    await decideAction(OWNER.id, dry.actionId, 'approve')
+    const result = JSON.parse((await rpc(key, 'tools/call', { name: reconcile.tool, arguments: { ...reconcile.arguments, actionId: dry.actionId } })).content![0].text)
+    expect(result).toMatchObject({ executed: true, result: { transactionId: ids['VIR CLIENT DUPONT'], reconciled: true, entryId: ids.dupont } })
     expect(await prisma.bankTransaction.findUniqueOrThrow({ where: { id: ids['VIR CLIENT DUPONT'] } })).toMatchObject({ reconciled: true, reconciledWith: ids.dupont })
 
     // The rule's button creates the draft entry with the rule's lines
     const [byRule] = item('PRLV FOURNITURES MARTIN').actions
-    const created = JSON.parse((await rpc(key, 'tools/call', { name: byRule.tool, arguments: byRule.arguments })).content![0].text)
+    expect(byRule.highImpact).toBe(false)
+    const created = JSON.parse((await rpc(key, 'tools/call', { name: byRule.tool, arguments: byRule.arguments })).content![0].text).result
     expect(created).toMatchObject({ reconciled: true, entryStatus: 'draft' })
     const lines = await prisma.entryLine.findMany({ where: { accountingEntryId: created.entryId }, select: { debit: true, credit: true, account: { select: { code: true } } } })
     expect(lines.map((l) => [l.account.code, Number(l.debit), Number(l.credit)]).sort()).toEqual([['512000', 0, 120], ['606100', 120, 0]])
 
-    // A second click on a stale view is refused by the server
-    const again = await rpc(key, 'tools/call', { name: reconcile.tool, arguments: reconcile.arguments })
+    // A second click on a stale view is refused by the server: replaying the approved action fails
+    const again = await rpc(key, 'tools/call', { name: reconcile.tool, arguments: { ...reconcile.arguments, actionId: dry.actionId } })
     expect(again.isError).toBe(true)
 
     // Fresh list: reconciled transactions are gone, their matches too

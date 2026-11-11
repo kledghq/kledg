@@ -707,13 +707,14 @@ describe.skipIf(!available)('full control MCP tools', () => {
       const lines = [{ accountCode: '606100', debit: 50 }]
       const done = await reconcile({ lines })
       expect(done.ok, done.text).toBe(true)
-      expect(done.data).toMatchObject({ reconciled: true, entryStatus: 'draft' })
+      // A draft entry is reviewed before it counts: not high impact, answered like an executed action
+      expect(done.data).toMatchObject({ executed: true, result: { reconciled: true, entryStatus: 'draft' } })
       expect((await reconcile({ lines })).text).toContain('déjà rapprochée')
       expect(await prisma.accountingEntry.count({ where: { sourceBankTransactionId: transaction.id } })).toBe(1)
 
       const { preview, result } = await confirmed(key, 'unreconcile_transaction', { companyId: ids.aCompany, transactionId: transaction.id })
-      expect(preview).toMatchObject({ effect: 'delete_draft_entry', entry: { id: done.data.entryId, status: 'draft' }, warnings: [] })
-      expect(result).toMatchObject({ deletedEntryId: done.data.entryId })
+      expect(preview).toMatchObject({ effect: 'delete_draft_entry', entry: { id: done.data.result.entryId, status: 'draft' }, warnings: [] })
+      expect(result).toMatchObject({ deletedEntryId: done.data.result.entryId })
       expect(await prisma.accountingEntry.count({ where: { id: done.data.entryId } })).toBe(0)
     })
   })
