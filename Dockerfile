@@ -18,9 +18,11 @@ ENV NEXT_TELEMETRY_DISABLED=1 KLEDG_BUILD_DATE=${KLEDG_BUILD_DATE}
 RUN pnpm prisma generate && pnpm next build
 
 # Migration tooling only (the standalone server does not ship the Prisma CLI).
+# Pinned by a committed lockfile (docker/migrator), with integrity hashes.
 FROM base AS migrator
 WORKDIR /migrator
-RUN npm init -y >/dev/null && npm install --no-audit --no-fund prisma@7.7.0 dotenv@17.4.2
+COPY docker/migrator/package.json docker/migrator/package-lock.json ./
+RUN npm ci --no-audit --no-fund --omit=dev
 
 FROM node:22-alpine AS runner
 WORKDIR /app

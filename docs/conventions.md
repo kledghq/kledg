@@ -352,7 +352,7 @@ it must hold for every code path, by the database (trigger in a migration).
   | Sign-in, password reset, account creation, OAuth registration and tokens | `authRateLimit` (`lib/auth-policy.ts`) | client IP |
   | API keys (MCP), 300 calls per minute | `mcp-api-key` (`lib/mcp/api-key.ts`: Better Auth verifies a key on first use and once a minute, so its row is not written on every call) | key |
   | First-run setup | `setup` | client IP |
-  | Crons called without `CRON_SECRET` (bank sync, period closing) | `cron-keyless`, `cron-keyless-period-lock` | instance |
+  | Bank sync cron called without `CRON_SECRET` (the period-closing cron does not run without it) | `cron-keyless` | instance |
   | Welcome email of a member added to a company | `welcome-email` (3 a day) | person added |
   | Invitations sent or sent again by a company administrator | `member-invitation` (20 an hour) | user |
   | Invitation emails received | `invitation-email` (5 a day) | address invited |

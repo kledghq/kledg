@@ -167,7 +167,10 @@ function BankSyncRow({ status }: { status: InstanceStatus }) {
           : 'Planifiez chaque jour un appel à /api/cron/sync-banks (cron du serveur, GitHub Actions…).'}
       </p>
       {status.cronSecretSet ? (
-        <p>CRON_SECRET est défini&nbsp;: seul l&apos;appel qui le présente lance la synchronisation.</p>
+        <p>
+          CRON_SECRET est défini&nbsp;: seul l&apos;appel qui le présente lance la synchronisation et la clôture automatique des
+          périodes.
+        </p>
       ) : (
         <>
           <p>
@@ -175,6 +178,10 @@ function BankSyncRow({ status }: { status: InstanceStatus }) {
             synchronisés depuis 20 heures, quatre fois par jour au plus, et ne renvoie qu&apos;un nombre. Pour la réserver à
             votre planificateur, définissez CRON_SECRET dans {variablesPlace(status.platform)}, puis redéployez
             {status.platform === 'vercel' ? '. Vercel le transmet tout seul.' : '. Votre planificateur l’envoie en en-tête Authorization: Bearer.'}
+          </p>
+          <p>
+            La clôture automatique mensuelle des périodes (/api/cron/period-locks) ne s&apos;exécute pas sans CRON_SECRET&nbsp;: les
+            sociétés qui l&apos;ont choisie gardent leurs périodes ouvertes tant qu&apos;il n&apos;est pas défini.
           </p>
           <SecretGenerator name="CRON_SECRET" />
         </>

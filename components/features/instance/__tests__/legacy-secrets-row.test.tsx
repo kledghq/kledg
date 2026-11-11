@@ -1,6 +1,6 @@
 /**
  * Configuration page: the administrator sees the secrets still sealed in the
- * legacy encryption format (unreadable by Kledg 0.4) and how to seal them
+ * legacy encryption format (refused outside the re-encryption pass) and how to seal them
  * again; nothing once every value is current.
  */
 
@@ -21,7 +21,7 @@ describe('LegacySecretsRow', () => {
   it('warns with the count, the kinds and what to do', () => {
     render(<ul><LegacySecretsRow counts={{ total: 3, bankConnections: 1, integrationFields: 1, updateTokens: 1 }} docHref="#doc" /></ul>)
     expect(screen.getByText('À chiffrer de nouveau')).toBeInTheDocument()
-    expect(screen.getByText(/3 valeurs chiffrées restent dans l.ancien format \(accès bancaires et jeton GitHub\), que Kledg 0\.4/)).toBeInTheDocument()
+    expect(screen.getByText(/3 valeurs chiffrées restent dans l.ancien format \(accès bancaires et jeton GitHub\), que Kledg\s+ne lit plus/)).toBeInTheDocument()
     expect(screen.getByText('pnpm secrets:reencrypt')).toBeInTheDocument()
     expect(screen.getByText(/ou GitHub dans Mises à jour/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Ancien format de chiffrement/ })).toHaveAttribute('href', '#doc')

@@ -1,13 +1,16 @@
 /**
- * Re-encryption after a rotation of the auth secret (lib/crypto/encryption-key.ts),
- * and upgrade of values sealed in the legacy format (no context bound,
+ * Re-encryption after a rotation of the auth secret or of ENCRYPTION_KEY
+ * (lib/crypto/encryption-key.ts), and upgrade of values sealed in the legacy format (no context bound,
  * lib/integrations/encryption.ts) to the v2 format bound to their row.
  *
  * Every value sealed at rest is tried with the current key; one that only an
  * older key opens is sealed again with the current key. Run at server start
  * (instrumentation.ts) while older secrets are still configured, so the
  * operator rotates by setting BETTER_AUTH_SECRETS="2:<new>,1:<old>",
- * redeploying, then dropping the old secret. Idempotent, and serialized by a
+ * redeploying, then dropping the old secret (ENCRYPTION_KEY: the former key in
+ * ENCRYPTION_KEYS_PREVIOUS). The only reader of the legacy format
+ * (decryptForReencryption): the server start awaits this pass before it
+ * serves any request. Idempotent, and serialized by a
  * PostgreSQL advisory lock: concurrent server starts skip it.
  *
  * Sealed values: BankConnection.secretKeyEncrypted (former Qonto
@@ -16,7 +19,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { bankConnectionContext, decrypt, encrypt, integrationContext, isLegacySealed, UPDATE_TOKEN_CONTEXT } from '@/lib/integrations/encryption'
+import { bankConnectionContext, decryptForReencryption, encrypt, integrationContext, isLegacySealed, UPDATE_TOKEN_CONTEXT } from '@/lib/integrations/encryption'
 import { SECRET_FIELDS } from '@/lib/banking/credentials'
 import { withSystemContext } from '@/lib/rls/context'
 import { logger } from '@/lib/logger'
@@ -51,7 +54,7 @@ export function reseal(sealed: string, current: string, previous: readonly strin
 
 function tryDecrypt(sealed: string, key: string, context: string): string | null {
   try {
-    return decrypt(sealed, key, context)
+    return decryptForReencryption(sealed, key, context)
   } catch {
     return null
   }
@@ -132,8 +135,8 @@ export async function reencryptStoredSecrets(): Promise<ReencryptResult | null> 
 }
 
 /**
- * Values still sealed in the legacy format (no context bound, readable only
- * until Kledg 0.4, docs/configuration.md#ancien-format-de-chiffrement), by
+ * Values still sealed in the legacy format (no context bound, refused by
+ * decrypt since Kledg 0.4, docs/configuration.md#ancien-format-de-chiffrement), by
  * kind. The start-up pass above seals every value it can open again in v2:
  * what remains is a value no configured key opens (the integration must be
  * reconnected), or a pass that did not run (no instance key, another server
@@ -173,7 +176,7 @@ export async function warnAboutLegacySecrets(): Promise<LegacySecretsReport> {
   if (report.total > 0) {
     logger.warn(
       `Secrets in the legacy encryption format: ${report.total} (bank connections ${report.bankConnections}, integration fields ${report.integrationFields}, update tokens ${report.updateTokens}). ` +
-        'Kledg 0.4 no longer reads them: run `pnpm secrets:reencrypt` (or restart the server) and reconnect the integrations it reports unreadable. See docs/configuration.md.',
+        'Kledg no longer reads them outside the re-encryption pass: the bank syncs and GitHub calls that use them fail until you run `pnpm secrets:reencrypt` (or restart the server) and reconnect the integrations it reports unreadable. See docs/configuration.md.',
     )
   }
   return report

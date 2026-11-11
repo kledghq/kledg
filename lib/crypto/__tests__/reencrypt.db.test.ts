@@ -150,4 +150,24 @@ describe.skipIf(!available)('reencryptStoredSecrets', () => {
 
     expect(await reencryptStoredSecrets()).toEqual({ resealed: 0, unreadable: 0 })
   })
+
+  it('rotates ENCRYPTION_KEY: values sealed with a key of ENCRYPTION_KEYS_PREVIOUS are sealed again with the new one', async () => {
+    const previous = 'c'.repeat(64)
+    const next = 'd'.repeat(64)
+    await prisma.bankConnection.updateMany({ data: { secretKeyEncrypted: encrypt('legacy-qonto', previous, qontoCtx()) } })
+    await prisma.updateConnection.updateMany({ data: { tokenEncrypted: encrypt('github-token', previous, UPDATE_TOKEN_CONTEXT) } })
+    process.env.ENCRYPTION_KEY = next
+    process.env.ENCRYPTION_KEYS_PREVIOUS = `${previous},${oldKey}`
+    try {
+      expect(await reencryptStoredSecrets()).toEqual({ resealed: 4, unreadable: 0 })
+      expect(decrypt((await prisma.bankConnection.findFirstOrThrow()).secretKeyEncrypted, next, qontoCtx())).toBe('legacy-qonto')
+      expect(decrypt((await prisma.updateConnection.findFirstOrThrow()).tokenEncrypted, next, UPDATE_TOKEN_CONTEXT)).toBe('github-token')
+      const credentials = (await prisma.integration.findFirstOrThrow()).credentials as Record<string, string>
+      expect(decrypt(credentials.privateKey, next, revolutCtx('privateKey'))).toBe('private-key')
+      expect(await reencryptStoredSecrets()).toEqual({ resealed: 0, unreadable: 0 })
+    } finally {
+      delete process.env.ENCRYPTION_KEY
+      delete process.env.ENCRYPTION_KEYS_PREVIOUS
+    }
+  })
 })

@@ -24,8 +24,6 @@ export const RATE_LIMITS = {
   setup: { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Bank sync cron called without CRON_SECRET (lib/banking/sync-banks.service.ts), instance-wide. */
   'cron-keyless': { window: 86_400, max: 4, message: 'Synchronisation déjà lancée récemment.' },
-  /** Period-lock cron called without CRON_SECRET (lib/accounting/period-lock/auto-lock.service.ts), instance-wide. */
-  'cron-keyless-period-lock': { window: 86_400, max: 2, message: 'Clôture automatique des périodes déjà lancée récemment.' },
   /** Welcome email of a member added to a company (lib/rbac/add-member-to-company.service.ts), per person. */
   'welcome-email': { window: 86_400, max: 3, message: "Trop d'emails de bienvenue envoyés à cette personne aujourd'hui." },
   /** Invitations sent or sent again by a company administrator (lib/rbac/company-invitations.service.ts), per user. */

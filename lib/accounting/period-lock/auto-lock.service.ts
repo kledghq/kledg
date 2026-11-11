@@ -8,7 +8,7 @@
  *   periods up to the end of its period (record-vat-filing.service.ts),
  *   or up to the day before a tax draft Kledg prepared in it (the
  *   settlement of that return, to validate once filed; booking-day.ts);
- * - monthly: the daily cron (app/api/cron/period-locks) closes each month
+ * - monthly: the daily cron (app/api/cron/period-locks, CRON_SECRET required) closes each month
  *   periodAutoLockDelayDays days after its end.
  *
  * Every lock goes through lockPeriod (same checks: forward only, before the
@@ -23,7 +23,7 @@ import { handleError } from '@/lib/accounting/errors'
 import { dayToDate, parisDayOf } from '@/lib/accounting/entry-date'
 import { writeAuditLog } from '@/lib/audit'
 import { parseDeadlineSettings } from '@/lib/deadlines/settings'
-import { withinRateLimit } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 import { withSystemContext } from '@/lib/rls/context'
 import { addIsoDays, calendarDayOf } from '@/lib/utils/date'
 import { isKledgTaxDraftReference, KLEDG_TAX_DRAFT_PREFIXES } from './booking-day'
@@ -156,23 +156,29 @@ export async function runMonthlyPeriodLocks(now = new Date()): Promise<{ compani
 }
 
 
+/** Whether the missing CRON_SECRET was already logged by this server. */
+let keylessWarned = false
+
 /**
- * GET handler of app/api/cron/period-locks. With CRON_SECRET, only a
- * request with the bearer token runs; without it the route still works (a
- * fresh deployment needs no secret to paste) since it can only do what the
- * schedule would do anyway, at most twice a day for the whole instance
- * (rule cron-keyless-period-lock, as the keyless bank sync). The answer
- * holds counts only.
+ * GET handler of app/api/cron/period-locks. Closing a period cannot be
+ * undone without an administrator, so it runs only for a request with the
+ * CRON_SECRET bearer token (Vercel Cron sends it when the variable is set).
+ * Without CRON_SECRET the automatic closing does not run at all, unlike the
+ * keyless bank sync: the answer says so and a warning is logged once per
+ * server (docs/configuration.md). The answer holds counts only.
  */
 export async function handlePeriodLockCron(request: Request): Promise<Response> {
-  const keyless = !process.env.CRON_SECRET
-  if (!keyless && !isCronRequest(request)) {
+  if (!process.env.CRON_SECRET) {
+    if (!keylessWarned) {
+      keylessWarned = true
+      logger.warn('Automatic period closing skipped: CRON_SECRET is not set. Set it to let the scheduled call close periods (docs/configuration.md).')
+    }
+    return NextResponse.json({ success: false, skipped: 'cron-secret-missing' })
+  }
+  if (!isCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {
-    if (keyless && !(await withinRateLimit('cron-keyless-period-lock', 'instance'))) {
-      return NextResponse.json({ success: true, skipped: 'rate-limited' })
-    }
     return NextResponse.json({ success: true, ...(await runMonthlyPeriodLocks()) })
   } catch (error) {
     const { message, statusCode } = handleError(error)

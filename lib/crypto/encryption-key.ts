@@ -15,6 +15,10 @@ type Env = Record<string, string | undefined>
  * older secrets are only used to re-encrypt what they sealed with the current
  * key (lib/crypto/reencrypt.ts, run at server start), so a leaked secret can
  * be replaced without reconnecting the banks.
+ *
+ * ENCRYPTION_KEY rotates the same way: ENCRYPTION_KEYS_PREVIOUS lists the
+ * former keys (comma-separated, 64 hex chars each), used only by that
+ * re-encryption pass (docs/configuration.md#changer-la-clé-de-chiffrement).
  */
 export function getEncryptionKey(env: Env = process.env): string | undefined {
   if (env.ENCRYPTION_KEY) return env.ENCRYPTION_KEY
@@ -27,12 +31,20 @@ export function currentAuthSecret(env: Env = process.env): string | undefined {
   return authSecrets(env)[0]
 }
 
-/** Keys derived from the auth secrets that are no longer current, for re-encryption only. */
+/**
+ * Keys that are no longer current, for re-encryption only: those derived
+ * from the older auth secrets (from every auth secret once ENCRYPTION_KEY is
+ * set, so an instance that moves to ENCRYPTION_KEY keeps its credentials),
+ * then the ENCRYPTION_KEYS_PREVIOUS entries. Malformed entries are skipped.
+ */
 export function previousEncryptionKeys(env: Env = process.env): string[] {
-  if (env.ENCRYPTION_KEY) return []
-  const current = getEncryptionKey(env)
-  const keys = authSecrets(env).slice(1).map(deriveKey)
-  return [...new Set(keys)].filter((key) => key !== current)
+  const current = getEncryptionKey(env)?.toLowerCase()
+  const derived = authSecrets(env).slice(env.ENCRYPTION_KEY ? 0 : 1).map(deriveKey)
+  const listed = (env.ENCRYPTION_KEYS_PREVIOUS ?? '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => /^[0-9a-f]{64}$/.test(entry))
+  return [...new Set([...derived, ...listed])].filter((key) => key !== current)
 }
 
 function deriveKey(secret: string): string {

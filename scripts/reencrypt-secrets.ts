@@ -4,13 +4,14 @@
  * current key, every secret stored in the legacy format or with an older
  * auth secret, then reports what remains in the legacy format. The same pass
  * runs at every server start (lib/crypto/reencrypt.ts); this script runs it
- * on demand, before upgrading to Kledg 0.4, which no longer reads the legacy
- * format (docs/configuration.md#ancien-format-de-chiffrement).
+ * on demand: Kledg 0.4 and later read the legacy format only in this pass
+ * (docs/configuration.md#ancien-format-de-chiffrement).
  *
  *   pnpm secrets:reencrypt
  *
  * Uses the instance's own environment (DATABASE_URL, BETTER_AUTH_SECRET or
- * ENCRYPTION_KEY, and BETTER_AUTH_SECRETS during a rotation). Idempotent.
+ * ENCRYPTION_KEY, and BETTER_AUTH_SECRETS or ENCRYPTION_KEYS_PREVIOUS during a
+ * rotation). Idempotent.
  * Exit code 1 when legacy values remain (each one is a value no configured
  * key opens: reconnect that bank integration, or the GitHub connection of
  * the updates page).
