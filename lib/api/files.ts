@@ -33,6 +33,35 @@ const MAX_XLSX_ENTRIES = 10_000
  */
 export const MAX_XLSX_CELLS = 1_000_000
 
+/**
+ * Most cells a CSV may hold before it is parsed. Papa Parse builds every row
+ * in memory at once (about 160 bytes per one-cell row): ten million short
+ * lines took 1.6 GB of heap, enough to stop the server for every company.
+ */
+export const MAX_CSV_CELLS = 2_000_000
+
+/**
+ * Refuses, before any parsing, a CSV with more than `maxRows` lines or more
+ * than MAX_CSV_CELLS cells, counted on the text (line breaks, and the
+ * separators ; , tab and |): cheap and bounded whatever the file holds. A
+ * separator inside quotes counts as a cell, so the count only errs high.
+ */
+export function assertCsvWithinLimits(text: string, maxRows: number): void {
+  let rows = 1
+  let separators = 0
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i)
+    if (c === 10) rows++
+    else if (c === 59 || c === 44 || c === 9 || c === 124) separators++
+  }
+  if (rows > maxRows + 1) {
+    throw new ValidationError(`Fichier trop long\u00a0: ${maxRows.toLocaleString('fr-FR')} lignes au plus. Découpez-le en plusieurs fichiers.`)
+  }
+  if (rows + separators > MAX_CSV_CELLS) {
+    throw new ValidationError(`Fichier trop volumineux\u00a0: ${MAX_CSV_CELLS.toLocaleString('fr-FR')} cellules au plus. Découpez-le en plusieurs fichiers.`)
+  }
+}
+
 /** Most XML elements an .xlsx may hold (cells, values, shared strings, styles...): ExcelJS builds an object for each. */
 export const MAX_XLSX_ELEMENTS = 3_000_000
 
