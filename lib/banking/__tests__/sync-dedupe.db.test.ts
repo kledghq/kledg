@@ -227,7 +227,11 @@ describe.skipIf(!available)('bank sync: cross-source duplicates and retries', ()
   it('reports incomplete or unreadable stored credentials in French, without calling the bank', async () => {
     const incomplete = await syncIntegration(ids.qonto, 'a'.repeat(64), undefined, { now: NOW })
     expect(incomplete.errors).toEqual(["Les identifiants Qonto sont incomplets : saisissez l'identifiant et la clé secrète."])
+    // Still in the legacy encryption format (no `v2:` prefix): the error names the re-encryption command
     await prisma.integration.update({ where: { id: ids.qonto }, data: { credentials: { login: 'org', secretKey: 'not-sealed' }, credentialsEncrypted: true } })
+    const legacy = await syncIntegration(ids.qonto, 'a'.repeat(64), undefined, { now: NOW })
+    expect(legacy.errors).toEqual([expect.stringContaining('pnpm secrets:reencrypt')])
+    await prisma.integration.update({ where: { id: ids.qonto }, data: { credentials: { login: 'org', secretKey: 'v2:not-sealed' }, credentialsEncrypted: true } })
     const unreadable = await syncIntegration(ids.qonto, 'a'.repeat(64), undefined, { now: NOW })
     expect(unreadable.errors).toEqual(['Les identifiants enregistrés de cette banque ne peuvent plus être lus : reconnectez-la depuis la page Banque.'])
   })
