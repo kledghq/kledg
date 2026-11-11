@@ -374,19 +374,16 @@ describe('MCP actionable list', () => {
     expect(view.requests('tools/call')).toHaveLength(0)
   })
 
-  it('asks a confirmation click before a direct tool', async () => {
+  it('sends Pointer sans écriture through the approval in Kledg, like the other high-impact actions', async () => {
     const transactions = viewSamples().find((s) => s.tool === 'list_bank_transactions')!.data
     const view = mount('actions')
     await view.open(transactions)
     const pointer = view.document.querySelectorAll<HTMLButtonElement>('button[data-label="Pointer sans écriture"]')[0]
     pointer.click()
     await view.flush()
-    expect(view.requests('tools/call')).toHaveLength(0)
-    view.tick(1000)
-    pointer.click()
-    await view.flush()
     const [call] = view.requests('tools/call')
-    expect(call.params).toEqual({ name: 'reconcile_transaction', arguments: { companyId: 'cmp_atelier', transactionId: 't_1', withoutEntry: true } })
+    expect(call.params?.name).toBe('reconcile_transaction')
+    expect(call.params?.arguments).toMatchObject({ companyId: 'cmp_atelier', transactionId: 't_1', withoutEntry: true })
   })
 })
 
@@ -401,7 +398,7 @@ describe('MCP "Rapprocher" button', () => {
       expect(VIEW_SCHEMAS.actions.safeParse(data).success).toBe(true)
       // Entry match: the existing entry, a direct write after a confirmation click, never Proposer
       expect(actionsOf(data, 't_2')).toEqual([
-        expect.objectContaining({ kind: 'tool', label: 'Rapprocher', tool: 'reconcile_transaction', arguments: { companyId, transactionId: 't_2', entryId: 'e_412' }, highImpact: false, primary: true, confirm: expect.stringContaining('BQ-0412') }),
+        expect.objectContaining({ kind: 'tool', label: 'Rapprocher', tool: 'reconcile_transaction', arguments: { companyId, transactionId: 't_2', entryId: 'e_412' }, highImpact: true, primary: true, confirm: expect.stringContaining('BQ-0412') }),
       ])
       expect(data.items.find((i) => i.id === 't_2')!.match).toEqual({ kind: 'entry', entryId: 'e_412', lineId: 'l_412_1', ruleId: null, label: expect.stringContaining('BQ-0412'), amount: 12480, date: '2025-11-27' })
       // Rule match: the rule's lines, the draft entry is created by reconcile_transaction
@@ -426,29 +423,28 @@ describe('MCP "Rapprocher" button', () => {
     expect(actionsOf(data, 't_2')).toEqual([])
   })
 
-  for (const executionMode of ['validation', 'automatic'] as const) {
-    it(`reconciles with the matched entry on the second click, without dry run (${executionMode} mode)`, async () => {
-      const view = mount('actions')
-      await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
-      expect(view.text()).toContain('Correspondance\u00a0: Écriture n° BQ-0412 du 27/11/2025')
-      const reconcile = view.document.querySelectorAll<HTMLButtonElement>('button[data-label="Rapprocher"]')
-      expect(reconcile).toHaveLength(2)
-      expect(reconcile[0].className).toContain('k-btn-primary')
-      reconcile[0].click()
-      await view.flush()
-      expect(view.requests('tools/call')).toHaveLength(0)
-      expect(view.text()).toContain('Rapprocher cette transaction avec l’écriture existante')
-      view.tick(1000)
-      reconcile[0].click()
-      await view.flush()
-      const [call] = view.requests('tools/call')
-      expect(call.params).toEqual({ name: 'reconcile_transaction', arguments: { companyId, transactionId: 't_2', entryId: 'e_412' } })
-      await view.reply(call, { content: [{ type: 'text', text: JSON.stringify({ transactionId: 't_2', reconciled: true, entryId: 'e_412' }) }] })
-      expect(view.text()).toContain('Rapprocher\u00a0: fait.')
-      expect(reconcile[0].disabled).toBe(true)
-      expect(view.errors).toEqual([])
+  it('links the matched entry through the dry run, the approval in Kledg, then the call with the actionId (validation mode)', async () => {
+    const view = mount('actions')
+    await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode: 'validation' }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
+    expect(view.text()).toContain('Correspondance\u00a0: Écriture n° BQ-0412 du 27/11/2025')
+    const reconcile = view.document.querySelectorAll<HTMLButtonElement>('button[data-label="Rapprocher"]')
+    expect(reconcile).toHaveLength(2)
+    expect(reconcile[0].className).toContain('k-btn-primary')
+    reconcile[0].click()
+    await view.flush()
+    const [dry] = view.requests('tools/call')
+    expect(dry.params).toEqual({ name: 'reconcile_transaction', arguments: { companyId, transactionId: 't_2', entryId: 'e_412' } })
+    await view.reply(dry, {
+      content: [{ type: 'text', text: JSON.stringify({ dryRun: true, preview: { effect: "Transaction rapprochée avec l'écriture existante indiquée." }, actionId: 'act_2', approvalUrl: 'http://localhost:3000/approbations/act_2', nextStep: '...' }) }],
     })
-  }
+    button(view.document, 'Exécuter après approbation').click()
+    await view.flush()
+    const done = view.requests('tools/call')[1]
+    expect(done.params).toEqual({ name: 'reconcile_transaction', arguments: { companyId, transactionId: 't_2', entryId: 'e_412', actionId: 'act_2' } })
+    await view.reply(done, { content: [{ type: 'text', text: JSON.stringify({ executed: true, result: { transactionId: 't_2', reconciled: true, entryId: 'e_412' } }) }] })
+    expect(view.text()).toContain('Rapprocher\u00a0: fait.')
+    expect(view.errors).toEqual([])
+  })
 
   it('creates the rule entry through reconcile_transaction and shows a refusal of the server', async () => {
     const view = mount('actions')
@@ -479,7 +475,8 @@ describe('confirmation click of a direct write', () => {
   it('ignores the second click of a double click, then acts on a later click', async () => {
     const view = mount('actions')
     await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode: 'automatic' }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
-    const reconcile = view.document.querySelector<HTMLButtonElement>('button[data-label="Rapprocher"]')!
+    // The rule's Rapprocher creates a draft: a direct write with its confirmation click
+    const reconcile = view.document.querySelectorAll<HTMLButtonElement>('button[data-label="Rapprocher"]')[1]
     reconcile.click()
     view.tick(50)
     reconcile.click()
@@ -499,7 +496,8 @@ describe('confirmation click of a direct write', () => {
   it('asks again when the confirmation comes too late', async () => {
     const view = mount('actions')
     await view.open(bankTransactionsList(companyId, { canAdmin: true, executionMode: 'automatic' }, args, SAMPLE_TRANSACTIONS, SAMPLE_MATCHES))
-    const reconcile = view.document.querySelector<HTMLButtonElement>('button[data-label="Rapprocher"]')!
+    // The rule's Rapprocher creates a draft: a direct write with its confirmation click
+    const reconcile = view.document.querySelectorAll<HTMLButtonElement>('button[data-label="Rapprocher"]')[1]
     reconcile.click()
     view.tick(60_000)
     reconcile.click()
