@@ -4,10 +4,10 @@ import { useCallback, useId, useMemo, useState } from 'react'
 import {
   type ColumnDef,
   flexRender,
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type RowSelectionState,
 } from '@tanstack/react-table'
+import { selectableRowsFeatures } from '@/components/features/data-table/table-features'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Copy, Eye, MoreHorizontal, Pencil, Trash2, Undo2 } from 'lucide-react'
@@ -220,7 +220,7 @@ export function EntriesList({
     }
   }
 
-  const columns = useMemo<ColumnDef<EntryListItem>[]>(
+  const columns = useMemo<ColumnDef<typeof selectableRowsFeatures, EntryListItem>[]>(
     () => [
       {
         id: 'select',
@@ -401,11 +401,11 @@ export function EntriesList({
     [companyId, busyId, handleDuplicate, handleValidate, selectAllId],
   )
 
-  const table = useReactTable({
+  const table = useTable({
+    features: selectableRowsFeatures,
     data: entries,
     columns,
     getRowId: (entry) => entry.id,
-    getCoreRowModel: getCoreRowModel(),
     onRowSelectionChange: setRowSelection,
     state: { rowSelection },
   })

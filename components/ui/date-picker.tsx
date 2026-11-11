@@ -61,7 +61,7 @@ export function DatePicker({
             onDateChange(selectedDate)
             setOpen(false)
           }}
-          initialFocus
+          autoFocus
           locale={fr}
         />
       </PopoverContent>
@@ -117,7 +117,7 @@ export function DatePickerWithRange({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
-          initialFocus
+          autoFocus
           mode="range"
           defaultMonth={date?.from}
           selected={date}
