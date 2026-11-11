@@ -266,6 +266,43 @@ describe.skipIf(!available)('deadline routes', () => {
     expect(context.company.turnoverCentsByYear).toEqual({ 2026: 110_600_050 })
   })
 
+  it('flags an approved year whose equity is below half the capital, and dates the decision and the restoration (C. com. L225-248)', async () => {
+    const { loadDeadlineContext } = await import('../load-deadlines.service')
+    const { computeDeadlines } = await import('../engine')
+    await prisma.company.update({ where: { id: ids.company }, data: { shareCapital: 10_000 } })
+    const journal = await prisma.journal.create({ data: { companyId: ids.company, code: 'OD', label: 'Opérations diverses' } })
+    const account = (code: string, label: string) => prisma.account.create({ data: { companyId: ids.company, fiscalYearId: ids.fy2025, code, label } })
+    const [capital, bank, rent] = await Promise.all([account('101300', 'Capital souscrit appelé versé'), account('512000', 'Banque'), account('613200', 'Locations immobilières')])
+    // Capital of 10 000 €, a loss of 8 000 €: equity of 2 000 €, below half the capital (5 000 €)
+    for (const [n, debit, credit, amount] of [['1', bank.id, capital.id, 10_000], ['2', rent.id, bank.id, 8_000]] as const) {
+      const entry = await prisma.accountingEntry.create({
+        data: {
+          companyId: ids.company, journalId: journal.id, fiscalYearId: ids.fy2025, entryNumber: `BR-EQ-${n}`, date: day('2025-06-30'),
+          lines: { create: [{ accountId: debit, accountFiscalYearId: ids.fy2025, debit: amount }, { accountId: credit, accountFiscalYearId: ids.fy2025, credit: amount }] },
+        },
+      })
+      await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status: 'validated', entryNumber: `EQ-${n}` } })
+    }
+    await prisma.accountsApproval.create({ data: { companyId: ids.company, fiscalYearId: ids.fy2025, details: {}, approvedOn: day('2026-06-20') } })
+    const context = await loadDeadlineContext(ids.company)
+    expect(context.approvals[ids.fy2025]).toMatchObject({ approvedOn: '2026-06-20', equityBelowHalfCapital: true })
+    expect(context.approvals[ids.fy2026]).toBeUndefined()
+    const deadlines = computeDeadlines({ ...context, from: '2026-01-01', to: '2028-12-31' })
+    expect(deadlines.find((d) => d.id === 'capitaux-propres-decision:2025-12-31')?.legalDate).toBe('2026-10-20')
+    expect(deadlines.find((d) => d.id === 'capitaux-propres-reconstitution:2025-12-31')?.legalDate).toBe('2028-12-31')
+
+    // Restored above half the capital by a contribution booked in the same year: no alert
+    const reserve = await account('106800', 'Autres réserves')
+    const entry = await prisma.accountingEntry.create({
+      data: {
+        companyId: ids.company, journalId: journal.id, fiscalYearId: ids.fy2025, entryNumber: 'BR-EQ-3', date: day('2025-07-31'),
+        lines: { create: [{ accountId: bank.id, accountFiscalYearId: ids.fy2025, debit: 3_000 }, { accountId: reserve.id, accountFiscalYearId: ids.fy2025, credit: 3_000 }] },
+      },
+    })
+    await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status: 'validated', entryNumber: 'EQ-3' } })
+    expect((await loadDeadlineContext(ids.company)).approvals[ids.fy2025].equityBelowHalfCapital).toBe(false)
+  })
+
   it('answers 404 to a member of another company and 401 to an anonymous request', async () => {
     expect((await call('outsider', deadlinesRoute.GET, 'GET', `/api/deadlines?companyId=${ids.company}`)).status).toBe(404)
     expect((await call('outsider', settingsRoute.PUT, 'PUT', `/api/companies/${ids.company}/deadline-settings`, { id: ids.company }, SETTINGS)).status).toBe(404)

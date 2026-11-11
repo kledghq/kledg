@@ -17,7 +17,7 @@
  */
 
 import { addMonthsEom } from '@/lib/deadlines/engine'
-import type { ApprovalForm } from './legal-regime'
+import { APPROVAL_FORMS, type ApprovalForm } from './legal-regime'
 import { SOURCES, type LegalSource } from './sources'
 
 export interface EquityInput {
@@ -48,6 +48,23 @@ const FORM_SOURCES: Partial<Record<ApprovalForm, LegalSource[]>> = {
   SA: [SOURCES.L225_248],
   SAS: [SOURCES.L225_248, SOURCES.L227_1],
   SASU: [SOURCES.L225_248, SOURCES.L227_1],
+}
+
+/** The approval form of a company's legal type, when it is one Kledg knows. */
+export function approvalFormOf(legalType: string | null): ApprovalForm | null {
+  return (APPROVAL_FORMS as readonly string[]).includes(legalType ?? '') ? (legalType as ApprovalForm) : null
+}
+
+/**
+ * Capitaux propres and share capital from the balances of a year without its
+ * closing entry: classes 10 to 14 plus the result (classes 7 minus 6), and
+ * the credit balance of 101. One computation for the approval pack and the
+ * deadline calendar.
+ */
+export function equityFromBalances(rows: ReadonlyArray<{ code: string; debitCents: number; creditCents: number }>): { equityCents: number; capitalCents: number } {
+  const credit = (test: (code: string) => boolean) => rows.filter((r) => test(r.code)).reduce((s, r) => s + r.creditCents - r.debitCents, 0)
+  const result = credit((c) => c.startsWith('6') || c.startsWith('7'))
+  return { equityCents: credit((c) => /^1[0-4]/.test(c)) + result, capitalCents: Math.max(0, credit((c) => c.startsWith('101'))) }
 }
 
 const euros = (cents: number) =>

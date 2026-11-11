@@ -20,6 +20,7 @@ import { parseDeadlineSettings } from '@/lib/deadlines/settings'
 import { formatAddress } from '@/lib/utils/address'
 import { calendarDayOf, todayUtc } from '@/lib/utils/date'
 import { toCents } from '@/lib/utils/money'
+import { equityFromBalances } from './equity'
 import { buildApprovalPack, type ApprovalContext, type ApprovalPack } from './pack'
 import { ApprovalDetailsSchema, emptyDetails, type ApprovalDetails } from './schemas'
 import { SOURCES, type LegalSource } from './sources'
@@ -57,7 +58,7 @@ async function yearFigures(companyId: string, fy: YearRow) {
   const unallocatedPreviousCents = credit((c) => c.startsWith('120') || c.startsWith('129'))
   const revenueCents = credit((c) => c.startsWith('70'))
   // Capitaux propres (PCG art. 934-1): classes 10 to 14, with the result of the year not yet allocated
-  const equityCents = credit((c) => /^1[0-4]/.test(c)) + result
+  const { equityCents } = equityFromBalances(rows)
   const sheet = await generateBalanceSheet(companyId, fy.id, 'complete')
   return { balances, unallocatedPreviousCents, revenueCents, equityCents, totalAssetsCents: toCents(sheet.actifTotal) ?? 0 }
 }

@@ -90,7 +90,7 @@ La page d'approbation le signale (`equityAlert`, `lib/approval/equity.ts`) :
 - date limite de la décision, quatre mois après la date d'approbation enregistrée ;
 - date limite de reconstitution, trois ans après la clôture de l'exercice pour des exercices de douze mois (l'approbation tombe pendant l'exercice suivant, puis deux exercices).
 
-La résolution sur la dissolution anticipée et l'échéance de reconstitution dans le calendrier ne sont pas encore générées.
+Le calendrier des échéances ajoute ces deux dates dès que la date d'approbation est enregistrée ([échéances](echeances.md)) : le chargement des échéances refait le même calcul (`equityFromBalances`, `equityBelowHalfCapital`) pour les exercices approuvés récents. La décision sur la dissolution anticipée relève de l'assemblée extraordinaire, avec ses propres règles de majorité : Kledg ne génère pas encore cette résolution.
 
 ## Données et droits
 
