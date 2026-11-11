@@ -11,7 +11,9 @@
  * - acceptance creates the account (address confirmed) or links the
  *   signed-in invited account, gives the invited role, and is single use;
  *   another account, an expired, revoked or resent (old link) invitation is
- *   refused;
+ *   refused; an account created from a link the inviter got back stays
+ *   unconfirmed;
+ * - a banned, removed, demoted or deleted inviter's pending links are refused;
  * - the instance policy can refuse invitations ('invite-member', also at
  *   acceptance) and accounts created from a link ('invitation-sign-up');
  * - a read-only company neither invites nor accepts;
@@ -336,5 +338,71 @@ describe.skipIf(!available)('company invitations (issue #13)', () => {
 
   it('lets an instance administrator invite into any company', async () => {
     expect((await invite('admin', 'expert@cabinet.fr', 'companyAdmin', ids.b)).status).toBe(201)
+  })
+
+  it('leaves unconfirmed an account created from a link the inviter got back, so adding it to another company resets it', async () => {
+    state.emailEnabled = false
+    const body = await (await invite('companyAdmin', 'nouveau@cabinet.fr', 'viewer')).json()
+    const token = body.link.split('/').pop() as string
+
+    // Whoever holds the handed-over link creates the account: it works, but proves nothing about the mailbox
+    const result = await service.acceptInvitation(token, { newAccount: { name: 'Nouveau', password: 'mot-de-passe-du-lien-1' } })
+    expect(result.createdUser).toBe(true)
+    const created = await prisma.user.findUniqueOrThrow({ where: { email: 'nouveau@cabinet.fr' } })
+    expect(created.emailVerified).toBe(false)
+    expect((await auth.api.signInEmail({ body: { email: 'nouveau@cabinet.fr', password: 'mot-de-passe-du-lien-1' } })).user.id).toBe(created.id)
+    expect(await prisma.member.count({ where: { userId: created.id, organizationId: 'org-a' } })).toBe(1)
+
+    // An instance administrator later adds the address to another company: the account is taken over like a new one
+    const { addMemberToCompany } = await import('@/lib/rbac/add-member-to-company.service')
+    const added = await addMemberToCompany({ companyId: ids.b, email: 'nouveau@cabinet.fr', role: 'accountant' })
+    expect(added).toMatchObject({ userId: created.id, resetUnconfirmedUser: true, createdUser: false })
+    expect(await prisma.session.count({ where: { userId: created.id } })).toBe(0)
+    await expect(auth.api.signInEmail({ body: { email: 'nouveau@cabinet.fr', password: 'mot-de-passe-du-lien-1' } })).rejects.toThrow()
+  })
+
+  it('refuses a pending invitation once its inviter is banned, removed, deleted or may no longer give the role', async () => {
+    const pending = async (email: string, role = 'accountant') => {
+      await invite('companyAdmin', email, role)
+      return tokenSentTo(email)
+    }
+    const accept = (token: string) => service.acceptInvitation(token, { newAccount: { name: 'E', password: 'motdepasse-solide-42' } })
+
+    // Banned
+    const banned = await pending('banni@cabinet.fr')
+    await prisma.user.update({ where: { id: 'u-cadmin' }, data: { banned: true } })
+    await expect(accept(banned)).rejects.toThrow(service.INVITER_NO_LONGER_ALLOWED_MESSAGE)
+    // A ban that has expired counts for nothing
+    await prisma.user.update({ where: { id: 'u-cadmin' }, data: { banExpires: new Date(Date.now() - 1000) } })
+    expect((await accept(banned)).createdUser).toBe(true)
+    await prisma.user.update({ where: { id: 'u-cadmin' }, data: { banned: false, banExpires: null } })
+
+    // Demoted to accountant: no longer manages the members
+    const demoted = await pending('demote@cabinet.fr', 'viewer')
+    await prisma.member.update({ where: { id: 'm-u-cadmin' }, data: { role: 'accountant' } })
+    await expect(accept(demoted)).rejects.toThrow(service.INVITER_NO_LONGER_ALLOWED_MESSAGE)
+    await prisma.member.update({ where: { id: 'm-u-cadmin' }, data: { role: 'companyAdmin' } })
+
+    // Removed from the company
+    const removed = await pending('retire@cabinet.fr')
+    await prisma.member.delete({ where: { id: 'm-u-cadmin' } })
+    await expect(accept(removed)).rejects.toThrow(service.INVITER_NO_LONGER_ALLOWED_MESSAGE)
+    await prisma.member.create({ data: { id: 'm-u-cadmin', userId: 'u-cadmin', organizationId: 'org-a', role: 'companyAdmin', createdAt: new Date() } })
+
+    // Deleted (invitedById keeps the id of an account that no longer exists)
+    const deleted = await pending('supprime@cabinet.fr')
+    await prisma.user.delete({ where: { id: 'u-cadmin' } })
+    await expect(accept(deleted)).rejects.toThrow(service.INVITER_NO_LONGER_ALLOWED_MESSAGE)
+
+    for (const email of ['demote@cabinet.fr', 'retire@cabinet.fr', 'supprime@cabinet.fr']) {
+      expect(await prisma.user.count({ where: { email } }), email).toBe(0)
+      expect((await prisma.companyInvitation.findFirstOrThrow({ where: { email } })).acceptedAt, email).toBeNull()
+    }
+  })
+
+  it('still accepts the invitation of an instance administrator who is not a member of the company', async () => {
+    await invite('admin', 'expert@cabinet.fr', 'companyAdmin', ids.b)
+    const token = tokenSentTo('expert@cabinet.fr')
+    expect((await service.acceptInvitation(token, { newAccount: { name: 'E', password: 'motdepasse-solide-42' } })).companyId).toBe(ids.b)
   })
 })
