@@ -110,6 +110,8 @@ export async function calculateDepreciationTable(
       depreciationDuration: asset.depreciationDuration,
       decliningCoefficient: asset.decliningCoefficient,
       depreciationStartDate: asset.depreciationStartDate,
+      openingDepreciation: asset.openingDepreciation,
+      openingDepreciationDate: asset.openingDepreciationDate,
     })
 
     let previousCents: number

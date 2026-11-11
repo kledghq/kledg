@@ -85,7 +85,7 @@ const createJournalTool = fullControlTool({
 const createFixedAssetTool = fullControlTool({
   name: 'create_fixed_asset',
   title: 'Créer une immobilisation',
-  description: `Creates a fixed asset (immobilisation) with its depreciation plan, checked against the PCG rules (art. 213-1, 214-1 to 214-19). Accounts are given by number (asset 2x, depreciation 28x, expense 6811x). Depreciation entries are then booked per fiscal year by generate_depreciation. ${ACTS_AS_USER}`,
+  description: `Creates a fixed asset (immobilisation) with its depreciation plan, checked against the PCG rules (art. 213-1, 214-1 to 214-19). Accounts are given by number (asset 2x, depreciation 28x, expense 6811x). Depreciation entries are then booked per fiscal year by generate_depreciation. For an asset acquired before the first fiscal year in Kledg, give the depreciation already booked (openingDepreciation, as of openingDepreciationDate, usually the first day of that fiscal year): the remaining amount is spread over the remaining life. ${ACTS_AS_USER}`,
   input: {
     label: z.string().min(1).max(200),
     comment: z.string().max(1000).optional(),
@@ -101,6 +101,8 @@ const createFixedAssetTool = fullControlTool({
     depreciationAccountCode: z.string().optional().describe('Depreciation account, e.g. 28183 (required unless method none).'),
     expenseAccountCode: z.string().optional().describe('Expense account, e.g. 6811 (required unless method none).'),
     isFullyPaid: z.boolean().optional(),
+    openingDepreciation: euros.optional().describe('Accumulated depreciation booked before openingDepreciationDate, outside Kledg, in euros (both or neither).'),
+    openingDepreciationDate: isoDate.optional().describe('Day the opening depreciation is counted at, usually the first day of the first fiscal year in Kledg.'),
   },
   permission: { ledger: ['manage'] },
   amounts: 'euros',
@@ -129,6 +131,8 @@ const createFixedAssetTool = fullControlTool({
       depreciationDuration: fixedAsset.depreciationDuration,
       depreciationRate: fixedAsset.depreciationRate,
       depreciationStartDate: day(fixedAsset.depreciationStartDate),
+      openingDepreciation: fixedAsset.openingDepreciation,
+      openingDepreciationDate: fixedAsset.openingDepreciationDate ? day(fixedAsset.openingDepreciationDate) : null,
       accounts: {
         asset: fixedAsset.assetAccount.code,
         depreciation: fixedAsset.depreciationAccount.code,

@@ -50,6 +50,8 @@ interface FixedAsset {
   expenseAccountId: string
   isActive: boolean
   isFullyPaid?: boolean
+  openingDepreciation?: number | string | null
+  openingDepreciationDate?: string | null
   assetAccount?: { code: string; label: string }
   depreciationAccount?: { code: string; label: string }
   expenseAccount?: { code: string; label: string }
@@ -594,6 +596,8 @@ export default function FixedAssetsPage() {
           depreciationAccountId: editingAsset.depreciationAccountId,
           expenseAccountId: editingAsset.expenseAccountId,
           isFullyPaid: editingAsset.isFullyPaid ?? false,
+          openingDepreciation: editingAsset.openingDepreciation != null ? Number(editingAsset.openingDepreciation) : null,
+          openingDepreciationDate: editingAsset.openingDepreciationDate ?? null,
         } : null}
         accounts={accounts}
         submitting={submitting}

@@ -104,6 +104,8 @@ export async function saveDepreciationRecord(
       depreciationDuration: fixedAsset.depreciationDuration,
       decliningCoefficient: fixedAsset.decliningCoefficient,
       depreciationStartDate: new Date(fixedAsset.depreciationStartDate),
+      openingDepreciation: fixedAsset.openingDepreciation,
+      openingDepreciationDate: fixedAsset.openingDepreciationDate,
     })
     amountCents = sumPlanCentsForPeriod(plan, period.start, period.end)
   }

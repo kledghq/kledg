@@ -83,6 +83,8 @@ async function loadRegister(companyId: string, fy: { startDate: Date; endDate: D
         depreciationDuration: true,
         decliningCoefficient: true,
         depreciationStartDate: true,
+        openingDepreciation: true,
+        openingDepreciationDate: true,
         assetAccount: { select: { code: true } },
         depreciationAccount: { select: { code: true } },
         depreciations: { select: { fiscalYearId: true, amount: true } },

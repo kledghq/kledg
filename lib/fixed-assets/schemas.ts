@@ -33,6 +33,9 @@ const fixedAssetFields = {
   depreciationAccountId: text("Compte d'amortissement"),
   expenseAccountId: text('Compte de dotation'),
   isFullyPaid: flag('Indicateur de paiement'),
+  /** Depreciation booked before openingDepreciationDate, outside Kledg (an asset acquired before the first fiscal year in Kledg); null clears both. */
+  openingDepreciation: numeric("Amortissements cumulés à l'ouverture"),
+  openingDepreciationDate: text("Date des amortissements cumulés à l'ouverture"),
 }
 
 /** POST /api/fixed-assets (the service names the missing required fields). */
