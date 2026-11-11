@@ -1,0 +1,33 @@
+# Temporary: regenerates the lockfiles of this branch for Prisma 7.10.1 on a
+# runner, then is deleted from the branch before review. Never on main.
+name: Regenerate Prisma lockfiles
+on:
+  push:
+    branches: [deps/prisma-7.10.1]
+permissions:
+  contents: write
+jobs:
+  lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+      - name: Prisma 7.10.1 in the application
+        run: pnpm update prisma@7.10.1 @prisma/client@7.10.1 @prisma/adapter-pg@7.10.1 --lockfile-only
+      - name: Prisma 7.10.1 in the Docker migrator
+        working-directory: docker/migrator
+        run: |
+          node -e "const f='package.json',p=JSON.parse(require('fs').readFileSync(f));p.dependencies.prisma='7.10.1';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          npm install --package-lock-only --ignore-scripts
+      - name: Commit the lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json pnpm-lock.yaml docker/migrator/package.json docker/migrator/package-lock.json
+          git diff --cached --stat
+          git commit -m "Dependencies: Prisma 7.10.1 (application and Docker migrator lockfiles)"
+          git push
