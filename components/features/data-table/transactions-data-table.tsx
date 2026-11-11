@@ -3,10 +3,9 @@
 import * as React from "react"
 import {
   flexRender,
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type RowSelectionState,
-  type VisibilityState,
+  type ColumnVisibilityState,
 } from "@tanstack/react-table"
 import { AlertCircle, CheckCircle2, Trash2, XCircle } from "lucide-react"
 import { toast } from "sonner"
@@ -33,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { useCompactLayout } from "@/hooks/ui/use-media-query"
 import { DataTableViewOptions } from "./data-table-view-options"
 import { signedAmount, transactionColumns, type TransactionColumnMeta } from "./transactions-columns"
+import { transactionTableFeatures } from "./table-features"
 import { handleCopyTransactionId, handleReconcileTransaction, handleUnreconcileTransaction } from "./transactions-actions"
 import { TransactionDetailsDialog } from "./transaction-details-dialog"
 import type { BankTransaction } from "./transactions-types"
@@ -82,7 +82,7 @@ export function TransactionsDataTable({
   balanceBefore,
   empty,
 }: TransactionsDataTableProps) {
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = React.useState<ColumnVisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [detailsTransaction, setDetailsTransaction] = React.useState<BankTransaction | null>(null)
   const [busyId, setBusyId] = React.useState<string | null>(null)
@@ -158,15 +158,14 @@ export function TransactionsDataTable({
     [balanceAfter, showCompanyColumn, busyId, companyOf, onRefresh],
   )
 
-  const table = useReactTable({
+  const table = useTable({
+    features: transactionTableFeatures,
     data,
     columns,
     getRowId: (row) => row.id,
-    getCoreRowModel: getCoreRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     state: { columnVisibility, rowSelection },
-    enableColumnResizing: false,
   })
 
   const selected = table.getSelectedRowModel().rows.map((row) => row.original)
