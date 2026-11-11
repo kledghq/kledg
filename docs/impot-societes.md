@@ -303,3 +303,5 @@ ne paie.
 - [Liasse 2033-SD 2026](https://www.impots.gouv.fr/sites/default/files/formulaires/2033-sd/2026/2033-sd_5394.pdf) (tableau 2033-B-SD) et sa [notice n° 2033-NOT-SD](https://www.impots.gouv.fr/sites/default/files/formulaires/2033-sd/2026/2033-sd_5395.pdf) ; [liasse 2050 2026](https://www.impots.gouv.fr/sites/default/files/formulaires/2050-liasse/2026/2050-liasse_5320.pdf) (tableau 2058-A-SD)
 - Formulaires [2065-SD](https://www.impots.gouv.fr/formulaire/2065-sd/impot-sur-les-societes), [2571-SD](https://www.impots.gouv.fr/formulaire/2571-sd/releve-dacompte-dis) et [2572-SD](https://www.impots.gouv.fr/formulaire/2572-sd/releve-de-solde)
 - PCG, liste des comptes (444, 695, 6582, 63514, 761) et art. 1031-3 (validation des écritures)
+
+Les autres tableaux de la liasse (2033-D à 2033-G, 2065-SD) se préparent sur la page Liasse fiscale : voir [liasse-fiscale.md](liasse-fiscale.md).

@@ -394,6 +394,8 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'GET /api/reports/depreciation': { tools: ['list_fixed_assets'] },
   'GET /api/reports/fixed-asset-movements/export': { tools: ['export_report'] },
   'GET /api/reports/fixed-asset-movements': { tools: ['get_fixed_asset_movements'] },
+  'GET /api/reports/liasse/export': { tools: ['export_report'] },
+  'GET /api/reports/liasse': { tools: ['get_liasse_fiscale'] },
   'GET /api/reports/financial-indicators/export': { tools: ['export_report'] },
   'GET /api/reports/financial-indicators': { tools: ['get_sig', 'get_financial_ratios'] },
   'GET /api/reports/grand-livre': { tools: ['get_ledger_report'] },

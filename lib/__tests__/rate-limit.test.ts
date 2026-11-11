@@ -77,6 +77,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/rbac/company-invitations.service.ts': /enforceRateLimit\('member-invitation'[\s\S]*enforceRateLimit\('invitation-email'/,
   'app/(auth)/invitation/[token]/actions.ts': /withinRateLimit\('invitation-accept'/,
   'app/api/fec/route.ts': /enforceRateLimit\('export'/,
+  'app/api/reports/liasse/export/route.ts': /enforceRateLimit\('export'/,
   'app/api/reports/journal/export-excel/route.ts': /enforceRateLimit\('export'/,
   'app/api/reports/aged-balance/export-excel/route.ts': /enforceRateLimit\('export'/,
   'app/api/reports/financial-indicators/export/route.ts': /enforceRateLimit\('export'/,
