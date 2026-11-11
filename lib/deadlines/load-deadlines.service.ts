@@ -14,6 +14,9 @@ import { addIsoDays, calendarDayOf } from '@/lib/utils/date'
 import { todayParis } from '@/lib/accounting/entry-date'
 import { parseCents } from '@/lib/utils/money'
 import { parsePayrollTaxData } from '@/lib/payroll-tax/schemas'
+import { loadYearBalances } from '@/lib/accounting/fiscal-year-closure/ledger'
+import { CLOSING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
+import { approvalFormOf, equityBelowHalfCapital, equityFromBalances } from '@/lib/approval/equity'
 import { computeDeadlines, missingVatRegime, type DeadlineApproval, type DeadlineCompany, type DeadlineFiscalYear } from './engine'
 import { OVERDUE_DAYS } from './relative'
 import { RULE_LIST } from './rules'
@@ -57,12 +60,48 @@ export interface CompanyContext {
   payrollTax: Record<number, { liable: boolean; frequency: 'monthly' | 'quarterly' | 'annual' }>
 }
 
+/**
+ * The approved fiscal years whose accounts show capitaux propres below half
+ * the share capital (C. com. L223-42, L225-248). Only years still within a
+ * year of their restoration deadline are read: one balance query each.
+ */
+async function equityBelowHalfYears(
+  companyId: string,
+  company: { legalType: string | null; shareCapital: { toString(): string } | null },
+  fiscalYears: Array<{ id: string; startDate: Date; endDate: Date }>,
+  approvals: Array<{ fiscalYearId: string; approvedOn: Date | null }>,
+): Promise<Set<string>> {
+  const form = approvalFormOf(company.legalType)
+  if (!form || form === 'SCI') return new Set()
+  const horizon = addIsoDays(todayParis(), -366 * 4)
+  const candidates = approvals.flatMap((a) => {
+    const fy = fiscalYears.find((y) => y.id === a.fiscalYearId)
+    return fy && a.approvedOn && day(fy.endDate) >= horizon ? [{ fy, approvedOn: day(a.approvedOn) }] : []
+  })
+  const recorded = company.shareCapital === null ? null : parseCents(company.shareCapital.toString())
+  const below = await Promise.all(
+    candidates.map(async ({ fy, approvedOn }) => {
+      const rows = await loadYearBalances(prisma, companyId, fy.id, { excludeJournalCodes: [CLOSING_JOURNAL.code] })
+      const { equityCents, capitalCents } = equityFromBalances(rows)
+      const alert = equityBelowHalfCapital({
+        form,
+        capitalCents: recorded ?? (capitalCents > 0 ? capitalCents : null),
+        equityCents,
+        fiscalYear: { startDate: day(fy.startDate), endDate: day(fy.endDate) },
+        approvedOn,
+      })
+      return alert ? fy.id : null
+    }),
+  )
+  return new Set(below.filter((id): id is string => id !== null))
+}
+
 /** What the engine needs for one company; also read by the VAT return worksheet (lib/vat-returns). */
 export async function loadDeadlineContext(companyId: string): Promise<CompanyContext> {
   const [company, fiscalYears, history, approvals, localTaxes, trainingEstablishments, payrollRows] = await Promise.all([
     prisma.company.findUnique({
       where: { id: companyId },
-      select: { legalType: true, vatRegime: true, isVatExempt: true, corporateTaxRegime: true, foundationDate: true, deadlineSettings: true },
+      select: { legalType: true, vatRegime: true, isVatExempt: true, corporateTaxRegime: true, foundationDate: true, deadlineSettings: true, shareCapital: true },
     }),
     prisma.fiscalYear.findMany({
       where: { companyId },
@@ -91,6 +130,8 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
     prisma.payrollTaxYear.findMany({ where: { companyId }, orderBy: { year: 'asc' }, take: MAX_LOCAL_TAX_YEARS, select: { year: true, data: true } }),
   ])
   if (!company) throw new NotFoundError('Société non trouvée')
+  // Equity below half the capital (lib/approval/equity.ts), for the approved years whose restoration deadline is not long past
+  const belowHalf = await equityBelowHalfYears(companyId, company, fiscalYears, approvals)
   const turnover = await prisma.$queryRaw<Array<{ year: number; cents: bigint }>>`
     SELECT extract(year FROM e."date")::int AS year, round(sum(l."credit" - l."debit") * 100)::bigint AS cents
     FROM "entry_lines" l
@@ -147,7 +188,12 @@ export async function loadDeadlineContext(companyId: string): Promise<CompanyCon
     approvals: Object.fromEntries(
       approvals.map((a) => [
         a.fiscalYearId,
-        { approvedOn: a.approvedOn ? day(a.approvedOn) : null, filedOn: a.filedOn ? day(a.filedOn) : null, filedOnline: filedOnlineOf(a.details) },
+        {
+          approvedOn: a.approvedOn ? day(a.approvedOn) : null,
+          filedOn: a.filedOn ? day(a.filedOn) : null,
+          filedOnline: filedOnlineOf(a.details),
+          equityBelowHalfCapital: belowHalf.has(a.fiscalYearId),
+        },
       ]),
     ),
     localTaxes: local,

@@ -29,7 +29,7 @@ règle et ses sources officielles (`lib/deadlines/rules.ts`) :
 | CVAE | Déclaration 1330-CVAE, acomptes 1329-AC, liquidation 1329-DEF ; plus rien pour les années 2030 et suivantes (CVAE supprimée) | CGI, art. 1586 ter à 1586 nonies et 1679 septies ; loi n° 2025-127, art. 62 |
 | Taxe sur les salaires | Relevés 2501 mensuels ou trimestriels (d'après la taxe de l'année précédente), déclaration annuelle 2502 au 15 janvier (31 janvier admis), pour les années où la taxe est due, d'après la page Taxe sur les salaires | CGI, art. 231 ; BOI-TPS-TS-40 ; notice 2501-SD |
 | Formation | Bilan pédagogique et financier de chaque exercice d'un organisme de formation, avant le 30 avril de l'année qui suit sa clôture (prolongations annoncées : 31 mai 2026) | Code du travail, art. R6352-22 à R6352-24 |
-| Juridique | Approbation des comptes, dépôt au greffe | Code de commerce, L223-26, L225-100, L227-9, L232-22, L232-23 |
+| Juridique | Approbation des comptes, dépôt au greffe ; après des comptes approuvés qui font apparaître des capitaux propres inférieurs à la moitié du capital social, décision sur la dissolution anticipée (quatre mois après l'approbation) et reconstitution des capitaux propres (clôture du deuxième exercice suivant, comptée trois ans après la clôture pour des exercices de douze mois) | Code de commerce, L223-26, L225-100, L227-9, L232-22, L232-23, L223-42, L225-248 |
 
 Les dates sont reportées au jour ouvrable suivant quand l'administration le
 fait ; un jour que Kledg ne connaît pas (celui de la CA3) est indicatif. Le

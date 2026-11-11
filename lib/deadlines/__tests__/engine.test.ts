@@ -264,6 +264,21 @@ describe('IS acomptes (CGI art. 1668, 1; BOI-IS-DECLA-20-10)', () => {
   })
 })
 
+describe('equity below half the share capital (C. com. L223-42, L225-248)', () => {
+  const approvals = (over: Record<string, unknown> = {}) => ({ 'fy-2025-12-31': { approvedOn: '2026-06-20', filedOn: null, equityBelowHalfCapital: true, ...over } })
+
+  it('adds the dissolution decision four months after the approval and the restoration three years after the close', () => {
+    const deadlines = run({ approvals: approvals(), to: '2028-12-31' })
+    expect(byId(deadlines, 'capitaux-propres-decision:2025-12-31')).toMatchObject({ legalDate: '2026-10-20', category: 'juridique' })
+    expect(byId(deadlines, 'capitaux-propres-reconstitution:2025-12-31')).toMatchObject({ legalDate: '2028-12-31', condition: 'Sauf dissolution décidée par les associés.' })
+  })
+
+  it('adds nothing without the alert or before the approval is recorded', () => {
+    expect(ofRule(run({ approvals: approvals({ equityBelowHalfCapital: false }), to: '2028-12-31' }), 'capitaux-propres-decision')).toEqual([])
+    expect(ofRule(run({ approvals: approvals({ approvedOn: null }), to: '2028-12-31' }), 'capitaux-propres-reconstitution')).toEqual([])
+  })
+})
+
 describe('IS solde (2572) and liasse (2065)', () => {
   it('31 December closing: solde on 15 May, liasse the second business day after 1 May, 15 more days online', () => {
     const deadlines = run()

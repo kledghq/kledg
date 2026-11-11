@@ -82,6 +82,9 @@ const BOI_TS_DECLA = { label: 'BOI-TPS-TS-40 (déclaration et paiement de la tax
 const NOTICE_2501 = { label: 'Notice 2501-SD 2026', url: 'https://www.impots.gouv.fr/sites/default/files/formulaires/2501-sd/2026/2501-sd_5272.pdf' }
 const R6352_23 = { label: 'Code du travail, art. R6352-22 à R6352-24 (bilan pédagogique et financier avant le 30 avril)', url: 'https://www.legifrance.gouv.fr/codes/id/LEGISCTA000018522310' }
 const L232_23 = { label: 'Code de commerce, art. L232-23 (sociétés par actions)', url: `${LEGIFRANCE}LEGIARTI000039260292` }
+const CODE_DE_COMMERCE = 'https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000005634379'
+const L223_42 = { label: 'Code de commerce, art. L223-42 (SARL)', url: CODE_DE_COMMERCE }
+const L225_248 = { label: 'Code de commerce, art. L225-248 (SA, et SAS par L227-1)', url: CODE_DE_COMMERCE }
 
 export const RULES = {
   'tva-ca3': {
@@ -235,6 +238,22 @@ export const RULES = {
     summary:
       "Les comptes approuvés sont déposés au greffe du tribunal de commerce dans le mois qui suit l'approbation, ou dans les deux mois en cas de dépôt par voie électronique. Kledg compte ce délai à partir de la date d'approbation enregistrée dans l'approbation des comptes, à défaut de la date limite d'approbation.",
     sources: [L232_22, L232_23],
+  },
+  'capitaux-propres-decision': {
+    id: 'capitaux-propres-decision',
+    category: 'juridique',
+    form: 'Capitaux propres inférieurs à la moitié du capital',
+    summary:
+      "Quand les comptes approuvés font apparaître des capitaux propres inférieurs à la moitié du capital social, les associés décident, dans les quatre mois qui suivent l'approbation, s'il y a lieu à dissolution anticipée de la société\u00a0; la décision est publiée.",
+    sources: [L223_42, L225_248],
+  },
+  'capitaux-propres-reconstitution': {
+    id: 'capitaux-propres-reconstitution',
+    category: 'juridique',
+    form: 'Capitaux propres inférieurs à la moitié du capital',
+    summary:
+      "Sans dissolution, les capitaux propres sont reconstitués à hauteur de la moitié du capital social, ou le capital réduit, au plus tard à la clôture du deuxième exercice suivant celui au cours duquel les pertes ont été constatées.",
+    sources: [L223_42, L225_248],
   },
 } as const satisfies Record<string, DeadlineRule>
 

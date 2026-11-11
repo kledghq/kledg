@@ -99,6 +99,12 @@ export interface DeadlineApproval {
   filedOn: string | null
   /** Filed online for this fiscal year (two months); null: the company setting. */
   filedOnline?: boolean | null
+  /**
+   * The approved accounts show capitaux propres below half the share capital
+   * (lib/approval/equity.ts): the decision on an early dissolution and the
+   * restoration of the equity follow (C. com. L223-42, L225-248).
+   */
+  equityBelowHalfCapital?: boolean
 }
 
 export interface DeadlineInput {
@@ -675,6 +681,25 @@ function legalDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): Candidat
             : "Un mois après l'approbation (deux mois en cas de dépôt en ligne), compté ici depuis la date limite d'approbation.",
       projected: fy.projected,
     })
+    if (approvedOn && recorded?.equityBelowHalfCapital) {
+      out.push({
+        key: fy.endDate,
+        ruleId: 'capitaux-propres-decision',
+        legalDate: addMonthsEom(approvedOn, 4),
+        label: `Décision sur la dissolution anticipée (capitaux propres de ${exerciceLabel(fy)})`,
+        note: `Les comptes approuvés le ${formatIsoDateFr(approvedOn)} font apparaître des capitaux propres inférieurs à la moitié du capital social.`,
+        projected: false,
+      })
+      out.push({
+        key: fy.endDate,
+        ruleId: 'capitaux-propres-reconstitution',
+        legalDate: addMonthsEom(fy.endDate, 36),
+        label: `Reconstitution des capitaux propres (pertes de ${exerciceLabel(fy)})`,
+        condition: 'Sauf dissolution décidée par les associés.',
+        note: "Clôture du deuxième exercice suivant l'approbation, pour des exercices de douze mois.",
+        projected: false,
+      })
+    }
   }
   return out
 }
