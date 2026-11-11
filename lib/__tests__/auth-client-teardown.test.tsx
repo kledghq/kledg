@@ -6,18 +6,16 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { authClient } from '@/lib/auth-client'
-import { authClientAtoms, unmountAuthClientStores } from './helpers/auth-client-stores'
+import { authClientSessionStore, unmountAuthClientStores } from './helpers/auth-client-stores'
 
 function SessionReader() {
   const { data } = authClient.useSession()
   return <p>{data ? 'connecté' : 'anonyme'}</p>
 }
 
-const session = () => (authClient.$store.atoms as unknown as Record<string, { active?: boolean }>).session
-
 describe('auth client stores in tests', () => {
-  it('finds the session store among the auth client atoms', () => {
-    expect(authClientAtoms()).toContain(session())
+  it('finds the session store of the auth client', () => {
+    expect(authClientSessionStore()).toBe(authClient.$store.atoms.session)
   })
 
   it('unmounts the session store at once instead of a second after its last listener', () => {
@@ -25,8 +23,8 @@ describe('auth client stores in tests', () => {
     expect(getByText('anonyme')).toBeInTheDocument()
     unmount()
     // Still mounted: nanostores waits a second before unmounting it
-    expect(session().active).toBe(true)
+    expect(authClientSessionStore()?.active).toBe(true)
     unmountAuthClientStores()
-    expect(session().active).toBe(false)
+    expect(authClientSessionStore()?.active).toBe(false)
   })
 })
