@@ -30,7 +30,7 @@ describe('SimpleEntriesReview', () => {
     render(<SimpleEntriesReview companyId="acme" />)
     expect(await screen.findByText(/3 à valider/)).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByRole('group', { name: 'Saisies à afficher' })).toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: 'Saisies à afficher' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'À valider' })).toHaveAttribute('aria-checked', 'true')
     expect(fetchMock).toHaveBeenCalledWith('/api/simple/entries?companyId=acme&status=to-validate')
 

@@ -69,7 +69,7 @@ describe('dashboard grid', () => {
   it('offers only the sizes a widget supports, and removes a widget', () => {
     const onChange = vi.fn()
     renderGrid(<EditableDashboardGrid items={ITEMS} onChange={onChange} />)
-    const sizes = within(screen.getByRole('group', { name: 'Taille de Résultat' }))
+    const sizes = within(screen.getByRole('radiogroup', { name: 'Taille de Résultat' }))
     expect(sizes.getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual(['Petit', 'Moyen'])
     fireEvent.click(sizes.getByRole('radio', { name: 'Moyen' }))
     expect(onChange.mock.calls[0][0][1]).toEqual({ id: 'kpi-resultat', size: 'M' })
