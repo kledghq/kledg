@@ -23,7 +23,7 @@ describe('SegmentedControl', () => {
         ]}
       />,
     )
-    expect(screen.getByRole('group', { name: 'Statut' })).toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: 'Statut' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByRole('radio', { name: 'À traiter 3' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('radio', { name: 'Traités 12' })).toHaveAttribute('aria-checked', 'false')
