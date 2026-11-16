@@ -163,7 +163,7 @@ describe('rule editor page, priority', () => {
         entryLines: [{ id: 'l', accountId: 'a-626000', lineType: 'debit', amountType: 'full', order: 0 }],
       }),
     })
-    const group = screen.getByRole('group', { name: 'Priorité' })
+    const group = screen.getByRole('radiogroup', { name: 'Priorité' })
     expect(within(group).getByRole('radio', { name: 'Normale' })).toHaveAttribute('aria-checked', 'true')
     await user.click(within(group).getByRole('radio', { name: 'Haute' }))
     await save(user)
@@ -175,7 +175,7 @@ describe('rule editor page, priority', () => {
   it('keeps a priority that matches no preset, shown in Avancé', async () => {
     const user = userEvent.setup()
     renderEditor({ ruleId: 'r1', initial: { ...newRuleState(), name: 'R', priority: 3 } })
-    const group = screen.getByRole('group', { name: 'Priorité' })
+    const group = screen.getByRole('radiogroup', { name: 'Priorité' })
     for (const radio of within(group).getAllByRole('radio')) expect(radio).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByText('Priorité personnalisée : 3.')).toBeInTheDocument()
     const exact = screen.getByRole('spinbutton', { name: 'Priorité exacte' })
@@ -305,7 +305,7 @@ describe('rule editor page, VAT', () => {
       }),
     })
     await pickIn(user, lines()[0], 'TVA', 'Déductible')
-    const source = within(lines()[0]).getByRole('group', { name: 'Montant de TVA' })
+    const source = within(lines()[0]).getByRole('radiogroup', { name: 'Montant de TVA' })
     expect(within(source).getByRole('radio', { name: 'TVA détectée par la banque' })).toHaveAttribute('aria-checked', 'true')
     expect(within(lines()[0]).getByText(/Kledg reprend la TVA fournie par la banque \(Qonto aujourd’hui\)/)).toBeInTheDocument()
     await user.type(within(lines()[0]).getByRole('spinbutton', { name: /Taux de secours/ }), '20')
@@ -695,7 +695,7 @@ describe('rule editor page, prefill', () => {
     )
     const { unmount } = render(<RuleEditorPage ruleId="r1" />)
     expect(await screen.findByRole('heading', { level: 1, name: 'Adobe' })).toBeInTheDocument()
-    expect(within(screen.getByRole('group', { name: 'Priorité' })).getByRole('radio', { name: 'Haute' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(screen.getByRole('radiogroup', { name: 'Priorité' })).getByRole('radio', { name: 'Haute' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByText('Expression régulière refusée : groupe non fermé.')).toBeInTheDocument()
     unmount()
 
