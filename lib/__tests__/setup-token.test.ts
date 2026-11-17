@@ -94,7 +94,14 @@ describe("first-run setup", () => {
 
 describe("/setup view", () => {
   const previous = process.env.SETUP_TOKEN;
+  beforeEach(() => {
+    // No auth secret, whatever the environment running the tests (the demo's
+    // sync gate sets one): with it, setup falls back to the derived token.
+    vi.stubEnv("BETTER_AUTH_SECRET", "");
+    vi.stubEnv("BETTER_AUTH_SECRETS", "");
+  });
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env.SETUP_TOKEN = previous;
   });
 

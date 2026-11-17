@@ -60,6 +60,10 @@ function sentToken(): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // No auth secret, whatever the environment running the tests (the demo's
+  // sync gate sets one): with it, setup falls back to the derived token.
+  vi.stubEnv("BETTER_AUTH_SECRET", "");
+  vi.stubEnv("BETTER_AUTH_SECRETS", "");
   delete process.env.SETUP_TOKEN;
   process.env.ADMIN_EMAIL = ADMIN;
   process.env.BETTER_AUTH_URL = "https://compta.example.fr";
@@ -73,6 +77,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   delete process.env.ADMIN_EMAIL;
   delete process.env.BETTER_AUTH_URL;
   delete process.env.SETUP_TOKEN;
