@@ -207,6 +207,7 @@ Sur les objets où un assistant aide (une transaction à rapprocher, un brouillo
 | `list_qonto_receipts` | Justificatifs que Qonto détient pour une transaction de la société ; droit `banking:read` |
 | `get_file` | Un document en ressource intégrée : justificatif d'une transaction, PDF d'une facture importée de Qonto, PDF d'un relevé Qonto ; 5 Mo au plus ; droit `banking:read` (justificatif, relevé) ou `entries:read` (facture) |
 | `lookup_siren` | Une entreprise de l'annuaire public (recherche-entreprises.api.gouv.fr) à partir de son SIREN, pour préparer `create_company` ; selon la politique de création des sociétés de l'instance (administrateurs de l'instance par défaut) |
+| `prepare_feedback` | Prépare un signalement de problème ou une idée depuis la conversation : lien de l'issue GitHub préremplie à partir des modèles du dépôt, recherche des issues existantes, contexte technique ajouté (version, commit, hébergeur). L'utilisateur relit et envoie depuis son compte GitHub ; l'outil n'envoie rien et ne lit aucune donnée de société ; tout utilisateur connecté ([signaler un problème](signaler-un-probleme.md)) |
 
 `get_bank_sync_status` donne aussi les intégrations bancaires (identifiant pour `sync_bank_data`, statut, fonctions actives, sans identifiant ni donnée du prestataire) et `list_management_fee_conventions` les périodes facturées d'une convention (vue `billings`) et les filiales candidates (vue `subsidiaries`).
 
@@ -436,6 +437,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `generate_depreciation` | |
 | Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (ajout et changement de rôle : administrateurs de l'instance), `manage_invitations` | Suppression définitive de société |
 | Création, archivage et restauration de société | `list_companies` (`includeArchived`), `lookup_siren` | | `create_company`, `archive_company`, `restore_company` | Suppression définitive |
+| Signaler un problème, proposer une idée ([signaler un problème](signaler-un-probleme.md)) | `prepare_feedback` | | | Envoyer l'issue (depuis le compte GitHub de l'utilisateur) |
 
 ## Inventaire de l'API
 

@@ -18,6 +18,7 @@ La documentation de Kledg est répartie en deux endroits :
 - [Serveur MCP](mcp.md) : outils, droits, journal d'audit, couverture des fonctionnalités et inventaire de l'API
 - [Vues MCP](mcp-views.md) : vues interactives renvoyées par les outils du serveur MCP
 - [Conformité](conformite.md) : mécanismes qui assurent la tenue de la comptabilité, le FEC et le RGPD
+- [Signaler un problème ou proposer une idée](signaler-un-probleme.md) : issue GitHub préremplie depuis Kledg, contexte technique ajouté, dépôt cible
 
 ## Fonctionnalités : fonctionnement technique
 

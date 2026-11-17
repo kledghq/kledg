@@ -1,15 +1,18 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
-import { REPO_URL } from '@/lib/config'
 import { logger } from '@/lib/logger'
+import { FALLBACK_FEEDBACK_TARGET, useFeedback } from '@/components/features/feedback/feedback-context'
+import { FeedbackDialog } from '@/components/features/feedback/feedback-dialog'
 
 /**
  * Unexpected error inside a page. The layout (sidebar, header) stays in place
  * so the user can retry or go elsewhere; nothing typed elsewhere is lost.
+ * "Signaler le problème" prepares a GitHub issue with the error's reference
+ * (docs/signaler-un-probleme.md).
  */
 export default function ErrorPage({
   error,
@@ -21,6 +24,10 @@ export default function ErrorPage({
   useEffect(() => {
     logger.error(error)
   }, [error])
+  const feedback = useFeedback()
+  // Above the app frame there is no feedback provider: the dialog is rendered here.
+  const [ownDialog, setOwnDialog] = useState(false)
+  const report = () => (feedback ? feedback.open('bug', { errorReference: error.digest }) : setOwnDialog(true))
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 py-12">
@@ -40,12 +47,20 @@ export default function ErrorPage({
         <Button variant="outline" asChild>
           <Link href="/companies">Mes sociétés</Link>
         </Button>
-        <Button variant="ghost" asChild>
-          <a href={`${REPO_URL}/issues`} target="_blank" rel="noreferrer">
-            Signaler le problème
-          </a>
+        <Button variant="ghost" onClick={report}>
+          Signaler le problème
         </Button>
       </div>
+      {ownDialog ? (
+        <FeedbackDialog
+          open
+          onOpenChange={setOwnDialog}
+          kind="bug"
+          target={FALLBACK_FEEDBACK_TARGET}
+          displayMode={null}
+          errorReference={error.digest ?? null}
+        />
+      ) : null}
     </div>
   )
 }

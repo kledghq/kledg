@@ -64,6 +64,7 @@ import { registerTransactionReadTools } from '@/lib/mcp/transaction-read-tools'
 import { registerExportTools } from '@/lib/mcp/export-tools'
 import { registerDocumentTools } from '@/lib/mcp/document-tools'
 import { registerCompanyLookupTools } from '@/lib/mcp/company-lookup-tools'
+import { registerFeedbackTools } from '@/lib/mcp/feedback-tools'
 import { READ_ONLY, describeTool, kledgPageUrl, writeAnnotations } from '@/lib/mcp/tool-meta'
 import { viewMeta, withView } from '@/lib/mcp/views'
 import {
@@ -838,6 +839,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
   registerExportTools(server, access, guard)
   registerDocumentTools(server, access, guard)
   registerCompanyLookupTools(server, access)
+  registerFeedbackTools(server)
 
   // Full control (kledg:admin): validate, reconcile, import, close... Never
   // registered without it; each tool checks it again through the guard.

@@ -10,10 +10,14 @@ import { UpdateIndicator } from '@/components/layout/update-indicator'
 import { HelpMenu } from '@/components/layout/help-menu'
 import { isActionAllowed } from '@/lib/instance'
 import { approvalPageAvailable } from '@/lib/ai-access/manage-grants.service'
+import { FeedbackProvider } from '@/components/features/feedback/feedback-context'
+import { getFeedbackTarget } from '@/lib/feedback/target'
+import { DISPLAY_MODE_LABELS, type DisplayMode } from '@/lib/appearance/display-mode'
 
 /**
  * The application frame shared by company pages and the settings area:
- * sidebar (drawer on phones), sticky header with breadcrumb, help menu,
+ * sidebar (drawer on phones), sticky header with breadcrumb, help menu
+ * (with the feedback dialog, docs/signaler-un-probleme.md),
  * update notice for administrators, background tasks and theme toggle.
  * Each area brings its own sidebar and breadcrumb. The instance slots
  * (components/instance/slots.tsx) add a banner and filter the user menu.
@@ -26,6 +30,7 @@ export async function AppShell({
   children,
   after,
   headerActions,
+  displayMode,
 }: {
   sidebar: React.ReactNode
   breadcrumb: React.ReactNode
@@ -36,6 +41,8 @@ export async function AppShell({
   after?: React.ReactNode
   /** Header controls of the area, before the help menu (the display mode switch of company pages). */
   headerActions?: React.ReactNode
+  /** Display mode of company pages, added to the context of a feedback (docs/signaler-un-probleme.md). */
+  displayMode?: DisplayMode
 }) {
   // "Actions IA à approuver" is listed only while one of the user's AI
   // connections runs in validation mode or an action still waits for them.
@@ -46,6 +53,7 @@ export async function AppShell({
   const onboardingEnabled = await isActionAllowed('onboarding', user)
   return (
     <UserMenuProvider visible={visibleMenu}>
+    <FeedbackProvider target={getFeedbackTarget()} displayMode={displayMode ? DISPLAY_MODE_LABELS[displayMode] : null}>
     <SidebarProvider>
       <a
         href="#contenu"
@@ -85,6 +93,7 @@ export async function AppShell({
         {after}
       </SidebarInset>
     </SidebarProvider>
+    </FeedbackProvider>
     </UserMenuProvider>
   )
 }
