@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- Signaler un problème ou proposer une idée depuis Kledg : le menu **Aide** et les pages d'erreur ouvrent une fenêtre qui prépare une issue GitHub à partir des modèles du dépôt (titre, description, étapes ou proposition). Le contexte technique ajouté est affiché avant l'envoi : version, commit, hébergeur, page sans identifiant ni nom de société, mode d'affichage, navigateur, langue, et la référence de l'erreur depuis une page d'erreur ; jamais de données comptables. L'utilisateur relit et envoie l'issue depuis son compte GitHub, Kledg n'envoie rien lui-même. **Est-ce déjà signalé ?** cherche les issues existantes. Outil MCP `prepare_feedback` pour qu'un assistant prépare le signalement depuis la conversation. `KLEDG_FEEDBACK_REPO` envoie les signalements d'une instance vers son propre dépôt ([documentation](docs/signaler-un-probleme.md)).
+
 ### Corrigé
 
 - Invitations : la date d'expiration affichée dans l'email et sur la page d'invitation est le jour en France, quel que soit le fuseau du serveur. Une invitation envoyée peu après minuit (heure de Paris) n'annonce plus une expiration un jour trop tôt.

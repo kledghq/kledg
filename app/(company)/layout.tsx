@@ -46,6 +46,7 @@ export default async function DashboardLayout({
       isAdmin={isGlobalAdmin(user)}
       after={<CompanyOverlay user={user} />}
       headerActions={<DisplayModeSwitch key={mode} mode={mode} />}
+      displayMode={mode}
     >
       {children}
     </AppShell>

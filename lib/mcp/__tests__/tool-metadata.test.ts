@@ -72,7 +72,7 @@ describe('MCP tool metadata', () => {
           const description = config.description ?? ''
           expect(description.includes(AMOUNTS_IN_EUROS) || description.includes(NO_AMOUNTS), `${name}: unit`).toBe(true)
           expect(description, name).toMatch(/Access: kledg:(read|write|admin)/)
-          expect(description, name).toMatch(/(right|rights) in the company|membership of the company|company creation policy/)
+          expect(description, name).toMatch(/(right|rights) in the company|membership of the company|company creation policy|any signed-in user, outside any company/)
           expect(description, name).toMatch(/ Never [a-z]/)
         }
       })

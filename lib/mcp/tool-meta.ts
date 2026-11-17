@@ -73,9 +73,10 @@ export interface ToolDescription {
    * Right(s) checked in the company, like the matching API route; 'membership'
    * when being a member is enough; 'company-creation' for the tools outside
    * any company that the instance policy on company creation governs
-   * (create_company, lookup_siren).
+   * (create_company, lookup_siren); 'signed-in' for the tools outside any
+   * company that only need the connected user (prepare_feedback).
    */
-  permission: Permission | readonly Permission[] | 'membership' | 'company-creation'
+  permission: Permission | readonly Permission[] | 'membership' | 'company-creation' | 'signed-in'
   /** Tools with an `action` input: the rights each action needs besides `permission`, like each matching route. */
   actions?: ActionPermissions
   /** 'euros' when the tool takes or returns amounts. */
@@ -101,6 +102,9 @@ export function describeTool(d: ToolDescription): string {
   const units = [d.amounts === 'euros' ? AMOUNTS_IN_EUROS : NO_AMOUNTS, d.units].filter(Boolean).join(' ')
   if (d.permission === 'company-creation') {
     return `${d.summary} ${units} Access: ${LEVELS[d.access]} and the instance's company creation policy (instance administrators by default), outside any company. Never ${d.never}`
+  }
+  if (d.permission === 'signed-in') {
+    return `${d.summary} ${units} Access: ${LEVELS[d.access]}, any signed-in user, outside any company. Never ${d.never}`
   }
   const label = d.permission === 'membership' ? '' : permissionLabel(d.permission)
   const right = d.permission === 'membership' || !label ? 'membership of the company' : `the ${label} right${label.includes(' and ') ? 's' : ''} in the company`
