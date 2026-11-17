@@ -14,51 +14,6 @@
  */
 
 /**
- * Formats a date according to French format
- */
-export function formatDate(
-  date: Date | string,
-  options?: Intl.DateTimeFormatOptions
-): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date
-  const defaultOptions: Intl.DateTimeFormatOptions = {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }
-  return new Intl.DateTimeFormat('fr-FR', options || defaultOptions).format(dateObj)
-}
-
-/**
- * Formats a date with time
- */
-export function formatDateTime(
-  date: Date | string,
-  options?: Intl.DateTimeFormatOptions
-): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date
-  const defaultOptions: Intl.DateTimeFormatOptions = {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }
-  return new Intl.DateTimeFormat('fr-FR', options || defaultOptions).format(dateObj)
-}
-
-/**
- * Formats a date in short format (DD/MM/YYYY)
- */
-export function formatDateShort(date: Date | string): string {
-  return formatDate(date, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-}
-
-/**
  * Keeps only the calendar day in UTC (midnight UTC). Ignores time.
  * Use when ingesting transaction dates so storage is date-only and timezone-safe.
  *
