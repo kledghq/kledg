@@ -83,8 +83,9 @@ function FlowChart({ flows, names }: { flows: readonly MoneyFlow[]; names: Reado
             nodeWidth={10}
             nodePadding={28}
             margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
-            node={(props: NodeProps) => <FlowNode {...props} />}
-            link={(props: LinkProps) => <FlowLink {...props} />}
+            // recharts types the payload as its own SankeyNode/SankeyLink; it carries our data fields
+            node={(props) => <FlowNode {...(props as unknown as NodeProps)} />}
+            link={(props) => <FlowLink {...(props as unknown as LinkProps)} />}
           >
             <Tooltip content={<FlowTooltip />} />
           </Sankey>
