@@ -55,7 +55,7 @@ import { assertCompanyWritable } from '@/lib/companies/archive-company.service'
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { COMPANY_ROLES, resetUnconfirmedAccount, type CompanyRoleName } from './add-member-to-company.service'
 import { ensureCompanyOrganization } from './ensure-company-organization.service'
-import { formatDateShort } from '@/lib/utils/date'
+import { invitationExpiresOn } from '@/lib/rbac/invitation-expiry'
 import { inAmbientTransaction, runAfterCommit } from '@/lib/approved-state/ambient'
 
 /** Days an invitation link stays valid. */
@@ -203,7 +203,7 @@ async function sendInvitationEmail(
         companyName: company?.name ?? 'la société',
         inviterName: inviter.name?.trim() || inviter.email,
         roleLabel: ROLE_LABELS[invitation.role] ?? invitation.role,
-        expiresOn: formatDateShort(invitation.expiresAt),
+        expiresOn: invitationExpiresOn(invitation.expiresAt),
       },
       url,
     ),

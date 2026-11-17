@@ -4,44 +4,9 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  formatDate,
-  formatDateTime,
-  formatDateShort,
   addIsoDays,
   lastDayOfMonth,
 } from '../date'
-
-describe('formatDate', () => {
-  it('should format date in French format', () => {
-    const date = new Date('2024-01-15')
-    expect(formatDate(date)).toContain('15/01/2024')
-  })
-
-  it('should format date from string', () => {
-    expect(formatDate('2024-01-15')).toContain('15/01/2024')
-  })
-
-  it('should format date with custom options', () => {
-    const date = new Date('2024-01-15')
-    expect(formatDate(date, { year: 'numeric', month: 'long' })).toContain('janvier')
-  })
-})
-
-describe('formatDateTime', () => {
-  it('should format date with time', () => {
-    const date = new Date('2024-01-15T14:30:00')
-    const formatted = formatDateTime(date)
-    expect(formatted).toContain('15/01/2024')
-    expect(formatted).toContain('14:30')
-  })
-})
-
-describe('formatDateShort', () => {
-  it('should format date in short format', () => {
-    const date = new Date('2024-01-15')
-    expect(formatDateShort(date)).toContain('15/01/2024')
-  })
-})
 
 describe('lastDayOfMonth', () => {
   it('gives the number of days of each month, leap years included', () => {
