@@ -4,9 +4,15 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.6.0] - 2026-11-17
+
 ### Ajouté
 
 - Signaler un problème ou proposer une idée depuis Kledg : le menu **Aide** et les pages d'erreur ouvrent une fenêtre qui prépare une issue GitHub à partir des modèles du dépôt (titre, description, étapes ou proposition). Le contexte technique ajouté est affiché avant l'envoi : version, commit, hébergeur, page sans identifiant ni nom de société, mode d'affichage, navigateur, langue, et la référence de l'erreur depuis une page d'erreur ; jamais de données comptables. L'utilisateur relit et envoie l'issue depuis son compte GitHub, Kledg n'envoie rien lui-même. **Est-ce déjà signalé ?** cherche les issues existantes. Outil MCP `prepare_feedback` pour qu'un assistant prépare le signalement depuis la conversation. `KLEDG_FEEDBACK_REPO` envoie les signalements d'une instance vers son propre dépôt ([documentation](docs/signaler-un-probleme.md)).
+
+### Modifié
+
+- Dépendances : Recharts 3 pour les graphiques (tableau de bord, prévision de trésorerie, évolution du solde d'un compte, vue groupe, flux entre tiers), Radix UI 1.2 (les groupes de boutons à choix unique sont annoncés comme des groupes de boutons radio aux lecteurs d'écran), React 19.3, jsdom 31 pour les tests, et les mises à jour mineures des autres dépendances.
 
 ### Corrigé
 
