@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Corrigé
+
+- Invitations : la date d'expiration affichée dans l'email et sur la page d'invitation est le jour en France, quel que soit le fuseau du serveur. Une invitation envoyée peu après minuit (heure de Paris) n'annonce plus une expiration un jour trop tôt.
+
 ## [0.5.2] - 2026-11-11
 
 ### Sécurité

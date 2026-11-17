@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { getCurrentUser } from '@/lib/session'
 import { readInvitation, type InvitationView } from '@/lib/rbac/company-invitations.service'
-import { formatDateShort } from '@/lib/utils/date'
+import { invitationExpiresOn } from '@/lib/rbac/invitation-expiry'
 import { AcceptInvitation } from './accept-invitation'
 
 export const metadata = { title: 'Invitation' }
@@ -43,7 +43,7 @@ function closedNotice(view: InvitationView) {
   return (
     <Notice
       title="Invitation expirée"
-      description={`Cette invitation a expiré le ${formatDateShort(view.expiresAt)}. Demandez à ${who} de vous l'envoyer de nouveau.`}
+      description={`Cette invitation a expiré le ${invitationExpiresOn(view.expiresAt)}. Demandez à ${who} de vous l'envoyer de nouveau.`}
     />
   )
 }
@@ -72,7 +72,7 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
   }
   if (view.state !== 'open') return <AuthShell>{closedNotice(view)}</AuthShell>
 
-  const intro = `${view.inviterName ?? 'Un administrateur'} vous invite à rejoindre ${view.companyName} avec le rôle « ${view.roleLabel} ». Invitation valable jusqu'au ${formatDateShort(view.expiresAt)}.`
+  const intro = `${view.inviterName ?? 'Un administrateur'} vous invite à rejoindre ${view.companyName} avec le rôle « ${view.roleLabel} ». Invitation valable jusqu'au ${invitationExpiresOn(view.expiresAt)}.`
   const signedInAsInvitee = user?.email.trim().toLowerCase() === view.email
 
   if (user && !signedInAsInvitee) {

@@ -72,7 +72,8 @@ describe('GettingStartedCard', () => {
     )
     expect(screen.getByRole('heading', { name: 'Tout est prêt' })).toBeInTheDocument()
     expect(screen.getByText(/Votre société est prête/)).toBeInTheDocument()
-    expect(indicatorShift()).toBe('translateX(-0%)')
+    // -0% or 0%: jsdom 31 normalizes the negative zero
+    expect(indicatorShift()).toMatch(/^translateX\(-?0%\)$/)
 
     rerender(<GettingStartedCard data={data({ steps: [], done: 0, total: 0 })} onDismiss={vi.fn()} />)
     expect(indicatorShift()).toBe('translateX(-100%)')
