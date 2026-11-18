@@ -23,7 +23,7 @@
  * checks it again.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { sharedAsyncLocalStorage } from '@/lib/shared-async-storage'
 import { ConflictError } from '@/lib/accounting/errors'
 import { loadTargetState, stateHash, targetKey, type Db, type TargetRef } from './targets'
 
@@ -49,7 +49,7 @@ interface ApprovedState {
   checked: Set<string>
 }
 
-const storage = new AsyncLocalStorage<ApprovedState>()
+const storage = sharedAsyncLocalStorage<ApprovedState>('approved-state-guard')
 
 /**
  * Runs `fn` (the execution of an approved action) with the approved state

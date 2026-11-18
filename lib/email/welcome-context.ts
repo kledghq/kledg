@@ -8,9 +8,9 @@
  * (lib/auth.ts) in the same async context, which isWelcomeReset reads.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { sharedAsyncLocalStorage } from '@/lib/shared-async-storage'
 
-const welcome = new AsyncLocalStorage<true>()
+const welcome = sharedAsyncLocalStorage<true>('welcome-reset')
 
 /** Runs `request` (a password reset request) so that its email is the welcome one. */
 export function sendAsWelcome<T>(request: () => Promise<T>): Promise<T> {

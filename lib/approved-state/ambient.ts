@@ -23,7 +23,7 @@
  * whole action rolls back. The services are unchanged.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { sharedAsyncLocalStorage } from '@/lib/shared-async-storage'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { logger } from '@/lib/logger'
 
@@ -37,7 +37,7 @@ interface Ambient {
   afterCommit: Array<() => Promise<void>>
 }
 
-const storage = new AsyncLocalStorage<{ ambient: Ambient; nested: boolean }>()
+const storage = sharedAsyncLocalStorage<{ ambient: Ambient; nested: boolean }>('approved-state-ambient')
 
 /** Long enough for the bank calls an approved import or sync makes (20 s each, lib/banking/http.ts). */
 const AMBIENT_TX_OPTIONS = { maxWait: 30_000, timeout: 300_000 } as const
