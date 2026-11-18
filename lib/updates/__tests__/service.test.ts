@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ActiveConnection } from '../connection'
 import {
+  findUpdateBranch,
   findUpdatePull,
   getChannel,
+  installUpdateBranch,
   mergeUpdatePull,
   mergeUpstream,
   prepareUpdate,
   setChannel,
   setRetryDelay,
+  versionLabelOf,
 } from '../service'
 import { UPDATE_WORKFLOW } from '../workflow-template'
 import { fakeGitHub, resetGitHub, TOKEN, type FakeHandler } from './fake-github'
@@ -247,5 +250,78 @@ describe('mergeUpstream (forks without the workflow)', () => {
     fakeGitHub({ 'POST /repos/acme/compta/merge-upstream': { status: 409, body: {} } })
     await expect(mergeUpstream(fork)).rejects.toThrow('Sync fork')
     await expect(mergeUpstream(copy)).rejects.toThrow("n'est pas un fork")
+  })
+})
+
+describe('update prepared without its pull request', () => {
+  // GitHub refuses the workflow's pull request when the repository does not let Actions create
+  // pull requests ("Resource not accessible by integration"): the branch is pushed, nothing else.
+  const MESSAGE = "Merge tag 'refs/tags/v0.7.0' into kledg-update"
+  const COMPARE = 'GET /repos/acme/compta/compare/main...kledg-update'
+  const pull = { number: 9, title: 'Mise à jour Kledg v0.7.0', html_url: 'https://github.com/acme/compta/pull/9', head: { sha: SHA, ref: 'kledg-update', repo: { id: 42, full_name: 'acme/compta' } }, base: { ref: 'main', repo: { id: 42 } }, mergeable: true }
+
+  it('reads the version merged into the branch', () => {
+    expect(versionLabelOf(MESSAGE)).toBe('v0.7.0')
+    expect(versionLabelOf('Merge https://github.com/kledghq/kledg.git main into kledg-update')).toBeNull()
+  })
+
+  it('finds the branch ahead of the default branch, with its migrations', async () => {
+    fakeGitHub({
+      [COMPARE]: {
+        body: {
+          status: 'ahead',
+          ahead_by: 12,
+          commits: [{ sha: 'c'.repeat(40), commit: { message: 'older' } }, { sha: SHA, commit: { message: MESSAGE } }],
+          files: [{ filename: 'prisma/migrations/20261218090000_e_invoice_import/migration.sql', status: 'added' }],
+        },
+      },
+      'GET /repos/acme/compta/deployments': { body: [] },
+    })
+    expect(await findUpdateBranch(copy)).toEqual({
+      headSha: SHA,
+      label: 'v0.7.0',
+      url: 'https://github.com/acme/compta/compare/main...kledg-update',
+      migrations: ['20261218090000_e_invoice_import'],
+      preview: { url: null, state: null },
+    })
+  })
+
+  it('finds nothing without the branch, or when it brings nothing', async () => {
+    fakeGitHub({ [COMPARE]: { status: 404, body: { message: 'Not Found' } } })
+    expect(await findUpdateBranch(copy)).toBeNull()
+    resetGitHub()
+    fakeGitHub({ [COMPARE]: { body: { status: 'identical', ahead_by: 0, commits: [] } } })
+    expect(await findUpdateBranch(copy)).toBeNull()
+  })
+
+  it('opens the pull request with the connection token, then merges the confirmed commit', async () => {
+    const fake = fakeGitHub({
+      'GET /repos/acme/compta/branches/kledg-update': { body: { commit: { sha: SHA, commit: { message: MESSAGE } } } },
+      'POST /repos/acme/compta/pulls': { status: 201, body: pull },
+      'GET /repos/acme/compta/pulls/9': { body: pull },
+      'PUT /repos/acme/compta/pulls/9/merge': { body: { merged: true, sha: MERGED } },
+    })
+    expect(await installUpdateBranch(copy, SHA)).toEqual({ sha: MERGED })
+    expect(fake.calls.find((c) => c.method === 'POST')?.body).toMatchObject({ head: 'kledg-update', base: 'main', title: 'Mise à jour Kledg v0.7.0' })
+    expect(fake.calls.find((c) => c.method === 'PUT')?.body).toEqual({ sha: SHA, merge_method: 'merge' })
+  })
+
+  it('refuses a branch that moved since the confirmation, without opening anything', async () => {
+    const fake = fakeGitHub({ 'GET /repos/acme/compta/branches/kledg-update': { body: { commit: { sha: 'd'.repeat(40) } } } })
+    await expect(installUpdateBranch(copy, SHA)).rejects.toThrow('a changé depuis votre confirmation')
+    expect(fake.calls.some((c) => c.method === 'POST')).toBe(false)
+  })
+
+  it('uses the pull request opened meanwhile when GitHub says one exists', async () => {
+    fakeGitHub({
+      'GET /repos/acme/compta/branches/kledg-update': { body: { commit: { sha: SHA, commit: { message: MESSAGE } } } },
+      'POST /repos/acme/compta/pulls': { status: 422, body: { message: 'A pull request already exists for acme:kledg-update.' } },
+      'GET /repos/acme/compta/pulls': { body: [pull] },
+      'GET /repos/acme/compta/pulls/9': { body: pull },
+      'GET /repos/acme/compta/pulls/9/files': { body: [] },
+      'GET /repos/acme/compta/deployments': { body: [] },
+      'PUT /repos/acme/compta/pulls/9/merge': { body: { merged: true, sha: MERGED } },
+    })
+    expect(await installUpdateBranch(copy, SHA)).toEqual({ sha: MERGED })
   })
 })

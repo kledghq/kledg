@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ExternalLink, GitPullRequest, Loader2, RefreshCw, Rocket } from 'lucide-react'
+import { CheckCircle2, ExternalLink, Loader2, RefreshCw, Rocket } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { GITHUB_DEPLOY_NOTES, PLATFORM_LABELS, type Platform } from '@/lib/updates/hosting'
-import type { Channel, UpdatePull, WorkflowRun } from '@/lib/updates/service'
+import type { Channel, UpdateBranch, UpdatePull, WorkflowRun } from '@/lib/updates/service'
 import { formatDateTime, NEON_BRANCHING_URL, SELF_HOSTING_DOCS_URL, updatesApi } from './api'
 
 interface GitHubState {
@@ -30,6 +30,8 @@ interface GitHubState {
   workflow: { present: boolean; state: string | null; current: boolean }
   run: WorkflowRun | null
   pull: UpdatePull | null
+  /** Prepared without its pull request (GitHub did not let the workflow open it): installing opens it. */
+  branch?: UpdateBranch | null
 }
 
 type PrepareResult = { mode: 'workflow'; workflowInstalled: boolean; dispatchedAt: string } | { mode: 'merge-upstream' }
@@ -158,8 +160,8 @@ export function UpdateActions({
       } else {
         toast.success(
           result.workflowInstalled
-            ? 'Workflow de mise à jour ajouté à votre dépôt et lancé. La pull request arrive dans une minute environ.'
-            : 'Préparation lancée sur GitHub. La pull request arrive dans une minute environ.',
+            ? 'Kledg a ajouté son outil de mise à jour à votre dépôt et lancé la préparation. La nouvelle version est prête dans une minute environ.'
+            : 'Préparation lancée sur GitHub. La nouvelle version est prête dans une minute environ.',
         )
         setPollUntil(Date.now() + 5 * 60 * 1000)
         setTimeout(load, 4000)
@@ -174,10 +176,11 @@ export function UpdateActions({
   const install = async () => {
     setBusy('install')
     try {
-      const body =
-        mergeUpstreamMode || !state?.pull
-          ? { mode: 'merge-upstream', confirm: true }
-          : { mode: 'pull', pullNumber: state.pull.number, headSha: state.pull.headSha, confirm: true }
+      const body = state?.pull
+        ? { mode: 'pull', pullNumber: state.pull.number, headSha: state.pull.headSha, confirm: true }
+        : state?.branch
+          ? { mode: 'branch', headSha: state.branch.headSha, confirm: true }
+          : { mode: 'merge-upstream', confirm: true }
       const result = await updatesApi<{ sha: string | null }>('/api/updates/install', { method: 'POST', body })
       setConfirmOpen(false)
       setDeploying({ sha: result.sha, since: Date.now() })
@@ -205,8 +208,10 @@ export function UpdateActions({
   const host = platform === 'docker' || platform === 'node' ? 'votre hébergeur' : PLATFORM_LABELS[platform]
   const Host = host.charAt(0).toUpperCase() + host.slice(1)
   const pull = state?.pull ?? null
-  const migrations = pull ? pull.migrations : overviewMigrations
-  const canInstall = Boolean(pull) || mergeUpstreamMode
+  const branch = pull ? null : (state?.branch ?? null)
+  const ready = pull ?? branch
+  const migrations = ready ? ready.migrations : overviewMigrations
+  const canInstall = Boolean(ready) || mergeUpstreamMode
 
   if (deployed) {
     return (
@@ -244,22 +249,136 @@ export function UpdateActions({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Rocket className="size-4" />
-          Mettre à jour depuis cette page
+          Installer une nouvelle version
         </CardTitle>
         <CardDescription>
-          1. Préparer&nbsp;: GitHub fusionne Kledg dans une branche et ouvre une pull request. 2. Installer&nbsp;: la pull request
-          est fusionnée. {GITHUB_DEPLOY_NOTES[platform]}
+          En deux étapes, depuis cette page. Rien ne change pour les utilisateurs de Kledg avant la seconde.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-6">
         {loadError && (
           <Alert variant="destructive">
             <AlertDescription>{loadError}</AlertDescription>
           </Alert>
         )}
 
-        <div className="grid gap-2 sm:max-w-sm">
-          <Label htmlFor="update-channel">Suivre</Label>
+        <ol className="space-y-6">
+          <li className="space-y-3" data-slot="update-step-prepare">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium">1. Préparer</h3>
+              <p className="text-muted-foreground text-sm">
+                {mergeUpstreamMode
+                  ? 'Votre fork n\u2019a pas l\u2019outil de mise à jour de Kledg\u00a0: rien à préparer, l\u2019installation l\u2019aligne directement sur Kledg (comme « Sync fork » sur GitHub), sans aperçu.'
+                  : 'GitHub rassemble la nouvelle version dans votre dépôt, à côté de celle en service. Votre hébergeur peut en construire un aperçu à essayer.'}
+              </p>
+            </div>
+
+            {state && !state.workflow.present && !isFork && (
+              <p className="text-muted-foreground text-sm">
+                Première fois&nbsp;: « Préparer » ajoute d&apos;abord à votre dépôt l&apos;outil de mise à jour de Kledg (un workflow GitHub
+                Actions). {Host} redéploie alors la même version, sans changement.
+              </p>
+            )}
+
+            {state?.run && (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant={state.run.conclusion === 'failure' ? 'destructive' : 'secondary'}>{runLabel(state.run)}</Badge>
+                <span className="text-muted-foreground">{formatDateTime(state.run.createdAt)}</span>
+                <a href={state.run.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-4">
+                  Journal sur GitHub
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
+            )}
+
+            {state?.run && state.run.status === 'completed' && state.run.conclusion === 'success' && !ready && !mergeUpstreamMode && (
+              <p className="text-muted-foreground text-sm" data-slot="prepare-no-pull">
+                {upToDate
+                  ? 'Rien à installer\u00a0: votre instance contient déjà la dernière version.'
+                  : 'La préparation n\u2019a produit aucune version à installer\u00a0: le journal sur GitHub dit pourquoi.'}
+              </p>
+            )}
+
+            {ready && (
+              <div className="space-y-2 rounded-lg border p-4 text-sm" data-slot="update-ready">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CheckCircle2 className="size-4" />
+                  <span className="font-medium">
+                    Version prête&nbsp;: {pull ? pull.title : branch?.label ? `Kledg ${branch.label}` : 'nouvelle version de Kledg'}
+                  </span>
+                  <a
+                    href={pull ? pull.url : branch?.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground inline-flex items-center gap-1 underline underline-offset-4"
+                  >
+                    {pull ? `voir sur GitHub (#${pull.number})` : 'voir sur GitHub'}
+                    <ExternalLink className="size-3" />
+                  </a>
+                  {pull?.mergeable === false && <Badge variant="destructive">Conflits</Badge>}
+                </div>
+                {pull?.mergeable === false && (
+                  <p className="text-destructive">
+                    Elle entre en conflit avec des modifications de votre dépôt&nbsp;: résolvez-les sur GitHub, puis préparez de nouveau.
+                  </p>
+                )}
+                {branch && (
+                  <p className="text-muted-foreground" data-slot="update-branch-note">
+                    Les réglages de votre dépôt n&apos;autorisent pas GitHub à proposer la mise à jour lui-même&nbsp;: Kledg le fera
+                    au moment de l&apos;installer.
+                  </p>
+                )}
+                {ready.preview && (
+                  <p className="text-muted-foreground">
+                    Aperçu&nbsp;: {PREVIEW_LABELS[ready.preview.state ?? 'pending'] ?? 'en construction'}
+                    {ready.preview.url && (
+                      <>
+                        {' · '}
+                        <a href={ready.preview.url} target="_blank" rel="noreferrer" className="text-foreground underline underline-offset-4">
+                          essayer cette version
+                        </a>
+                      </>
+                    )}
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  {ready.migrations.length
+                    ? `${ready.migrations.length} migration${ready.migrations.length > 1 ? 's' : ''} de la base`
+                    : 'Aucune migration de la base'}
+                </p>
+              </div>
+            )}
+
+            {!mergeUpstreamMode && (
+              <div className="flex flex-wrap gap-2">
+                <Button variant={canInstall ? 'outline' : 'default'} onClick={prepare} disabled={busy !== null || state?.channel === 'off'}>
+                  {busy === 'prepare' ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                  {ready ? 'Préparer de nouveau' : 'Préparer la mise à jour'}
+                </Button>
+                <Button variant="ghost" onClick={() => load()} disabled={busy !== null}>
+                  Rafraîchir
+                </Button>
+              </div>
+            )}
+          </li>
+
+          <li className="space-y-3" data-slot="update-step-install">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium">2. Installer</h3>
+              <p className="text-muted-foreground text-sm">
+                La nouvelle version remplace celle en service. {GITHUB_DEPLOY_NOTES[platform]}
+              </p>
+            </div>
+            <Button onClick={() => setConfirmOpen(true)} disabled={busy !== null || !canInstall || pull?.mergeable === false}>
+              <Rocket />
+              Installer la mise à jour
+            </Button>
+            {!canInstall && <p className="text-muted-foreground text-xs">Disponible une fois la version préparée.</p>}
+          </li>
+        </ol>
+
+        <div className="grid gap-2 border-t pt-5 sm:max-w-sm">
+          <Label htmlFor="update-channel">Versions à suivre</Label>
           {state?.channel === null ? (
             <div className="space-y-2 text-sm">
               <p>{CHANNEL_LABELS.releases}</p>
@@ -305,83 +424,6 @@ export function UpdateActions({
               </SelectContent>
             </Select>
           )}
-        </div>
-
-        {state && !state.workflow.present && !isFork && (
-          <p className="text-muted-foreground text-sm">
-            Votre dépôt n&apos;a pas encore le workflow de mise à jour&nbsp;: « Préparer » l&apos;ajoute sur la branche principale
-            ({Host} redéploie alors la même version).
-          </p>
-        )}
-
-        {state?.run && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Badge variant={state.run.conclusion === 'failure' ? 'destructive' : 'secondary'}>{runLabel(state.run)}</Badge>
-            <span className="text-muted-foreground">{formatDateTime(state.run.createdAt)}</span>
-            <a href={state.run.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-4">
-              Journal sur GitHub
-              <ExternalLink className="size-3" />
-            </a>
-          </div>
-        )}
-
-        {state?.run && state.run.status === 'completed' && state.run.conclusion === 'success' && !pull && !mergeUpstreamMode && (
-          <p className="text-muted-foreground text-sm" data-slot="prepare-no-pull">
-            {upToDate
-              ? 'Rien à installer\u00a0: votre instance contient déjà la dernière version, la préparation n’a ouvert aucune pull request.'
-              : 'La préparation s’est terminée sans pull request\u00a0: le journal sur GitHub dit pourquoi (souvent, votre dépôt contient déjà cette version).'}
-          </p>
-        )}
-
-        {pull && (
-          <div className="space-y-2 rounded-lg border p-4 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <GitPullRequest className="size-4" />
-              <a href={pull.url} target="_blank" rel="noreferrer" className="font-medium underline underline-offset-4">
-                {pull.title} (#{pull.number})
-              </a>
-              {pull.mergeable === false && <Badge variant="destructive">Conflits</Badge>}
-            </div>
-            {pull.preview && (
-              <p className="text-muted-foreground">
-                Aperçu&nbsp;: {PREVIEW_LABELS[pull.preview.state ?? 'pending'] ?? 'en construction'}
-                {pull.preview.url && (
-                  <>
-                    {' · '}
-                    <a href={pull.preview.url} target="_blank" rel="noreferrer" className="text-foreground underline underline-offset-4">
-                      ouvrir l&apos;aperçu
-                    </a>
-                  </>
-                )}
-              </p>
-            )}
-            <p className="text-muted-foreground">
-              {pull.migrations.length
-                ? `${pull.migrations.length} migration${pull.migrations.length > 1 ? 's' : ''} de la base`
-                : 'Aucune migration de la base'}
-            </p>
-          </div>
-        )}
-
-        {mergeUpstreamMode && (
-          <p className="text-muted-foreground text-sm">
-            Votre fork n&apos;a pas le workflow de mise à jour&nbsp;: l&apos;installation synchronise directement sa branche principale
-            avec la branche main de Kledg (comme le bouton « Sync fork » de GitHub), sans pull request ni aperçu.
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <Button variant={canInstall ? 'outline' : 'default'} onClick={prepare} disabled={busy !== null || state?.channel === 'off'}>
-            {busy === 'prepare' ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-            {pull ? 'Actualiser la mise à jour' : 'Préparer la mise à jour'}
-          </Button>
-          <Button onClick={() => setConfirmOpen(true)} disabled={busy !== null || !canInstall || pull?.mergeable === false}>
-            <Rocket />
-            Installer la mise à jour
-          </Button>
-          <Button variant="ghost" onClick={() => load()} disabled={busy !== null}>
-            Rafraîchir
-          </Button>
         </div>
 
         <AlertDialog open={confirmOpen} onOpenChange={(open) => busy !== 'install' && setConfirmOpen(open)}>

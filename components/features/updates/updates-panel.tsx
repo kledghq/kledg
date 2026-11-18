@@ -195,7 +195,7 @@ function Overview({ overview, onChange }: { overview: UpdateOverview; onChange: 
         </Alert>
       ) : current.deploysFromGitHub ? (
         <>
-          <GitHubConnect detected={repo} connection={overview.connection} platform={current.platform} onChange={onChange} />
+          <GitHubConnect detected={repo} connection={overview.connection} onChange={onChange} />
           {overview.connection && !overview.connection.expired && (
             <UpdateActions
               platform={current.platform}

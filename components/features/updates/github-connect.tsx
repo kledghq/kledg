@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { ConnectionSummary } from '@/lib/updates/connection'
 import type { RepoRef } from '@/lib/updates/github'
-import { GITHUB_DEPLOY_NOTES, type Platform } from '@/lib/updates/hosting'
 import { TOKEN_EXPIRY_DAYS, tokenCreationUrl } from '@/lib/updates/token-url'
 import { formatDate, updatesApi } from './api'
 
@@ -39,16 +38,14 @@ const PERMISSIONS: Array<[string, string]> = [
 export function GitHubConnect({
   detected,
   connection,
-  platform,
   onChange,
 }: {
   detected: RepoRef | null
   connection: ConnectionSummary | null
-  platform: Platform
   onChange: () => void
 }) {
   if (connection) return <ConnectedCard connection={connection} onChange={onChange} />
-  return <ConnectForm detected={detected} platform={platform} onChange={onChange} />
+  return <ConnectForm detected={detected} onChange={onChange} />
 }
 
 function ConnectedCard({ connection, onChange }: { connection: ConnectionSummary; onChange: () => void }) {
@@ -142,7 +139,7 @@ function ConnectedCard({ connection, onChange }: { connection: ConnectionSummary
   )
 }
 
-function ConnectForm({ detected, platform, onChange }: { detected: RepoRef | null; platform: Platform; onChange: () => void }) {
+function ConnectForm({ detected, onChange }: { detected: RepoRef | null; onChange: () => void }) {
   const [owner, setOwner] = useState('')
   const [repo, setRepo] = useState('')
   const [token, setToken] = useState('')
@@ -180,7 +177,8 @@ function ConnectForm({ detected, platform, onChange }: { detected: RepoRef | nul
         </CardTitle>
         <CardDescription>
           Facultatif. Avec un jeton limité à votre dépôt, Kledg prépare et installe les mises à jour depuis cette page. Sans
-          jeton, elles arrivent chaque lundi sous forme de pull request sur GitHub. {GITHUB_DEPLOY_NOTES[platform]}
+          jeton, GitHub prépare chaque lundi la nouvelle version dans votre dépôt et vous l&apos;installez sur GitHub (une pull request
+          à fusionner).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

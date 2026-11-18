@@ -54,6 +54,8 @@ vi.mock('@/lib/updates/service', async () => {
     getWorkflow: vi.fn(async () => ({ present: true, state: 'active', current: true, sha: 'x' })),
     latestRun: vi.fn(async () => null),
     findUpdatePull: vi.fn(async () => null),
+    findUpdateBranch: vi.fn(async () => null),
+    installUpdateBranch: vi.fn(async () => ({ sha: 'd'.repeat(40) })),
     prepareUpdate: vi.fn(async () => ({ mode: 'workflow', workflowInstalled: false, dispatchedAt: '2026-10-03T00:00:00Z' })),
     mergeUpdatePull: vi.fn(async () => ({ sha: 'b'.repeat(40) })),
     mergeUpstream: vi.fn(async () => ({ sha: 'c'.repeat(40) })),
@@ -70,7 +72,7 @@ import * as channelRoute from '../updates/channel/route'
 import * as historyRoute from '../updates/history/route'
 import { ensureVersionRecorded, listVersionHistory } from '@/lib/updates/history'
 import { saveConnection, validateToken } from '@/lib/updates/connection'
-import { mergeUpdatePull } from '@/lib/updates/service'
+import { installUpdateBranch, mergeUpdatePull } from '@/lib/updates/service'
 import { getUpdateOverview } from '@/lib/updates/overview'
 
 type Handler = (request: Request, context?: { params: Promise<Record<string, string>> }) => Promise<Response>
@@ -254,6 +256,16 @@ describe('/api/updates behaviour', () => {
     expect(res.status).toBe(400)
     res = await installRoute.POST(request('POST', '/api/updates/install', { mode: 'pull', pullNumber: 7, headSha: 'main', confirm: true }))
     expect(res.status).toBe(400)
+    expect(mergeUpdatePull).not.toHaveBeenCalled()
+  })
+
+  it('installs a branch prepared without its pull request, for the confirmed commit only', async () => {
+    let res = await installRoute.POST(request('POST', '/api/updates/install', { mode: 'branch', headSha: 'main', confirm: true }, { origin: 'http://localhost:3000' }))
+    expect(res.status).toBe(400)
+    expect(installUpdateBranch).not.toHaveBeenCalled()
+    res = await installRoute.POST(request('POST', '/api/updates/install', { mode: 'branch', headSha: SHA, confirm: true }, { origin: 'http://localhost:3000' }))
+    expect(res.status).toBe(200)
+    expect(installUpdateBranch).toHaveBeenCalledWith(expect.objectContaining({ repository: { owner: 'acme', repo: 'compta' } }), SHA)
     expect(mergeUpdatePull).not.toHaveBeenCalled()
   })
 

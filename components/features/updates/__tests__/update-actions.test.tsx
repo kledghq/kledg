@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { UpdatePull, WorkflowRun } from '@/lib/updates/service'
+import type { UpdateBranch, UpdatePull, WorkflowRun } from '@/lib/updates/service'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
@@ -25,6 +25,7 @@ type GitHubState = {
   workflow: { present: boolean; state: string | null; current: boolean }
   run: WorkflowRun | null
   pull: UpdatePull | null
+  branch?: UpdateBranch | null
 }
 
 let github: GitHubState
@@ -97,10 +98,11 @@ describe('UpdateActions', () => {
     const user = userEvent.setup()
     github.pull = pull
     render(<UpdateActions platform="vercel" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
-    expect(await screen.findByRole('link', { name: 'Kledg 1.4.0 (#42)' })).toHaveAttribute('href', pull.url)
+    expect(await screen.findByText('Version prête : Kledg 1.4.0')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'voir sur GitHub (#42)' })).toHaveAttribute('href', pull.url)
     expect(screen.getByText(/Aperçu : prêt/)).toBeInTheDocument()
     expect(screen.getByText('2 migrations de la base')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Actualiser la mise à jour' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Préparer de nouveau' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Installer la mise à jour' }))
     const dialog = await screen.findByRole('alertdialog')
@@ -119,7 +121,7 @@ describe('UpdateActions', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     github.pull = { ...pull, migrations: [] }
     render(<UpdateActions platform="docker" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
-    await screen.findByRole('link', { name: 'Kledg 1.4.0 (#42)' })
+    await screen.findByRole('link', { name: 'voir sur GitHub (#42)' })
     await user.click(screen.getByRole('button', { name: 'Installer la mise à jour' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(within(dialog).getByText(/ne modifie pas la base de données/)).toBeInTheDocument()
@@ -141,6 +143,7 @@ describe('UpdateActions', () => {
     github.pull = { ...pull, mergeable: false }
     render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
     expect(await screen.findByText('Conflits')).toBeInTheDocument()
+    expect(screen.getByText(/résolvez-les sur GitHub/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Installer la mise à jour' })).toBeDisabled()
   })
 
@@ -152,13 +155,37 @@ describe('UpdateActions', () => {
         Response.json({ mode: 'workflow', workflowInstalled: true, dispatchedAt: '2026-10-03T10:00:00.000Z' }),
     })
     render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
-    expect(await screen.findByText(/Votre dépôt n'a pas encore le workflow de mise à jour/)).toBeInTheDocument()
+    expect(await screen.findByText(/Première fois : « Préparer » ajoute d'abord à votre dépôt l'outil de mise à jour de Kledg/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Préparer la mise à jour' }))
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
-        'Workflow de mise à jour ajouté à votre dépôt et lancé. La pull request arrive dans une minute environ.',
+        'Kledg a ajouté son outil de mise à jour à votre dépôt et lancé la préparation. La nouvelle version est prête dans une minute environ.',
       ),
     )
+  })
+
+  it('installs an update prepared without its pull request (Actions may not open pull requests in the repository)', async () => {
+    const user = userEvent.setup()
+    github.run = { id: 1, status: 'completed', conclusion: 'success', url: 'https://github.com/acme/kledg/actions/runs/1', createdAt: '2026-10-03T10:00:00.000Z' }
+    github.branch = {
+      headSha: 'f'.repeat(40),
+      label: 'v1.4.0',
+      url: 'https://github.com/acme/kledg/compare/main...kledg-update',
+      migrations: ['20261001000000_add_x'],
+      preview: null,
+    }
+    render(<UpdateActions platform="vercel" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
+    expect(await screen.findByText('Version prête : Kledg v1.4.0')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'voir sur GitHub' })).toHaveAttribute('href', 'https://github.com/acme/kledg/compare/main...kledg-update')
+    expect(screen.getByText(/Kledg le fera au moment de l'installer/)).toBeInTheDocument()
+    expect(screen.queryByText(/aucune version à installer/)).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Installer la mise à jour' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('20261001000000_add_x')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: "J'ai sauvegardé, installer" }))
+    await screen.findByText('Déploiement en cours')
+    expect(bodyOf('POST /api/updates/install')).toEqual({ mode: 'branch', headSha: 'f'.repeat(40), confirm: true })
   })
 
   it('switches a fork without workflow to a direct sync and installs with merge-upstream', async () => {
@@ -167,7 +194,7 @@ describe('UpdateActions', () => {
     render(<UpdateActions platform="vercel" isFork previousCommit="old0000" overviewMigrations={['20261001000000_add_x']} />)
     await user.click(await screen.findByRole('button', { name: 'Préparer la mise à jour' }))
     await waitFor(() => expect(toast.info).toHaveBeenCalledWith('Votre fork peut être synchronisé directement avec Kledg.'))
-    expect(screen.getByText(/l'installation synchronise directement sa branche principale/)).toBeInTheDocument()
+    expect(screen.getByText(/l’aligne directement sur Kledg/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Installer la mise à jour' }))
     const dialog = await screen.findByRole('alertdialog')
@@ -186,7 +213,7 @@ describe('UpdateActions', () => {
       'POST /api/updates/install': () => Response.json({ error: 'La pull request a changé' }, { status: 409 }),
     })
     render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
-    await user.click(await screen.findByRole('button', { name: 'Actualiser la mise à jour' }))
+    await user.click(await screen.findByRole('button', { name: 'Préparer de nouveau' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Le jeton a expiré'))
     await user.click(screen.getByRole('button', { name: 'Installer la mise à jour' }))
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: "J'ai sauvegardé, installer" }))
@@ -230,7 +257,7 @@ describe('UpdateActions', () => {
     unmount()
 
     render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
-    expect(await screen.findByText(/terminée sans pull request/)).toBeInTheDocument()
+    expect(await screen.findByText(/aucune version à installer/)).toBeInTheDocument()
   })
 
   it('shows the load error', async () => {

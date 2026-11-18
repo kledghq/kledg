@@ -408,7 +408,7 @@ Créez la variable de dépôt `KLEDG_UPDATES` (*Settings, Secrets and variables,
 
 Vous pouvez aussi le lancer à la main : onglet **Actions** de votre dépôt, **Update from Kledg**, **Run workflow**.
 
-Si GitHub refuse que les Actions ouvrent des pull requests (réglage *Settings, Actions, General, Allow GitHub Actions to create and approve pull requests*), le workflow pousse quand même la branche `kledg-update` et affiche le lien pour ouvrir la pull request en un clic. Activez ce réglage pour que tout soit automatique.
+Si GitHub refuse que les Actions ouvrent des pull requests (réglage *Settings, Actions, General, Allow GitHub Actions to create and approve pull requests*, au niveau du dépôt ou de l'organisation), le workflow pousse quand même la branche `kledg-update` et affiche le lien pour ouvrir la pull request en un clic. La page **Mises à jour** reconnaît ce cas (`GET /api/updates/github` renvoie `branch` : la branche en avance sur la branche par défaut sans pull request ouverte, `findUpdateBranch`) et l'installe : elle ouvre la pull request avec le jeton connecté (permission *Pull requests*), puis la fusionne si la branche est toujours sur le commit confirmé (`POST /api/updates/install`, mode `branch`, `installUpdateBranch`). Activez le réglage pour recevoir aussi la pull request hebdomadaire sans passer par la page.
 
 ### Forker plutôt que copier
 
