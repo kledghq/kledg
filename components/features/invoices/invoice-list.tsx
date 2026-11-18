@@ -16,6 +16,7 @@ import { INVOICE_STATUS_LABELS, INVOICE_STATUS_TONES, type InvoiceStatus } from 
 import { invoiceOriginLabel, type InvoiceOriginCode } from '@/lib/invoices/origin'
 import { plural } from '@/lib/utils/plural'
 import type { InvoiceDirection } from './invoice-form'
+import { EInvoiceImportDialog } from './e-invoice-import-dialog'
 
 interface InvoiceRow {
   id: string
@@ -32,7 +33,7 @@ interface InvoiceRow {
   totalInclTaxCents: number
   remainingCents: number
   status: InvoiceStatus
-  source: 'MANUAL' | 'QONTO'
+  source: 'MANUAL' | 'QONTO' | 'E_INVOICE'
 }
 
 type StatusFilter = 'all' | 'draft' | 'posted'
@@ -107,6 +108,7 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
         }
         actions={
           <>
+            {sale ? null : <EInvoiceImportDialog companyId={companyId} disabled={!mayCreate} />}
             <Button variant="outline" onClick={importFromQonto} disabled={!mayImport} loading={importing}>
               <Download aria-hidden />
               Importer de Qonto
@@ -164,7 +166,7 @@ export function InvoiceList({ companyId, direction }: { companyId: string; direc
               description={
                 sale
                   ? 'Enregistrez les factures que vous émettez, ou importez celles de Qonto. Une facture s’adresse à un client\u00a0: ajoutez-le d’abord s’il n’existe pas encore.'
-                  : 'Enregistrez les factures de vos fournisseurs, ou importez celles déposées dans Qonto.'
+                  : 'Enregistrez les factures de vos fournisseurs, importez les factures électroniques reçues de votre plateforme (Factur-X, CII, UBL) ou celles déposées dans Qonto.'
               }
               action={
                 mayCreate ? (

@@ -1832,6 +1832,7 @@ enum InvoiceDirection {
 enum InvoiceSource {
   MANUAL // Saisie dans Kledg
   QONTO // Importée de Qonto
+  E_INVOICE // Importée d'un fichier de facture électronique (Factur-X, CII, UBL)
 }
 
 /// Where the number of an invoice comes from (docs/factures-et-tiers.md, Numérotation).
@@ -1957,11 +1958,14 @@ model Invoice {
   /// Provider reference of the PDF (Qonto attachment uuid): Kledg stores no file, it asks Qonto for a fresh link.
   externalAttachmentId String?
   attachmentFileName   String?
+  /// The imported e-invoice file as received (source E_INVOICE), kept in its original format (LPF art. L102 B).
+  documentFileId       String?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
   company               Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   tiers                 Tiers                 @relation(fields: [tiersId], references: [id], onDelete: Restrict)
+  documentFile          ReceiptFile?          @relation(fields: [documentFileId], references: [id], onDelete: NoAction)
   entry                 AccountingEntry?      @relation("InvoiceEntry", fields: [entryId], references: [id], onDelete: SetNull)
   lines                 InvoiceLine[]
   vatBreakdown          InvoiceVatBreakdown[]
@@ -1974,6 +1978,7 @@ model Invoice {
   @@unique([companyId, source, externalId])
   @@index([companyId, direction, issueDate])
   @@index([tiersId])
+  @@index([documentFileId])
   @@map("invoices")
 }
 
@@ -3114,6 +3119,7 @@ model ReceiptFile {
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   attachments    Attachment[]
   stagedReceipts StagedReceipt[]
+  invoices       Invoice[]
 
   @@unique([companyId, sha256])
   @@map("receipt_files")

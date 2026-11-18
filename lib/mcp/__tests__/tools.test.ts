@@ -77,6 +77,7 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   letter_entry_lines: true,
   unletter_entry_lines: true,
   create_draft_invoice: true,
+  import_e_invoice: true,
   manage_accounts: true,
   manage_journals: true,
   manage_fiscal_years: true,

@@ -342,6 +342,7 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'POST /api/invoices/[id]/settle': { tools: ['manage_invoice'] },
   'POST /api/invoices/[id]/qonto': { tools: ['manage_invoice'], note: 'Action resume_qonto.' },
   'POST /api/invoices/import-qonto': { tools: ['import_qonto_invoices'] },
+  'POST /api/invoices/import-e-invoice': { tools: ['import_e_invoice'] },
   'GET /api/invoices': { tools: ['list_invoices'] },
   'POST /api/invoices': { tools: ['create_draft_invoice'] },
   'PATCH /api/journals/[id]': { tools: ['manage_journals'] },

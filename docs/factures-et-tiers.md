@@ -179,12 +179,12 @@ Non utilisés : Qonto ne publie pas de liste des fournisseurs (ils viennent des
 - Factures de vente : une ligne Kledg par ligne Qonto ; la TVA par taux est celle du document quand Qonto la donne, et le total doit égaler le total du document au centime. Les brouillons et factures annulées sont ignorés ; une ligne avec remise, ou des montants qui ne tombent pas juste, écartent la facture avec la raison.
 - Factures d'achat : une ligne par taux, dont la base se déduit de la taxe (taxe / taux), le reste du total hors taxe allant au taux de 0 % s'il existe, sinon à la plus grosse base ; chaque base doit redonner sa taxe à un centime près. La TVA retenue est celle du document. Les factures rejetées ou écartées chez Qonto sont ignorées.
 - Une facture importée est un brouillon qui garde les montants du document ; le compte de ses lignes (ou le compte par défaut du fournisseur) est requis pour la comptabiliser. Une facture déjà comptabilisée garde ses montants ; seul son statut Qonto est mis à jour.
-- **Pièce jointe** : Kledg ne stocke aucun fichier (il n'a pas de stockage de fichiers, les justificatifs bancaires fonctionnent de même). Il garde l'identifiant de la pièce et demande un lien frais à Qonto à chaque ouverture (`GET /api/invoices/[id]/attachment`) ; le lien n'est suivi que vers les hôtes de fichiers de Qonto, en https, vers une adresse publique, sans redirection, avec un délai et une taille maximale (`lib/integrations/providers/qonto/files.ts`).
+- **Pièce jointe** : Kledg ne stocke pas le PDF d'une facture Qonto. Il garde l'identifiant de la pièce et demande un lien frais à Qonto à chaque ouverture (`GET /api/invoices/[id]/attachment`) ; le lien n'est suivi que vers les hôtes de fichiers de Qonto, en https, vers une adresse publique, sans redirection, avec un délai et une taille maximale (`lib/integrations/providers/qonto/files.ts`).
 - Tests : l'API est simulée sur l'adresse du bac à sable Qonto de la configuration (`QONTO_ENVIRONMENT=sandbox`), sans réseau.
 
 ## Facturation électronique
 
-**Kledg n'est pas une plateforme agréée** (PA, longtemps appelée plateforme de dématérialisation partenaire) et ne se connecte à aucune : il ne reçoit, n'émet ni ne transmet de facture électronique, et ne fait pas d'e-reporting. Calendrier de la réforme (CGI art. 289 bis et 290, tels que modifiés par la loi n° 2026-103 de finances pour 2026, qui n'a pas changé les dates ; [impots.gouv.fr](https://www.impots.gouv.fr/professionnel/questions/partir-de-quand-suis-je-concerne-par-la-reforme-de-la-facturation)) :
+**Kledg n'est pas une plateforme agréée** (PA, longtemps appelée plateforme de dématérialisation partenaire) et ne se connecte à aucune : il n'émet ni ne transmet de facture électronique, et ne fait pas d'e-reporting. Il **importe** le fichier d'une facture reçue, que la plateforme de la société lui remet ([ci-dessous](#import-dune-facture-électronique)). Calendrier de la réforme (CGI art. 289 bis et 290, tels que modifiés par la loi n° 2026-103 de finances pour 2026, qui n'a pas changé les dates ; [impots.gouv.fr](https://www.impots.gouv.fr/professionnel/questions/partir-de-quand-suis-je-concerne-par-la-reforme-de-la-facturation)) :
 
 | Date | Obligation |
 | --- | --- |
@@ -193,7 +193,7 @@ Non utilisés : Qonto ne publie pas de liste des fournisseurs (ils viennent des
 
 Conséquences pour Kledg :
 
-- La réception et l'émission passent par la plateforme agréée choisie par la société (liste DGFiP sur impots.gouv.fr ; Chorus Pro reste le portail du secteur public). Kledg enregistre ensuite les factures : saisie, import Qonto, plus tard import du fichier. **Kledg n'importe pas encore de fichier Factur-X, UBL ou CII.**
+- La réception et l'émission passent par la plateforme agréée choisie par la société (liste DGFiP sur impots.gouv.fr ; Chorus Pro reste le portail du secteur public). Kledg enregistre ensuite les factures : saisie, import Qonto, import du fichier d'une facture reçue (Factur-X, CII ou UBL). La réception directe depuis une plateforme, par son API, n'existe pas encore.
 - Les mentions de la réforme (SIREN du client, adresse de livraison si elle diffère, catégorie de l'opération, option pour le paiement de la TVA d'après les débits, CGI ann. II art. 242 nonies A, I, 1°, 7° bis, 8° bis et 11° bis) sont portées par le document émis par l'outil de facturation ou la plateforme. Kledg garde celles dont la comptabilité a besoin.
 
 Le modèle de facture de Kledg est déjà aligné sur la norme EN 16931, pour qu'un import électronique produise les mêmes données qu'une saisie :
@@ -202,9 +202,43 @@ Le modèle de facture de Kledg est déjà aligné sur la norme EN 16931, pour qu
 - **Type de document** : code UNTDID 1001 (`typeCode` : 380 facture, 381 avoir ; BT-3).
 - **Détail de la TVA** par taux, enregistré (`invoice_vat_breakdowns`, BG-23 : base BT-116, taux BT-119, taxe BT-117), calculé par la règle EN 16931 pour une facture saisie, repris tel quel pour une facture importée.
 - **Lignes** : quantité, prix unitaire net, taux, total net (BG-25 : BT-129, BT-146, BT-152, BT-131) et nature bien ou prestation (CGI ann. II art. 242 nonies A, I, 8° bis).
-- **Source et identifiant externe** (`source`, `externalId`, unique) : un import électronique retrouvera ses factures par leur identifiant de plateforme, comme Qonto aujourd'hui.
+- **Source et identifiant externe** (`source`, `externalId`, unique) : une réception depuis une plateforme retrouvera ses factures par leur identifiant de plateforme, comme Qonto aujourd'hui.
 
-Pour la suite : une source `EINVOICE`, un analyseur des formats (XML CII et UBL, PDF/A-3 Factur-X) qui produit les mêmes lignes et le même détail de TVA, à partir des factures que la plateforme agréée de la société lui remet. Kledg ne deviendra pas lui-même une plateforme agréée.
+Kledg ne deviendra pas lui-même une plateforme agréée.
+
+### Import d'une facture électronique
+
+Bouton **Importer une facture électronique** de la page Factures d'achat, `POST /api/invoices/import-e-invoice` (formulaire `companyId`, `file`, `mode` : `import` par défaut, `preview` lit sans écrire ; droit `entries:create`, limite `import`), outil MCP `import_e_invoice`. Code : `lib/invoices/e-invoice/` (lecture, sans base de données) et `lib/invoices/import-e-invoice.service.ts` (enregistrement). Guide : [Les factures et les tiers](https://www.kledg.com/fr/docs/les-factures-et-les-tiers).
+
+**Formats** : les trois syntaxes de la réforme (spécifications externes de la DGFiP).
+
+| Fichier | Lecture |
+| --- | --- |
+| PDF Factur-X (ou ZUGFeRD) | Le XML CII joint au PDF/A-3 (`/Type /EmbeddedFile`, compressé FlateDecode ou non), trouvé sans analyseur PDF complet ni dépendance : un flux ne peut pas être dans un flux d'objets (ISO 32000-1, 7.5.7). Un PDF chiffré, ou sans XML joint, est refusé. |
+| XML CII (`CrossIndustryInvoice`, D16B) | Liaison EN 16931-3-3. |
+| XML UBL 2.1 (`Invoice` ou `CreditNote`) | Liaison EN 16931-3-2. |
+
+Un XML qui déclare un DOCTYPE est refusé avant la lecture (aucune expansion d'entité, aucune entité externe). Un XML fait 5 Mo au plus, un PDF la taille maximale d'envoi.
+
+**Contrôles** (`normalize.ts`) : les montants du document sont gardés, jamais recalculés, après les règles de cohérence de la norme EN 16931-1 qu'un document valide respecte déjà :
+
+- BR-CO-13 : total hors taxe (BT-109) = somme des bases par taux (BT-116) ;
+- BR-CO-14 : total de TVA (BT-110) = somme des TVA par taux (BT-117) ;
+- BR-CO-15 : total TTC (BT-112) = BT-109 + BT-110.
+
+Une facture qui en enfreint une est refusée avec la règle citée. Sont aussi refusés : une autre devise que l'euro ; un type de document autre que 380 (facture), 381 (avoir), 393 et 396 (facture et avoir affacturés), par exemple 384 (rectificative), 386 (acompte) ou 389 (autofacture) ; un total négatif ; le profil MINIMUM sans détail de TVA (sauf s'il n'a pas de TVA). Deux catégories au même taux (exonération E et taux zéro Z à 0 %) font une seule ligne du détail par taux.
+
+**Lignes** : les lignes Kledg n'ont ni remise ni montant négatif (`invoice_lines_values_check`). Les lignes du document sont gardées quand, taux par taux, leurs montants nets (BT-131) font la base du détail ; une ligne dont la quantité et le prix ne redonnent pas le montant à la précision de Kledg (3 décimales, centimes) devient une unité à son montant. Sinon (remises ou frais de pied de facture, BG-20 et BG-21 ; ligne négative ; profil BASIC WL ou MINIMUM sans lignes ; plus de 200 lignes), Kledg enregistre une ligne par taux, à la base du détail, comme une facture d'achat Qonto, et le dit.
+
+**Avertissements** rendus avec le résultat : autoliquidation (catégorie AE, CGI art. 283) et acquisition intracommunautaire (catégorie K, CGI art. 256 bis), dont la TVA due par l'acheteur n'est pas sur la facture et n'est pas comptabilisée par Kledg ; taux qui n'est pas un taux français ; acompte déjà versé (BT-113) ; lignes regroupées par taux ; acheteur sans SIREN ni numéro de TVA.
+
+**Enregistrement** :
+
+- seule une facture **adressée à la société** est importée : un SIREN (BT-47) ou un numéro de TVA (BT-48) d'acheteur qui n'est pas celui de la société est refusé, comme une facture émise par la société elle-même ;
+- le **fournisseur** est retrouvé par SIREN, puis numéro de TVA, puis nom ; sinon il est créé (nom, SIREN, SIRET, TVA, adresse du document), dans la même transaction que la facture. Le SIREN vient de l'identifiant légal (schéma 0002), du SIRET (0009) ou de l'adresse électronique française (schéma 0225, « SIREN_suffixe ») ; un identifiant dont la clé est fausse est ignoré ;
+- la facture est un **brouillon d'achat** (`source` `E_INVOICE`, origine `MANUAL` : le numéro est celui du fournisseur), avec les lignes, le détail par taux et les totaux du document, le compte par défaut du fournisseur sur les lignes, l'échéance du document (sinon les conditions du fournisseur, puis de la société). Comme une facture Qonto, seuls ses comptes et natures se modifient ;
+- **idempotent** : le même fichier (SHA-256), ou le même numéro chez le même fournisseur, ne crée rien la deuxième fois et renvoie la facture existante. La vérification est refaite sous le verrou des numéros de factures de la société (`lockInvoiceNumbers`) : deux imports simultanés n'en créent qu'une ;
+- le **fichier est conservé tel quel** (LPF art. L102 B : une facture électronique se conserve dans son format d'origine), dans le stockage des justificatifs (`receipt_files`, [stockage](justificatifs-photo.md#stockage)), lié par `invoices.documentFileId`. Il s'ouvre par `GET /api/invoices/[id]/attachment` et l'outil `get_file`. Le nettoyage des fichiers de justificatifs ne supprime jamais le fichier d'une facture ; supprimer le brouillon supprime son fichier.
 
 ## Reprise de données d'un autre logiciel
 

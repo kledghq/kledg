@@ -20,6 +20,9 @@ import { AUTO_NUMBER_TYPED, INVOICE_NUMBERING_CHOICES } from '@/lib/invoices/man
 import { issueInvoice, qontoFirstActive } from '@/lib/invoices/create-in-qonto.service'
 import { loadNumberingSettings, peekNextNumber } from '@/lib/invoices/numbering/series'
 import { postInvoice } from '@/lib/invoices/post-invoice.service'
+import { analyzeEInvoice, importEInvoice, type EInvoiceAnalysis } from '@/lib/invoices/import-e-invoice.service'
+import { assertFileSize } from '@/lib/api/files'
+import { enforceRateLimit } from '@/lib/rate-limit'
 import { fromCents, toCents } from '@/lib/utils/money'
 import { fullControlTool, type RegisterTool } from './define'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
@@ -173,6 +176,73 @@ const createDraftInvoiceTool = fullControlTool({
   audit: (args, result) => ({ invoiceId: result.invoiceId, number: result.number ?? null, numbering: args.numbering ?? null, direction: args.direction, entryId: result.entryId }),
 })
 
+/** An e-invoice is small (the EN 16931 samples are under 100 kB, a Factur-X PDF a few hundred): 5 MB like a statement. */
+const MAX_MCP_E_INVOICE_BYTES = 5 * 1024 * 1024
+
+function decodeEInvoice(contentBase64: string): Uint8Array {
+  const text = contentBase64.replace(/\s+/g, '')
+  if (!/^[A-Za-z0-9+/_-]*={0,2}$/.test(text)) throw new ValidationError('Contenu du fichier invalide\u00a0: encodez-le en base64.')
+  const bytes = new Uint8Array(Buffer.from(text, 'base64'))
+  if (bytes.length === 0) throw new ValidationError('Fichier vide.')
+  assertFileSize({ size: bytes.length }, MAX_MCP_E_INVOICE_BYTES)
+  return bytes
+}
+
+/** The analysis in euros, as the other invoice tools give amounts. */
+function inEuros(analysis: EInvoiceAnalysis) {
+  return {
+    format: analysis.format,
+    number: analysis.number,
+    creditNote: analysis.creditNote,
+    issueDate: analysis.issueDate,
+    dueDate: analysis.dueDate,
+    supplier: analysis.supplier,
+    lines: analysis.lines.map((line) => ({ label: line.label, quantity: line.quantity, unitPrice: fromCents(line.unitPriceCents), vatRatePercent: line.vatRateBp / 100, totalExclTax: fromCents(line.totalExclTaxCents) })),
+    vatBreakdown: analysis.vatBreakdown.map((row) => ({ ratePercent: row.vatRateBp / 100, base: fromCents(row.baseCents), vat: fromCents(row.vatCents) })),
+    totalExclTax: fromCents(analysis.totalExclTaxCents),
+    totalVat: fromCents(analysis.totalVatCents),
+    totalInclTax: fromCents(analysis.totalInclTaxCents),
+    alreadyImported: analysis.alreadyImported,
+    warnings: analysis.warnings,
+  }
+}
+
+const importEInvoiceTool = fullControlTool({
+  name: 'import_e_invoice',
+  title: 'Importer une facture électronique',
+  description: `Records a received e-invoice file (Factur-X PDF, CII or UBL XML, as delivered by the company's approved e-invoicing platform) as a DRAFT purchase invoice: the document's lines, VAT per rate and totals are kept as they are (checked with the EN 16931 rules), the supplier is found by SIREN, VAT number or name (created otherwise), and the file is kept in Kledg as received. Only an invoice addressed to the company is accepted. Importing the same file twice creates nothing the second time. A person then chooses the accounts and posts the invoice in Kledg (manage_invoice). ${ACTS_AS_USER} ${TWO_STEP} The dry run shows what the file holds, the supplier found and the warnings (reverse charge, lines summed per rate, advance already paid).`,
+  input: {
+    fileName: z.string().min(1).max(200).describe('Original file name, e.g. "facture-F2026-001.pdf" (.pdf Factur-X, .xml CII or UBL).'),
+    contentBase64: z.string().min(1).max(Math.ceil((MAX_MCP_E_INVOICE_BYTES * 4) / 3) + 4).describe('The file content, base64 encoded (5 MB at most).'),
+  },
+  permission: { entries: ['create'] },
+  amounts: 'euros',
+  never: 'posts the invoice, pays it or imports an invoice addressed to another company.',
+  idempotent: true,
+  targetState: ({ companyId }) => [companyLock(companyId)],
+  confirmation: true,
+  // Every parse counts in the import limit of the user, like the import route (app/api/invoices/import-e-invoice/route.ts).
+  async preview({ companyId, fileName, contentBase64 }, ctx) {
+    await enforceRateLimit('import', ctx.access.user.id)
+    return inEuros(await analyzeEInvoice(companyId, { bytes: decodeEInvoice(contentBase64), fileName }))
+  },
+  async execute({ companyId, fileName, contentBase64 }, ctx) {
+    await enforceRateLimit('import', ctx.access.user.id)
+    const result = await importEInvoice(companyId, { bytes: decodeEInvoice(contentBase64), fileName }, { source: 'mcp' })
+    return {
+      invoiceId: result.invoiceId,
+      created: result.created,
+      supplierCreated: result.supplierCreated,
+      ...inEuros(result),
+      message: result.created
+        ? 'Facture importée en brouillon\u00a0: choisissez les comptes de ses lignes et comptabilisez-la dans Kledg.'
+        : 'Cette facture était déjà enregistrée\u00a0: rien n’a été créé.',
+    }
+  },
+  audit: ({ fileName }, result) => ({ invoiceId: result.invoiceId, created: result.created, fileName }),
+})
+
 export function registerInvoiceTools(register: RegisterTool) {
   register(createDraftInvoiceTool)
+  register(importEInvoiceTool)
 }
