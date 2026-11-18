@@ -14,7 +14,7 @@
  * transaction only.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { sharedAsyncLocalStorage } from '@/lib/shared-async-storage'
 import { logger } from '@/lib/logger'
 
 /**
@@ -90,7 +90,7 @@ export type RlsContext =
 /** A request without a session (sign-in, password reset, setup): no company is reachable. */
 export const ANONYMOUS_CONTEXT: RlsContext = Object.freeze({ access: 'anonymous' })
 
-const storage = new AsyncLocalStorage<RlsContext>()
+const storage = sharedAsyncLocalStorage<RlsContext>('rls-context')
 
 /** The context of the current async execution, or undefined outside any. */
 export function currentRlsContext(): RlsContext | undefined {
