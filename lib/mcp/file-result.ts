@@ -69,7 +69,7 @@ export function cleanName(fileName: string): string {
 }
 
 /** Types of the documents read from a bank (receipts, invoices, statements). */
-const DOCUMENT_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg'])
+const DOCUMENT_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'application/xml'])
 
 /**
  * The MIME type of a document read from a bank, from the type it declares:

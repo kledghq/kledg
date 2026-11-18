@@ -312,6 +312,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `upload_receipt` | Envoyer le justificatif d'une transaction Qonto (JPEG, PNG ou PDF en base64, 5 Mo au plus) ; l'aperçu donne la transaction et le fichier (nom, type, taille, SHA-256) | `banking:reconcile` | Oui |
 | `manage_invoice` | Comptabiliser une facture (écriture en brouillon), annuler cette comptabilisation, supprimer un brouillon, enregistrer ou retirer un règlement, lettrer une facture réglée, reprendre la création dans Qonto d'une facture sans réponse de Qonto ; lignes de banque candidates (lecture) | `entries:create`, `entries:delete` ou `entries:update` selon l'action | Oui (sauf la lecture) |
 | `import_qonto_invoices` | Importer les clients et les factures de Qonto (idempotent) | `entries:create` et `banking:read` | Oui |
+| `import_e_invoice` | Importer une facture électronique reçue (PDF Factur-X, XML CII ou UBL, en base64) en facture d'achat brouillon : montants du document vérifiés (règles EN 16931), fournisseur retrouvé ou créé, fichier conservé tel quel ; le même fichier importé deux fois ne crée rien | `entries:create` | Oui |
 | `delete_tiers` | Supprimer un client ou un fournisseur sans facture | `entries:delete` | Oui |
 | `delete_budget_items` | Supprimer un budget ou une ligne | `budgets:manage` | Oui |
 | `delete_year_end_items` | Supprimer une provision, une évaluation ou une subvention, avec leurs brouillons | `entries:delete` | Oui |
@@ -411,7 +412,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Abonnements détectés ([abonnements](abonnements.md)) | `list_detected_subscriptions` | `classify_subscription`, `add_subscription_to_budget` | `create_rule` (règle depuis un abonnement) | |
 | Frais de gestion ([frais de gestion](frais-de-gestion.md)) | `list_management_fee_conventions` (conventions, périodes facturées, filiales), `preview_management_fees` | | `manage_management_fee_convention` | Génération des factures (décision documentée ci-dessus) |
 | Notes de frais ([notes de frais](notes-de-frais.md)) | `list_expense_reports`, `get_expense_report`, `list_expense_claimants`, `list_expense_category_rules` | `create_draft_expense_report`, `update_draft_expense_report` | `manage_expense_report` (soumettre, renvoyer, valider, rouvrir, comptabiliser, rembourser, supprimer), `manage_expense_settings` (bénéficiaires et mots-clés) | |
-| Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `get_tiers_flows`, `list_invoices`, `get_invoice` | `manage_tiers`, `update_draft_invoice` | `create_draft_invoice`, `manage_invoice`, `delete_tiers`, `import_qonto_invoices` | |
+| Factures et tiers ([factures et tiers](factures-et-tiers.md)) | `list_tiers`, `get_tiers_flows`, `list_invoices`, `get_invoice` | `manage_tiers`, `update_draft_invoice` | `create_draft_invoice`, `manage_invoice`, `delete_tiers`, `import_qonto_invoices`, `import_e_invoice` | |
 | Lettrage ([lettrage et tiers](lettrage-et-tiers.md)) | | | `list_unlettered_lines`, `letter_entry_lines`, `unletter_entry_lines`, `auto_letter_account` | |
 | Balance âgée et balance auxiliaire | `get_aged_balance`, `get_auxiliary_balance`, `export_report` (Excel) | | | |
 | Mode simple, dépenses et recettes à vérifier ([catégories simples](categories-simples.md)) | `list_expenses_to_review` | `accept_expense_suggestion`, `accept_all_expense_suggestions` (brouillons) | `validate_entries`, `upload_receipt`, `update_company_settings` (réglage de validation) | |
@@ -775,6 +776,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `POST /api/invoices/[id]/settle` | entries:update | `manage_invoice` (CT) |
 | `POST /api/invoices/[id]/qonto` | entries:create | `manage_invoice` (CT) |
 | `POST /api/invoices/import-qonto` | entries:create | `import_qonto_invoices` (CT) |
+| `POST /api/invoices/import-e-invoice` | entries:create | `import_e_invoice` (CT) |
 | `GET /api/invoices` | entries:read | `list_invoices` (L) |
 | `POST /api/invoices` | entries:create | `create_draft_invoice` (CT) |
 | `PATCH /api/journals/[id]` | ledger:manage | `manage_journals` (CT) |

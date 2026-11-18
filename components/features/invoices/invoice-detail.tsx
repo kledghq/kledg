@@ -35,7 +35,7 @@ interface Detail {
   dueDate: string
   label: string | null
   status: InvoiceStatus
-  source: 'MANUAL' | 'QONTO'
+  source: 'MANUAL' | 'QONTO' | 'E_INVOICE'
   externalStatus: string | null
   hasAttachment: boolean
   letteringCode: string | null
@@ -334,6 +334,8 @@ export function InvoiceDetailView({ companyId, invoiceId }: { companyId: string;
           <CardTitle>Lignes</CardTitle>
           {!posted && invoice.source === 'QONTO' ? (
             <CardDescription>Les montants viennent du document Qonto. Choisissez le compte de chaque ligne avant de comptabiliser.</CardDescription>
+          ) : !posted && invoice.source === 'E_INVOICE' ? (
+            <CardDescription>Les montants viennent de la facture électronique. Choisissez le compte de chaque ligne avant de comptabiliser.</CardDescription>
           ) : null}
         </CardHeader>
         <CardContent>

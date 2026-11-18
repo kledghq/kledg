@@ -4,8 +4,10 @@
  * the AI grant of the connection applies; the lists page by page and read
  * the changes since an instant for a sync), and create_draft_invoice (full
  * control, entries:create, following the execution mode: approval in Kledg
- * or automatic, with a dry run of the totals). Services are mocked: they
- * have their own database tests.
+ * or automatic, with a dry run of the totals), and import_e_invoice (full
+ * control, entries:create: the dry run reads the file, the execution
+ * records it; amounts in euros). Services are mocked: they have their own
+ * database tests.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,6 +28,7 @@ vi.mock('@/lib/mcp/company-access', async (importOriginal) => ({
 vi.mock('@/lib/tiers/manage-tiers.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/tiers/manage-tiers.service')>()), listTiers: vi.fn() }))
 vi.mock('@/lib/invoices/manage-invoices.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/invoices/manage-invoices.service')>()), listInvoices: vi.fn(), getInvoice: vi.fn(), createInvoice: vi.fn() }))
 vi.mock('@/lib/invoices/post-invoice.service', () => ({ postInvoice: vi.fn() }))
+vi.mock('@/lib/invoices/import-e-invoice.service', () => ({ analyzeEInvoice: vi.fn(), importEInvoice: vi.fn() }))
 vi.mock('@/lib/invoices/create-in-qonto.service', () => ({ issueInvoice: vi.fn(), qontoFirstActive: vi.fn(async () => false), resumeQontoInvoice: vi.fn() }))
 vi.mock('@/lib/invoices/numbering/series', () => ({ loadNumberingSettings: vi.fn(async () => ({ mode: 'AUTO' })), peekNextNumber: vi.fn(async () => 'F2026-0007') }))
 vi.mock('@/lib/mcp/full-control/pending-actions', () => ({
@@ -38,6 +41,7 @@ import { registerKledgTools } from '@/lib/mcp/tools'
 import { listTiers } from '@/lib/tiers/manage-tiers.service'
 import { createInvoice, getInvoice, listInvoices } from '@/lib/invoices/manage-invoices.service'
 import { postInvoice } from '@/lib/invoices/post-invoice.service'
+import { analyzeEInvoice, importEInvoice } from '@/lib/invoices/import-e-invoice.service'
 import { issueInvoice } from '@/lib/invoices/create-in-qonto.service'
 import { createPendingAction } from '@/lib/mcp/full-control/pending-actions'
 import { prisma } from '@/lib/prisma'
@@ -333,5 +337,54 @@ describe('create_draft_invoice (full control)', () => {
     const result = await server({ canAdmin: true, executionMode: 'automatic' }).get('create_draft_invoice')!(args)
     expect(result.isError).toBe(true)
     expect(issueInvoice).not.toHaveBeenCalled()
+  })
+})
+
+describe('import_e_invoice (full control)', () => {
+  const analysis = {
+    format: 'factur-x' as const,
+    number: 'F2026-0042',
+    creditNote: false,
+    issueDate: '2026-03-02',
+    dueDate: '2026-04-01',
+    supplier: { name: 'Papeterie Durand SARL', siren: '930000104', vatNumber: 'FR91930000104', tiersId: null, auxiliaryAccountNumber: null },
+    lines: [{ label: 'Ramettes', quantity: 2, unitPriceCents: 10_000, vatRateBp: 2000, totalExclTaxCents: 20_000 }],
+    vatBreakdown: [{ vatRateBp: 2000, baseCents: 20_000, vatCents: 4_000 }],
+    totalExclTaxCents: 20_000,
+    totalVatCents: 4_000,
+    totalInclTaxCents: 24_000,
+    alreadyImported: null,
+    warnings: [],
+  }
+  const args = { companyId: 'c1', fileName: 'facture.pdf', contentBase64: Buffer.from('%PDF-1.7 facture').toString('base64') }
+
+  it('is absent without full control', () => {
+    expect(server().has('import_e_invoice')).toBe(false)
+  })
+
+  it('in validation mode, reads the file for the dry run (amounts in euros) and writes nothing', async () => {
+    vi.mocked(analyzeEInvoice).mockResolvedValue(analysis)
+    const data = parse(await server({ canAdmin: true }).get('import_e_invoice')!(args))
+    expect(guard.requireFullControl).toHaveBeenCalledWith('c1', { entries: ['create'] })
+    expect(analyzeEInvoice).toHaveBeenCalledWith('c1', { bytes: new Uint8Array(Buffer.from('%PDF-1.7 facture')), fileName: 'facture.pdf' })
+    expect(data).toMatchObject({
+      dryRun: true,
+      preview: { number: 'F2026-0042', totalExclTax: 200, totalVat: 40, totalInclTax: 240, vatBreakdown: [{ ratePercent: 20, base: 200, vat: 40 }], lines: [{ unitPrice: 100, vatRatePercent: 20 }] },
+    })
+    expect(importEInvoice).not.toHaveBeenCalled()
+  })
+
+  it('in automatic mode, records the invoice and says what to do next', async () => {
+    vi.mocked(importEInvoice).mockResolvedValue({ ...analysis, invoiceId: 'inv-42', created: true, supplierCreated: true })
+    const data = parse(await server({ canAdmin: true, executionMode: 'automatic' }).get('import_e_invoice')!(args))
+    expect(importEInvoice).toHaveBeenCalledWith('c1', expect.objectContaining({ fileName: 'facture.pdf' }), { source: 'mcp' })
+    expect(data).toMatchObject({ executed: true, result: { invoiceId: 'inv-42', created: true, supplierCreated: true, totalInclTax: 240 } })
+    expect(data.result.message).toMatch(/^Facture importée en brouillon/)
+  })
+
+  it('refuses content that is not base64, without calling the service', async () => {
+    const result = await server({ canAdmin: true, executionMode: 'automatic' }).get('import_e_invoice')!({ ...args, contentBase64: 'pas du base64 !' })
+    expect(result.isError).toBe(true)
+    expect(importEInvoice).not.toHaveBeenCalled()
   })
 })

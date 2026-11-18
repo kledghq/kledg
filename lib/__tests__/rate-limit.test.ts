@@ -96,6 +96,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'app/api/import/route.ts': /enforceRateLimit\('import'/,
   'app/api/import/preview-fiscal-years/route.ts': /enforceRateLimit\('import'/,
   'app/api/banking/import-statement/route.ts': /enforceRateLimit\('import'/,
+  'app/api/invoices/import-e-invoice/route.ts': /enforceRateLimit\('import'/,
   'app/api/banking/connections/[id]/refresh/route.ts': /limitBankCalls\(/,
   'app/api/banking/revolut/route.ts': /guardBankConnect\(/,
   'app/api/banking/revolut/authorize/route.ts': /guardBankConnect\(/,
@@ -139,6 +140,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/mcp/drafts/define.ts': /enforceRateLimit\('mcp-write'/,
   'lib/mcp/tools.ts': /enforceRateLimit\('mcp-write'/,
   'lib/mcp/full-control/banking.ts': /enforceRateLimit\('import'/,
+  'lib/mcp/full-control/invoices.ts': /enforceRateLimit\('import'/,
   'lib/mcp/full-control/year-end.ts': /enforceRateLimit\('export'/,
   'app/(auth)/setup/actions.ts': /withinRateLimit\('setup'/,
 }

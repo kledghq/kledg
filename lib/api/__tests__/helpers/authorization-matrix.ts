@@ -521,6 +521,7 @@ export const ROUTE_MODULES = {
   invoiceSettle: () => import('@/app/api/invoices/[id]/settle/route'),
   invoiceAttachment: () => import('@/app/api/invoices/[id]/attachment/route'),
   invoicesImportQonto: () => import('@/app/api/invoices/import-qonto/route'),
+  invoicesImportEInvoice: () => import('@/app/api/invoices/import-e-invoice/route'),
   vatSettings: () => import('@/app/api/companies/[id]/vat-settings/route'),
   invoiceNumbering: () => import('@/app/api/companies/[id]/invoice-numbering/route'),
   invoiceQonto: () => import('@/app/api/invoices/[id]/qonto/route'),
@@ -825,6 +826,7 @@ export const WRITES: Call[] = [
   { label: 'remove invoice payment', route: 'invoicePayment', method: 'DELETE', path: () => `/api/invoices/${ids.aPostedInvoice}/payments/none`, params: p({ id: () => ids.aPostedInvoice, paymentId: () => 'none' }) },
   { label: 'settle invoice', route: 'invoiceSettle', method: 'POST', path: () => `/api/invoices/${ids.aPostedInvoice}/settle`, params: p({ id: () => ids.aPostedInvoice }) },
   { label: 'import invoices from Qonto', route: 'invoicesImportQonto', method: 'POST', path: () => '/api/invoices/import-qonto', body: () => ({ companyId: A() }) },
+  { label: 'import an e-invoice', route: 'invoicesImportEInvoice', method: 'POST', path: () => '/api/invoices/import-e-invoice', form: () => ({ companyId: A(), mode: 'preview' }) },
   { label: 'update VAT settings', route: 'vatSettings', method: 'PUT', path: () => `/api/companies/${A()}/vat-settings`, params: p({ id: A }), body: () => ({ servicesVatOnDebits: true }) },
   {
     label: 'update invoice numbering',

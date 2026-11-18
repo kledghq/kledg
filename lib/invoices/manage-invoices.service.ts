@@ -49,6 +49,7 @@ import { assertOutsideRunningSeries, loadNumberingSettings, lockInvoiceNumbers, 
 import { VAT_EXEMPTION_CODES, invoiceExemptionMentions, isVatExemption, type VatExemption } from './vat-exemptions'
 import { defaultDueDate, invoiceStatus, maxDueDate, remainingCents, type InvoiceStatus } from './status'
 import { checkApprovedState } from '@/lib/approved-state/guard'
+import { deleteUnreferencedReceiptFiles } from '@/lib/receipts/receipt-file-store'
 
 export const INVOICE_NOT_FOUND = 'Facture introuvable'
 
@@ -152,6 +153,7 @@ const SUMMARY_SELECT = {
   externalId: true,
   externalStatus: true,
   externalAttachmentId: true,
+  documentFileId: true,
   entryId: true,
   updatedAt: true,
   tiers: { select: { id: true, name: true, auxiliaryAccountNumber: true } },
@@ -191,7 +193,7 @@ export interface InvoiceSummary {
   updatedAt: string
   lettered: boolean
   letteringCode: string | null
-  source: 'MANUAL' | 'QONTO'
+  source: 'MANUAL' | 'QONTO' | 'E_INVOICE'
   origin: InvoiceOrigin
   /** Kledg created the invoice in Qonto (Qonto-first), rather than importing it. */
   createdInQonto: boolean
@@ -242,7 +244,7 @@ function summaryOf(row: SummaryRow): InvoiceSummary {
     qontoDraft: row.origin === 'QONTO' && row.qontoDraft,
     qontoId: row.source === 'QONTO' || row.origin === 'QONTO' ? row.externalId : null,
     externalStatus: row.externalStatus,
-    hasAttachment: row.externalAttachmentId !== null,
+    hasAttachment: row.externalAttachmentId !== null || row.documentFileId !== null,
     entry: row.entry ? { id: row.entry.id, entryNumber: row.entry.entryNumber, status: row.entry.status } : null,
   }
 }
@@ -627,6 +629,7 @@ export async function lockInvoice(tx: Prisma.TransactionClient, companyId: strin
       qontoRequestedAt: true,
       qontoDraft: true,
       externalId: true,
+      documentFileId: true,
     },
   })
   return invoice
@@ -645,7 +648,7 @@ export async function updateInvoice(companyId: string, id: string, input: Update
     const current = await lockInvoice(tx, companyId, id)
     if (current.entryId) throw new ConflictError(DRAFT_ONLY(current))
     if (current.source !== 'MANUAL') {
-      throw new ConflictError('Une facture importée ou créée dans Qonto garde les montants du document : seuls ses comptes se modifient.')
+      throw new ConflictError('Une facture importée (Qonto, facture électronique) ou créée dans Qonto garde les montants du document : seuls ses comptes se modifient.')
     }
     let number: string | null
     if (current.origin === 'AUTO') {
@@ -758,6 +761,8 @@ export async function deleteInvoice(companyId: string, id: string): Promise<{ id
     await tx.invoice.delete({ where: { id } })
     return current
   }, QONTO_TX_OPTIONS)
+  // The file of an imported e-invoice goes with its draft, unless something else still refers to it.
+  if (deleted.documentFileId) await deleteUnreferencedReceiptFiles(companyId, deleted.documentFileId)
   await writeAuditLog('info', `Invoice deleted: ${deleted.number ?? 'draft without number'}`, { action: 'DELETE_INVOICE', companyId, metadata: { invoiceId: id } })
   return { id }
 }

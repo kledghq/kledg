@@ -3,9 +3,9 @@
  * Code de la consommation art. L121-2, and the e-invoicing reform: only a
  * plateforme agréée by the DGFiP may receive or issue electronic invoices,
  * CGI art. 289 bis and décret n° 2022-1299 as amended). Kledg records
- * invoices; it is not a plateforme agréée, has no Factur-X, UBL or CII
- * import, and its FEC checks are its own, not the DGFiP's Test Compta
- * Demat. The guard scans the user interface, the documentation and the
+ * invoices; it is not a plateforme agréée and is connected to none (it
+ * imports the Factur-X, UBL or CII files a platform delivered), and its
+ * FEC checks are its own, not the DGFiP's Test Compta Demat. The guard scans the user interface, the documentation and the
  * README for claims that would say otherwise; docs/conformite.md states what
  * Kledg guarantees and what it does not.
  */
@@ -36,7 +36,10 @@ const SOURCES = [
 
 /** Claims Kledg cannot make, with the reason. */
 const FORBIDDEN: { pattern: RegExp; reason: string }[] = [
-  { pattern: /prêts? pour un import Factur-X/i, reason: 'Kledg has no Factur-X, UBL or CII import' },
+  {
+    pattern: /(reçoit|réception)[^.]{0,60}(directement|automatiquement)[^.]{0,60}plateforme/i,
+    reason: 'Kledg imports the files a platform delivered; it is connected to no plateforme agréée',
+  },
   { pattern: /\bPDP\b/, reason: 'the reform now says plateforme agréée (PA); Kledg is not one' },
   { pattern: /Kledg (est|devient) (une )?plateforme (agréée|de dématérialisation)/i, reason: 'Kledg is not a plateforme agréée' },
   { pattern: /conforme au PCG 2026/i, reason: 'the PCG is règlement ANC n° 2014-03 as amended, there is no "PCG 2026"' },
@@ -51,7 +54,8 @@ describe('claims about legal compliance', () => {
     // The reform covers transactions between taxable businesses established in France (CGI art. 289 bis)
     expect(doc).toContain('assujetties à la TVA établies en France')
     expect(doc).toContain('e-reporting')
-    expect(doc).toContain('Kledg ne stocke aucun fichier')
+    // An imported e-invoice is kept in its original format (LPF art. L102 B)
+    expect(doc).toContain('tel que reçu')
     expect(doc).toContain('hors du périmètre')
     expect(readFileSync(join(ROOT, 'docs', 'README.md'), 'utf8')).toContain('(conformite.md)')
   })

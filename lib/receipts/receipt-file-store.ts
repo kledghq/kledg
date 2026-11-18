@@ -106,7 +106,7 @@ export async function readReceiptFile(companyId: string, fileId: string, db: Db 
 
 /**
  * Deletes the company's receipt files that nothing refers to any more (no
- * staged receipt, no attachment), `onlyId` alone when given, then their
+ * staged receipt, no attachment, no imported e-invoice), `onlyId` alone when given, then their
  * objects. One statement: a file that a concurrent staging re-uses is
  * either still referenced (kept) or already gone (that staging writes a new
  * object).
@@ -118,6 +118,7 @@ export async function deleteUnreferencedReceiptFiles(companyId: string, onlyId?:
       ${onlyId ? Prisma.sql`AND f."id" = ${onlyId}` : Prisma.empty}
       AND NOT EXISTS (SELECT 1 FROM "staged_receipts" s WHERE s."fileId" = f."id")
       AND NOT EXISTS (SELECT 1 FROM "attachments" a WHERE a."receiptFileId" = f."id")
+      AND NOT EXISTS (SELECT 1 FROM "invoices" i WHERE i."documentFileId" = f."id")
     RETURNING f."storageDriver", f."storageKey"`
   await discardObjects(rows)
   return rows.length
