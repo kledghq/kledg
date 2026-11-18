@@ -103,6 +103,19 @@ Une modification qui change ce que voit l'utilisateur met à jour le guide du si
 
 Kledg est un outil d'aide à la tenue de comptabilité. Il ne remplace pas un expert-comptable : vérifiez vos états avant de les utiliser. Le logiciel est fourni sans garantie (voir la licence).
 
+## Base de données
+
+<p>
+  <a href="https://neon.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/neon-logo-dark.svg" />
+      <img src="docs/assets/neon-logo-light.svg" height="32" alt="Neon" />
+    </picture>
+  </a>
+</p>
+
+Kledg fait partie du programme open source de [Neon](https://neon.com), la base PostgreSQL serverless que le déploiement en un clic provisionne par défaut.
+
 ## Licence
 
 [AGPL-3.0](LICENSE). Vous pouvez utiliser, modifier et héberger Kledg librement ; si vous proposez une version modifiée à des tiers via un réseau, vous devez publier vos modifications sous la même licence.
