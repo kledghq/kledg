@@ -4,6 +4,16 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.7.0] - 2026-11-18
+
+### Ajouté
+
+- Import des factures électroniques reçues : un PDF Factur-X, ou un XML CII ou UBL, remis par la plateforme agréée de la société, devient une facture d'achat en brouillon (bouton **Importer une facture électronique** de la page Factures d'achat, outil MCP `import_e_invoice`). Les lignes, la TVA par taux et les totaux du document sont repris tels quels, après les contrôles de cohérence de la norme EN 16931 (une facture incohérente est refusée avec la raison). Le fournisseur est retrouvé par SIREN, numéro de TVA ou nom, ou créé. Le fichier est conservé tel que reçu (LPF art. L102 B) et s'ouvre depuis la facture. Importer deux fois le même fichier, ou la même facture dans un autre format, ne crée rien. Seule une facture adressée à la société est acceptée. Kledg signale ce qu'il faut vérifier : autoliquidation et acquisition intracommunautaire (TVA de l'acheteur à passer à la main), remises ou lignes négatives (une ligne par taux), acompte déjà versé, taux étranger ([documentation](docs/factures-et-tiers.md#import-dune-facture-électronique)). Migration de la base : la facture garde le lien vers son fichier.
+
+### Corrigé
+
+- Serveur MCP avec la sécurité au niveau des lignes activée (`KLEDG_RLS=enforce`) : après un `next build`, `list_companies` et les autres outils pouvaient ne trouver aucune société, le contexte de l'utilisateur n'atteignant pas la base de données. Le contexte est désormais partagé entre les copies d'un module que le bundler peut créer (#98).
+
 ## [0.6.0] - 2026-11-17
 
 ### Ajouté
