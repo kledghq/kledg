@@ -4,6 +4,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.7.1] - 2026-11-19
+
 ### Corrigé
 
 - Mises à jour : quand le dépôt ou l'organisation GitHub n'autorise pas les Actions à ouvrir des pull requests, la préparation se terminait sans rien à installer. La page reconnaît maintenant la nouvelle version prête sur la branche `kledg-update` et l'installe : elle ouvre la pull request avec le jeton connecté, puis la fusionne si la branche n'a pas changé depuis la confirmation.
