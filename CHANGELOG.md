@@ -4,6 +4,8 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+## [0.8.0] - 2026-11-19
+
 ### Ajouté
 
 - Sortie des immobilisations et plus ou moins-values (#105) : depuis la page Immobilisations, **Enregistrer la sortie** d'un bien (vente, mise au rebut, destruction) calcule la valeur nette comptable au jour de la sortie, la plus ou moins-value et sa nature (court terme à l'IS ; à l'IR, règle des deux ans de l'article 39 duodecies du CGI), et prépare l'écriture de sortie en brouillon (28 et 657 au débit, compte de l'immobilisation au crédit, 462 et 757 pour le prix). La page des tableaux d'immobilisations remplit le cadre III du 2033-C (cases 578 à 596) et le cadre I du 2059-A, une ligne par bien sorti. Kledg signale la dotation de l'exercice non comptabilisée, la TVA sur la vente, une dépréciation ou une subvention attachée au bien et les exonérations possibles, sans les appliquer. Outil MCP `record_fixed_asset_disposal`. Migration de la base : la sortie et son écriture sont gardées sur l'immobilisation.
