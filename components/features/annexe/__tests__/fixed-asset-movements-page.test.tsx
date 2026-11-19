@@ -24,7 +24,20 @@ const REPORT = buildFixedAssetReport({
   ],
   impairmentCents: 0,
   balanceSheet: { grossCents: 240_000, depreciationCents: 40_000 },
-  register: [],
+  register: [
+    {
+      id: 'pc',
+      label: 'Ordinateur',
+      assetAccountCode: '218300',
+      depreciationAccountCode: '281830',
+      grossCents: 120_000,
+      acquisitionDate: '2024-01-01',
+      disposalDate: '2026-06-30',
+      depreciationAtStartCents: 60_000,
+      depreciationAtEndCents: 80_000,
+      disposal: { kind: 'sale', priceCents: 50_000, depreciable: true, taxation: 'IS' },
+    },
+  ],
   draftEntries: 0,
 })
 
@@ -43,10 +56,10 @@ describe('FixedAssetMovementsPage', () => {
     vi.unstubAllGlobals()
   })
 
-  it('stacks the three forms, each under its heading, with no tabs', async () => {
+  it('stacks the forms, each under its heading, with no tabs', async () => {
     render(<FixedAssetMovementsPage companyId="acme" />)
     const headings = await screen.findAllByRole('heading', { level: 2 })
-    expect(headings.map((h) => h.textContent)).toEqual(['2054, immobilisations', '2055, amortissements', '2033-C, régime simplifié'])
+    expect(headings.map((h) => h.textContent)).toEqual(['2054, immobilisations', '2055, amortissements', '2033-C, régime simplifié', 'Plus et moins-values (2033-C cadre III, 2059-A)'])
     expect(screen.queryByRole('tablist')).toBeNull()
     // Every form table is in the page at once
     for (const caption of ['2054-SD, cadre A', '2054-SD, cadre B', '2055-SD, cadre A', '2033-C-SD, cadre I', '2033-C-SD, cadre II']) {
@@ -54,5 +67,16 @@ describe('FixedAssetMovementsPage', () => {
     }
     const section2055 = screen.getByRole('region', { name: '2055, amortissements' })
     expect(within(section2055).getByRole('table', { name: '2055-SD, cadre A' })).toBeInTheDocument()
+  })
+
+  it('lists the exits of the year with their gain and the boxes of 2033-C cadre III', async () => {
+    render(<FixedAssetMovementsPage companyId="acme" />)
+    const disposals = await screen.findByRole('table', { name: "Plus et moins-values de l'exercice" })
+    // Gross 1 200 €, depreciation 800 €, residual 400 €, price 500 €: gain 100 €
+    const row = within(disposals).getAllByRole('row')[1]
+    expect(row.textContent?.replace(/[\u00a0\u202f]/g, ' ')).toMatch(/Ordinateur.*Cession \(vente\).*1 200,00.*800,00.*400,00.*500,00.*100,00/)
+    const totals = screen.getByRole('table', { name: '2033-C-SD, cadre III, totaux' })
+    expect(within(totals).getByText('584')).toBeInTheDocument()
+    expect(within(totals).getAllByText('Non suivi').length).toBeGreaterThan(0)
   })
 })

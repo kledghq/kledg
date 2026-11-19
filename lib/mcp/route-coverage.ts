@@ -293,6 +293,8 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'GET /api/fixed-assets/[id]': { tools: ['list_fixed_assets'] },
   'PATCH /api/fixed-assets/[id]': { tools: ['manage_fixed_asset'] },
   'DELETE /api/fixed-assets/[id]': { tools: ['manage_fixed_asset'] },
+  'POST /api/fixed-assets/[id]/disposal': { tools: ['record_fixed_asset_disposal'] },
+  'DELETE /api/fixed-assets/[id]/disposal': { tools: ['record_fixed_asset_disposal'] },
   'GET /api/fixed-assets': { tools: ['list_fixed_assets'] },
   'POST /api/fixed-assets': { tools: ['create_fixed_asset'] },
   'GET /api/fixed-assets/stats': { tools: ['list_fixed_assets'] },

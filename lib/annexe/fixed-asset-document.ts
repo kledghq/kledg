@@ -65,6 +65,30 @@ export function fixedAssetDocument(report: FixedAssetReport, company: { name: st
     table(report.form2033c.assets, ['opening', 'increase', 'decrease', 'closing'] as const, COLUMN_LABELS.simplified),
     { kind: 'heading', text: 'Formulaire 2033-C-SD : cadre II, amortissements' },
     table(report.form2033c.depreciation, ['opening', 'allowance', 'decrease', 'closing'] as const, COLUMN_LABELS.depreciation),
+    { kind: 'heading', text: 'Plus et moins-values : 2033-C-SD cadre III, 2059-A-SD' },
+    ...(report.disposals.rows.length === 0
+      ? [{ kind: 'note' as const, text: "Aucune sortie d'immobilisation enregistrée dans l'exercice." }]
+      : [
+          {
+            kind: 'table' as const,
+            columns: ['Immobilisation (acquise, sortie)', "Valeur d'origine", 'Amortissements', 'Valeur résiduelle', 'Prix de cession', 'Plus ou moins-value', 'Court terme', 'Long terme'],
+            rows: report.disposals.rows.map((r) => [
+              `${r.label} (${r.kindLabel}, acquise le ${r.acquisitionDate.split('-').reverse().join('/')}, sortie le ${r.disposalDate.split('-').reverse().join('/')})`,
+              eur(r.grossCents),
+              eur(r.depreciationCents),
+              eur(r.residualCents),
+              eur(r.priceCents),
+              eur(r.gainCents),
+              r.shortTermCents === null ? 'non déterminé' : eur(r.shortTermCents),
+              r.longTermCents === null ? 'non déterminé' : eur(r.longTermCents),
+            ]),
+            numeric: [1, 2, 3, 4, 5, 6, 7],
+          },
+          {
+            kind: 'list' as const,
+            items: report.disposals.form2033c.map((t) => `${t.box} ${t.label} : ${t.cents === null ? 'non suivi' : eur(t.cents)}${t.note ? ` (${t.note})` : ''}`),
+          },
+        ]),
     { kind: 'heading', text: 'Contrôles' },
     {
       kind: 'list',
@@ -73,7 +97,7 @@ export function fixedAssetDocument(report: FixedAssetReport, company: { name: st
     ...(report.warnings.length > 0 ? [{ kind: 'list' as const, items: report.warnings }] : []),
     {
       kind: 'note',
-      text: "Montants lus dans les écritures validées de l'exercice (à-nouveaux compris, écriture de clôture exclue). Le cadre B du 2055-SD (amortissements dérogatoires), le cadre C (charges réparties) et la colonne « valeur d'origine » des immobilisations réévaluées ne sont pas suivis par Kledg. Formulaires DGFiP n° 2054-SD, 2055-SD et 2033-C-SD, édition 2026.",
+      text: "Montants lus dans les écritures validées de l'exercice (à-nouveaux compris, écriture de clôture exclue). Le cadre B du 2055-SD (amortissements dérogatoires), le cadre C (charges réparties) et la colonne « valeur d'origine » des immobilisations réévaluées ne sont pas suivis par Kledg. Les plus et moins-values viennent des sorties enregistrées au registre (amortissements jusqu'au jour de la sortie). Formulaires DGFiP n° 2054-SD, 2055-SD, 2033-C-SD et 2059-A-SD, édition 2026.",
     },
   ]
   return {
@@ -102,5 +126,19 @@ export function fixedAssetCsv(report: FixedAssetReport): string {
   push('2055-SD', report.form2055, COLUMN_LABELS.depreciation)
   push('2033-C-SD cadre I', report.form2033c.assets, COLUMN_LABELS.simplified)
   push('2033-C-SD cadre II', report.form2033c.depreciation, COLUMN_LABELS.depreciation)
+  for (const r of report.disposals.rows) {
+    const line = `${r.label} (sortie le ${r.disposalDate})`
+    const columns: Array<[string, number | null]> = [
+      ["Valeur d'origine", r.grossCents],
+      ['Amortissements', r.depreciationCents],
+      ['Valeur résiduelle', r.residualCents],
+      ['Prix de cession', r.priceCents],
+      ['Plus ou moins-value', r.gainCents],
+      ['Court terme', r.shortTermCents],
+      ['Long terme', r.longTermCents],
+    ]
+    for (const [label, cents] of columns) rows.push(['2033-C-SD cadre III, 2059-A-SD', line, label, '', amount(cents), r.assetAccountCode])
+  }
+  for (const t of report.disposals.form2033c) rows.push(['2033-C-SD cadre III', 'Total', t.label, t.box, amount(t.cents), ''])
   return buildCsv(rows)
 }

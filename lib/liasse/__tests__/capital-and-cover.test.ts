@@ -174,7 +174,7 @@ describe('the liasse assembled', () => {
     expect(view.tables.find((t) => t.id === '2033-F')?.coverage).toMatchObject({ checksToReview: 0, required: true })
     expect(view.filing).toContain('partenaire EDI')
     const normal = assembleLiasse({ ...view, status: 'ready', regime: 'normal', forms: [], warnings: [] })
-    expect(normal.tables.find((t) => t.id === '2059-A')).toMatchObject({ status: 'manual' })
+    expect(normal.tables.find((t) => t.id === '2059-A')).toMatchObject({ status: 'page' })
   })
 
   it('has no tables for a company not subject to the impôt sur les sociétés', () => {

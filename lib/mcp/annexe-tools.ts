@@ -13,6 +13,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
+import { forAssistant } from '@/lib/mcp/euros'
 import type { CompanyGuard, McpAccess } from '@/lib/mcp/company-access'
 import type { GroupAccess } from '@/lib/management-fees/access'
 import { json, run } from '@/lib/mcp/tool-result'
@@ -108,14 +109,14 @@ export function registerAnnexeReadTools(server: McpServer, access: McpAccess, gu
   server.registerTool(
     'get_fixed_asset_movements',
     {
-      title: 'Immobilisations et amortissements (2054, 2055, 2033-C)',
+      title: 'Immobilisations, amortissements, plus et moins-values (2054, 2055, 2033-C, 2059-A)',
       description: describeTool({
         summary:
-          'Movements of fixed assets and depreciation of a fiscal year, line by line of the official 2026 forms with their box codes: 2054-SD (gross value at the start, increases from revaluation, acquisitions and transfers in, transfers out, disposals, gross value at the end), 2055-SD cadre A (depreciation at the start, allowances, decreases, at the end) and 2033-C-SD cadres I and II for the régime simplifié; totals by rubrique; and the checks: gross value at the end against the "Actif immobilisé" of the balance sheet (box BJ), depreciation plus impairments against its depreciation column, acquisitions, disposals, gross values and allowances of the fixed asset register against the lines. Read from the validated entries of the year (opening entry included, closing entry excluded).',
+          'Movements of fixed assets and depreciation of a fiscal year, line by line of the official 2026 forms with their box codes: 2054-SD (gross value at the start, increases from revaluation, acquisitions and transfers in, transfers out, disposals, gross value at the end), 2055-SD cadre A (depreciation at the start, allowances, decreases, at the end) and 2033-C-SD cadres I and II for the régime simplifié; the disposals of the year recorded on the fixed assets (2033-C-SD cadre III with its box totals, 2059-A-SD columns 2 to 10: gross value, depreciation to the day of exit, residual value, price, gain or loss, short and long term); totals by rubrique; and the checks: gross value at the end against the "Actif immobilisé" of the balance sheet (box BJ), depreciation plus impairments against its depreciation column, acquisitions, disposals, gross values and allowances of the fixed asset register against the lines. Read from the validated entries of the year (opening entry included, closing entry excluded).',
         access: 'read',
         permission: { reports: ['read'] },
         amounts: 'euros',
-        never: 'computes derogatory depreciation (2055 cadre B), the original value of revalued items or capital gains (2033-C cadre III), or changes anything (read only).',
+        never: 'computes derogatory depreciation (2055 cadre B), the original value of revalued items or regularisations of capital gains (revaluation, irregular depreciation), the gains of securities (26, 27), or changes anything (read only).',
       }),
       inputSchema: z.object({
         companyId: z.string().describe('Company id, from list_companies.'),
@@ -133,6 +134,7 @@ export function registerAnnexeReadTools(server: McpServer, access: McpAccess, gu
           form2055: report.form2055.map(formRow),
           form2033c: { assets: report.form2033c.assets.map(formRow), depreciation: report.form2033c.depreciation.map(formRow) },
           rubriques: report.rubriques.map((r) => ({ rubrique: r.label, opening: euros(r.openingCents), increase: euros(r.increaseCents), decrease: euros(r.decreaseCents), closing: euros(r.closingCents) })),
+          disposals: forAssistant(report.disposals),
           impairments: euros(report.impairmentCents),
           checks: report.checks.map((c) => ({ check: c.label, books: euros(c.booksCents), other: euros(c.otherCents), ok: c.ok, message: c.message })),
           warnings: report.warnings,

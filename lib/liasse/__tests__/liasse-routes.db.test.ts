@@ -248,7 +248,7 @@ describe.skipIf(!available)('liasse fiscale routes', () => {
       view = (await response.json()) as LiasseView
       expect(view.regime).toBe('normal')
       expect(view.forms.map((f) => f.id)).toEqual(['2065', '2056', '2057', '2058-B', '2058-C', '2059-E', '2059-F', '2059-G'])
-      expect(view.tables.find((t) => t.id === '2059-A')).toMatchObject({ status: 'manual' })
+      expect(view.tables.find((t) => t.id === '2059-A')).toMatchObject({ status: 'page' })
       // 2056: litiges 1 000 € at the start, the fine 750 € (amendes et pénalités), dotations tied to 6815
       expect([cents('2056', '4A'), cents('2056', '4P'), cents('2056', 'UB'), cents('2056', 'UE')]).toEqual([100_000, 75_000, 75_000, 75_000])
       expect(form('2056').checks.find((c) => c.id === 'income-statement-dotations')).toMatchObject({ ok: true })

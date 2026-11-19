@@ -97,6 +97,7 @@ const LEVEL: Record<string, AccessLevel> = {
   auto_letter_account: 'admin',
   manage_fixed_asset: 'admin',
   manage_depreciation_record: 'admin',
+  record_fixed_asset_disposal: 'admin',
 }
 
 const PROVISION = { category: 'RISK_CHARGE', label: 'Litige Martin', justification: "Estimation de l'avocat", accountCode: '1511', openedOn: '2025-03-01' }
@@ -152,6 +153,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   auto_letter_account: { accountCode: '411' },
   manage_fixed_asset: { action: 'delete', fixedAssetId: 'x' },
   manage_depreciation_record: { action: 'delete', fixedAssetId: 'x', recordId: 'x' },
+  record_fixed_asset_disposal: { action: 'cancel', fixedAssetId: 'x' },
 }
 
 /** High-impact calls (the execution mode applies): ARGS of these tools are high impact unless replaced here. */
@@ -179,6 +181,7 @@ const HIGH_IMPACT: Record<string, Record<string, unknown>> = {
   auto_letter_account: ARGS.auto_letter_account,
   manage_fixed_asset: ARGS.manage_fixed_asset,
   manage_depreciation_record: ARGS.manage_depreciation_record,
+  record_fixed_asset_disposal: ARGS.record_fixed_asset_disposal,
 }
 
 /** Writing tools a viewer may still call (expenses:submit): its own expense reports. */
@@ -820,6 +823,14 @@ describe.skipIf(!available)('MCP tools covering the API', () => {
       expect(refused.ok).toBe(false)
       const renamed = await ok(admin, 'manage_fixed_asset', { companyId: ids.aCompany, action: 'update', fixedAssetId: asset.id, fields: { label: 'Ordinateur portable' } })
       expect(renamed.fixedAsset.label).toBe('Ordinateur portable')
+
+      // Its exit: a draft exit entry, the gain short term (company at the IS)
+      const disposal = await ok(admin, 'record_fixed_asset_disposal', { companyId: ids.aCompany, action: 'record', fixedAssetId: asset.id, disposalDate: '2025-12-31', kind: 'sale', price: 1000 })
+      expect(disposal.entry.id).toBeTruthy()
+      expect(disposal.price).toBe(1000)
+      expect(await prisma.accountingEntry.count({ where: { id: disposal.entry.id, status: 'draft' } })).toBe(1)
+      const cancelled = await ok(admin, 'record_fixed_asset_disposal', { companyId: ids.aCompany, action: 'cancel', fixedAssetId: asset.id })
+      expect(cancelled.deletedEntry).toBe(true)
     })
 
     it('letters a third-party account automatically', async () => {

@@ -14,7 +14,7 @@ import { downloadFile } from '@/components/features/reports/download-file'
 import { euros, useJson } from '@/components/features/year-end/shared'
 import { docsUrl } from '@/lib/docs-links'
 import { COLUMN_LABELS } from '@/lib/annexe/fixed-asset-document'
-import type { FixedAssetReport } from '@/lib/annexe/fixed-asset-report'
+import type { DisposalReport, FixedAssetReport } from '@/lib/annexe/fixed-asset-report'
 import type { FormRow } from '@/lib/annexe/movements'
 
 /** One form as a table: a row per line, the box code under each amount. */
@@ -53,6 +53,88 @@ function FormTable<C extends string>({ rows, columns, labels, caption }: { rows:
   )
 }
 
+const day = (iso: string) => iso.split('-').reverse().join('/')
+const signed = (cents: number | null) => (cents === null ? <span className="text-muted-foreground">Non déterminé</span> : <Amount value={euros(cents)} />)
+
+/**
+ * Disposals of the year: one line per asset that left (2033-C-SD cadre III
+ * and 2059-A-SD cadre I, the column numbers of 2059-A under the headings),
+ * then the box totals of 2033-C.
+ */
+function DisposalTable({ disposals }: { disposals: DisposalReport }) {
+  if (disposals.rows.length === 0) {
+    return <p className="text-muted-foreground text-sm">Aucune sortie d&apos;immobilisation enregistrée dans l&apos;exercice. Enregistrez une vente ou une mise au rebut depuis la page Immobilisations.</p>
+  }
+  const heading = (label: string, column: string) => (
+    <TableHead numeric className="min-w-32">
+      {label}
+      <span className="text-muted-foreground block font-mono text-xs font-normal">2059-A col. {column}</span>
+    </TableHead>
+  )
+  return (
+    <>
+      <div className="overflow-x-auto rounded-md border">
+        <Table aria-label="Plus et moins-values de l'exercice">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-56">Immobilisation</TableHead>
+              {heading("Valeur d'origine", '2')}
+              {heading('Amortissements', '5')}
+              {heading('Valeur résiduelle', '6')}
+              {heading('Prix de cession', '7')}
+              {heading('Plus ou moins-value', '8')}
+              {heading('Court terme', '9')}
+              {heading('Long terme', '10')}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {disposals.rows.map((r) => (
+              <TableRow key={r.fixedAssetId}>
+                <TableCell>
+                  {r.label}
+                  <span className="text-muted-foreground block text-xs">
+                    {r.kindLabel}, acquise le {day(r.acquisitionDate)}, sortie le {day(r.disposalDate)} ({r.assetAccountCode})
+                  </span>
+                </TableCell>
+                <TableCell numeric><Amount value={euros(r.grossCents)} /></TableCell>
+                <TableCell numeric><Amount value={euros(r.depreciationCents)} /></TableCell>
+                <TableCell numeric><Amount value={euros(r.residualCents)} /></TableCell>
+                <TableCell numeric><Amount value={euros(r.priceCents)} /></TableCell>
+                <TableCell numeric><Amount value={euros(r.gainCents)} /></TableCell>
+                <TableCell numeric>{signed(r.shortTermCents)}</TableCell>
+                <TableCell numeric>{signed(r.longTermCents)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="overflow-x-auto rounded-md border">
+        <Table aria-label="2033-C-SD, cadre III, totaux">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-56">2033-C-SD, cadre III</TableHead>
+              <TableHead className="w-20">Case</TableHead>
+              <TableHead numeric className="min-w-32">Montant</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {disposals.form2033c.map((t) => (
+              <TableRow key={t.box}>
+                <TableCell>
+                  {t.label}
+                  {t.note ? <span className="text-muted-foreground block text-xs">{t.note}</span> : null}
+                </TableCell>
+                <TableCell className="font-mono">{t.box}</TableCell>
+                <TableCell numeric>{t.cents === null ? <span className="text-muted-foreground">Non suivi</span> : <Amount value={euros(t.cents)} />}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  )
+}
+
 /**
  * Forms 2054-SD, 2055-SD and 2033-C-SD of a fiscal year, read from the
  * entries, with the checks against the balance sheet and the fixed asset
@@ -80,7 +162,7 @@ export function FixedAssetMovementsPage({ companyId }: { companyId: string }) {
     <div className="space-y-6">
       <PageHeader
         title="Immobilisations et amortissements"
-        description="Les mouvements de l'exercice ligne par ligne des formulaires 2054, 2055 et 2033-C, lus dans les écritures validées et rapprochés du bilan et du registre des immobilisations."
+        description="Les mouvements de l'exercice ligne par ligne des formulaires 2054, 2055 et 2033-C, lus dans les écritures validées et rapprochés du bilan et du registre des immobilisations, puis les plus et moins-values des sorties (2033-C cadre III, 2059-A)."
         docsHref={docsUrl('depreciation')}
         actions={
           data ? (
@@ -165,9 +247,22 @@ export function FixedAssetMovementsPage({ companyId }: { companyId: string }) {
             <h2 id="form-2033c-title" className="text-base font-semibold">
               2033-C, régime simplifié
             </h2>
-            <p className="text-muted-foreground text-sm">Régime simplifié, formulaire 2033-C-SD, cadres I et II. Le cadre III (plus et moins-values) reste à remplir.</p>
+            <p className="text-muted-foreground text-sm">Régime simplifié, formulaire 2033-C-SD, cadres I et II. Le cadre III est plus bas, avec les plus et moins-values.</p>
             <FormTable caption="2033-C-SD, cadre I" rows={data.form2033c.assets} columns={['opening', 'increase', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.simplified} />
             <FormTable caption="2033-C-SD, cadre II" rows={data.form2033c.depreciation} columns={['opening', 'allowance', 'decrease', 'closing'] as const} labels={COLUMN_LABELS.depreciation} />
+          </section>
+          <section aria-labelledby="disposals-title" className="space-y-4">
+            <h2 id="disposals-title" className="text-base font-semibold">
+              Plus et moins-values (2033-C cadre III, 2059-A)
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              Les sorties enregistrées au registre, amortissements arrêtés au jour de la sortie. Une ligne par immobilisation, à reporter au cadre III du 2033-C-SD
+              (régime simplifié) ou au cadre I du 2059-A-SD (régime réel normal).{' '}
+              <HelpTip term="Court et long terme">
+                À l&apos;IS, tout est à court terme, déjà dans le résultat comptable. À l&apos;IR, un bien détenu deux ans au moins donne du long terme&nbsp;: la plus-value au-delà des amortissements, ou toute la plus ou moins-value d&apos;un bien non amortissable.
+              </HelpTip>
+            </p>
+            <DisposalTable disposals={data.disposals} />
           </section>
         </>
       )}
