@@ -98,6 +98,14 @@ export function fixedAssetUpdateData(input: UpdateFixedAssetInput): Prisma.Fixed
 export async function updateFixedAsset(companyId: string, fixedAssetId: string, input: UpdateFixedAssetInput) {
   await assertFixedAssetOwned(companyId, fixedAssetId)
   const data = fixedAssetUpdateData(input)
+  if (data.disposalDate !== undefined) {
+    // A recorded exit owns its date: its entry is dated that day (record-disposal.service.ts)
+    const current = await prisma.fixedAsset.findFirst({ where: { id: fixedAssetId, companyId }, select: { disposalKind: true, disposalDate: true } })
+    const changed = (current?.disposalDate?.getTime() ?? null) !== ((data.disposalDate as Date | null)?.getTime() ?? null)
+    if (current?.disposalKind && changed) {
+      throw new ValidationError("La sortie de cette immobilisation est enregistrée avec son écriture : modifiez-la depuis « Sortie de l'immobilisation », qui prépare l'écriture à la nouvelle date.")
+    }
+  }
 
   // The accounts must belong to the company
   await assertAllOwned(

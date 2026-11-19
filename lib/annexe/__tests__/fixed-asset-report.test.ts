@@ -161,3 +161,39 @@ describe('differences are reported, never corrected', () => {
     expect(report.warnings[0]).toMatch(/case BJ/)
   })
 })
+
+describe('plus et moins-values: 2033-C-SD cadre III and 2059-A-SD', () => {
+  // The computer sold on 2026-06-30: gross 1 200 €, depreciation 400 € to that day, sold 900 € (IS)
+  const sold = (taxation: 'IS' | 'IR' | 'unknown') =>
+    REGISTER.map((a) => (a.id === 'pc1' ? { ...a, disposal: { kind: 'sale' as const, priceCents: 90_000, depreciable: true, taxation } } : a))
+
+  it('lists each recorded exit of the year with its gain, short term under IS, and the box totals', () => {
+    const report = buildFixedAssetReport(input({ register: sold('IS') }))
+    expect(report.disposals.rows).toEqual([
+      expect.objectContaining({ fixedAssetId: 'pc1', kindLabel: 'Cession (vente)', grossCents: 120_000, depreciationCents: 40_000, residualCents: 80_000, priceCents: 90_000, gainCents: 10_000, shortTermCents: 10_000, longTermCents: 0 }),
+    ])
+    const box = (code: string) => report.disposals.form2033c.find((t) => t.box === code)?.cents
+    expect([box('578'), box('580'), box('582'), box('584'), box('586'), box('596')]).toEqual([120_000, 40_000, 80_000, 90_000, 10_000, 10_000])
+    // Long term at the IS rates: titres de participation only, not followed
+    expect([box('581'), box('587'), box('589'), box('590')]).toEqual([null, null, null, null])
+    expect(report.warnings.some((w) => w.includes('Ordinateur vendu'))).toBe(false)
+  })
+
+  it('under IR, fills the long term at 12,8 % (587) and not the IS columns', () => {
+    const register = sold('IR').map((a) => (a.id === 'pc1' ? { ...a, disposal: { ...a.disposal!, priceCents: 200_000 } } : a))
+    const report = buildFixedAssetReport(input({ register }))
+    // Held more than two years, gain 1 200 €: short term up to the depreciation (400 €), long term 800 €
+    expect(report.disposals.rows[0]).toMatchObject({ gainCents: 120_000, shortTermCents: 40_000, longTermCents: 80_000 })
+    expect(report.disposals.form2033c.find((t) => t.box === '587')?.cents).toBe(80_000)
+    expect(report.disposals.form2033c.find((t) => t.box === '581')?.note).toContain("impôt sur le revenu")
+  })
+
+  it('splits nothing when the taxation is unknown, and flags an exit date without a recorded exit', () => {
+    const unknown = buildFixedAssetReport(input({ register: sold('unknown') }))
+    expect(unknown.disposals.netShortTermCents).toBeNull()
+    expect(unknown.disposals.form2033c.find((t) => t.box === '586')).toMatchObject({ cents: null })
+    const legacy = buildFixedAssetReport(input())
+    expect(legacy.disposals.rows).toEqual([])
+    expect(legacy.warnings.some((w) => w.includes('« Ordinateur vendu » est sortie le 2026-06-30'))).toBe(true)
+  })
+})

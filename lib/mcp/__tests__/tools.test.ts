@@ -106,6 +106,7 @@ const FULL_CONTROL_TOOLS: Record<string, boolean> = {
   auto_letter_account: true,
   manage_fixed_asset: true,
   manage_depreciation_record: true,
+  record_fixed_asset_disposal: true,
   archive_company: true,
   restore_company: true,
   create_company: true,

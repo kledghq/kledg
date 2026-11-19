@@ -18,6 +18,7 @@
  */
 
 import { formatCentsFr } from '@/lib/utils/money'
+import { computeDisposal, DISPOSAL_KIND_LABELS, type DisposalKind, type ProfitTaxationKind } from '@/lib/fixed-assets/disposal'
 import {
   FORM_2033C_ASSETS,
   FORM_2033C_DEPRECIATION,
@@ -41,6 +42,47 @@ export interface RegisterAsset {
   /** Depreciation accumulated at the start of the year (the day before) and at its end, from the plan and the records. */
   depreciationAtStartCents: number
   depreciationAtEndCents: number
+  /** The exit recorded on the asset (record-disposal.service.ts); null without one. */
+  disposal?: { kind: DisposalKind; priceCents: number; depreciable: boolean; taxation: ProfitTaxationKind } | null
+}
+
+/**
+ * One asset that left in the year: a line of 2033-C-SD cadre III and of
+ * 2059-A-SD (columns 1 to 10). Depreciation runs to the day of exit.
+ */
+export interface DisposalRow {
+  fixedAssetId: string
+  label: string
+  kind: DisposalKind
+  kindLabel: string
+  acquisitionDate: string
+  disposalDate: string
+  assetAccountCode: string
+  grossCents: number
+  depreciationCents: number
+  residualCents: number
+  priceCents: number
+  gainCents: number
+  /** Null when the taxation of the profits (IS or IR) is unknown. */
+  shortTermCents: number | null
+  longTermCents: number | null
+}
+
+/** A total box of 2033-C-SD cadre III; null when Kledg does not follow it. */
+export interface DisposalTotal {
+  box: string
+  label: string
+  cents: number | null
+  note?: string
+}
+
+export interface DisposalReport {
+  rows: DisposalRow[]
+  /** Box totals of 2033-C-SD cadre III (form n° 2033-SD 2026). */
+  form2033c: DisposalTotal[]
+  /** Net short-term and long-term results, 2059-A-SD cadres A and B. */
+  netShortTermCents: number | null
+  netLongTermCents: number | null
 }
 
 export interface FixedAssetReportInput {
@@ -75,8 +117,82 @@ export interface FixedAssetReport {
   /** Totals by rubrique for the annexe (PCG art. 832-1). */
   rubriques: Array<{ rubrique: 'intangible' | 'tangible' | 'financial'; label: string; openingCents: number; increaseCents: number; decreaseCents: number; closingCents: number }>
   impairmentCents: number
+  disposals: DisposalReport
   checks: ReportCheck[]
   warnings: string[]
+}
+
+const NOT_FOLLOWED_LONG_TERM_IS =
+  "À l'impôt sur les sociétés, le long terme ne vise que les titres de participation (CGI art. 219, I-a ter), dont Kledg ne prépare pas la cession."
+const NOT_FOLLOWED_REGULARISATION =
+  'Régularisations (provision spéciale de réévaluation, amortissements exclus des charges déductibles ou irrégulièrement différés) : Kledg ne les suit pas, à ajouter à la main le cas échéant.'
+
+/** Rows and totals of the disposals of the year (2033-C-SD cadre III, 2059-A-SD). */
+export function disposalReport(register: readonly RegisterAsset[], inYear: (day: string | null) => boolean): DisposalReport {
+  const rows: DisposalRow[] = []
+  for (const asset of register) {
+    if (!asset.disposal || !inYear(asset.disposalDate)) continue
+    const { kind, priceCents, depreciable, taxation } = asset.disposal
+    const result = computeDisposal({
+      grossCents: asset.grossCents,
+      depreciationCents: asset.depreciationAtEndCents,
+      priceCents,
+      acquisitionDate: asset.acquisitionDate,
+      disposalDate: asset.disposalDate as string,
+      depreciable,
+      taxation,
+    })
+    rows.push({
+      fixedAssetId: asset.id,
+      label: asset.label,
+      kind,
+      kindLabel: DISPOSAL_KIND_LABELS[kind],
+      acquisitionDate: asset.acquisitionDate,
+      disposalDate: asset.disposalDate as string,
+      assetAccountCode: asset.assetAccountCode,
+      grossCents: asset.grossCents,
+      depreciationCents: asset.depreciationAtEndCents,
+      residualCents: result.netBookValueCents,
+      priceCents,
+      gainCents: result.gainCents,
+      shortTermCents: result.shortTermCents,
+      longTermCents: result.longTermCents,
+    })
+  }
+  rows.sort((a, b) => a.disposalDate.localeCompare(b.disposalDate) || a.label.localeCompare(b.label))
+  const sum = (pick: (r: DisposalRow) => number) => rows.reduce((t, r) => t + pick(r), 0)
+  const known = rows.every((r) => r.shortTermCents !== null)
+  const sumKnown = (pick: (r: DisposalRow) => number | null) => (known ? rows.reduce((t, r) => t + (pick(r) ?? 0), 0) : null)
+  const unknownNote = known ? undefined : "Le régime d'imposition des bénéfices n'est pas renseigné : Kledg ne sépare pas le court et le long terme."
+  const taxations = new Set(rows.map((r) => register.find((a) => a.id === r.fixedAssetId)?.disposal?.taxation))
+  const income = taxations.has('IR')
+  const shortTerm = sumKnown((r) => r.shortTermCents)
+  const longTerm = sumKnown((r) => r.longTermCents)
+  // Columns of the IS long-term rates: not filled under IR (notice 2033-NOT-SD, cadre III)
+  const isOnly = (box: string, label: string): DisposalTotal => ({
+    box,
+    label,
+    cents: null,
+    note: income ? "Colonne à ne pas servir à l'impôt sur le revenu (notice 2033-NOT-SD, cadre III)." : NOT_FOLLOWED_LONG_TERM_IS,
+  })
+  const form2033c: DisposalTotal[] = [
+    { box: '578', label: "Valeur d'actif", cents: sum((r) => r.grossCents) },
+    { box: '580', label: 'Amortissements', cents: sum((r) => r.depreciationCents) },
+    { box: '582', label: 'Valeur résiduelle', cents: sum((r) => r.residualCents) },
+    { box: '584', label: 'Prix de cession', cents: sum((r) => r.priceCents) },
+    { box: '586', label: 'Plus ou moins-values à court terme', cents: shortTerm, note: unknownNote },
+    isOnly('581', 'Long terme à 19 %'),
+    {
+      box: '587',
+      label: 'Long terme à 15 % ou 12,8 %',
+      cents: income ? longTerm : null,
+      note: income ? unknownNote : NOT_FOLLOWED_LONG_TERM_IS,
+    },
+    isOnly('589', 'Long terme à 0 %'),
+    { box: '590', label: 'Régularisations, court terme', cents: null, note: NOT_FOLLOWED_REGULARISATION },
+    { box: '596', label: 'Total court terme', cents: shortTerm, note: 'Plus les régularisations (590) éventuelles.' },
+  ]
+  return { rows, form2033c, netShortTermCents: shortTerm, netLongTermCents: longTerm }
 }
 
 const euro = formatCentsFr
@@ -127,6 +243,12 @@ export function buildFixedAssetReport(input: FixedAssetReportInput): FixedAssetR
   }
 
   const inYear = (day: string | null) => day !== null && day >= startDate && day <= endDate
+  const disposals = disposalReport(input.register, inYear)
+  for (const asset of input.register) {
+    if (!asset.disposal && inYear(asset.disposalDate)) {
+      warnings.push(`« ${asset.label} » est sortie le ${asset.disposalDate} sans que sa sortie soit enregistrée (nature, prix) : enregistrez-la depuis la page Immobilisations pour la reprendre dans les plus et moins-values.`)
+    }
+  }
   const presentAtEnd = (a: RegisterAsset) => a.acquisitionDate <= endDate && (a.disposalDate === null || a.disposalDate > endDate)
   if (input.register.length === 0) {
     warnings.push("Aucune immobilisation dans le registre : les tableaux viennent des seules écritures, sans contrôle par le registre.")
@@ -187,5 +309,5 @@ export function buildFixedAssetReport(input: FixedAssetReportInput): FixedAssetR
   if (input.draftEntries > 0) {
     warnings.push(`${input.draftEntries} écriture${input.draftEntries > 1 ? 's' : ''} en brouillon touche${input.draftEntries > 1 ? 'nt' : ''} les immobilisations : elles ne comptent qu'une fois validées.`)
   }
-  return { fiscalYear: input.fiscalYear, form2054, form2055, form2033c, rubriques, impairmentCents: input.impairmentCents, checks, warnings }
+  return { fiscalYear: input.fiscalYear, form2054, form2055, form2033c, rubriques, impairmentCents: input.impairmentCents, disposals, checks, warnings }
 }

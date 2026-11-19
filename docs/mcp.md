@@ -322,6 +322,7 @@ L'assistant agit comme vous, dans la limite de votre rôle dans chaque société
 | `auto_letter_account` | Lettrage automatique d'un compte de tiers (toutes les propositions) | `entries:update` | Oui |
 | `manage_fixed_asset` | Modifier une immobilisation, la supprimer avec ses brouillons de dotation | `ledger:manage` | Oui (suppression) |
 | `manage_depreciation_record` | Comptabiliser un amortissement en écriture **validée**, ou supprimer l'enregistrement | `entries:create` et `entries:validate` (comptabiliser), `entries:delete` (supprimer) | Oui |
+| `record_fixed_asset_disposal` | Enregistrer la sortie d'une immobilisation (cession, mise au rebut, destruction) : plus ou moins-value, court ou long terme, écriture de sortie en **brouillon** ; ou annuler la sortie | `ledger:manage` et `entries:create` (enregistrer), `entries:delete` (annuler) | Oui |
 | `create_company` | Créer une société comme l'assistant de création (identité, siège, premier exercice, régimes, capital et associés ; Kledg crée les membres, les journaux, l'exercice et le plan comptable), avec le crochet de l'instance ; seulement par une connexion autorisée sur toutes vos sociétés | politique de création des sociétés de l'instance (administrateurs de l'instance par défaut) | Oui |
 | `archive_company` | Archiver une société : lecture seule, masquée des listes, livres conservés ; administrateurs de l'instance seulement, comme la page | administrateur de l'instance | Oui |
 | `restore_company` | Restaurer une société archivée ; administrateurs de l'instance seulement | administrateur de l'instance | Oui |
@@ -435,7 +436,7 @@ Ce que l'assistant peut faire de chaque fonctionnalité récente (L : lecture, `
 | Liasse fiscale ([liasse fiscale](liasse-fiscale.md)) | `get_liasse_fiscale`, `export_report` (liasse en PDF ou CSV) | | | Déposer la liasse (espace professionnel ou partenaire EDI) |
 | Banque et rapprochement | `list_bank_transactions`, `get_bank_sync_status`, `get_transaction_details`, `simulate_rule`, `list_rule_templates`, `get_qonto_statements`, `list_qonto_receipts`, `get_file` | `create_draft_entry` | `list_bank_accounts`, `sync_bank`, `sync_bank_data`, `import_statement`, `reconcile_transaction`, `bulk_reconcile`, `run_rules`, `manage_bank_accounts`, `delete_bank_transactions`, `duplicate_rule`, `add_rule_from_template`, `copy_rules_from_company`... | Connecter une banque |
 | Écritures, plan comptable, journaux, exercices | `list_entries`, `get_entry`, `get_ledger_report`, `search_accounts`, `list_journals`, `list_fiscal_years` | `create_draft_entry`, `duplicate_entry`, `prepare_opening_balances` | `update_draft_entry`, `validate_entries`, `reverse_entry`, `delete_draft_entry`, `create_account`, `manage_accounts`, `create_journal`, `manage_journals`, `manage_fiscal_years`, `import_accounting_file` | Exports Excel du journal |
-| Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `generate_depreciation` | |
+| Immobilisations | `list_fixed_assets` | `save_depreciation_record` | `create_fixed_asset`, `manage_fixed_asset`, `manage_depreciation_record`, `record_fixed_asset_disposal`, `generate_depreciation` | |
 | Paramètres de la société, membres, mise en page des états | `get_company_settings`, `get_statement_layout` | | `update_company_settings`, `manage_company_records`, `manage_statement_layout`, `manage_members` (ajout et changement de rôle : administrateurs de l'instance), `manage_invitations` | Suppression définitive de société |
 | Création, archivage et restauration de société | `list_companies` (`includeArchived`), `lookup_siren` | | `create_company`, `archive_company`, `restore_company` | Suppression définitive |
 | Signaler un problème, proposer une idée ([signaler un problème](signaler-un-probleme.md)) | `prepare_feedback` | | | Envoyer l'issue (depuis le compte GitHub de l'utilisateur) |
@@ -727,6 +728,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/fixed-assets/[id]` | entries:read | `list_fixed_assets` (L) |
 | `PATCH /api/fixed-assets/[id]` | ledger:manage | `manage_fixed_asset` (CT) |
 | `DELETE /api/fixed-assets/[id]` | ledger:manage | `manage_fixed_asset` (CT) |
+| `POST /api/fixed-assets/[id]/disposal` | ledger:manage, entries:create | `record_fixed_asset_disposal` (CT) |
+| `DELETE /api/fixed-assets/[id]/disposal` | ledger:manage, entries:delete | `record_fixed_asset_disposal` (CT) |
 | `GET /api/fixed-assets` | entries:read | `list_fixed_assets` (L) |
 | `POST /api/fixed-assets` | ledger:manage | `create_fixed_asset` (CT) |
 | `GET /api/fixed-assets/stats` | entries:read | `list_fixed_assets` (L) |

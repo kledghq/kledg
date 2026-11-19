@@ -34,6 +34,7 @@ import { updateFixedAsset } from '@/lib/fixed-assets/update-fixed-asset.service'
 import { deleteFixedAsset } from '@/lib/fixed-assets/delete-fixed-asset.service'
 import { getFixedAsset } from '@/lib/fixed-assets/read-fixed-assets.service'
 import { deleteDepreciationRecord, postDepreciationRecord } from '@/lib/fixed-assets/manage-depreciation-records.service'
+import { cancelDisposal, previewDisposal, recordDisposal, RecordDisposalSchema } from '@/lib/fixed-assets/record-disposal.service'
 import { fullControlTool, type RegisterTool } from './define'
 import { companyLock, expenseReportTarget, invoiceTarget, rowTargets } from './fingerprint'
 import { ACTS_AS_USER, TWO_STEP } from './descriptions'
@@ -428,6 +429,39 @@ const manageDepreciationRecordTool = fullControlTool({
   audit: ({ action, fixedAssetId, recordId }) => ({ action, fixedAssetId, recordId }),
 })
 
+const recordDisposalTool = fullControlTool({
+  name: 'record_fixed_asset_disposal',
+  title: "Enregistrer la sortie d'une immobilisation",
+  description: `Action record records the exit of an intangible or tangible fixed asset (accounts 20 to 23): day, kind (sale, scrap, destruction), sale price or compensation excluding VAT in euros, and whether a sale invoice already books the price (priceRecorded). It computes the net book value (depreciation runs to the day of exit), the gain or loss and its tax character (short or long term: everything short term under IS; CGI art. 39 duodecies under IR), and prepares the exit entry as a DRAFT in the OD journal (28 and 657 debit, 2x credit; 462 debit and 757 credit for a price not booked yet), replacing an earlier draft. The preview shows all of it with the warnings (allowance of the year not booked, VAT, impairment, grant). Action cancel deletes the draft and puts the asset back. Both are refused (409) once the exit entry is validated: reverse it first. ${ACTS_AS_USER} ${TWO_STEP}`,
+  input: {
+    action: z.enum(['record', 'cancel']),
+    fixedAssetId: z.string().min(1).max(64).describe('From list_fixed_assets.'),
+    disposalDate: z.string().max(32).optional().describe('Day of exit, yyyy-mm-dd (action record).'),
+    kind: z.enum(['sale', 'scrap', 'destruction']).optional().describe('Action record.'),
+    price: z.number().min(0).optional().describe('Sale price or compensation excluding VAT, in euros; omit for none.'),
+    priceRecorded: z.boolean().optional().describe('A sale invoice already credits 757 with the price: the entry leaves it out.'),
+  },
+  permission: { ledger: ['manage'] },
+  actions: { record: { ledger: ['manage'], entries: ['create'] }, cancel: { ledger: ['manage'], entries: ['delete'] } },
+  amounts: 'euros',
+  units: 'Dates as yyyy-mm-dd.',
+  never: 'validates the exit entry, changes a validated entry or applies a tax exemption.',
+  targetState: ({ companyId, fixedAssetId }) => [companyLock(companyId), ...rowTargets('fixed_assets', companyId, fixedAssetId)],
+  confirmation: true,
+  destructive: true,
+  async preview({ companyId, action, fixedAssetId, disposalDate, kind, price, priceRecorded }) {
+    if (action === 'cancel') return { action, fixedAsset: forAssistant(await getFixedAsset(companyId, fixedAssetId)) }
+    const body = routeBody(RecordDisposalSchema, { disposalDate, kind, price, priceRecorded })
+    return { action, ...(forAssistant(await previewDisposal(companyId, fixedAssetId, body)) as object) }
+  },
+  async execute({ companyId, action, fixedAssetId, disposalDate, kind, price, priceRecorded }) {
+    if (action === 'cancel') return { action, ...(await cancelDisposal(companyId, fixedAssetId)) }
+    const body = routeBody(RecordDisposalSchema, { disposalDate, kind, price, priceRecorded })
+    return { action, ...(forAssistant(await recordDisposal(companyId, fixedAssetId, body)) as object) }
+  },
+  audit: ({ action, fixedAssetId, kind }) => ({ action, fixedAssetId, kind: kind ?? null }),
+})
+
 export function registerRecordTools(register: RegisterTool) {
   register(manageInvoiceTool)
   register(importQontoInvoicesTool)
@@ -440,4 +474,5 @@ export function registerRecordTools(register: RegisterTool) {
   register(autoLetterTool)
   register(manageFixedAssetTool)
   register(manageDepreciationRecordTool)
+  register(recordDisposalTool)
 }

@@ -388,6 +388,7 @@ model AccountingEntry {
   lines                   EntryLine[]              @relation("AccountingEntryLines")
   fixedAssetDepreciations FixedAssetDepreciation[] @relation("FixedAssetDepreciationEntry")
   acquiredFixedAssets     FixedAsset[]             @relation("FixedAssetAcquisitionEntry")
+  disposedFixedAssets     FixedAsset[]             @relation("FixedAssetDisposalEntry")
   provisionAssessment     ProvisionAssessment?     @relation("ProvisionAssessmentEntry")
   accountingChange        AccountingChange?        @relation("AccountingChangeEntry")
   investmentGrantTransfer InvestmentGrantTransfer? @relation("InvestmentGrantTransferEntry")
@@ -860,6 +861,14 @@ model FixedAsset {
   acquisitionValue      Decimal   @db.Decimal(15, 2) // Valeur d'acquisition (HT)
   amortizableAmount     Decimal?  @db.Decimal(15, 2) // Montant amortissable (peut être différent de acquisitionValue)
   disposalDate          DateTime? // Date de cession
+  /// Exit of the asset (lib/fixed-assets/disposal.ts): sale, scrap or
+  /// destruction; null while none is recorded (an older disposalDate alone
+  /// only stops the depreciation plan).
+  disposalKind          String?
+  /// Sale price excluding VAT; 0 for a retirement without compensation.
+  disposalPrice         Decimal?  @db.Decimal(15, 2)
+  /// Exit entry Kledg prepared as a draft (record-disposal.service.ts).
+  disposalEntryId       String?
   depreciationRate      Decimal?  @db.Decimal(5, 2) // Taux d'amortissement annuel (%)
   depreciationDuration  Int? // Durée d'amortissement en années
   depreciationMethod    String    @default("linear") // linear, declining
@@ -886,6 +895,7 @@ model FixedAsset {
   // Relations
   company             Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   acquisitionEntry    AccountingEntry?         @relation("FixedAssetAcquisitionEntry", fields: [acquisitionEntryId], references: [id], onDelete: NoAction)
+  disposalEntry       AccountingEntry?         @relation("FixedAssetDisposalEntry", fields: [disposalEntryId], references: [id], onDelete: SetNull)
   simpleModeEntry     SimpleModeEntry?
   assetAccount        Account                  @relation("FixedAssetAccount", fields: [assetAccountId], references: [id], onDelete: NoAction)
   depreciationAccount Account                  @relation("DepreciationAccount", fields: [depreciationAccountId], references: [id], onDelete: NoAction)
@@ -896,6 +906,7 @@ model FixedAsset {
 
   @@index([companyId])
   @@index([acquisitionEntryId])
+  @@index([disposalEntryId])
   @@index([assetAccountId])
   @@index([depreciationAccountId])
   @@index([expenseAccountId])

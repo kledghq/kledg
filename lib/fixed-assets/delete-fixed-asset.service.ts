@@ -1,7 +1,9 @@
 /**
  * Deletes a fixed asset and its depreciation records, in one transaction.
  *
- * Draft depreciation entries linked to the asset are deleted with it.
+ * Draft depreciation entries linked to the asset are deleted with it, and
+ * so is the draft exit entry of a recorded disposal (a validated one keeps
+ * the asset: it is in the liasse of the year of exit).
  * Booked (validated) depreciation entries are definitive (PCG art. 1031-3:
  * "une procédure de validation, qui interdit toute modification ou
  * suppression de l'enregistrement"): the deletion is refused, naming the
@@ -68,8 +70,17 @@ export async function deleteFixedAsset(companyId: string, fixedAssetId: string):
 
 /** deleteFixedAsset inside the caller's transaction. */
 export async function deleteFixedAssetInTx(tx: Prisma.TransactionClient, companyId: string, fixedAssetId: string): Promise<number> {
-  const asset = await tx.fixedAsset.findFirst({ where: { id: fixedAssetId, companyId }, select: { id: true } })
+  const asset = await tx.fixedAsset.findFirst({
+    where: { id: fixedAssetId, companyId },
+    select: { id: true, disposalEntry: { select: { id: true, entryNumber: true, status: true, reversedBy: { select: { id: true } } } } },
+  })
   if (!asset) throw new NotFoundError('Immobilisation introuvable')
+  const exit = asset.disposalEntry
+  if (exit && exit.status === 'validated' && !exit.reversedBy) {
+    throw new ConflictError(
+      `La sortie de cette immobilisation est comptabilisée (écriture n° ${exit.entryNumber}, validée)\u00a0: elle reste au registre pour la liasse de l'exercice de sortie. Contre-passez l'écriture avant de la supprimer.`
+    )
+  }
   const grants = await tx.investmentGrant.count({ where: { fixedAssetId, companyId } })
   if (grants > 0) {
     throw new ConflictError(
@@ -82,6 +93,8 @@ export async function deleteFixedAssetInTx(tx: Prisma.TransactionClient, company
       `Cette immobilisation a ${bookedDepreciationSummary(booked)}. Une écriture validée ne peut pas être supprimée\u00a0: contre-passez-la depuis la fiche de l'écriture avant de supprimer l'immobilisation, ou enregistrez plutôt sa sortie (cession ou mise au rebut).`
     )
   }
+  // The draft exit entry goes with the asset (record-disposal.service.ts)
+  if (exit?.status === 'draft') drafts.push(exit.id)
   if (drafts.length > 0) {
     await tx.accountingEntry.deleteMany({ where: { id: { in: drafts }, companyId, status: 'draft' } })
   }

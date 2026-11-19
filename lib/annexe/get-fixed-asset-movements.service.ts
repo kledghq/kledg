@@ -1,6 +1,7 @@
 /**
- * Loads the fixed asset report of a fiscal year (forms 2054-SD, 2055-SD and
- * 2033-C-SD, fixed-asset-report.ts): the validated entries of the year on
+ * Loads the fixed asset report of a fiscal year (forms 2054-SD, 2055-SD,
+ * 2033-C-SD and the disposals of 2033-C-SD cadre III and 2059-A-SD,
+ * fixed-asset-report.ts): the validated entries of the year on
  * the class 2 accounts and on the écarts de réévaluation (105), the
  * "Actif immobilisé" of the complete balance sheet and the fixed asset
  * register with its depreciation plans and records.
@@ -16,6 +17,8 @@ import { CLOSING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
 import { isOpeningJournal } from '@/lib/fec/format'
 import { buildDepreciationPlan, closingMonthOf } from '@/lib/fixed-assets/depreciation-plan'
 import { cumulativeDepreciationCents } from '@/lib/fixed-assets/cumulative-depreciation'
+import { isDisposalKind } from '@/lib/fixed-assets/disposal'
+import { loadProfitTaxationResolver } from '@/lib/companies/profit-taxation.service'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
 import type { BalanceSheetLine } from '@/lib/reports/balance-sheet/types'
 import { addUtcDays, calendarDayOf } from '@/lib/utils/date'
@@ -68,7 +71,7 @@ async function loadLedgerLines(companyId: string, fiscalYearId: string) {
 
 /** The register with each asset's depreciation accumulated at the start and at the end of the year. */
 async function loadRegister(companyId: string, fy: { startDate: Date; endDate: Date }): Promise<RegisterAsset[]> {
-  const [assets, years] = await Promise.all([
+  const [assets, years, taxationOn] = await Promise.all([
     prisma.fixedAsset.findMany({
       where: { companyId },
       select: {
@@ -78,6 +81,8 @@ async function loadRegister(companyId: string, fy: { startDate: Date; endDate: D
         acquisitionValue: true,
         amortizableAmount: true,
         disposalDate: true,
+        disposalKind: true,
+        disposalPrice: true,
         depreciationMethod: true,
         depreciationRate: true,
         depreciationDuration: true,
@@ -92,6 +97,7 @@ async function loadRegister(companyId: string, fy: { startDate: Date; endDate: D
       orderBy: { acquisitionDate: 'asc' },
     }),
     prisma.fiscalYear.findMany({ where: { companyId }, select: { id: true, startDate: true, endDate: true } }),
+    loadProfitTaxationResolver(companyId),
   ])
   const dayBefore = addUtcDays(fy.startDate, -1)
   return assets.map((asset) => {
@@ -109,6 +115,15 @@ async function loadRegister(companyId: string, fy: { startDate: Date; endDate: D
       disposalDate: asset.disposalDate ? day(asset.disposalDate) : null,
       depreciationAtStartCents: cumulativeDepreciationCents({ ...input, until: dayBefore }),
       depreciationAtEndCents: cumulativeDepreciationCents({ ...input, until: fy.endDate }),
+      disposal:
+        asset.disposalDate && isDisposalKind(asset.disposalKind)
+          ? {
+              kind: asset.disposalKind,
+              priceCents: cents(asset.disposalPrice),
+              depreciable: asset.depreciationMethod !== 'none',
+              taxation: taxationOn(day(asset.disposalDate)).taxation,
+            }
+          : null,
     }
   })
 }
