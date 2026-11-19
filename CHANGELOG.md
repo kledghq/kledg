@@ -4,6 +4,11 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Modifié
+
+- Mises à jour : la page est plus large, pour que les notes de version, les étapes de mise à jour et la liste des migrations tiennent sur des lignes plus longues.
+- Mises à jour : la page montre qu'une mise à jour est en cours, même après un rechargement ou pour un autre administrateur. « Préparation demandée » s'affiche dès le clic, puis la préparation sur GitHub avec un indicateur animé. Une fois la version installée, « Déploiement en cours » reste affiché tant que l'hébergeur construit la nouvelle version (lu dans les déploiements GitHub, ou pendant 20 minutes après la fusion pour un hébergeur qui n'en déclare pas). Un déploiement en échec est signalé, avec la version en service qui reste celle d'avant.
+
 ## [0.8.0] - 2026-11-19
 
 ### Ajouté

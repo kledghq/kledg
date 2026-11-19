@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ExternalLink, Loader2, RefreshCw, Rocket } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Rocket } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { GITHUB_DEPLOY_NOTES, PLATFORM_LABELS, type Platform } from '@/lib/updates/hosting'
-import type { Channel, UpdateBranch, UpdatePull, WorkflowRun } from '@/lib/updates/service'
+import type { Channel, PendingDeployment, UpdateBranch, UpdatePull, WorkflowRun } from '@/lib/updates/service'
 import { formatDateTime, NEON_BRANCHING_URL, SELF_HOSTING_DOCS_URL, updatesApi } from './api'
 
 interface GitHubState {
@@ -32,6 +32,8 @@ interface GitHubState {
   pull: UpdatePull | null
   /** Prepared without its pull request (GitHub did not let the workflow open it): installing opens it. */
   branch?: UpdateBranch | null
+  /** The default branch head the host is still deploying, or failed to deploy. */
+  deployment?: PendingDeployment | null
 }
 
 type PrepareResult = { mode: 'workflow'; workflowInstalled: boolean; dispatchedAt: string } | { mode: 'merge-upstream' }
@@ -90,12 +92,24 @@ export function UpdateActions({
   const [deploying, setDeploying] = useState<{ sha: string | null; since: number } | null>(null)
   const [deployed, setDeployed] = useState<string | null>(null)
   const [pollUntil, setPollUntil] = useState(0)
+  /** When "Préparer" dispatched the workflow, until GitHub lists the run. */
+  const [dispatchedAt, setDispatchedAt] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
       const data = await updatesApi<GitHubState>('/api/updates/github')
       setState(data)
       setLoadError(null)
+      // An update installed earlier (another tab, another administrator, before a reload): follow its deployment.
+      const deployment = data.deployment
+      if (deployment?.state === 'building') setDeploying((d) => d ?? { sha: deployment.sha, since: Date.now() })
+      // The host gave up: back to the steps, with the failure above them
+      if (deployment?.state === 'failed') setDeploying(null)
+      if (data.run) {
+        const runAt = Date.parse(data.run.createdAt)
+        // Clocks of the instance and GitHub may differ by a few seconds.
+        setDispatchedAt((at) => (at !== null && runAt >= at - 60_000 ? null : at))
+      }
       return data
     } catch (error) {
       setLoadError((error as Error).message)
@@ -119,20 +133,24 @@ export function UpdateActions({
     if (!state) return
     const running = state.run && state.run.status !== 'completed'
     const building = state.pull?.preview && !['success', 'failure', 'error', 'inactive'].includes(state.pull.preview.state ?? '')
-    const waitingForPull = !state.pull && pollUntil > 0
+    const waitingForPull = (!state.pull || dispatchedAt !== null) && pollUntil > 0
     if (!(running || building || waitingForPull) || Date.now() > pollUntil) return
     const timer = setTimeout(load, 5000)
     return () => clearTimeout(timer)
-  }, [state, load, pollUntil])
+  }, [state, load, pollUntil, dispatchedAt])
 
   // After the merge, wait for the new deployment to answer with the new commit.
   useEffect(() => {
     if (!deploying) return
     let stopped = false
     const tick = async () => {
+      if (stopped) return
       try {
         const version = await updatesApi<{ version: string; commit: string | null }>('/api/updates/version')
-        const done = deploying.sha ? version.commit === deploying.sha : version.commit !== previousCommit
+        // The host may give a short commit: compare on its length
+        const done = deploying.sha
+          ? Boolean(version.commit && deploying.sha.toLowerCase().startsWith(version.commit.toLowerCase()))
+          : version.commit !== previousCommit
         if (done) {
           setDeploying(null)
           setDeployed(version.version)
@@ -141,6 +159,8 @@ export function UpdateActions({
       } catch {
         // The instance may restart while it deploys: keep polling.
       }
+      // GitHub knows when the host's deployment fails
+      if (!stopped) await load()
       if (!stopped && Date.now() - deploying.since < 20 * 60 * 1000) setTimeout(tick, 10_000)
     }
     const timer = setTimeout(tick, 10_000)
@@ -148,7 +168,7 @@ export function UpdateActions({
       stopped = true
       clearTimeout(timer)
     }
-  }, [deploying, previousCommit])
+  }, [deploying, previousCommit, load])
 
   const prepare = async () => {
     setBusy('prepare')
@@ -163,6 +183,7 @@ export function UpdateActions({
             ? 'Kledg a ajouté son outil de mise à jour à votre dépôt et lancé la préparation. La nouvelle version est prête dans une minute environ.'
             : 'Préparation lancée sur GitHub. La nouvelle version est prête dans une minute environ.',
         )
+        setDispatchedAt(Date.now())
         setPollUntil(Date.now() + 5 * 60 * 1000)
         setTimeout(load, 4000)
       }
@@ -262,6 +283,16 @@ export function UpdateActions({
           </Alert>
         )}
 
+        {state?.deployment?.state === 'failed' && (
+          <Alert variant="destructive" data-slot="update-deploy-failed">
+            <AlertTriangle />
+            <AlertDescription>
+              {Host} n&apos;a pas réussi à déployer la dernière version de votre dépôt (commit {state.deployment.sha.slice(0, 7)})&nbsp;: la
+              version en service reste celle d&apos;avant. Le journal du déploiement chez {host} dit pourquoi.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <ol className="space-y-6">
           <li className="space-y-3" data-slot="update-step-prepare">
             <div className="space-y-1">
@@ -280,9 +311,22 @@ export function UpdateActions({
               </p>
             )}
 
-            {state?.run && (
+            {dispatchedAt !== null && (
+              <div className="flex flex-wrap items-center gap-2 text-sm" data-slot="update-prepare-requested">
+                <Badge variant="secondary">
+                  <Loader2 className="animate-spin" />
+                  Préparation demandée
+                </Badge>
+                <span className="text-muted-foreground">GitHub la lance dans quelques secondes.</span>
+              </div>
+            )}
+
+            {state?.run && dispatchedAt === null && (
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant={state.run.conclusion === 'failure' ? 'destructive' : 'secondary'}>{runLabel(state.run)}</Badge>
+                <Badge variant={state.run.conclusion === 'failure' ? 'destructive' : 'secondary'}>
+                  {state.run.status !== 'completed' && <Loader2 className="animate-spin" />}
+                  {runLabel(state.run)}
+                </Badge>
                 <span className="text-muted-foreground">{formatDateTime(state.run.createdAt)}</span>
                 <a href={state.run.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-4">
                   Journal sur GitHub
@@ -291,7 +335,7 @@ export function UpdateActions({
               </div>
             )}
 
-            {state?.run && state.run.status === 'completed' && state.run.conclusion === 'success' && !ready && !mergeUpstreamMode && (
+            {state?.run && dispatchedAt === null && state.run.status === 'completed' && state.run.conclusion === 'success' && !ready && !mergeUpstreamMode && (
               <p className="text-muted-foreground text-sm" data-slot="prepare-no-pull">
                 {upToDate
                   ? 'Rien à installer\u00a0: votre instance contient déjà la dernière version.'
