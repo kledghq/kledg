@@ -55,6 +55,7 @@ vi.mock('@/lib/updates/service', async () => {
     latestRun: vi.fn(async () => null),
     findUpdatePull: vi.fn(async () => null),
     findUpdateBranch: vi.fn(async () => null),
+    pendingDeployment: vi.fn(async () => null),
     installUpdateBranch: vi.fn(async () => ({ sha: 'd'.repeat(40) })),
     prepareUpdate: vi.fn(async () => ({ mode: 'workflow', workflowInstalled: false, dispatchedAt: '2026-10-03T00:00:00Z' })),
     mergeUpdatePull: vi.fn(async () => ({ sha: 'b'.repeat(40) })),

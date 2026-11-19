@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { UpdateBranch, UpdatePull, WorkflowRun } from '@/lib/updates/service'
+import type { PendingDeployment, UpdateBranch, UpdatePull, WorkflowRun } from '@/lib/updates/service'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
@@ -26,6 +26,7 @@ type GitHubState = {
   run: WorkflowRun | null
   pull: UpdatePull | null
   branch?: UpdateBranch | null
+  deployment?: PendingDeployment | null
 }
 
 let github: GitHubState
@@ -137,6 +138,53 @@ describe('UpdateActions', () => {
     await act(() => vi.advanceTimersByTimeAsync(10_000))
     expect(await screen.findByText('Kledg 1.4.0 est installé.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Recharger la page' })).toBeInTheDocument()
+  })
+
+  it('after a reload, shows the deployment GitHub reports as building, until the new commit answers', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const SHA = 'f'.repeat(40)
+    github.deployment = { sha: SHA, state: 'building' }
+    render(<UpdateActions platform="vercel" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
+    expect(await screen.findByText('Déploiement en cours')).toBeInTheDocument()
+
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(screen.getByText('Déploiement en cours')).toBeInTheDocument()
+
+    // The host gives a short commit
+    version = { version: '1.4.0', commit: SHA.slice(0, 7) }
+    github.deployment = null
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(await screen.findByText('Kledg 1.4.0 est installé.')).toBeInTheDocument()
+  })
+
+  it('says when the host failed to deploy, and leaves the deployment card for it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const SHA = 'e'.repeat(40)
+    github.deployment = { sha: SHA, state: 'building' }
+    render(<UpdateActions platform="vercel" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
+    expect(await screen.findByText('Déploiement en cours')).toBeInTheDocument()
+
+    github.deployment = { sha: SHA, state: 'failed' }
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    const alert = await screen.findByText(/n'a pas réussi à déployer la dernière version de votre dépôt \(commit eeeeeee\)/)
+    expect(alert).toBeInTheDocument()
+    expect(screen.queryByText('Déploiement en cours')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Préparer la mise à jour' })).toBeInTheDocument()
+  })
+
+  it('shows the preparation as requested until GitHub lists its run', async () => {
+    const user = userEvent.setup()
+    github.run = { id: 1, status: 'completed', conclusion: 'success', url: 'https://github.com/acme/kledg/actions/runs/1', createdAt: '2026-01-01T10:00:00.000Z' }
+    render(<UpdateActions platform="vercel" isFork={false} previousCommit={null} overviewMigrations={[]} />)
+    expect(await screen.findByText('Préparation terminée')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Préparer la mise à jour' }))
+    expect(await screen.findByText('Préparation demandée')).toBeInTheDocument()
+    expect(screen.queryByText('Préparation terminée')).not.toBeInTheDocument()
+
+    github.run = { id: 2, status: 'in_progress', conclusion: null, url: 'https://github.com/acme/kledg/actions/runs/2', createdAt: new Date().toISOString() }
+    await user.click(screen.getByRole('button', { name: 'Rafraîchir' }))
+    expect(await screen.findByText('Préparation en cours')).toBeInTheDocument()
+    expect(screen.queryByText('Préparation demandée')).not.toBeInTheDocument()
   })
 
   it('blocks installation of a pull request with conflicts', async () => {

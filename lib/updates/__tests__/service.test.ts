@@ -8,6 +8,7 @@ import {
   installUpdateBranch,
   mergeUpdatePull,
   mergeUpstream,
+  pendingDeployment,
   prepareUpdate,
   setChannel,
   setRetryDelay,
@@ -334,5 +335,43 @@ describe('update prepared without its pull request', () => {
       'PUT /repos/acme/compta/pulls/9/merge': { body: { merged: true, sha: MERGED } },
     })
     expect(await installUpdateBranch(copy, SHA)).toEqual({ sha: MERGED })
+  })
+})
+
+describe('deployment of the default branch (shown after a reload)', () => {
+  const HEAD = 'GET /repos/acme/compta/commits/main'
+  const head = (minutesAgo: number) => ({ body: { sha: MERGED, commit: { committer: { date: new Date(Date.now() - minutesAgo * 60_000).toISOString() } } } })
+  const deployed = (state: string | null) => ({
+    'GET /repos/acme/compta/deployments': { body: state === null ? [] : [{ id: 5 }] },
+    'GET /repos/acme/compta/deployments/5/statuses': { body: state ? [{ state }] : [] },
+  })
+
+  it('reports the head the host is building, or failed to build', async () => {
+    fakeGitHub({ [HEAD]: head(30), ...deployed('in_progress') })
+    expect(await pendingDeployment(copy, 'old0000')).toEqual({ sha: MERGED, state: 'building' })
+    fakeGitHub({ [HEAD]: head(30), ...deployed('failure') })
+    expect(await pendingDeployment(copy, 'old0000')).toEqual({ sha: MERGED, state: 'failed' })
+  })
+
+  it('counts a fresh head without any deployment yet as building, an old one as nothing', async () => {
+    fakeGitHub({ [HEAD]: head(1), ...deployed(null) })
+    expect(await pendingDeployment(copy, 'old0000')).toEqual({ sha: MERGED, state: 'building' })
+    fakeGitHub({ [HEAD]: head(30), ...deployed(null) })
+    expect(await pendingDeployment(copy, 'old0000')).toBeNull()
+    // Without the Deployments permission: the fresh head still counts
+    fakeGitHub({ [HEAD]: head(1), 'GET /repos/acme/compta/deployments': { status: 403, body: {} } })
+    expect(await pendingDeployment(copy, 'old0000')).toEqual({ sha: MERGED, state: 'building' })
+  })
+
+  it('reports nothing once the head runs (short commit too), or when the running commit is unknown', async () => {
+    const fake = fakeGitHub({ [HEAD]: head(1), ...deployed('success') })
+    expect(await pendingDeployment(copy, MERGED.slice(0, 7))).toBeNull()
+    expect(await pendingDeployment(copy, MERGED)).toBeNull()
+    fakeGitHub({ [HEAD]: head(30), ...deployed('success') })
+    expect(await pendingDeployment(copy, 'old0000')).toBeNull()
+    const none = fakeGitHub({})
+    expect(await pendingDeployment(copy, null)).toBeNull()
+    expect(none.calls).toHaveLength(0)
+    expect(fake.calls.length).toBeGreaterThan(0)
   })
 })

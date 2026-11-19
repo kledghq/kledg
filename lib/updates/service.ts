@@ -389,6 +389,49 @@ async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePu
 }
 
 // ---------------------------------------------------------------------------
+// Deployment of the default branch
+
+export interface PendingDeployment {
+  /** Head of the default branch, not yet the running commit. */
+  sha: string
+  /** building: the host is deploying it; failed: its deployment failed. */
+  state: 'building' | 'failed'
+}
+
+const BUILDING_STATES = new Set(['pending', 'queued', 'in_progress'])
+const FAILED_STATES = new Set(['failure', 'error'])
+const DEPLOY_GRACE_MS = 20 * 60 * 1000
+
+/**
+ * The deployment of the default branch head when it is not the running
+ * commit yet: an installed update the host is still building (or failed to
+ * build). Read from the GitHub deployments the host creates, so the page
+ * shows it after a reload and to every administrator. A head committed less
+ * than DEPLOY_GRACE_MS ago without any deployment yet counts as building: the
+ * host has not reported it yet, or reports none (Docker, Clever Cloud...).
+ * Null when the running commit is unknown or already the head, or when an
+ * older head has no deployment.
+ */
+export async function pendingDeployment(conn: ActiveConnection, runningCommit: string | null): Promise<PendingDeployment | null> {
+  if (!runningCommit) return null
+  const { status, data } = await githubRequest<{ sha?: string; commit?: { committer?: { date?: string } } }>(
+    repoPath(conn.repository, 'commits', conn.defaultBranch),
+    {
+      token: conn.token,
+      allow: [404, 422],
+    },
+  )
+  const sha = status === 200 ? data?.sha : undefined
+  if (!sha || !/^[0-9a-f]{40}$/i.test(sha) || sha.toLowerCase().startsWith(runningCommit.toLowerCase())) return null
+  const state = (await previewFor(conn, sha))?.state ?? null
+  if (state && BUILDING_STATES.has(state)) return { sha, state: 'building' }
+  if (state && FAILED_STATES.has(state)) return { sha, state: 'failed' }
+  const committedAt = Date.parse(data?.commit?.committer?.date ?? '')
+  if (!state && Date.now() - committedAt < DEPLOY_GRACE_MS) return { sha, state: 'building' }
+  return null
+}
+
+// ---------------------------------------------------------------------------
 // Install
 
 export interface InstallResult {
