@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ActiveConnection } from '../connection'
 import {
+  actionsSettingsLinks,
   findUpdateBranch,
   findUpdatePull,
   getChannel,
@@ -276,6 +277,7 @@ describe('update prepared without its pull request', () => {
         },
       },
       'GET /repos/acme/compta/deployments': { body: [] },
+      'GET /repos/acme/compta': { body: { owner: { login: 'acme', type: 'Organization' } } },
     })
     expect(await findUpdateBranch(copy)).toEqual({
       headSha: SHA,
@@ -283,7 +285,16 @@ describe('update prepared without its pull request', () => {
       url: 'https://github.com/acme/compta/compare/main...kledg-update',
       migrations: ['20261218090000_e_invoice_import'],
       preview: { url: null, state: null },
+      settings: {
+        organization: { name: 'acme', url: 'https://github.com/organizations/acme/settings/actions' },
+        repositoryUrl: 'https://github.com/acme/compta/settings/actions',
+      },
     })
+  })
+
+  it('links a personal account to the repository settings only', async () => {
+    fakeGitHub({ 'GET /repos/acme/compta': { body: { owner: { login: 'acme', type: 'User' } } } })
+    expect(await actionsSettingsLinks(copy)).toEqual({ organization: null, repositoryUrl: 'https://github.com/acme/compta/settings/actions' })
   })
 
   it('finds nothing without the branch, or when it brings nothing', async () => {

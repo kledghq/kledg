@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- Mises à jour : quand GitHub n'a pas laissé le workflow proposer la nouvelle version, la page dit où cocher « Allow GitHub Actions to create and approve pull requests » : les réglages Actions de l'organisation si le dépôt lui appartient (la case du dépôt reste grisée tant qu'elle ne l'autorise pas), puis ceux du dépôt.
+
 ## [0.7.1] - 2026-11-19
 
 ### Corrigé

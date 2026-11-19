@@ -298,6 +298,31 @@ export interface UpdateBranch {
   url: string
   migrations: string[]
   preview: UpdatePull['preview']
+  /** Where to let GitHub Actions open the pull request next time. */
+  settings: ActionsSettingsLinks
+}
+
+/**
+ * Pages holding GitHub's "Allow GitHub Actions to create and approve pull
+ * requests" (Settings > Actions > General, section Workflow permissions).
+ * In an organization the repository's box stays greyed out until the
+ * organization allows it, so its page comes first.
+ */
+export interface ActionsSettingsLinks {
+  /** The organization that owns the repository; null for a personal account. */
+  organization: { name: string; url: string } | null
+  repositoryUrl: string
+}
+
+/** The settings pages for the repository; its owner type comes from GET /repos (Metadata permission). */
+export async function actionsSettingsLinks(conn: ActiveConnection): Promise<ActionsSettingsLinks> {
+  const { data } = await githubRequest<{ owner?: { login?: string; type?: string } }>(repoPath(conn.repository), { token: conn.token })
+  const owner = encodeURIComponent(conn.repository.owner)
+  const repositoryUrl = `https://github.com/${owner}/${encodeURIComponent(conn.repository.repo)}/settings/actions`
+  return {
+    organization: data?.owner?.type === 'Organization' ? { name: conn.repository.owner, url: `https://github.com/organizations/${owner}/settings/actions` } : null,
+    repositoryUrl,
+  }
 }
 
 interface GitHubCompare {
@@ -325,12 +350,14 @@ export async function findUpdateBranch(conn: ActiveConnection): Promise<UpdateBr
   if (!head || !/^[0-9a-f]{40}$/i.test(head.sha)) return null
   const owner = encodeURIComponent(conn.repository.owner)
   const repo = encodeURIComponent(conn.repository.repo)
+  const [preview, settings] = await Promise.all([previewFor(conn, head.sha), actionsSettingsLinks(conn)])
   return {
     headSha: head.sha,
     label: versionLabelOf(head.commit?.message),
     url: `https://github.com/${owner}/${repo}/compare/${encodeURIComponent(conn.defaultBranch)}...${UPDATE_BRANCH}`,
     migrations: migrationsFromFiles(data.files ?? []),
-    preview: await previewFor(conn, head.sha),
+    preview,
+    settings,
   }
 }
 
