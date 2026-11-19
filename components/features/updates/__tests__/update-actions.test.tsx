@@ -173,11 +173,18 @@ describe('UpdateActions', () => {
       url: 'https://github.com/acme/kledg/compare/main...kledg-update',
       migrations: ['20261001000000_add_x'],
       preview: null,
+      settings: {
+        organization: { name: 'acme', url: 'https://github.com/organizations/acme/settings/actions' },
+        repositoryUrl: 'https://github.com/acme/kledg/settings/actions',
+      },
     }
     render(<UpdateActions platform="vercel" isFork={false} previousCommit="old0000" overviewMigrations={[]} />)
     expect(await screen.findByText('Version prête : Kledg v1.4.0')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'voir sur GitHub' })).toHaveAttribute('href', 'https://github.com/acme/kledg/compare/main...kledg-update')
-    expect(screen.getByText(/Kledg le fera au moment de l'installer/)).toBeInTheDocument()
+    expect(screen.getByText(/Kledg la proposera au moment de l'installer/)).toBeInTheDocument()
+    // The organization's box comes first: the repository's stays greyed out until the organization allows it.
+    expect(screen.getByRole('link', { name: "réglages de l'organisation acme" })).toHaveAttribute('href', 'https://github.com/organizations/acme/settings/actions')
+    expect(screen.getByRole('link', { name: 'réglages du dépôt' })).toHaveAttribute('href', 'https://github.com/acme/kledg/settings/actions')
     expect(screen.queryByText(/aucune version à installer/)).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Installer la mise à jour' }))

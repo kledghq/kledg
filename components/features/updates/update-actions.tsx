@@ -323,10 +323,38 @@ export function UpdateActions({
                   </p>
                 )}
                 {branch && (
-                  <p className="text-muted-foreground" data-slot="update-branch-note">
-                    Les réglages de votre dépôt n&apos;autorisent pas GitHub à proposer la mise à jour lui-même&nbsp;: Kledg le fera
-                    au moment de l&apos;installer.
-                  </p>
+                  <div className="text-muted-foreground space-y-1" data-slot="update-branch-note">
+                    <p>
+                      GitHub n&apos;a pas proposé cette version lui-même&nbsp;: les réglages de votre{' '}
+                      {branch.settings.organization ? 'organisation' : 'dépôt'} l&apos;interdisent sans doute. Kledg la proposera au
+                      moment de l&apos;installer, rien à faire de plus.
+                    </p>
+                    <p>
+                      Pour que GitHub la propose lui-même la prochaine fois, cochez «&nbsp;Allow GitHub Actions to create and approve
+                      pull requests&nbsp;» (section Workflow permissions, puis Save)&nbsp;:{' '}
+                      {branch.settings.organization ? (
+                        <>
+                          <a
+                            href={branch.settings.organization.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-foreground underline underline-offset-4"
+                          >
+                            réglages de l&apos;organisation {branch.settings.organization.name}
+                          </a>{' '}
+                          (réservés à ses propriétaires), puis{' '}
+                          <a href={branch.settings.repositoryUrl} target="_blank" rel="noreferrer" className="text-foreground underline underline-offset-4">
+                            réglages du dépôt
+                          </a>{' '}
+                          si la case y est encore décochée.
+                        </>
+                      ) : (
+                        <a href={branch.settings.repositoryUrl} target="_blank" rel="noreferrer" className="text-foreground underline underline-offset-4">
+                          réglages du dépôt
+                        </a>
+                      )}
+                    </p>
+                  </div>
                 )}
                 {ready.preview && (
                   <p className="text-muted-foreground">
