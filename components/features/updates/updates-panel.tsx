@@ -61,7 +61,7 @@ export function UpdatesPanel() {
   }, [load])
 
   return (
-    <div className="w-full max-w-3xl space-y-6">
+    <div className="w-full max-w-5xl space-y-6">
       <PageHeader title="Mises à jour" description="Version de votre instance et nouveautés de Kledg." />
 
       {error && (

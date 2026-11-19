@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Modifié
+
+- Mises à jour : la page est plus large, pour que les notes de version, les étapes de mise à jour et la liste des migrations tiennent sur des lignes plus longues.
+
 ## [0.8.0] - 2026-11-19
 
 ### Ajouté

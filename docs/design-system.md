@@ -211,6 +211,8 @@ page offers the same choice, through the same next-themes state).
 Settings pages share one layout: `w-full max-w-3xl space-y-6`, a
 `PageHeader`, then cards. An action the instance refuses stays visible,
 disabled, with the policy's message above its controls.
+The Mises à jour page is wider (`max-w-5xl`): its cards carry release notes,
+the update steps and the migration list, which read better on longer lines.
 
 ## Mobile and installed app
 
