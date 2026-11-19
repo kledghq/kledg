@@ -106,7 +106,7 @@ describe('UpdatesPanel', () => {
     render(<UpdatesPanel />)
     await screen.findByText('UpdateActions')
     expect(children.connect).toHaveBeenLastCalledWith(
-      expect.objectContaining({ detected: { owner: 'acme', repo: 'kledg' }, connection, platform: 'vercel' }),
+      expect.objectContaining({ detected: { owner: 'acme', repo: 'kledg' }, connection }),
     )
     expect(children.actions).toHaveBeenLastCalledWith({
       platform: 'vercel',

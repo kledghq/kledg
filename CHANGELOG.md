@@ -4,6 +4,14 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Corrigé
+
+- Mises à jour : quand le dépôt ou l'organisation GitHub n'autorise pas les Actions à ouvrir des pull requests, la préparation se terminait sans rien à installer. La page reconnaît maintenant la nouvelle version prête sur la branche `kledg-update` et l'installe : elle ouvre la pull request avec le jeton connecté, puis la fusionne si la branche n'a pas changé depuis la confirmation.
+
+### Modifié
+
+- Mises à jour : la carte « Installer une nouvelle version » présente les deux étapes (préparer, installer) sans jargon Git, dit quand une version est prête, avec ses migrations et son aperçu, et pourquoi le bouton d'installation attend.
+
 ## [0.7.0] - 2026-11-18
 
 ### Ajouté

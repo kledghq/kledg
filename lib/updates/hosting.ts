@@ -78,14 +78,14 @@ export function deploysFromGitHub(platform: Platform, env: Env): boolean {
 
 /** How a merge on GitHub reaches the instance, said on the "Mises à jour" page. */
 export const GITHUB_DEPLOY_NOTES: Record<Platform, string> = {
-  vercel: 'Vercel déploie chaque fusion sur la branche principale.',
-  railway: 'Railway redéploie le service à chaque fusion sur la branche suivie.',
-  render: 'Render redéploie le service à chaque fusion sur la branche suivie (déploiement automatique activé).',
-  fly: "Fly.io redéploie à chaque fusion grâce au workflow GitHub Actions « fly deploy » de votre dépôt.",
-  clevercloud: "Clever Cloud redéploie à chaque fusion quand l'application est liée à votre dépôt GitHub.",
-  coolify: 'Coolify redéploie à chaque fusion quand le déploiement automatique est activé sur la ressource.',
-  docker: 'Votre hébergeur redéploie à chaque fusion sur la branche principale (KLEDG_DEPLOYS_FROM_GITHUB=true).',
-  node: 'Votre hébergeur redéploie à chaque fusion sur la branche principale (KLEDG_DEPLOYS_FROM_GITHUB=true).',
+  vercel: 'Vercel la déploie aussitôt, migrations comprises, en quelques minutes.',
+  railway: 'Railway redéploie le service aussitôt, migrations comprises (branche suivie par le service).',
+  render: 'Render redéploie le service aussitôt, migrations comprises (déploiement automatique activé).',
+  fly: "Fly.io la déploie aussitôt, migrations comprises, grâce au workflow GitHub Actions « fly deploy » de votre dépôt.",
+  clevercloud: "Clever Cloud la déploie aussitôt, migrations comprises, quand l'application est liée à votre dépôt GitHub.",
+  coolify: 'Coolify la déploie aussitôt, migrations comprises, quand le déploiement automatique est activé sur la ressource.',
+  docker: 'Votre hébergeur la déploie depuis la branche principale de votre dépôt (KLEDG_DEPLOYS_FROM_GITHUB=true), migrations comprises.',
+  node: 'Votre hébergeur la déploie depuis la branche principale de votre dépôt (KLEDG_DEPLOYS_FROM_GITHUB=true), migrations comprises.',
 }
 
 const PULL_UPSTREAM = `cd kledg   # votre clone du dépôt

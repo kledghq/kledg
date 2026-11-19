@@ -281,6 +281,59 @@ export async function findUpdatePull(conn: ActiveConnection): Promise<UpdatePull
   }
 }
 
+/**
+ * An update the workflow prepared without its pull request: the kledg-update
+ * branch is ahead of the default branch, but no pull request is open. GitHub
+ * refuses it when the repository (or its organization) does not let Actions
+ * create pull requests (Settings, Actions, General, "Allow GitHub Actions to
+ * create and approve pull requests"): the workflow pushes the branch and
+ * only warns. Installing opens the pull request with the connection's token
+ * (Pull requests: write), then merges it like any update.
+ */
+export interface UpdateBranch {
+  headSha: string
+  /** The version merged into the branch ("v0.7.0"), read from its last commit; null on the main channel. */
+  label: string | null
+  /** The comparison on GitHub. */
+  url: string
+  migrations: string[]
+  preview: UpdatePull['preview']
+}
+
+interface GitHubCompare {
+  status?: string
+  ahead_by?: number
+  commits?: Array<{ sha: string; commit?: { message?: string } }>
+  files?: Array<{ filename: string; status: string }>
+}
+
+/** The tag the workflow merged ("Merge tag 'refs/tags/v0.7.0' into kledg-update"). */
+export function versionLabelOf(message: string | undefined): string | null {
+  const match = message ? /refs\/tags\/(v\d+\.\d+\.\d+[\w.-]*)/.exec(message) : null
+  return match ? match[1] : null
+}
+
+/** The prepared update branch when no pull request carries it; null when there is none or it brings nothing. */
+export async function findUpdateBranch(conn: ActiveConnection): Promise<UpdateBranch | null> {
+  const { status, data } = await githubRequest<GitHubCompare>(
+    repoPath(conn.repository, 'compare', `${conn.defaultBranch}...${UPDATE_BRANCH}`),
+    { token: conn.token, allow: [404] },
+  )
+  if (status === 404 || !data || !data.ahead_by || (data.status !== 'ahead' && data.status !== 'diverged')) return null
+  const commits = data.commits ?? []
+  const head = commits[commits.length - 1]
+  if (!head || !/^[0-9a-f]{40}$/i.test(head.sha)) return null
+  const owner = encodeURIComponent(conn.repository.owner)
+  const repo = encodeURIComponent(conn.repository.repo)
+  return {
+    headSha: head.sha,
+    label: versionLabelOf(head.commit?.message),
+    url: `https://github.com/${owner}/${repo}/compare/${encodeURIComponent(conn.defaultBranch)}...${UPDATE_BRANCH}`,
+    migrations: migrationsFromFiles(data.files ?? []),
+    preview: await previewFor(conn, head.sha),
+  }
+}
+
 /** The preview of a commit, from the GitHub deployments the host creates (Vercel, Railway, Render). */
 async function previewFor(conn: ActiveConnection, sha: string): Promise<UpdatePull['preview']> {
   if (!/^[0-9a-f]{40}$/i.test(sha)) return null
@@ -360,6 +413,40 @@ export async function mergeUpdatePull(conn: ActiveConnection, pullNumber: number
     )
   }
   return { sha: data.sha ?? null }
+}
+
+/**
+ * Installs a prepared update whose pull request GitHub did not let the
+ * workflow open (findUpdateBranch): checks that the branch is still the
+ * confirmed commit, opens the pull request with the connection's token,
+ * then merges it through mergeUpdatePull (same checks as any update).
+ */
+export async function installUpdateBranch(conn: ActiveConnection, headSha: string): Promise<InstallResult> {
+  const { data: branch } = await githubRequest<{ commit?: { sha?: string; commit?: { message?: string } } }>(
+    repoPath(conn.repository, 'branches', UPDATE_BRANCH),
+    { token: conn.token },
+  )
+  if (branch?.commit?.sha !== headSha) {
+    throw new ConflictError('La mise à jour a changé depuis votre confirmation. Vérifiez-la de nouveau.')
+  }
+  const label = versionLabelOf(branch.commit.commit?.message)
+  const { status, data: created } = await githubRequest<GitHubPull>(repoPath(conn.repository, 'pulls'), {
+    token: conn.token,
+    method: 'POST',
+    body: {
+      head: UPDATE_BRANCH,
+      base: conn.defaultBranch,
+      title: label ? `Mise à jour Kledg ${label}` : 'Mise à jour Kledg',
+      body: "Ouverte et installée depuis la page Mises à jour de Kledg : les réglages du dépôt ne permettent pas au workflow de mise à jour d'ouvrir la pull request lui-même.",
+    },
+    // 422: a pull request from the branch was opened meanwhile (by the workflow or a person)
+    allow: [422],
+  })
+  const number = status === 422 ? (await findUpdatePull(conn))?.number : created?.number
+  if (!number) {
+    throw new ConflictError("GitHub n'a pas ouvert la pull request de la mise à jour. Ouvrez-la sur GitHub, puis installez-la depuis cette page.")
+  }
+  return mergeUpdatePull(conn, number, headSha)
 }
 
 /** Forks without the workflow: sync the default branch with kledghq/kledg main. */

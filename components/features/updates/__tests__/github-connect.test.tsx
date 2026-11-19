@@ -63,7 +63,7 @@ describe('GitHubConnect: connect form', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     fetchMock.mockResolvedValue(Response.json({ owner: 'acme' }))
-    render(<GitHubConnect detected={null} connection={null} platform="vercel" onChange={onChange} />)
+    render(<GitHubConnect detected={null} connection={null} onChange={onChange} />)
 
     const submit = screen.getByRole('button', { name: 'Vérifier et connecter' })
     expect(submit).toBeDisabled()
@@ -90,7 +90,7 @@ describe('GitHubConnect: connect form', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     fetchMock.mockResolvedValue(Response.json({ error: 'Le jeton n’a pas accès à acme/kledg.' }, { status: 400 }))
-    render(<GitHubConnect detected={{ owner: 'acme', repo: 'kledg' }} connection={null} platform="vercel" onChange={onChange} />)
+    render(<GitHubConnect detected={{ owner: 'acme', repo: 'kledg' }} connection={null} onChange={onChange} />)
     expect(screen.queryByLabelText('Propriétaire du dépôt')).toBeNull()
     expect(screen.getByText(/Dépôt détecté/)).toHaveTextContent('acme/kledg')
 
@@ -104,7 +104,7 @@ describe('GitHubConnect: connect form', () => {
 
 describe('GitHubConnect: connected', () => {
   it('shows the repository, masked token and expiry', () => {
-    render(<GitHubConnect detected={null} connection={connection} platform="vercel" onChange={vi.fn()} />)
+    render(<GitHubConnect detected={null} connection={connection} onChange={vi.fn()} />)
     expect(screen.getByText('Fork de kledghq/kledg')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'acme/kledg' })).toHaveAttribute('href', 'https://github.com/acme/kledg')
     expect(screen.getByText('github_pat_••••a1b2')).toBeInTheDocument()
@@ -113,16 +113,16 @@ describe('GitHubConnect: connected', () => {
   })
 
   it('[KLEDG-R3-INPUT-05] warns when the token reaches other repositories', () => {
-    const { unmount } = render(<GitHubConnect detected={null} connection={connection} platform="vercel" onChange={vi.fn()} />)
+    const { unmount } = render(<GitHubConnect detected={null} connection={connection} onChange={vi.fn()} />)
     expect(screen.queryByText(/donne aussi accès/)).toBeNull()
     unmount()
-    render(<GitHubConnect detected={null} connection={{ ...connection, tokenReachesOtherRepos: true }} platform="vercel" onChange={vi.fn()} />)
+    render(<GitHubConnect detected={null} connection={{ ...connection, tokenReachesOtherRepos: true }} onChange={vi.fn()} />)
     expect(screen.getByText(/Ce jeton donne aussi accès à d'autres dépôts que acme\/kledg/)).toBeInTheDocument()
   })
 
   it('warns when the token expires soon or has expired', () => {
     const { unmount } = render(
-      <GitHubConnect detected={null} connection={{ ...connection, kind: 'copy', expiresSoon: true }} platform="vercel" onChange={vi.fn()} />,
+      <GitHubConnect detected={null} connection={{ ...connection, kind: 'copy', expiresSoon: true }} onChange={vi.fn()} />,
     )
     expect(screen.getByText('Copie de kledghq/kledg')).toBeInTheDocument()
     expect(screen.getByText(/Le jeton expire le 31 décembre 2026. Régénérez-le sur GitHub/)).toBeInTheDocument()
@@ -131,7 +131,7 @@ describe('GitHubConnect: connected', () => {
       <GitHubConnect
         detected={null}
         connection={{ ...connection, tokenExpiresAt: null, expired: true }}
-        platform="vercel"
+       
         onChange={vi.fn()}
       />,
     )
@@ -143,7 +143,7 @@ describe('GitHubConnect: connected', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     fetchMock.mockResolvedValue(Response.json({ success: true }))
-    render(<GitHubConnect detected={null} connection={connection} platform="vercel" onChange={onChange} />)
+    render(<GitHubConnect detected={null} connection={connection} onChange={onChange} />)
     await user.click(screen.getByRole('button', { name: 'Déconnecter' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(within(dialog).getByText('Déconnecter GitHub ?')).toBeInTheDocument()
@@ -159,7 +159,7 @@ describe('GitHubConnect: connected', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     fetchMock.mockResolvedValue(Response.json({ error: 'Action refusée' }, { status: 403 }))
-    render(<GitHubConnect detected={null} connection={connection} platform="vercel" onChange={onChange} />)
+    render(<GitHubConnect detected={null} connection={connection} onChange={onChange} />)
     await user.click(screen.getByRole('button', { name: 'Déconnecter' }))
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Déconnecter' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Action refusée'))
