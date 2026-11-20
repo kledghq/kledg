@@ -22,6 +22,7 @@
  * arguments of reconcile_transaction, which checks everything again.
  */
 
+import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { prisma } from '@/lib/prisma'
 import { transactionOfCompany } from '@/lib/api/resources'
 import { resolveBankAccountLedger } from '@/lib/banking/ledger-account'
@@ -87,7 +88,7 @@ export async function uniqueReconciliationMatches(companyId: string, transaction
   if (ids.length === 0) return result
 
   const transactions = await prisma.bankTransaction.findMany({
-    where: { id: { in: ids }, reconciled: false, ...transactionOfCompany(companyId) },
+    where: { id: { in: ids }, reconciled: false, ...transactionOfCompany(companyId), AND: [POSTABLE_TRANSACTION_WHERE] },
     include: { bankAccount: { select: { name: true, iban: true } } },
   })
   if (transactions.length === 0) return result

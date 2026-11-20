@@ -15,6 +15,7 @@
  * then runs the pure modules: classify.ts, compute.ts, checks.ts.
  */
 
+import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { deductionModeOn, provisionalCoefficientOf } from '@/lib/vat-deduction/coefficient'
@@ -303,7 +304,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   // NOT on a nullable column would leave out the drafts without a reference.
   const notSettlement = { OR: [{ reference: null }, { reference: { not: reference } }] }
 
-  const [entries, opening, drafts, draftCount, unreconciled, settlementEntry, filings] = await Promise.all([
+  const [entries, opening, drafts, draftCount, unreconciled, settlementEntry, filings, rejectedPosted] = await Promise.all([
     loadPeriodEntries(companyId, period),
     openingVatBalances(companyId, fiscalYear?.id ?? null, period.start),
     prisma.accountingEntry.findMany({
@@ -314,12 +315,18 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
     }),
     prisma.accountingEntry.count({ where: { companyId, status: 'draft', date: range, ...notSettlement } }),
     prisma.bankTransaction.aggregate({
-      where: { ...transactionOfCompany(companyId), reconciled: false, date: range, OR: [{ status: null }, { status: { not: 'declined' } }] },
+      // Pending, declined or reversed operations are never posted (lib/banking/postable.ts)
+      where: { ...transactionOfCompany(companyId), reconciled: false, date: range, ...POSTABLE_TRANSACTION_WHERE },
       _count: { _all: true },
       _sum: { amount: true },
     }),
     prisma.accountingEntry.findFirst({ where: { companyId, reference }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, entryNumber: true } }),
     filingsOf(companyId, [...periods.map((p) => p.id), previousKey]),
+    prisma.bankTransaction.aggregate({
+      where: { ...transactionOfCompany(companyId), reconciled: true, reconciledWith: { not: null }, date: range, status: { in: ['declined', 'reversed'] } },
+      _count: { _all: true },
+      _sum: { amount: true },
+    }),
   ])
 
   const movements = classifyEntries(entries)
@@ -351,6 +358,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   const checks = vatChecks({
     drafts: { count: draftCount, numbers: drafts.map((d) => d.entryNumber) },
     unreconciled: { count: unreconciled._count._all, totalCents: Math.abs(cents(unreconciled._sum.amount)) },
+    rejectedPosted: { count: rejectedPosted._count._all, totalCents: Math.abs(cents(rejectedPosted._sum.amount)) },
     unidentified: movements.unidentified,
     unhandled: movements.unhandled,
     balances,

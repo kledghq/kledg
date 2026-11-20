@@ -101,7 +101,7 @@ describe.skipIf(!available)('storeSyncedTransactions', () => {
       // The provider repeats a line in the same answer
       line('t-1', 42.1, 'debit', '2026-09-01'),
     ])
-    expect(outcome).toEqual({ created: 2, matched: 0, updated: 0, entriesRedated: 0 })
+    expect(outcome).toEqual({ created: 2, matched: 0, updated: 0, entriesRedated: 0, rejectedAfterPosting: 0 })
 
     const rows = await storedRows()
     expect(rows.map((r) => ({ id: r.externalTransactionId, amount: r.amount.toFixed(2), side: r.side, label: r.label, imported: r.imported }))).toEqual([
@@ -117,13 +117,13 @@ describe.skipIf(!available)('storeSyncedTransactions', () => {
     await storeSyncedTransactions(target, [line('t-1', 18, 'debit', '2026-09-01', { status: 'pending', state: 'pending' })])
 
     const again = await storeSyncedTransactions(target, [line('t-1', 18, 'debit', '2026-09-01', { status: 'pending', state: 'pending' })])
-    expect(again).toEqual({ created: 0, matched: 0, updated: 0, entriesRedated: 0 })
+    expect(again).toEqual({ created: 0, matched: 0, updated: 0, entriesRedated: 0, rejectedAfterPosting: 0 })
 
     // Qonto settles the payment: completed, one day later
     const settled = await storeSyncedTransactions(target, [
       line('t-1', 18, 'debit', '2026-09-02', { providerData: { id: 'uuid-1', status: 'completed' } }),
     ])
-    expect(settled).toEqual({ created: 0, matched: 0, updated: 1, entriesRedated: 0 })
+    expect(settled).toEqual({ created: 0, matched: 0, updated: 1, entriesRedated: 0, rejectedAfterPosting: 0 })
     const [row] = await storedRows()
     expect(row).toMatchObject({ externalTransactionId: 't-1', status: 'completed' })
     expect(row.date.toISOString()).toBe('2026-09-02T00:00:00.000Z')
@@ -143,12 +143,12 @@ describe.skipIf(!available)('storeSyncedTransactions', () => {
     })
     const rent = line('t-rent', 1200, 'debit', '2026-09-03')
 
-    expect(await storeSyncedTransactions(target, [rent])).toEqual({ created: 0, matched: 1, updated: 0, entriesRedated: 0 })
+    expect(await storeSyncedTransactions(target, [rent])).toEqual({ created: 0, matched: 1, updated: 0, entriesRedated: 0, rejectedAfterPosting: 0 })
     expect(await prisma.bankTransactionMatch.findMany({ select: { bankAccountId: true, externalTransactionId: true, bankTransactionId: true } })).toEqual([
       { bankAccountId: ids.account, externalTransactionId: 't-rent', bankTransactionId: imported.id },
     ])
     // The match is known on the next run: nothing inserted, nothing matched twice
-    expect(await storeSyncedTransactions(target, [rent])).toEqual({ created: 0, matched: 0, updated: 0, entriesRedated: 0 })
+    expect(await storeSyncedTransactions(target, [rent])).toEqual({ created: 0, matched: 0, updated: 0, entriesRedated: 0, rejectedAfterPosting: 0 })
     expect((await storedRows()).map((r) => r.externalTransactionId)).toEqual(['import:releve-septembre:1'])
   })
 
@@ -167,7 +167,7 @@ describe.skipIf(!available)('storeSyncedTransactions', () => {
       // Same amount and day but the other side: not the same operation
       line('t-side', 35, 'debit', '2026-09-05'),
     ])
-    expect(outcome).toEqual({ created: 2, matched: 1, updated: 0, entriesRedated: 0 })
+    expect(outcome).toEqual({ created: 2, matched: 1, updated: 0, entriesRedated: 0, rejectedAfterPosting: 0 })
     const match = await prisma.bankTransactionMatch.findUniqueOrThrow({
       where: { bankAccountId_externalTransactionId: { bankAccountId: ids.account, externalTransactionId: 't-credit' } },
     })
@@ -186,7 +186,7 @@ describe.skipIf(!available)('storeSyncedTransactions', () => {
       line('t-declined', 50, 'credit', '2026-09-07', { state: 'rejected', status: 'declined' }),
       line('coffee-2', 3.5, 'debit', '2026-09-08'),
     ])
-    expect(outcome).toEqual({ created: 2, matched: 0, updated: 0, entriesRedated: 0 })
+    expect(outcome).toEqual({ created: 2, matched: 0, updated: 0, entriesRedated: 0, rejectedAfterPosting: 0 })
     const rows = await storedRows()
     expect(rows.map((r) => [r.externalTransactionId, r.amount.toFixed(2), r.status])).toEqual([
       ['coffee-1', '3.50', 'completed'],
@@ -236,11 +236,22 @@ describe.skipIf(!available)('storeSyncedTransactions', () => {
       const validated = await reconciledEntry('m-3', '2026-09-01', 'validated')
 
       // A sync that changes no date updates no entry
-      expect(await storeSyncedTransactions(target, [line('m-1', 18, 'debit', '2026-09-01'), line('m-2', 18, 'debit', '2026-09-01')])).toEqual({ created: 0, matched: 0, updated: 0, entriesRedated: 0 })
+      expect(await storeSyncedTransactions(target, [line('m-1', 18, 'debit', '2026-09-01'), line('m-2', 18, 'debit', '2026-09-01')])).toEqual({ created: 0, matched: 0, updated: 0, entriesRedated: 0, rejectedAfterPosting: 0 })
 
       const moved = await storeSyncedTransactions(target, [line('m-1', 18, 'debit', '2026-09-03'), line('m-2', 18, 'debit', '2026-09-03'), line('m-3', 18, 'debit', '2026-09-03')])
-      expect(moved).toEqual({ created: 0, matched: 0, updated: 3, entriesRedated: 1 })
+      expect(moved).toEqual({ created: 0, matched: 0, updated: 3, entriesRedated: 1, rejectedAfterPosting: 0 })
       expect([await dayOf(follows), await dayOf(chosen), await dayOf(validated)]).toEqual(['2026-09-03', '2026-08-28', '2026-09-01'])
+    })
+
+    it('reports a posted operation the bank then reverses, and keeps its entry (#118)', async () => {
+      await storeSyncedTransactions(target, [line('r-1', 18, 'debit', '2026-09-01')])
+      const entryId = await reconciledEntry('r-1', '2026-09-01')
+
+      const outcome = await storeSyncedTransactions(target, [line('r-1', 18, 'debit', '2026-09-01', { status: 'reversed', state: 'rejected' })])
+      expect(outcome).toEqual({ created: 0, matched: 0, updated: 1, entriesRedated: 0, rejectedAfterPosting: 1 })
+      expect(await prisma.accountingEntry.count({ where: { id: entryId } })).toBe(1)
+      const log = await prisma.auditLog.findFirstOrThrow({ where: { companyId: target.companyId, action: 'BANK_TRANSACTION_REJECTED_AFTER_POSTING' } })
+      expect(log).toMatchObject({ level: 'WARN', metadata: expect.objectContaining({ entryId, status: 'reversed' }) })
     })
   })
 })

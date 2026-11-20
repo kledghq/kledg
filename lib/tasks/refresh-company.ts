@@ -1,3 +1,4 @@
+import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -164,6 +165,8 @@ export async function refreshCompany(
           },
         },
         reconciled: false,
+        // Pending, declined or reversed operations are never posted (#118)
+        AND: [POSTABLE_TRANSACTION_WHERE],
         ...dateFilter,
       },
       include: {

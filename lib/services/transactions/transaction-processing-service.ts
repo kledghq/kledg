@@ -12,6 +12,7 @@
  * l'écriture", for runs nobody asked for explicitly (lib/transactions/rule-matcher.ts).
  */
 
+import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { prisma } from '@/lib/prisma'
 import { loadRuleMatcher } from '@/lib/transactions/rule-service'
 import { ApprovedStateChangedError } from '@/lib/approved-state/guard'
@@ -82,6 +83,7 @@ async function getTransactionsToProcess(companyId: string, transactionIds?: stri
         },
         // Never process a reconciled transaction again: it already has its entry
         reconciled: false,
+        AND: [POSTABLE_TRANSACTION_WHERE],
       },
       include: {
         bankAccount: {
@@ -113,6 +115,8 @@ async function getTransactionsToProcess(companyId: string, transactionIds?: stri
           },
         },
         reconciled: false,
+        // Pending, declined or reversed operations are never posted (#118)
+        AND: [POSTABLE_TRANSACTION_WHERE],
         ...dateFilter,
       },
       include: {

@@ -5,6 +5,7 @@
 
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { transactionOfCompany } from '@/lib/api/resources'
 import { endOfDay, formatTransactionDate, normalizeDate, startOfDay, todayUtc } from '@/lib/utils/date'
 import { CLOSING_JOURNAL, OPENING_JOURNAL } from './constants'
 import { applyLines, computeClosingEntry, computeOpeningEntry, OpeningEntryImbalanceError, type ClosingLine } from './closing-entries'
@@ -153,6 +154,22 @@ export async function validateFiscalYearClosure(
   for (const s of special) {
     warnings.push(
       `Le compte ${s.code} (classe 8) a un solde de ${formatAmount((parseCents(s.balance) ?? 0))} €\u00a0: il n'est pas reporté sur l'exercice suivant.`
+    )
+  }
+
+  // Bank operations posted, then declined or reversed by the bank: their entry stayed (#118).
+  const rejectedPosted = await client.bankTransaction.count({
+    where: {
+      ...transactionOfCompany(companyId),
+      reconciled: true,
+      reconciledWith: { not: null },
+      status: { in: ['declined', 'reversed'] },
+      date: { gte: startOfDay(fiscalYear.startDate), lte: endOfDay(fiscalYear.endDate) },
+    },
+  })
+  if (rejectedPosted > 0) {
+    warnings.push(
+      `${plural(rejectedPosted, 'opération bancaire comptabilisée', 'opérations bancaires comptabilisées')} puis ${pluralWord(rejectedPosted, 'refusée ou annulée', 'refusées ou annulées')} par la banque\u00a0: aucun argent n'a bougé, contre-passez ${pluralWord(rejectedPosted, 'son écriture', 'leurs écritures')} avant de clôturer.`
     )
   }
 

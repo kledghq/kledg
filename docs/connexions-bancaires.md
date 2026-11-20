@@ -17,7 +17,7 @@ Page : **Banque, Comptes bancaires, Connecter une banque**. Les identifiants (cl
 
 ## Qonto (directe)
 
-Identifiant de l'organisation et clé secrète de l'API Qonto. Kledg lit les comptes, les opérations (avec leur statut Qonto : les opérations en attente sont affichées mais jamais comptabilisées), les relevés et les justificatifs.
+Identifiant de l'organisation et clé secrète de l'API Qonto. Kledg lit les comptes, les opérations (avec leur statut Qonto : les opérations en attente, refusées ou annulées sont affichées mais jamais comptabilisées, par aucun chemin (`lib/banking/postable.ts`) ; une opération comptabilisée que Qonto refuse ou annule ensuite est inscrite au journal d'audit et signalée par les contrôles de la déclaration de TVA et de la clôture), les relevés et les justificatifs.
 
 ## Revolut Business (directe)
 
