@@ -7,6 +7,9 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { endOfDay, formatTransactionDate, normalizeDate, startOfDay, todayUtc } from '@/lib/utils/date'
 import { CLOSING_JOURNAL, OPENING_JOURNAL } from './constants'
+import { applyLines, computeClosingEntry, computeOpeningEntry, OpeningEntryImbalanceError, type ClosingLine } from './closing-entries'
+import { loadYearBalances, type Tx } from './ledger'
+import { loadRecordedOpening, openingDifferences, openingDifferencesMessage } from './recorded-opening'
 import { GUARDED_FISCAL_YEAR_SELECT, isFiscalYearClosed } from '../entry-guards'
 import { findUnpostedDepreciation } from '@/lib/fixed-assets/depreciation-entries'
 import { getYearEndInventory } from '@/lib/year-end/get-year-end-inventory.service'
@@ -100,20 +103,39 @@ export async function validateFiscalYearClosure(
     )
   }
 
-  // The next year must still be open and without opening entries.
+  // The next year must still be open. Draft opening entries there are
+  // deleted first; validated ones (an imported FEC, balances entered by
+  // hand) are kept and must bring forward the closing balances
+  // (recorded-opening.ts).
   const next = await client.fiscalYear.findFirst({
     where: { companyId, year: fiscalYear.year + 1 },
     select: GUARDED_FISCAL_YEAR_SELECT,
   })
   if (next && isFiscalYearClosed(next)) errors.push(`L'exercice suivant (${next.year}) est déjà clôturé.`)
   if (next) {
-    const openings = await client.accountingEntry.count({
-      where: { companyId, fiscalYearId: next.id, journal: { code: OPENING_JOURNAL.code } },
+    const draftOpenings = await client.accountingEntry.count({
+      where: { companyId, fiscalYearId: next.id, status: 'draft', journal: { code: OPENING_JOURNAL.code } },
     })
-    if (openings > 0) {
+    if (draftOpenings > 0) {
       errors.push(
-        `L'exercice ${next.year} contient déjà ${plural(openings, 'écriture')} d'à-nouveaux (journal ${OPENING_JOURNAL.code})\u00a0: ${pluralWord(openings, 'supprimez-la', 'supprimez-les')} pour que la clôture reporte les soldes.`
+        `L'exercice ${next.year} contient ${plural(draftOpenings, 'brouillon')} d'à-nouveaux (journal ${OPENING_JOURNAL.code})\u00a0: ${pluralWord(draftOpenings, 'supprimez-le', 'supprimez-les')} pour que la clôture reporte les soldes.`
       )
+    }
+    const recorded = await loadRecordedOpening(client, companyId, next.id)
+    if (recorded) {
+      const balances = await loadYearBalances(client as Tx, companyId, fiscalYearId)
+      let expected: ClosingLine[] | null = null
+      try {
+        expected = computeOpeningEntry(applyLines(balances, computeClosingEntry(balances).lines))
+      } catch (error) {
+        // An unbalanced ledger is already reported above.
+        if (!(error instanceof OpeningEntryImbalanceError)) throw error
+      }
+      if (expected) {
+        const differences = openingDifferences(expected, recorded)
+        if (differences.length > 0) errors.push(openingDifferencesMessage(fiscalYear.year, next.year, differences))
+        else warnings.push(`Les à-nouveaux déjà validés de l'exercice ${next.year} reprennent les soldes de clôture\u00a0: la clôture n'en passe pas d'autres.`)
+      }
     }
   }
 

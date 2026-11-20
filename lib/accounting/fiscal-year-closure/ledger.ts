@@ -161,7 +161,9 @@ export async function createValidatedEntry(
     companyId: string
     fiscalYearId: string
     journalId: string
-    date: Date
+    date: Date | string
+    /** Real day of the operation when the entry is moved out of a closed period (FEC PieceDate). */
+    pieceDate?: string | null
     description: string
     reference: string
     lines: ClosingLine[]
@@ -176,6 +178,7 @@ export async function createValidatedEntry(
     date: input.date,
     description: input.description,
     reference: input.reference,
+    ...(input.pieceDate && { pieceDate: input.pieceDate }),
     status: 'validated',
     lines: input.lines.map((line) => {
       const accountId = input.accountIds.get(line.code)
