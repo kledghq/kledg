@@ -26,7 +26,7 @@ import type { UnhandledAccount, UnidentifiedEntry } from './classify'
 export type CheckSeverity = 'blocking' | 'warning' | 'info' | 'ok'
 
 export interface VatCheck {
-  id: 'drafts' | 'bank' | 'rates' | 'accounts' | 'balances' | 'to-pay' | 'credit' | 'pending'
+  id: 'drafts' | 'bank' | 'rates' | 'accounts' | 'balances' | 'to-pay' | 'credit' | 'pending' | 'rejected'
   severity: CheckSeverity
   title: string
   detail: string
@@ -49,6 +49,8 @@ export interface BalanceRow {
 export interface CheckInput {
   drafts: { count: number; numbers: string[] }
   unreconciled: { count: number; totalCents: number }
+  /** Posted bank operations of the period the bank then declined or reversed (#118). */
+  rejectedPosted?: { count: number; totalCents: number }
   unidentified: UnidentifiedEntry[]
   unhandled: UnhandledAccount[]
   balances: BalanceRow[]
@@ -157,6 +159,16 @@ export function vatChecks(input: CheckInput): VatCheck[] {
       title: 'Le crédit reporté diffère de la déclaration précédente',
       detail: 'Le crédit à reporter doit reprendre celui de la déclaration précédente (ligne 27 de la CA3, ligne 51 de la CA12). Kledg lit le solde du compte 44567 au début de la période.',
       items: [`Solde du compte 44567 : ${euros(input.credit.carriedCents)}`, `Crédit de la déclaration précédente : ${euros(input.credit.previousCreditCents)}`],
+    })
+  }
+
+  if (input.rejectedPosted && input.rejectedPosted.count > 0) {
+    checks.push({
+      id: 'rejected',
+      severity: 'warning',
+      title: `${plural(input.rejectedPosted.count, 'opération comptabilisée', 'opérations comptabilisées')} puis ${input.rejectedPosted.count > 1 ? 'refusées ou annulées' : 'refusée ou annulée'} par la banque`,
+      detail: `Pour ${euros(input.rejectedPosted.totalCents)}\u00a0: aucun argent n'a bougé, mais leur écriture (et sa TVA) est restée. Contre-passez-la ou supprimez le brouillon.`,
+      link: { label: 'Voir les transactions', page: 'transactions' },
     })
   }
 

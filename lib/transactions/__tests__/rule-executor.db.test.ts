@@ -227,6 +227,28 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
     ])
   })
 
+  it('reverses the deductible VAT on a supplier refund, and debits the collected VAT on a refund to a client (#119)', async () => {
+    const purchases = await rule('Fournitures', [{ accountCode: '606100', vatType: 'deductible', vatRate: '20', vatAccountCode: '445660' }])
+    expect(await prepared(purchases, await transaction('120.00', 'credit'))).toEqual([
+      ['606100', 0, 10000],
+      ['445660', 0, 2000],
+      ['512000', 12000, 0],
+    ])
+    const sales = await rule('Ventes', [{ accountCode: '706000', vatType: 'collectible', vatRate: '20', vatAccountCode: '445710' }])
+    expect(await prepared(sales, await transaction('120.00', 'debit'))).toEqual([
+      ['706000', 10000, 0],
+      ['445710', 2000, 0],
+      ['512000', 0, 12000],
+    ])
+  })
+
+  it('refuses a rule whose lines do not add up to the bank movement (#119)', async () => {
+    const ruleId = await rule('Forfait', [{ accountCode: '627000', amountType: 'fixed', amountValue: '10.00' }])
+    const result = await executor.prepareRuleEntry(ruleId, await transaction('100.00', 'debit'), ids.company)
+    expect(result).toMatchObject({ ok: false, status: 400 })
+    expect(!result.ok && result.error).toContain('10,00 € en banque pour une opération de 100,00 €')
+  })
+
   it('writes a one cent transaction with its bank line', async () => {
     // Regression: an imbalance of exactly 0,01 got no bank line and the rule was refused
     const ruleId = await rule('Frais', [{ accountCode: '627000' }])
@@ -364,6 +386,24 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
         ok: false,
         error: "Aucun exercice comptable ne couvre le 01/06/2023 : créez l'exercice avant de rapprocher.",
       })
+    })
+
+    it('never posts an operation the bank has not completed: pending, declined or reversed (#118)', async () => {
+      const ruleId = await rule('Fournitures', [{ accountCode: '606100', vatType: 'deductible', vatRate: '20', vatAccountCode: '445660' }])
+      for (const status of ['pending', 'declined', 'reversed']) {
+        const txId = await transaction('120.00', 'debit', { status })
+        const result = await executor.applyRule(ruleId, txId, ids.company)
+        expect(result, status).toMatchObject({ success: false, status: 409 })
+        expect(result.error, status).toContain(status === 'pending' ? 'en attente' : 'refusée ou annulée')
+        expect((await prisma.bankTransaction.findUniqueOrThrow({ where: { id: txId } })).reconciled).toBe(false)
+      }
+      expect(await prisma.accountingEntry.count()).toBe(0)
+
+      // A completed one is posted; a declined one still leaves the queue as checked, without an entry
+      expect(await executor.applyRule(ruleId, await transaction('120.00', 'debit', { status: 'completed' }), ids.company)).toMatchObject({ success: true })
+      const { reconcileWithExistingEntry } = await import('@/lib/reconciliation/service')
+      const declined = await transaction('50.00', 'debit', { status: 'declined' })
+      expect(await reconcileWithExistingEntry(ids.company, declined, null)).toMatchObject({ reconciled: true, reconciledWith: null })
     })
 
     it('throws typed errors from applyRuleToTransaction: 404 for a rule of another company, 409 when reconciled', async () => {

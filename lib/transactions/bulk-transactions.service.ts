@@ -74,10 +74,21 @@ async function forEachOwned(
   return outcome
 }
 
-/** Deletes the transactions (their reconciliation entries stay, unlinked). */
+export const RECONCILED_DELETE_MESSAGE =
+  "Transaction rapprochée\u00a0: annulez d'abord le rapprochement. Supprimée, elle reviendrait à la prochaine synchronisation ou au prochain import et serait comptabilisée une seconde fois."
+
+/**
+ * Deletes unreconciled transactions. A reconciled one is refused (#123): the
+ * bank sync re-reads its last days and a statement can be imported again,
+ * so the deleted line would come back, unreconciled, and be posted a second
+ * time next to the entry it kept. The conditional delete makes a concurrent
+ * reconciliation win.
+ */
 export function deleteTransactions(companyId: string, transactionIds: string[]): Promise<BulkOutcome> {
-  return forEachOwned(companyId, transactionIds, 'delete', async ({ id }) => {
-    await prisma.bankTransaction.delete({ where: { id } })
+  return forEachOwned(companyId, transactionIds, 'delete', async ({ id, reconciled }) => {
+    if (reconciled) return RECONCILED_DELETE_MESSAGE
+    const { count } = await prisma.bankTransaction.deleteMany({ where: { id, reconciled: false } })
+    if (count === 0) return RECONCILED_DELETE_MESSAGE
   })
 }
 

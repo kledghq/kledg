@@ -10,6 +10,7 @@
  * only when reconciliation created it and it is still a draft.
  */
 
+import { isPostableTransaction, notPostableMessage, NOT_POSTABLE_STATUSES } from '@/lib/banking/postable'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -39,6 +40,13 @@ type Client = Prisma.TransactionClient | typeof prisma
 
 /** The side of a stored transaction (lib/banking/side.ts, the one normalisation). */
 export const normalizeSide: (side: string) => BankSide = normalizeBankSide
+
+/** Why a claim of an unreconciled transaction changed nothing: already reconciled, or not postable (#118). */
+async function refuseClaim(db: Client, transactionId: string): Promise<never> {
+  const row = await db.bankTransaction.findUnique({ where: { id: transactionId }, select: { reconciled: true, status: true } })
+  if (row && !row.reconciled && !isPostableTransaction(row)) throw new ConflictError(notPostableMessage(row.status))
+  throw new ConflictError(MESSAGES.alreadyReconciled)
+}
 
 export async function loadTransaction(companyId: string, transactionId: string) {
   return findOwned(
@@ -128,8 +136,9 @@ export async function createEntryAndReconcile(input: GeneratedEntry): Promise<{ 
       const claimed = await db.$executeRaw`
         UPDATE "bank_transactions"
         SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = NULL, "updatedAt" = NOW()
-        WHERE "id" = ${input.transactionId} AND "reconciled" = false`
-      if (claimed === 0) throw new ConflictError(MESSAGES.alreadyReconciled)
+        WHERE "id" = ${input.transactionId} AND "reconciled" = false
+          AND ("status" IS NULL OR "status" <> ALL(${[...NOT_POSTABLE_STATUSES]}::text[]))`
+      if (claimed === 0) await refuseClaim(db, input.transactionId)
 
       // An entry left behind by an older unreconcile (unlinked, not deleted) releases the link.
       await db.accountingEntry.updateMany({
@@ -322,11 +331,18 @@ export async function reconcileWithExistingEntry(companyId: string, transactionI
       const linked = await db.bankTransaction.count({ where: { reconciledWith: entryId, reconciled: true, id: { not: transactionId } } })
       if (linked > 0) throw new ConflictError(MESSAGES.entryAlreadyLinked)
     }
-    const claimed = await db.$executeRaw`
-      UPDATE "bank_transactions"
-      SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = ${entryId}, "updatedAt" = NOW()
-      WHERE "id" = ${transactionId} AND "reconciled" = false`
-    if (claimed === 0) throw new ConflictError(MESSAGES.alreadyReconciled)
+    // Pointage (no entry) stays possible whatever the status: it is how a declined line leaves the queue.
+    const claimed = entryId
+      ? await db.$executeRaw`
+          UPDATE "bank_transactions"
+          SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = ${entryId}, "updatedAt" = NOW()
+          WHERE "id" = ${transactionId} AND "reconciled" = false
+            AND ("status" IS NULL OR "status" <> ALL(${[...NOT_POSTABLE_STATUSES]}::text[]))`
+      : await db.$executeRaw`
+          UPDATE "bank_transactions"
+          SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = NULL, "updatedAt" = NOW()
+          WHERE "id" = ${transactionId} AND "reconciled" = false`
+    if (claimed === 0) await refuseClaim(db, transactionId)
   })
   return prisma.bankTransaction.findUniqueOrThrow({
     where: { id: transactionId },

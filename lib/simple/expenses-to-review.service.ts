@@ -20,6 +20,7 @@
  * receipts list). countExpensesToReview is what the simple home shows.
  */
 
+import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { transactionOfCompany } from '@/lib/api/resources'
@@ -105,7 +106,8 @@ function toReviewWhere(companyId: string, side: 'debit' | 'credit' | 'all') {
   return {
     ...transactionOfCompany(companyId),
     reconciled: false,
-    OR: [{ status: null }, { status: { not: 'declined' } }],
+    // Pending, declined or reversed operations are never posted (#118)
+    ...POSTABLE_TRANSACTION_WHERE,
     ...sideFilter(side),
   }
 }

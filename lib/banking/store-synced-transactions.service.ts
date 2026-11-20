@@ -32,6 +32,7 @@ import type { ProviderTransaction } from '@/lib/banking/providers/types'
 import { IMPORT_ID_PREFIX } from '@/lib/banking/import/dedupe'
 import { dayWindow, matchProbableDuplicates, type ExistingLine } from '@/lib/banking/probable-duplicates'
 import { newTransactions, normalizeIban } from '@/lib/banking/sync-rules'
+import { isPostableTransaction } from '@/lib/banking/postable'
 import { normalizeBankSide, signedBankCents } from '@/lib/banking/side'
 import { centsToDecimal, toCents } from '@/lib/utils/money'
 import { addIsoDays, calendarDayOf, isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date'
@@ -54,6 +55,8 @@ export interface StoreOutcome {
   updated: number
   /** Reconciled draft entries moved to the new date of their transaction. */
   entriesRedated: number
+  /** Posted transactions the bank then declined or reversed (reported in the audit log). */
+  rejectedAfterPosting: number
 }
 
 /** Value dates sit a few days from booking dates: existing lines are loaded this far around the new ones. */
@@ -181,7 +184,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       const [stored, recorded] = await Promise.all([
         db.bankTransaction.findMany({
           where: { bankAccountId: account.id, externalTransactionId: { in: ids } },
-          select: { id: true, externalTransactionId: true, status: true, date: true },
+          select: { id: true, externalTransactionId: true, status: true, date: true, reconciled: true, reconciledWith: true },
         }),
         db.bankTransactionMatch.findMany({
           where: { bankAccountId: account.id, externalTransactionId: { in: ids } },
@@ -223,6 +226,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       const byId = new Map(stored.map((t) => [t.externalTransactionId, t]))
       let updated = 0
       const moved: MovedTransaction[] = []
+      const rejectedAfterPosting: Array<{ transactionId: string; entryId: string; status: string | null }> = []
       for (const tx of incoming) {
         const row = byId.get(tx.externalId)
         if (!row) continue
@@ -233,9 +237,25 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
         })
         updated++
         if (row.date.getTime() !== tx.date.getTime()) moved.push({ id: row.id, from: row.date, to: tx.date })
+        if (row.reconciled && row.reconciledWith && isPostableTransaction(row) && !isPostableTransaction({ status: tx.status ?? null })) {
+          rejectedAfterPosting.push({ transactionId: row.id, entryId: row.reconciledWith, status: tx.status ?? null })
+        }
+      }
+      // An operation already posted that the bank then declined or reversed: its entry stays (it may be
+      // validated, PCG art. 1031-3) and is reported for the user to reverse or delete (#118).
+      if (rejectedAfterPosting.length > 0) {
+        await db.auditLog.createMany({
+          data: rejectedAfterPosting.map((r) => ({
+            companyId: account.companyId,
+            action: 'BANK_TRANSACTION_REJECTED_AFTER_POSTING',
+            level: 'WARN' as const,
+            message: `Opération bancaire comptabilisée puis ${r.status === 'reversed' ? 'annulée' : 'refusée'} par la banque\u00a0: vérifiez son écriture.`,
+            metadata: r,
+          })),
+        })
       }
       const entriesRedated = await followMovedTransactions(db, account.companyId, moved)
-      return { created, matched: matches.size, updated, entriesRedated }
+      return { created, matched: matches.size, updated, entriesRedated, rejectedAfterPosting: rejectedAfterPosting.length }
     },
     { timeout: 60_000, maxWait: 15_000 },
   )

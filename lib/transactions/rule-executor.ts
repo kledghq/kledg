@@ -11,6 +11,7 @@
  * even concurrently, never creates two entries for a transaction.
  */
 
+import { isPostableTransaction, notPostableMessage } from '@/lib/banking/postable';
 import { prisma } from '@/lib/prisma';
 import { journalByCode } from '@/lib/accounting/journal-by-code';
 import type { TransactionRule } from '@prisma/client';
@@ -24,7 +25,7 @@ import {
   vatLineDescription,
 } from './entry-line-calculator';
 import { AccountingError, ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors';
-import { fromCents, toCents } from '@/lib/utils/money';
+import { formatCentsFr, fromCents, toCents } from '@/lib/utils/money';
 import { bankVatInEuros } from '@/lib/banking/bank-vat';
 import { selfAssessedSplit } from '@/lib/vat-deduction/share';
 import { isoDateToUtc, toIsoDateUtc } from '@/lib/utils/date';
@@ -40,6 +41,7 @@ import {
   type GeneratedLine,
 } from '@/lib/reconciliation/service';
 import { resolveBankAccountLedger } from '@/lib/banking/ledger-account';
+
 
 /**
  * Rule with entry lines for execution
@@ -157,6 +159,9 @@ export async function prepareRuleEntry(
   if (transaction.reconciled) {
     return fail(RECONCILIATION_MESSAGES.alreadyReconciled, 409);
   }
+  if (!isPostableTransaction(transaction)) {
+    return fail(notPostableMessage(transaction.status), 409);
+  }
 
   // Entries go in the fiscal year of the transaction date, which must be open
   const entryDate = toIsoDateUtc(transaction.date);
@@ -271,6 +276,18 @@ export async function prepareRuleEntry(
 
   if (!lines) {
     return fail(`La règle « ${rule.name} » produit une écriture déséquilibrée.`);
+  }
+  // The bank line is the bank movement, to the cent: money out credits the bank,
+  // money in debits it (#119). A rule whose fixed amounts or percentages do not
+  // add up to the transaction would otherwise post a wrong bank balance.
+  const expectedBankCents = (toCents(transactionAmount) ?? 0) * (transactionSide === 'debit' ? -1 : 1);
+  const bankCents = lines
+    .filter((line) => line.accountId === bankAccount.id)
+    .reduce((sum, line) => sum + line.debitCents - line.creditCents, 0);
+  if (bankCents !== expectedBankCents) {
+    return fail(
+      `La règle « ${rule.name} » ne peut pas être appliquée\u00a0: ses lignes donnent ${formatCentsFr(Math.abs(bankCents))} en banque pour une opération de ${formatCentsFr(Math.abs(expectedBankCents))}${Math.sign(bankCents) !== Math.sign(expectedBankCents) && bankCents !== 0 ? ', dans le mauvais sens' : ''}. Vérifiez ses montants fixes, ses pourcentages et le sens de ses lignes.`
+    );
   }
   try {
     assertWritableLines(lines);
@@ -487,16 +504,25 @@ function calculateEntryLines(
         if (!vatAccountDebitId) {
           throw new Error(`aucun compte de TVA pour la ligne ${rule.entryLines.indexOf(line) + 1} : choisissez-le dans la règle.`);
         }
-        const { vatDebit, vatCredit } = calculateVATLineAmounts(
+        const computed = calculateVATLineAmounts(
           line.vatType,
           vatAmount,
           line.vatOnDebit,
           vatRecoveryRatio
         );
+        // The VAT sits on the side of its line, whose amount it splits (HT + VAT = TTC):
+        // a supplier refund credits the charge and reverses the deductible VAT, a
+        // refund to a client debits the sale and the collected VAT (#119)
+        const vatOfLine = Math.max(computed.vatDebit, computed.vatCredit);
+        const { vatDebit, vatCredit } = isCredit
+          ? { vatDebit: 0, vatCredit: vatOfLine }
+          : isDebit
+            ? { vatDebit: vatOfLine, vatCredit: 0 }
+            : computed;
         // Deductible VAT the company cannot recover (coefficient de déduction,
         // CGI ann. II art. 206) stays in the cost of the line, so the entry
         // still adds up to the bank movement
-        const unrecovered = line.vatType === 'deductible' ? vatAmount - vatDebit : 0;
+        const unrecovered = line.vatType === 'deductible' ? vatAmount - computed.vatDebit : 0;
         if (unrecovered > 0) {
           if (mainLine.debit > 0) mainLine.debit += unrecovered;
           else if (mainLine.credit > 0) mainLine.credit += unrecovered;

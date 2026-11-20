@@ -44,7 +44,7 @@ Quand plusieurs règles correspondent à une même transaction, Kledg retient la
 
 ## Écritures créées
 
-Une règle crée toujours l'écriture **en brouillon**, rapprochée de sa transaction. Le brouillon reçoit son numéro définitif à la validation (PCG art. 1031-3) ; jusque-là, il se corrige ou se supprime, et annuler le rapprochement le supprime.
+Une règle crée toujours l'écriture **en brouillon**, rapprochée de sa transaction. La ligne de banque reprend exactement le montant de l'opération, au crédit pour une sortie d'argent et au débit pour une entrée ; une règle dont les lignes ne donnent pas ce montant est refusée (`prepareRuleEntry`, `lib/transactions/rule-executor.ts`). La TVA d'une ligne est passée du côté de sa ligne : un remboursement de fournisseur reverse la TVA déductible. Les opérations en attente, refusées ou annulées ne sont jamais comptabilisées (`lib/banking/postable.ts`). Le brouillon reçoit son numéro définitif à la validation (PCG art. 1031-3) ; jusque-là, il se corrige ou se supprime, et annuler le rapprochement le supprime.
 
 La case « Nécessite une approbation » a été retirée : toutes les écritures des règles attendent déjà une validation. La colonne correspondante reste dans la base pour les versions publiées, mais n'est plus lue.
 

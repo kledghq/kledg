@@ -257,6 +257,15 @@ describe.skipIf(!available)('transaction and rule routes', () => {
       expect(await prisma.bankTransaction.count({ where: { id: { in: [ids.aT1, ids.bT1] } } })).toBe(1)
     })
 
+    it('refuses to delete a reconciled transaction: it would come back and be posted twice (#123)', async () => {
+      await prisma.bankTransaction.update({ where: { id: ids.aT2 }, data: { reconciled: true, reconciledAt: new Date() } })
+      const response = await call('admin', 'bulkDelete', 'POST', '/api/transactions/bulk-delete', {
+        body: { companyId: ids.aCompany, transactionIds: [ids.aT2] },
+      })
+      expect(await response.json()).toMatchObject({ deleted: 0, failed: 1, errors: [{ transactionId: ids.aT2, error: expect.stringContaining("annulez d'abord le rapprochement") }] })
+      expect(await prisma.bankTransaction.count({ where: { id: ids.aT2 } })).toBe(1)
+    })
+
     it('validates the selection in French', async () => {
       const empty = await call('accountant', 'bulkReconcile', 'POST', '/api/transactions/bulk-reconcile', { body: { companyId: ids.aCompany, transactionIds: [] } })
       expect(empty.status).toBe(400)

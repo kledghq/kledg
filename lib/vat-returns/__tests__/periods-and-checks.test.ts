@@ -115,6 +115,13 @@ describe('consistency checks', () => {
     expect(checks.find((c) => c.id === 'credit')).toMatchObject({ severity: 'warning' })
   })
 
+  it('warns about posted operations the bank then declined or reversed (#118)', () => {
+    const checks = vatChecks({ ...clean, rejectedPosted: { count: 1, totalCents: 4_800 } })
+    expect(isReliable(checks)).toBe(true)
+    expect(checks.find((c) => c.id === 'rejected')).toMatchObject({ severity: 'warning', title: '1 opération comptabilisée puis refusée ou annulée par la banque' })
+    expect(vatChecks({ ...clean, rejectedPosted: { count: 0, totalCents: 0 } }).some((c) => c.id === 'rejected')).toBe(false)
+  })
+
   it('does not ask for the payment before the previous deadline', () => {
     const checks = vatChecks({ ...clean, toPay: { openingCents: 50_000, paidCents: 0, previousDueCents: 50_000, previousDeadlinePassed: false } })
     expect(checks.some((c) => c.id === 'to-pay')).toBe(false)

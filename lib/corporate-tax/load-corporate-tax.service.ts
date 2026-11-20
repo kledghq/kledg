@@ -22,6 +22,7 @@
  * checks.ts.
  */
 
+import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { NotFoundError } from '@/lib/accounting/errors'
@@ -362,7 +363,7 @@ export async function buildCorporateTax(companyId: string, query: CorporateTaxQu
       select: { entryNumber: true },
     }),
     prisma.bankTransaction.aggregate({
-      where: { ...transactionOfCompany(companyId), reconciled: false, date: range, OR: [{ status: null }, { status: { not: 'declined' } }] },
+      where: { ...transactionOfCompany(companyId), reconciled: false, date: range, ...POSTABLE_TRANSACTION_WHERE },
       _count: { _all: true },
       _sum: { amount: true },
     }),
