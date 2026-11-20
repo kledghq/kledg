@@ -463,6 +463,95 @@ describe.skipIf(!available)('fiscal year closing', () => {
     expect(await prisma.fiscalYear.count({ where: { companyId: c.id } })).toBe(2)
   })
 
+  /** The 2026 fiscal year created ahead of the closing, with the chart (and `extra` accounts). */
+  async function createNextYear(c: Company, extra: Array<[string, string]> = []) {
+    const fy = await prisma.fiscalYear.create({ data: { companyId: c.id, year: 2026, startDate: day('2026-01-01'), endDate: day('2026-12-31') } })
+    const accounts = new Map<string, string>()
+    for (const [code, label] of [...CHART, ...extra]) {
+      const created = await prisma.account.create({ data: { companyId: c.id, fiscalYearId: fy.id, code, label, isPCG: true } })
+      accounts.set(code, created.id)
+    }
+    return { id: fy.id, accounts }
+  }
+
+  /** The 2025 closing balances, as an imported FEC of 2026 brings them forward (result in `resultCode`). */
+  const OPENING_2025 = (resultCode: string): Array<[string, number, number]> => [
+    ['101', 0, 10000],
+    ['2183', 2000, 0],
+    ['28183', 0, 400],
+    ['401', 0, 5600],
+    ['44566', 600, 0],
+    ['44571', 0, 2400],
+    ['512', 24400, 0],
+    [resultCode, 0, RESULT_2025],
+  ]
+
+  it('dates the à-nouveaux on the first open day when the start of the next year is already closed (#116)', async () => {
+    // PCG art. 1031-4, BOI-BIC-DECLA-30-10-20-40 § 140: first open day, real day as date of document.
+    const c = await createCompany()
+    await bookYear(c)
+    const next = await createNextYear(c)
+    const { lockPeriod } = await import('@/lib/accounting/period-lock/lock-period.service')
+    await lockPeriod(c.id, next.id, '2026-03-31', 'user-1')
+
+    const result = await closeFiscalYear(c.id, c.fy2025)
+    expect(result).toMatchObject({ success: true, nextFiscalYearId: next.id })
+    const opening = await prisma.accountingEntry.findFirstOrThrow({ where: { id: result.openingEntryId! } })
+    expect(opening.date.toISOString().slice(0, 10)).toBe('2026-04-01')
+    expect(opening.pieceDate?.toISOString().slice(0, 10)).toBe('2026-01-01')
+    expect(opening.status).toBe('validated')
+  })
+
+  it('keeps validated à-nouveaux of an imported next year when they bring forward the closing balances (#117)', async () => {
+    const c = await createCompany()
+    await bookYear(c)
+    const next = await createNextYear(c, [['110', 'Report à nouveau (solde créditeur)']])
+    // Result brought forward to report à nouveau, as some software does: compared with 120 on 11 and 12 together.
+    const imported = await book(c, 'AN', '2026-01-01', OPENING_2025('110'), { fiscalYearId: next.id, accounts: next.accounts })
+
+    const simulation = await simulateFiscalYearClosure(c.id, c.fy2025)
+    expect(simulation.success).toBe(true)
+    expect(simulation.simulation?.openingEntries.entryCount).toBe(0)
+
+    const result = await closeFiscalYear(c.id, c.fy2025)
+    expect(result).toMatchObject({ success: true, openingEntryId: null })
+    expect(result.warnings?.some((w) => w.includes('reprennent les soldes de clôture'))).toBe(true)
+    const openings = await prisma.accountingEntry.findMany({ where: { fiscalYearId: next.id, journal: { code: 'AN' } } })
+    expect(openings.map((e) => e.id)).toEqual([imported.id])
+  })
+
+  it('refuses the closing, with the differing accounts, when the validated à-nouveaux of the next year do not match (#117)', async () => {
+    const c = await createCompany()
+    await bookYear(c)
+    const next = await createNextYear(c, [['120', "Résultat de l'exercice - bénéfice"]])
+    const lines = OPENING_2025('120').map(([code, debit, credit]): [string, number, number] =>
+      code === '512' ? [code, debit - 100, credit] : code === '401' ? [code, debit, credit - 100] : [code, debit, credit]
+    )
+    await book(c, 'AN', '2026-01-01', lines, { fiscalYearId: next.id, accounts: next.accounts })
+
+    const result = await closeFiscalYear(c.id, c.fy2025)
+    expect(result.success).toBe(false)
+    const message = result.errors?.join(' ') ?? ''
+    expect(message).toContain('compte 401')
+    expect(message).toContain('compte 512\u00a0: 24\u202f400,00 € débiteur attendu, 24\u202f300,00 € débiteur enregistré')
+    expect(message).not.toContain('compte 101')
+    expect((await prisma.fiscalYear.findUniqueOrThrow({ where: { id: c.fy2025 } })).isClosed).toBe(false)
+
+    // A complementary AN entry fixes the difference: the closing goes through.
+    await book(c, 'AN', '2026-01-02', [['512', 100, 0], ['401', 0, 100]], { fiscalYearId: next.id, accounts: next.accounts })
+    expect(await closeFiscalYear(c.id, c.fy2025)).toMatchObject({ success: true, openingEntryId: null })
+  })
+
+  it('still asks to delete draft à-nouveaux of the next year', async () => {
+    const c = await createCompany()
+    await bookYear(c)
+    const next = await createNextYear(c, [['120', "Résultat de l'exercice - bénéfice"]])
+    await book(c, 'AN', '2026-01-01', OPENING_2025('120'), { fiscalYearId: next.id, accounts: next.accounts, status: 'draft' })
+    const result = await closeFiscalYear(c.id, c.fy2025)
+    expect(result.success).toBe(false)
+    expect(result.errors?.join(' ')).toContain('supprimez-le')
+  })
+
   it('keeps 31/12 in its year whatever the server timezone', async () => {
     const c = await createCompany()
     await bookYear(c)

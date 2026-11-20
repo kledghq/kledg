@@ -8,7 +8,11 @@
  *    and 7 to zero, result in 120 (bénéfice) or 129 (perte);
  * 4. gets or creates the next fiscal year and copies the chart of accounts;
  * 5. books the opening entry of the next year (journal AN, first day): the
- *    balance of every balance sheet account (classes 1 to 5);
+ *    balance of every balance sheet account (classes 1 to 5). When the first
+ *    days of the next year are already in a closed period, the entry is
+ *    dated on the first open day with the first day of the year as its date
+ *    of document (PCG art. 1031-4, BOI-BIC-DECLA-30-10-20-40 § 140;
+ *    BOI-CF-IOR-60-40-20 § 110 admits à-nouveaux booked during the year);
  * 6. marks the year closed (closedAt, closedById) and writes the audit log.
  *
  * From then on the database refuses any change in the closed year (see
@@ -44,6 +48,9 @@ import {
   nextFiscalYearDates,
 } from './ledger'
 import { lockFiscalYearRow } from './lock'
+import { loadRecordedOpening, openingDifferences, openingDifferencesMessage } from './recorded-opening'
+import { bookingDayInTx } from '@/lib/accounting/period-lock/booking-day'
+import { calendarDayOf } from '@/lib/utils/date'
 
 export interface CloseFiscalYearResult {
   success: boolean
@@ -129,7 +136,13 @@ export async function closeFiscalYear(
         // 5. Opening entry of the next year, from the balances after closing
         const opening = computeOpeningEntry(applyLines(balances, closing.lines))
         let openingEntryId: string | null = null
-        if (opening.length > 0) {
+        // Validated à-nouveaux already in the next year (an imported FEC) stay:
+        // the validation checked they bring forward these balances.
+        const recorded = await loadRecordedOpening(tx, companyId, next.id)
+        if (recorded) {
+          const differences = openingDifferences(opening, recorded)
+          if (differences.length > 0) throw new ClosingRefused([openingDifferencesMessage(fiscalYear.year, next.year, differences)])
+        } else if (opening.length > 0) {
           const journal = await ensureJournal(tx, companyId, OPENING_JOURNAL)
           const labels = new Map(balances.map((b) => [b.code, b.label ?? '']))
           labels.set(PROFIT_ACCOUNT.code, PROFIT_ACCOUNT.label)
@@ -140,11 +153,13 @@ export async function closeFiscalYear(
             next.id,
             opening.map((l) => ({ code: l.code, label: labels.get(l.code) ?? l.code }))
           )
+          const booking = await bookingDayInTx(tx, next.id, calendarDayOf(next.startDate)!)
           const entry = await createValidatedEntry(tx, {
             companyId,
             fiscalYearId: next.id,
             journalId: journal.id,
-            date: next.startDate,
+            date: booking.date,
+            pieceDate: booking.pieceDate,
             description: `À-nouveaux de l'exercice ${next.year} (soldes de clôture ${fiscalYear.year})`,
             reference: openingReference(next.year),
             lines: opening,

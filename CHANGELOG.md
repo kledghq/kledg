@@ -4,6 +4,11 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Corrigé
+
+- Clôture de l'exercice (#116) : quand le début de l'exercice suivant est déjà clôturé (clôture automatique des périodes, par exemple), la clôture échouait et ne pouvait plus jamais aboutir. L'écriture d'à-nouveaux est maintenant datée du premier jour ouvert, avec le premier jour de l'exercice en date de pièce (PCG art. 1031-4).
+- Clôture de l'exercice (#117) : quand l'exercice suivant avait déjà des à-nouveaux validés (FEC importé à l'arrivée sur Kledg), la clôture demandait de les supprimer, ce qui est impossible pour une écriture validée. La clôture les garde maintenant et vérifie, compte par compte, qu'ils reprennent les soldes de clôture (Code de commerce art. L123-19 ; le résultat est comparé sur les comptes 11 et 12 ensemble). En cas d'écart, elle est refusée avec la liste des comptes : il suffit de corriger l'exercice ou de passer une écriture complémentaire au journal AN. Des à-nouveaux en brouillon se suppriment toujours avant la clôture.
+
 ## [0.8.1] - 2026-11-19
 
 ### Modifié
