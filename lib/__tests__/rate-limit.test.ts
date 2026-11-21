@@ -143,6 +143,7 @@ const LIMITED_ROUTES: Record<string, RegExp> = {
   'lib/mcp/full-control/invoices.ts': /enforceRateLimit\('import'/,
   'lib/mcp/full-control/year-end.ts': /enforceRateLimit\('export'/,
   'app/(auth)/setup/actions.ts': /withinRateLimit\('setup'/,
+  'lib/auth.ts': /withinRateLimit\('sign-in-email'/,
 }
 
 describe('rate limited routes', () => {

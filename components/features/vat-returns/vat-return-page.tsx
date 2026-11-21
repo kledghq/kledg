@@ -551,12 +551,16 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
                 <CardTitle>
                   <h2>Acomptes</h2>
                 </CardTitle>
-                <CardDescription>Au régime simplifié, la TVA de l’année suivante se paie par deux acomptes, en juillet (55&nbsp;%) et en décembre (40&nbsp;%) de la base de la ligne 57.</CardDescription>
+                <CardDescription>
+                  {computation.acomptes.regimeEnds
+                    ? 'Dernière CA12 : le régime simplifié de TVA est supprimé au 1er janvier 2027. Aucun acompte n’est dû en 2027 ; la TVA se déclare ensuite sur la CA3, chaque mois ou chaque trimestre.'
+                    : 'Au régime simplifié, la TVA de l’année suivante se paie par deux acomptes, en juillet (55 %) et en décembre (40 %) de la base de la ligne 57.'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-3">
                 <StatCard label="Acomptes payés dans l’année" value={<Amount value={euros(computation.acomptes.paidCents)} />} hint="Compte 44581, ligne 30" />
-                <StatCard label="Acompte de juillet" value={<Amount value={computation.acomptes.nextJulyEuros} decimals={0} />} hint={computation.acomptes.nextDue ? '55 % de la ligne 57' : 'Pas d’acompte : base sous 1 000 €'} />
-                <StatCard label="Acompte de décembre" value={<Amount value={computation.acomptes.nextDecemberEuros} decimals={0} />} hint={computation.acomptes.nextDue ? '40 % de la ligne 57' : 'Pas d’acompte : base sous 1 000 €'} />
+                <StatCard label="Acompte de juillet" value={<Amount value={computation.acomptes.nextJulyEuros} decimals={0} />} hint={computation.acomptes.regimeEnds ? 'Régime simplifié supprimé en 2027' : computation.acomptes.nextDue ? '55 % de la ligne 57' : 'Pas d’acompte : base sous 1 000 €'} />
+                <StatCard label="Acompte de décembre" value={<Amount value={computation.acomptes.nextDecemberEuros} decimals={0} />} hint={computation.acomptes.regimeEnds ? 'Régime simplifié supprimé en 2027' : computation.acomptes.nextDue ? '40 % de la ligne 57' : 'Pas d’acompte : base sous 1 000 €'} />
               </CardContent>
             </Card>
           ) : null}

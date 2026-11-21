@@ -18,12 +18,13 @@ export const fromRevolutState: CompanyResolver = async ({ request }) => {
 }
 
 /**
- * Company of the stored attachment named by the `attachmentId` segment; for
- * a receipt not synchronized yet, the company in the query string (its own
- * Qonto credentials and one of its own transactions are then required by
- * readQontoReceipt).
+ * The company in the query string when given (readQontoReceipt then reads
+ * the attachment of that company only: two companies connected to the same
+ * Qonto organization each hold the same attachment id, #149); else the
+ * company of the stored attachment named by the `attachmentId` segment.
  */
 export const fromQontoAttachment: CompanyResolver = async (input) => {
+  if (input.request.nextUrl.searchParams.get('companyId')) return fromQuery()(input)
   const ref = input.params.attachmentId
   const row = typeof ref === 'string' && ref ? await companyOfQontoAttachment(ref) : null
   return row?.companyId ?? fromQuery()(input)

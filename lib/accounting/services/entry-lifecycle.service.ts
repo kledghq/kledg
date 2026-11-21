@@ -188,6 +188,10 @@ async function guardFiscalYear(
   date: Date | string,
   action: EntryWriteAction,
 ): Promise<void> {
+  // Share lock on the year until commit (#148): a period lock or a closing
+  // (FOR UPDATE, lockFiscalYearRow) waits for this write and then sees its
+  // draft, or this write waits for them and then sees the closed period.
+  await db.$queryRaw`SELECT 1 FROM "fiscal_years" WHERE "id" = ${fiscalYearId} FOR SHARE`
   const fiscalYear = await db.fiscalYear.findFirst({
     where: { id: fiscalYearId, companyId },
     select: GUARDED_FISCAL_YEAR_SELECT,
