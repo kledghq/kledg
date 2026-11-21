@@ -10,6 +10,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- CA3, TVA à l'importation (#143) : la TVA des importations autoliquidée (CGI art. 1695, II) n'était pas distinguée, et les lignes A4, I1 à I6 et 24 restaient vides. Comptabilisée au sous-compte 44527 avec sa base en charges ou en immobilisations, elle va maintenant en A4 (base), sur la ligne d'importation de son taux (I1, I2, I4, I5) et, pour la TVA déduite, en ligne 24. La CA12, sans ligne d'importation, la laisse à répartir.
 - Écritures, montants négatifs (#146) : une ligne pouvait porter un montant négatif, exporté tel quel dans les colonnes Debit et Credit du FEC, alors que le sens porte le signe. La saisie le refuse maintenant ; les imports CSV, Excel et FEC le portent de l'autre côté en positif, l'export FEC fait de même pour les lignes déjà enregistrées et le contrôle du FEC signale un montant négatif.
 - Impôt sur les sociétés, arrondi (#141) : l'IS et la contribution sociale étaient calculés au centime (3 086,25 € pour 12 345 € à 25 %). Ils sont maintenant arrondis à l'euro, comme la 2065 et le relevé de solde 2572 (CGI art. 1657, 1 bis).
 - Exercices, durée (#139) : un exercice de cinq ans était accepté. Un exercice de plus de 24 mois est maintenant refusé, à la création, au changement de dates et à l'import d'un FEC (Code de commerce art. L123-12).
