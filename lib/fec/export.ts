@@ -241,6 +241,8 @@ export interface FecExport {
   lines: number
   /** Draft entries of the year, left out of the file. */
   drafts: number
+  /** The fiscal year exported. */
+  fiscalYearId: string
 }
 
 /** FEC of a fiscal year: file name "SirenFECAAAAMMJJ.txt" and content. */
@@ -268,5 +270,6 @@ export async function exportFec(companyId: string, fiscalYearId: string): Promis
     entries: ledger.length,
     lines: ledger.reduce((n, e) => n + e.lines.length, 0),
     drafts,
+    fiscalYearId,
   }
 }

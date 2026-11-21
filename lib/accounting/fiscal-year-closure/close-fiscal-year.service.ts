@@ -21,6 +21,7 @@
  * is a separate entry of the next year, voted by the shareholders.
  */
 
+import { sealFiscalYearInTx } from '@/lib/accounting/integrity/ledger-integrity.service'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
@@ -32,6 +33,7 @@ import {
   LOSS_ACCOUNT,
   OpeningEntryImbalanceError,
   PROFIT_ACCOUNT,
+  splitOpeningByTiers,
 } from './closing-entries'
 import {
   CLOSING_JOURNAL,
@@ -45,6 +47,7 @@ import {
   ensureAccounts,
   ensureJournal,
   findNextFiscalYear,
+  loadAuxiliaryBalances,
   loadYearBalances,
   nextFiscalYearConflict,
   nextFiscalYearDates,
@@ -170,14 +173,16 @@ export async function closeFiscalYear(
             pieceDate: booking.pieceDate,
             description: `À-nouveaux de l'exercice ${next.year} (soldes de clôture ${fiscalYear.year})`,
             reference: openingReference(next.year),
-            lines: opening,
-            lineDescription: (line) => `À-nouveau ${line.code} ${labels.get(line.code) ?? ''}`.trim(),
+            // One line per tiers on the customer and supplier accounts (#140)
+            lines: splitOpeningByTiers(opening, await loadAuxiliaryBalances(tx, companyId, fiscalYearId)),
+            lineDescription: (line) => `À-nouveau ${line.code} ${line.auxiliaryAccountLabel || labels.get(line.code) || ''}`.trim(),
             accountIds,
           })
           openingEntryId = entry.id
         }
 
-        // 6. Lock the year and keep a trace of the closing
+        // 6. Lock the year, seal its validated entries (#147) and keep a trace of the closing
+        await sealFiscalYearInTx(tx, { companyId, fiscalYearId, reason: 'closing', userId: options.userId ?? null })
         const closedAt = new Date()
         await tx.fiscalYear.update({
           where: { id: fiscalYearId },

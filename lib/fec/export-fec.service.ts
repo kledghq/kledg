@@ -34,8 +34,14 @@ export async function exportFecOfYear(companyId: string, fiscalYearId?: string):
  * year are not in the file: a warning says so, since the file is then not
  * the final book of the year.
  */
-export function fecComplianceReport(fec: FecExport): FecValidationReport & Pick<FecExport, 'fileName' | 'entries' | 'lines' | 'drafts'> {
+export function fecComplianceReport(
+  fec: FecExport,
+  /** Problems of the integrity check of the ledger (lib/accounting/integrity, #147): errors of the report. */
+  integrityProblems: string[] = [],
+): FecValidationReport & Pick<FecExport, 'fileName' | 'entries' | 'lines' | 'drafts'> {
   const report = validateFec(fec.content, { fileName: fec.fileName, closingDate: FEC_FILE_NAME.exec(fec.fileName)?.[2] })
+  report.errors.unshift(...integrityProblems.map((message) => ({ line: null, message })))
+  if (integrityProblems.length > 0) report.valid = false
   if (fec.drafts > 0) {
     const drafts = fec.drafts === 1 ? '1 écriture en brouillon' : `${fec.drafts} écritures en brouillon`
     report.warnings.unshift({

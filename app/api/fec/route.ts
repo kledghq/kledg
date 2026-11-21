@@ -4,6 +4,7 @@ import { downloadResponse } from '@/lib/api/download'
 import { enforceRateLimit } from '@/lib/rate-limit'
 import { exportFecOfYear, fecComplianceReport } from '@/lib/fec/export-fec.service'
 import { FecQuerySchema } from '@/lib/reports/report-query'
+import { verificationProblems, verifyLedger } from '@/lib/accounting/integrity/ledger-integrity.service'
 
 /**
  * FEC of a fiscal year (LPF art. A47 A-1): ?companyId=...&fiscalYearId=...
@@ -16,7 +17,8 @@ export const GET = companyRoute(
   async ({ companyId, query, user }) => {
     await enforceRateLimit('export', user.id)
     const fec = await exportFecOfYear(companyId, query.fiscalYearId)
-    if (query.report) return NextResponse.json(fecComplianceReport(fec))
+    // The report also checks the ledger against its content hashes and seals (#147)
+    if (query.report) return NextResponse.json(fecComplianceReport(fec, verificationProblems(await verifyLedger(companyId, fec.fiscalYearId))))
     return downloadResponse(
       { content: fec.content, fileName: fec.fileName, contentType: 'text/plain; charset=utf-8' },
       { 'Cache-Control': 'private, no-store' },

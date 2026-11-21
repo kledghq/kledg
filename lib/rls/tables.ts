@@ -78,6 +78,7 @@ export const COMPANY_TABLES: readonly string[] = [
   'training_reports',
   'payroll_tax_years',
   'company_invitations',
+  'ledger_seals',
   'receipt_files',
   'staged_receipts',
 ]

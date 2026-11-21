@@ -197,6 +197,7 @@ model Company {
   trainingReports            TrainingReport[]
   payrollTaxYears            PayrollTaxYear[]
   invitations                CompanyInvitation[]
+  ledgerSeals                LedgerSeal[]
   receiptFiles               ReceiptFile[]
   stagedReceipts             StagedReceipt[]
 
@@ -292,6 +293,7 @@ model FiscalYear {
   company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   accounts                 Account[]                 @relation("FiscalYearAccounts")
   accountingEntries        AccountingEntry[]
+  ledgerSeals              LedgerSeal[]
   fixedAssetDepreciations  FixedAssetDepreciation[]
   budget                   Budget?
   provisionAssessments     ProvisionAssessment[]
@@ -371,6 +373,10 @@ model AccountingEntry {
   // number in the fiscal year sequence and can no longer change or be deleted
   // (enforced by database triggers). Drafts carry a provisional "BR-" number.
   validatedAt             DateTime? // FEC ValidDate (LPF art. A47 A-1)
+  /// SHA-256 of the entry and its lines, written by the database at validation (migration 20261221090000_ledger_integrity).
+  contentHash             String?
+  /// When the database hashed it (its clock, not validatedAt: an imported FEC keeps its ValidDate).
+  hashedAt                DateTime?
   pieceDate               DateTime? // Date of the supporting document (FEC PieceDate), defaults to the entry date
   // Contre-passation: the reversing entry points to the validated entry it cancels (one reversal per entry).
   reversalOfId            String?   @unique
@@ -3189,4 +3195,30 @@ model StagedReceipt {
   @@index([attachmentId])
   @@index([expenseReportId])
   @@map("staged_receipts")
+}
+
+/// A seal of the validated entries of a fiscal year (#147): written at each
+/// period lock and at the closing, append only (trigger ledger_seals_guard).
+/// sealHash covers the content hashes of the entries validated up to
+/// lastHashedAt, in hashing order (SQL function kledg_ledger_seal).
+model LedgerSeal {
+  id              String    @id @default(cuid())
+  companyId       String
+  fiscalYearId    String
+  /// period_lock or closing.
+  reason          String
+  /// Last day of the closed period (period_lock).
+  throughDay      DateTime?
+  entryCount      Int
+  lastHashedAt    DateTime?
+  sealHash        String
+  createdById     String?
+  createdAt       DateTime  @default(now())
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([fiscalYearId, createdAt])
+  @@map("ledger_seals")
 }

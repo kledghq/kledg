@@ -4,8 +4,13 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- Preuve d'intégrité du grand livre (#147) : la base calcule l'empreinte SHA-256 de chaque écriture validée et de ses lignes, et chaque clôture de période ou d'exercice scelle les écritures validées de l'exercice (scellements en ajout seul). Le rapport de conformité du FEC recalcule empreintes et scellements et signale une écriture modifiée, ajoutée ou supprimée directement dans la base de données. Migration de la base : empreinte des écritures déjà validées, table des scellements.
+
 ### Corrigé
 
+- Clôture, à-nouveaux des tiers (#140) : l'écriture d'à-nouveaux reportait le solde de chaque compte de tiers (411, 401) en une seule ligne, sans le compte auxiliaire. Les soldes par client et par fournisseur, la balance âgée et le lettrage de l'exercice suivant repartaient de zéro. Elle porte maintenant une ligne par tiers, avec son compte auxiliaire (CompAuxNum du FEC).
 - Numérotation après import d'un FEC numéroté par journal (#127) : les écritures importées gardaient leur numéro par journal (« VT-100 », « AC-80 »), mais les écritures validées ensuite reprenaient une séquence unique : AC passait de 80 à 102 et le contrôle du FEC signalait une rupture. Chaque journal continue maintenant sa propre séquence (« VT-101 », « AC-81 »), comme le permet le BOFiP (BOI-CF-IOR-60-40-20 § 100).
 - Amortissement dégressif (#128) : l'annuité était calculée sur des blocs de 12 mois, quelle que soit la durée de l'exercice. Un premier exercice de 18 mois ne recevait pas 18/12 de l'annuité (6 125 € de dotation manquante sur un bien de 100 000 €), et un changement de date de clôture recalculait les exercices passés. L'annuité suit maintenant les exercices réels de la société (BOI-BIC-AMT-20-20-30-20).
 - Banque, comptes en devises (#131) : une opération d'un compte en USD, GBP... était comptabilisée à son montant comme s'il était en euros. Kledg ne la comptabilise plus depuis son montant (règles, rapprochement, mode simple) : l'écriture se passe en euros dans Saisie, au montant réellement débité ou au cours du jour (PCG art. 420-5), puis se rapproche de l'opération.
