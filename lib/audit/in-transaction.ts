@@ -7,7 +7,21 @@
  */
 
 import type { Prisma } from '@prisma/client'
-import { getAuditContext, type AuditLogContext } from './audit'
+import type { AuditLogContext } from './audit'
+
+/**
+ * Who and from where, best effort (outside a request there is none). Loaded
+ * on use: the session module is not pulled into every importer of the
+ * accounting services.
+ */
+async function contextOf(): Promise<AuditLogContext> {
+  try {
+    const { getAuditContext } = await import('./audit')
+    return await getAuditContext()
+  } catch {
+    return {}
+  }
+}
 
 export async function writeAuditLogInTx(
   tx: Prisma.TransactionClient,
@@ -15,7 +29,7 @@ export async function writeAuditLogInTx(
   message: string,
   options: { action: string; companyId: string; metadata?: Record<string, unknown>; context?: AuditLogContext },
 ): Promise<void> {
-  const context = options.context ?? (await getAuditContext())
+  const context = options.context ?? (await contextOf())
   // createMany: no RETURNING, readable or not under row level security (docs/rls.md)
   await tx.auditLog.createMany({
     data: {
