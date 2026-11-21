@@ -1054,7 +1054,7 @@ model Attachment {
   companyId            String
   integrationId        String? // Intégration source (Qonto, etc.)
   bankTransactionId    String? // Transaction bancaire associée
-  externalAttachmentId String?  @unique // ID de l'attachment dans le système externe (Qonto)
+  externalAttachmentId String? // ID de l'attachment dans le système externe (Qonto)
   transactionUuid      String? // UUID de la transaction dans le système externe (pour Qonto)
   // Informations sur le fichier
   fileName             String
@@ -1080,6 +1080,7 @@ model Attachment {
   stagedReceipts  StagedReceipt[]
 
   @@unique([integrationId, externalAttachmentId])
+  @@index([externalAttachmentId])
   @@index([companyId])
   @@index([integrationId])
   @@index([bankTransactionId])

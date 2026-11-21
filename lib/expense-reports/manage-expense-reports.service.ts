@@ -475,6 +475,25 @@ async function prepareLines(
       })
     : []
   const reportUsing = new Map(usedElsewhere.map((l) => [l.receiptAttachmentId as string, l.report.number]))
+  // A receipt of a company card payment is not the claimant's expense: reimbursing it would pay the
+  // expense twice (#150). Other bank receipts stay usable: a Qonto expense reimbursement attaches the
+  // employee's receipts to the transfer that repays them. One already on this report stays, so a
+  // report saved before keeps its lines.
+  const paidByCompany = attachmentIds.length
+    ? new Map(
+        (
+          await tx.attachment.findMany({
+            where: {
+              id: { in: attachmentIds },
+              companyId,
+              bankTransaction: { is: { operationType: 'card' } },
+              ...(reportId ? { expenseLines: { none: { reportId } } } : {}),
+            },
+            select: { id: true, bankTransaction: { select: { date: true } } },
+          })
+        ).map((a) => [a.id, a.bankTransaction]),
+      )
+    : new Map<string, { date: Date } | null>()
 
   const errors: string[] = []
   const prepared = input.lines.map((line, index) => {
@@ -501,6 +520,13 @@ async function prepareLines(
     return number ? [`Ligne ${index + 1}\u00a0: ce justificatif est déjà le justificatif d’une dépense de la note de frais ${number}.`] : []
   })
   if (reused.length > 0) throw new ConflictError(`${reused.join(' ')} Une pièce justifie une seule note de frais\u00a0: choisissez un autre justificatif.`)
+  const companyPaid = input.lines.flatMap((line, index) => {
+    if (!line.receiptAttachmentId || !paidByCompany.has(line.receiptAttachmentId)) return []
+    const transaction = paidByCompany.get(line.receiptAttachmentId)
+    const day = transaction ? calendarDayOf(transaction.date) : null
+    return [`Ligne ${index + 1}\u00a0: ce justificatif est celui d’un paiement par carte de la société${day ? ` du ${formatIsoDateFr(day)}` : ''}, donc payée avec la carte de la société.`]
+  })
+  if (companyPaid.length > 0) throw new ConflictError(`${companyPaid.join(' ')} Une note de frais rembourse une dépense payée par le salarié ou le dirigeant\u00a0: choisissez un autre justificatif.`)
 
   const baselines = await mileageBaselines(tx, companyId, claimantId, reportId, input.lines.filter((l) => l.kind === 'MILEAGE').map((l) => l.date))
   const lineInputs = assignPriorDistances(

@@ -403,7 +403,15 @@ describe('CA12 with acomptes and the annual regularisation (notice 3517-S-SD, li
 
   it('gives next year acomptes from line 57: 55 % in July, 40 % in December', () => {
     expect(line(ca12, '57').amount).toBe(12_000)
-    expect(ca12.acomptes).toEqual({ paidCents: 500_000, nextBaseEuros: 12_000, nextDue: true, nextJulyEuros: 6_600, nextDecemberEuros: 4_800 })
+    expect(ca12.acomptes).toEqual({ paidCents: 500_000, nextBaseEuros: 12_000, nextDue: true, regimeEnds: false, nextJulyEuros: 6_600, nextDecemberEuros: 4_800 })
+  })
+
+  it('announces no acompte after the last CA12, of 2026 (loi n° 2025-127, art. 38, #142)', () => {
+    const movements = classifyEntries(year)
+    const last = computeVatReturn({ form: 'CA12', movements, creditCarriedCents: 0, periodEnd: '2026-12-31' })
+    expect(line(last, '57').amount).toBe(12_000)
+    expect(last.acomptes).toMatchObject({ nextBaseEuros: 12_000, nextDue: false, regimeEnds: true, nextJulyEuros: 0, nextDecemberEuros: 0 })
+    expect(computeVatReturn({ form: 'CA12', movements, creditCarriedCents: 0, periodEnd: '2025-12-31' }).acomptes).toMatchObject({ nextDue: true, regimeEnds: false, nextJulyEuros: 6_600 })
   })
 
   it('turns acomptes above the VAT of the year into an overpayment (34) and a surplus (35)', () => {

@@ -374,8 +374,8 @@ describe('GET /api/banking/attachments/[attachmentId]/proxy', () => {
     call(proxyRoute.GET, 'GET', `/api/banking/attachments/att-1/proxy?companyId=${COMPANY}${query}`, { params: { attachmentId: 'att-1' } })
 
   it('serves a stored receipt of the company from a fresh Qonto URL', async () => {
+    // The company comes from the query string (#149): the resolver reads no attachment
     db.attachment.findFirst
-      .mockResolvedValueOnce({ companyId: COMPANY }) // resolver
       .mockResolvedValueOnce({
         externalAttachmentId: 'qa-1',
         transactionUuid: QONTO_UUID,
@@ -392,7 +392,7 @@ describe('GET /api/banking/attachments/[attachmentId]/proxy', () => {
     expect(response.status).toBe(200)
     expect(response.text).toBe('%PDF-1.7')
     expect(response.headers.get('x-content-type-options')).toBe('nosniff')
-    expect(db.attachment.findFirst.mock.calls[1][0]?.where).toMatchObject({ companyId: COMPANY })
+    expect(db.attachment.findFirst.mock.calls[0][0]?.where).toMatchObject({ companyId: COMPANY })
   })
 
   it('requires a transaction of the company for a receipt not synced yet', async () => {

@@ -30,6 +30,7 @@ import { addIsoDays, formatIsoDateFr, lastDayOfMonth } from '@/lib/utils/date'
 import { RULES, type RuleId } from './rules'
 import { defaultVatFilingDay, type DeadlineSettings } from './settings'
 import type { Deadline } from './types'
+import { SIMPLIFIED_VAT_LAST_YEAR } from '@/lib/vat-returns/regime'
 import { bpfDeadlineOf } from '@/lib/training-report/deadline'
 import { annualDeclarationDate, releveDates } from '@/lib/payroll-tax/rules'
 
@@ -143,8 +144,6 @@ export const CVAE_LAST_YEAR = 2029
 /** CFE acompte of 15 June when the CFE of the year before reached 3 000 € (CGI art. 1679 quinquies), in cents. */
 export const CFE_ACOMPTE_THRESHOLD_CENTS = 300_000
 
-/** The VAT regime from 1 January 2027 is réel normal or franchise only (loi n° 2025-127, art. 38). */
-const SIMPLIFIED_VAT_LAST_YEAR = 2026
 
 /** Legal forms that approve their accounts within six months and file them with the greffe (unknown included). */
 const ACCOUNTS_FILING_FORMS = new Set(['SARL', 'EURL', 'SELARL', 'SA', 'SAS', 'SASU', 'SELAS', 'SCA'])
