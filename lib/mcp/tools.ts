@@ -677,6 +677,7 @@ export function registerKledgTools(server: McpServer, access: McpAccess) {
             defaultAccount: t.defaultAccountCode,
             defaultVatRatePercent: t.defaultVatRateBp === null ? null : t.defaultVatRateBp / 100,
             paymentTerms: t.paymentTermsDays === null ? null : { days: t.paymentTermsDays, endOfMonth: t.paymentTermsEndOfMonth },
+            vatOnDebits: t.vatOnDebits,
             invoiceCount: t._count.invoices,
             updatedAt: t.updatedAt.toISOString(),
           })),

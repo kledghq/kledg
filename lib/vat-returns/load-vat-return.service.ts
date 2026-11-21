@@ -17,6 +17,7 @@
 
 import type { Prisma } from '@prisma/client'
 import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
+import { pendingVatOf, pendingVatRoot } from '@/lib/invoices/vat-transfer'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { deductionModeOn, provisionalCoefficientOf } from '@/lib/vat-deduction/coefficient'
@@ -173,31 +174,43 @@ async function loadPeriodEntries(companyId: string, period: VatPeriod): Promise<
 const PAID_PENDING_SHOWN = 20
 
 /**
- * Sales whose tiers line is lettered (paid) while part of their VAT due on
- * receipt was never moved from 44574 to 44571 (#121): lettered with a
- * payment Kledg could not record (one payment for several invoices).
+ * Invoices whose tiers line is lettered (paid) while part of their VAT
+ * waiting for the payment never moved (#121, #120): 44574 to 44571 for a
+ * sale, 44588 to 44566 for a purchase. Lettered with a payment Kledg could
+ * not record (one payment for several invoices).
  */
 async function paidInvoicesWithPendingVat(companyId: string): Promise<string[]> {
+  const paidWith = (tiersRoot: string, pendingRoot: string) => ({
+    AND: [
+      { entry: { lines: { some: { account: { code: { startsWith: tiersRoot } }, letteringCode: { not: null } } } } },
+      { entry: { lines: { some: { account: { code: { startsWith: pendingRoot } } } } } },
+    ],
+  })
   const invoices = await prisma.invoice.findMany({
     where: {
       companyId,
-      direction: 'SALE',
-      AND: [
-        { entry: { lines: { some: { account: { code: { startsWith: '41' } }, letteringCode: { not: null } } } } },
-        { entry: { lines: { some: { account: { code: { startsWith: '44574' } } } } } },
+      OR: [
+        { direction: 'SALE', ...paidWith('41', pendingVatRoot('SALE')) },
+        { direction: 'PURCHASE', ...paidWith('40', pendingVatRoot('PURCHASE')) },
       ],
     },
     select: {
       number: true,
-      entry: { select: { lines: { where: { account: { code: { startsWith: '44574' } } }, select: { debit: true, credit: true } } } },
-      payments: { select: { vatTransferEntry: { select: { lines: { where: { account: { code: { startsWith: '44574' } } }, select: { debit: true, credit: true } } } } } },
+      direction: true,
+      entry: { select: { lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } } },
+      payments: { select: { vatTransferEntry: { select: { lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } } } } },
     },
     orderBy: { issueDate: 'asc' },
     take: 500,
   })
-  const net = (lines: Array<{ debit: Prisma.Decimal; credit: Prisma.Decimal }>) => lines.reduce((sum, l) => sum + cents(l.credit) - cents(l.debit), 0)
   return invoices
-    .filter((i) => net(i.entry?.lines ?? []) + i.payments.reduce((sum, p) => sum + net(p.vatTransferEntry?.lines ?? []), 0) !== 0)
+    .filter((i) => {
+      const root = pendingVatRoot(i.direction)
+      const onRoot = (lines: Array<{ debit: Prisma.Decimal; credit: Prisma.Decimal; account: { code: string } }>) => lines.filter((l) => l.account.code.startsWith(root))
+      const waiting = pendingVatOf(i.direction, onRoot(i.entry?.lines ?? []))
+      const moved = i.payments.reduce((sum, p) => sum - pendingVatOf(i.direction, onRoot(p.vatTransferEntry?.lines ?? [])), 0)
+      return waiting - moved !== 0
+    })
     .slice(0, PAID_PENDING_SHOWN)
     .map((i) => i.number ?? 'sans numéro')
 }
@@ -460,6 +473,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
     },
     credit: { carriedCents: creditCarriedCents, previousCreditCents: previousFiling?.creditCents ?? null },
     pendingCollectedCents: movements.pendingCollectedCents,
+    pendingDeductibleCents: movements.pendingDeductibleCents,
     paidPendingInvoices: await paidInvoicesWithPendingVat(companyId),
   })
 

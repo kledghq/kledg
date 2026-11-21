@@ -231,7 +231,7 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
         typeCode: '380',
         lines: [
           line('Ordinateur', '1', 100000, 2000, { accountCode: '2183', fixedAsset: true, nature: 'GOODS' }),
-          line('Papier', '2', 4999, 2000),
+          line('Papier', '2', 4999, 2000, { nature: 'GOODS' }),
           line('Port', '1', 1000, 1000, { accountCode: '6241' }),
         ],
       })
@@ -247,9 +247,11 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
       expect(by('2183')[0].debit).toBe('1000')
       expect(by('6064')[0].debit).toBe('99.98')
       expect(by('6241')[0].debit).toBe('10')
-      // 20 %: (1 000 + 99,98) x 20 % = 219,996 -> 220,00, split by base: 200,01 to 44562, 19,99 to 44566; 10 %: 1,00 to 44566
+      // 20 %: (1 000 + 99,98) x 20 % = 219,996 -> 220,00, split by base: 200,01 to 44562, 19,99 to 44566;
+      // 10 %: 1,00 on the transport, a service, waiting for the payment in 44588 (CGI art. 271, I-2)
       expect(by('445620').map((l) => l.debit)).toEqual(['200.01'])
-      expect(by('445660').map((l) => l.debit).sort()).toEqual(['1', '19.99'])
+      expect(by('445660').map((l) => l.debit)).toEqual(['19.99'])
+      expect(by('44588').map((l) => l.debit)).toEqual(['1'])
       expect((await invoices.getInvoice(books.companyId, invoice.id)).status).toBe('posted')
       await expect(posting.postInvoice(books.companyId, invoice.id)).rejects.toBeInstanceOf(errors.ConflictError)
     })
@@ -435,6 +437,38 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
       const transfer = await prisma.accountingEntry.findUniqueOrThrow({ where: { id: last.vatTransferEntryId! } })
       expect(transfer.date.toISOString().slice(0, 10)).toBe('2026-05-12')
       expect(first.vatTransferEntryId).not.toBe(last.vatTransferEntryId)
+    })
+
+    it('deducts the VAT of purchased services once paid: 44588 on the invoice, 44566 with the payment (CGI art. 271, I-2; #120)', async () => {
+      const invoice = await invoices.createInvoice(books.companyId, {
+        direction: 'PURCHASE',
+        tiersId: books.supplierId,
+        number: 'FA-120',
+        issueDate: '2026-03-15',
+        typeCode: '380',
+        lines: [line('Honoraires', '1', 10000, 2000)],
+      })
+      const posted = await posting.postInvoice(books.companyId, invoice.id)
+      const lines = await entryLines(posted.entryId)
+      // 44588 is not in the chart: created in the fiscal year
+      expect(lines.find((l) => l.code === '44588')).toMatchObject({ debit: '20' })
+      expect(lines.find((l) => l.code === '445660')).toBeUndefined()
+      await svc.validateEntries(books.companyId, [posted.entryId])
+
+      const paid = await payments.recordInvoicePayment(books.companyId, invoice.id, await books.payment('supplier', '2026-05-10', '120.00'), { now: NOW })
+      expect(paid).toMatchObject({ lettered: true })
+      const move = await entryLines(paid.vatTransferEntryId!)
+      expect(move).toEqual(expect.arrayContaining([expect.objectContaining({ code: '445660', debit: '20' }), expect.objectContaining({ code: '44588', credit: '20' })]))
+      const transfer = await prisma.accountingEntry.findUniqueOrThrow({ where: { id: paid.vatTransferEntryId! } })
+      expect(transfer.date.toISOString().slice(0, 10)).toBe('2026-05-10')
+
+      // A supplier that opted for debits is deducted on the invoice
+      await tiersSvc.updateTiers(books.companyId, books.supplierId, { vatOnDebits: true })
+      const debits = await invoices.createInvoice(books.companyId, { direction: 'PURCHASE', tiersId: books.supplierId, number: 'FA-121', issueDate: '2026-03-16', typeCode: '380', lines: [line('Honoraires', '1', 10000, 2000)] })
+      const debitLines = await entryLines((await posting.postInvoice(books.companyId, debits.id)).entryId)
+      expect(debitLines.find((l) => l.code === '445660')).toMatchObject({ debit: '20' })
+      expect(debitLines.find((l) => l.code === '44588')).toBeUndefined()
+      await tiersSvc.updateTiers(books.companyId, books.supplierId, { vatOnDebits: false })
     })
 
     it('posts the VAT of services to 44571 at once with the option for debits', async () => {

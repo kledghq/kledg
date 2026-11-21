@@ -120,6 +120,7 @@ describe('list_tiers', () => {
           defaultVatRateBp: 2000,
           paymentTermsDays: 45,
           paymentTermsEndOfMonth: true,
+          vatOnDebits: false,
           qontoId: null,
           notes: null,
           updatedAt: new Date('2026-05-04T08:30:00Z'),
@@ -146,6 +147,7 @@ describe('list_tiers', () => {
       defaultAccount: '706',
       defaultVatRatePercent: 20,
       paymentTerms: { days: 45, endOfMonth: true },
+      vatOnDebits: false,
       invoiceCount: 3,
       updatedAt: '2026-05-04T08:30:00.000Z',
     })

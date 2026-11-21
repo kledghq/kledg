@@ -26,7 +26,7 @@ import type { UnhandledAccount, UnidentifiedEntry } from './classify'
 export type CheckSeverity = 'blocking' | 'warning' | 'info' | 'ok'
 
 export interface VatCheck {
-  id: 'drafts' | 'bank' | 'rates' | 'accounts' | 'balances' | 'to-pay' | 'credit' | 'pending' | 'rejected' | 'paid-pending'
+  id: 'drafts' | 'bank' | 'rates' | 'accounts' | 'balances' | 'to-pay' | 'credit' | 'pending' | 'rejected' | 'paid-pending' | 'pending-deductible'
   severity: CheckSeverity
   title: string
   detail: string
@@ -66,6 +66,8 @@ export interface CheckInput {
   }
   credit: { carriedCents: number; previousCreditCents: number | null }
   pendingCollectedCents: number
+  /** VAT of purchased services debited to 44588 in the period, deductible once paid (#120). */
+  pendingDeductibleCents?: number
   /** Numbers of sales paid (lettered) whose VAT due on receipt still waits in 44574 (#121). */
   paidPendingInvoices?: string[]
 }
@@ -179,11 +181,20 @@ export function vatChecks(input: CheckInput): VatCheck[] {
     checks.push({
       id: 'paid-pending',
       severity: 'warning',
-      title: `${plural(count, 'facture payée', 'factures payées')} dont la TVA attend encore en 44574`,
+      title: `${plural(count, 'facture payée', 'factures payées')} dont la TVA attend encore le paiement`,
       detail:
-        "Ces factures de prestations sont lettrées avec leur règlement, mais leur TVA n'est pas passée en 44571\u00a0: elle n'est donc déclarée sur aucune période (CGI art. 269, 2, c). Délettrez la facture et enregistrez son règlement depuis la facture, ou passez vous-même l'écriture de 44574 à 44571 à la date du paiement.",
+        "Ces factures de prestations sont lettrées avec leur règlement, mais leur TVA est restée en attente (44574 pour une vente, 44588 pour un achat)\u00a0: elle n'est déclarée ou déduite sur aucune période (CGI art. 269, 2, c et 271, I-2). Délettrez la facture et enregistrez son règlement depuis la facture, ou passez vous-même l'écriture vers 44571 ou 44566 à la date du paiement.",
       link: { label: 'Voir les factures', page: 'invoices' },
       items: input.paidPendingInvoices,
+    })
+  }
+
+  if (input.pendingDeductibleCents && input.pendingDeductibleCents > 0) {
+    checks.push({
+      id: 'pending-deductible',
+      severity: 'info',
+      title: 'TVA déductible en attente de paiement',
+      detail: `${euros(input.pendingDeductibleCents)} de TVA sur des prestations achetées attendent leur paiement (compte 44588)\u00a0: elle sera déduite sur la période où vous paierez vos fournisseurs (CGI art. 271, I-2), sauf pour un fournisseur qui a opté pour les débits.`,
     })
   }
 

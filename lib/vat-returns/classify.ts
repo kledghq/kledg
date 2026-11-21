@@ -33,6 +33,9 @@
  *   return and its payment, never an operation of the period;
  * - 44586 and 44587 (VAT on invoices not received or to issue): accruals
  *   of a closing, not due yet, left out;
+ * - 44588 "TVA déductible en attente de paiement": VAT of purchased
+ *   services not paid yet (CGI art. 271, I-2), not deductible yet, left
+ *   out; the payment moves it to 44566, deducted then (#120);
  * - any other 445 account (44568 and 44578 taxes assimilées, 44583
  *   refund requested, 44584...) is reported as not handled.
  *
@@ -154,6 +157,8 @@ export interface VatMovements {
   nonTaxedSalesCents: number
   /** VAT credited to 44574 in the period, due when the customers pay (informative). */
   pendingCollectedCents: number
+  /** VAT debited to 44588 in the period, deductible when the suppliers are paid (informative). */
+  pendingDeductibleCents: number
   /** Acomptes of the réel simplifié paid (44581 debits): CA12 line 30. */
   acomptesPaidCents: number
   /** Movements on VAT accounts the return does not read. */
@@ -182,6 +187,7 @@ export const isCreditCarriedCode = (code: string) => code.startsWith('44567')
 export const isAcompteCode = (code: string) => code.startsWith('44581')
 export const isToPayCode = (code: string) => code.startsWith('4455')
 const isAccrualCode = (code: string) => starts(code, '44586', '44587')
+const isPendingDeductibleCode = (code: string) => code.startsWith('44588')
 
 /** Opening (AN) and closing (CL) entries carry balances, not operations of the period. */
 export function isBalanceEntry(entry: Pick<VatEntry, 'journalCode' | 'reference'>): boolean {
@@ -326,6 +332,7 @@ function emptyMovements(): VatMovements {
     coefficientComplementCents: 0,
     nonTaxedSalesCents: 0,
     pendingCollectedCents: 0,
+    pendingDeductibleCents: 0,
     acomptesPaidCents: 0,
     unhandled: [],
     groups: { collected: 0, autoliquidation: 0, deductibleFixedAssets: 0, deductibleOther: 0 },
@@ -349,6 +356,7 @@ export function classifyEntries(entries: VatEntry[]): VatMovements {
     m.groups.collected += collected
     m.groups.autoliquidation += autoliquidated
     m.pendingCollectedCents += pending
+    m.pendingDeductibleCents += net(lines, isPendingDeductibleCode)
 
     if (collected > 0) {
       const split = collectedSplit(entry, collected, revenue)
@@ -414,7 +422,8 @@ export function classifyEntries(entries: VatEntry[]): VatMovements {
         isDeductibleOtherCode(code) ||
         isTransferredCode(code) ||
         isAcompteCode(code) ||
-        isAccrualCode(code)
+        isAccrualCode(code) ||
+        isPendingDeductibleCode(code)
       ) {
         continue
       }

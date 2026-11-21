@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { computeInvoiceTotals } from '../amounts'
 import { planInvoiceEntry, vatAccountsNeeded, type PlanInput, type PlanLine } from '../posting-plan'
 
-const VAT = { deductible: 'acc-44566', deductibleFixedAssets: 'acc-44562', collected: 'acc-44571', collectedPending: 'acc-44574' }
+const VAT = { deductible: 'acc-44566', deductibleFixedAssets: 'acc-44562', deductiblePending: 'acc-44588', collected: 'acc-44571', collectedPending: 'acc-44574' }
 
 function input(direction: 'SALE' | 'PURCHASE', lines: Array<Omit<PlanLine, 'totalExclTaxCents'> & { quantity: number; unitPriceCents: number }>, over: Partial<PlanInput> = {}): PlanInput {
   const totals = computeInvoiceTotals(lines.map((l) => ({ quantityThousandths: l.quantity * 1000, unitPriceCents: l.unitPriceCents, vatRateBp: l.vatRateBp })))
@@ -47,7 +47,7 @@ describe('purchase invoice with several rates', () => {
       { label: 'Fournitures', quantity: 2, unitPriceCents: 4999, vatRateBp: 2000, accountId: 'acc-6064', nature: 'GOODS', fixedAsset: false },
       { label: 'Livres', quantity: 1, unitPriceCents: 1234, vatRateBp: 550, accountId: 'acc-6068', nature: 'GOODS', fixedAsset: false },
       { label: 'Transport', quantity: 1, unitPriceCents: 999, vatRateBp: 1000, accountId: 'acc-6241', nature: 'SERVICES', fixedAsset: false },
-    ]),
+    ], { supplierVatOnDebits: true }),
   )
 
   it('credits 401 with the total including tax and the auxiliary account', () => {
@@ -67,6 +67,34 @@ describe('purchase invoice with several rates', () => {
   it('balances to the cent and leaves nothing pending', () => {
     expect(sum(plan.lines, 'debitCents')).toBe(sum(plan.lines, 'creditCents'))
     expect(plan.pendingVatCents).toBe(0)
+  })
+})
+
+describe('purchased services: VAT deductible once paid (CGI art. 271, I-2; #120)', () => {
+  const lines = [
+    { label: 'Honoraires', quantity: 1, unitPriceCents: 1_000_000, vatRateBp: 2000, accountId: 'acc-6226', nature: 'SERVICES' as const, fixedAsset: false },
+    { label: 'Fournitures', quantity: 1, unitPriceCents: 10_000, vatRateBp: 2000, accountId: 'acc-6064', nature: 'GOODS' as const, fixedAsset: false },
+  ]
+
+  it('debits the VAT of the services to 44588, waiting for the payment, and the VAT of the goods to 44566', () => {
+    const plan = planInvoiceEntry(input('PURCHASE', lines))
+    const accounts = byAccount(plan.lines)
+    expect(accounts['acc-44588']).toEqual({ debit: 200_000, credit: 0 })
+    expect(accounts['acc-44566']).toEqual({ debit: 2_000, credit: 0 })
+    expect(plan.pendingVatCents).toBe(200_000)
+    expect(plan.lines.find((l) => l.vat === 'deductiblePending')?.description).toContain('en attente de paiement')
+    expect(vatAccountsNeeded({ ...input('PURCHASE', lines) }).sort()).toEqual(['deductible', 'deductiblePending'])
+  })
+
+  it('deducts it on the invoice when the supplier opted for debits', () => {
+    const plan = planInvoiceEntry(input('PURCHASE', lines, { supplierVatOnDebits: true }))
+    expect(byAccount(plan.lines)['acc-44566']).toEqual({ debit: 202_000, credit: 0 })
+    expect(plan.pendingVatCents).toBe(0)
+  })
+
+  it('credits 44588 on a supplier credit note for services', () => {
+    const plan = planInvoiceEntry(input('PURCHASE', [lines[0]], { typeCode: '381' }))
+    expect(byAccount(plan.lines)['acc-44588']).toEqual({ debit: 0, credit: 200_000 })
   })
 })
 
@@ -185,7 +213,7 @@ describe('partly exempt buyer (coefficient de déduction, CGI ann. II art. 205 a
 
   it('deducts 60 % of the VAT and charges the rest to the lines in proportion to their bases', () => {
     // VAT 80,00: 48,00 deducted, 32,00 split 24,00 / 8,00 on bases of 300 and 100
-    const plan = planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 60 }))
+    const plan = planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 60, supplierVatOnDebits: true }))
     expect(byAccount(plan.lines)).toEqual({
       'acc-401': { debit: 0, credit: 48_000 },
       'acc-6064': { debit: 32_400, credit: 0 },
@@ -196,13 +224,13 @@ describe('partly exempt buyer (coefficient de déduction, CGI ann. II art. 205 a
   })
 
   it('needs no VAT account and deducts nothing at 0 %, all of it at 100 %', () => {
-    expect(vatAccountsNeeded(input('PURCHASE', lines, { deductionPercent: 0 }))).toEqual([])
-    expect(byAccount(planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 0 })).lines)['acc-44566']).toBeUndefined()
-    expect(byAccount(planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 100 })).lines)['acc-44566']).toEqual({ debit: 8_000, credit: 0 })
+    expect(vatAccountsNeeded(input('PURCHASE', lines, { deductionPercent: 0, supplierVatOnDebits: true }))).toEqual([])
+    expect(byAccount(planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 0, supplierVatOnDebits: true })).lines)['acc-44566']).toBeUndefined()
+    expect(byAccount(planInvoiceEntry(input('PURCHASE', lines, { deductionPercent: 100, supplierVatOnDebits: true })).lines)['acc-44566']).toEqual({ debit: 8_000, credit: 0 })
   })
 
   it('rounds the deductible VAT half up: 33 % of 0,10 € is 0,03 €', () => {
-    const plan = planInvoiceEntry(input('PURCHASE', [{ ...lines[0], unitPriceCents: 50 }], { deductionPercent: 33 }))
+    const plan = planInvoiceEntry(input('PURCHASE', [{ ...lines[0], unitPriceCents: 50 }], { deductionPercent: 33, supplierVatOnDebits: true }))
     expect(byAccount(plan.lines)['acc-44566']).toEqual({ debit: 3, credit: 0 })
     expect(byAccount(plan.lines)['acc-6064']).toEqual({ debit: 57, credit: 0 })
   })

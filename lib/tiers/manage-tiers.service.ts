@@ -70,6 +70,8 @@ const fields = {
   defaultAccountCode: optionalText(20),
   defaultVatRateBp: z.number().int().min(0).max(10000).nullable().optional(),
   paymentTerms: termsSchema.optional(),
+  /** Supplier that opted for VAT on debits (CGI art. 269, 2, c): its services VAT is deducted on the invoice. */
+  vatOnDebits: z.boolean().optional(),
   address: addressSchema.optional(),
   notes: optionalText(2000),
 }
@@ -104,6 +106,7 @@ export const TIERS_SELECT = {
   defaultVatRateBp: true,
   paymentTermsDays: true,
   paymentTermsEndOfMonth: true,
+  vatOnDebits: true,
   qontoId: true,
   notes: true,
   updatedAt: true,
@@ -283,6 +286,7 @@ export async function createTiers(
         defaultVatRateBp: input.defaultVatRateBp ?? null,
         paymentTermsDays: checked.paymentTermsDays ?? null,
         paymentTermsEndOfMonth: checked.paymentTermsEndOfMonth ?? null,
+        vatOnDebits: input.kind === 'SUPPLIER' ? (input.vatOnDebits ?? false) : false,
         qontoId: input.qontoId ?? null,
         notes: input.notes ?? null,
         addressId: address?.id ?? null,
@@ -329,6 +333,7 @@ export async function updateTiers(companyId: string, id: string, input: UpdateTi
         ...(checked.defaultAccountCode !== undefined ? { defaultAccountCode: checked.defaultAccountCode } : {}),
         ...(input.defaultVatRateBp !== undefined ? { defaultVatRateBp: input.defaultVatRateBp } : {}),
         ...(checked.paymentTermsDays !== undefined ? { paymentTermsDays: checked.paymentTermsDays, paymentTermsEndOfMonth: checked.paymentTermsEndOfMonth } : {}),
+        ...(input.vatOnDebits !== undefined && current.kind === 'SUPPLIER' ? { vatOnDebits: input.vatOnDebits } : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
         ...(addressId !== undefined ? { addressId } : {}),
       },

@@ -1886,6 +1886,10 @@ model Tiers {
   /// Payment terms of the tiers; null: the company's (Code de commerce art. L441-10).
   paymentTermsDays       Int?
   paymentTermsEndOfMonth Boolean?
+  /// A supplier that opted to pay VAT on its services on debits (CGI art.
+  /// 269, 2, c, mention on its invoices): their VAT is deducted on the
+  /// invoice. Otherwise it is deductible once paid (CGI art. 271, I-2).
+  vatOnDebits            Boolean   @default(false)
   /// Id of the client or supplier at Qonto (idempotent import).
   qontoId                String?
   /// Origin of the training revenue of this customer in the bilan

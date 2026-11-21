@@ -43,7 +43,7 @@ import { accountByRoot } from './ledger-accounts'
 import { INVOICE_NOT_FOUND, lockInvoice } from './manage-invoices.service'
 import { VAT_ACCOUNT_ROOTS } from './post-invoice.service'
 import { checkApprovedState } from '@/lib/approved-state/guard'
-import { createVatTransfer } from './vat-transfer'
+import { createVatTransfer, movedVatCents, pendingVatOf, pendingVatRoot } from './vat-transfer'
 
 type Db = Prisma.TransactionClient | typeof prisma
 
@@ -97,9 +97,9 @@ async function loadSettlement(db: Db, companyId: string, invoiceId: string) {
     (l) => (l.account.code.startsWith('40') || l.account.code.startsWith('41')) && l.auxiliaryAccountNumber === invoice.tiers.auxiliaryAccountNumber,
   )
   if (!tiersLine) throw new ConflictError('L’écriture de cette facture n’a plus de ligne de tiers : vérifiez-la dans Écritures.')
-  const pendingVatCents = invoice.entry.lines
-    .filter((l) => l.account.code.startsWith('44574'))
-    .reduce((sum, l) => sum + cents(l.credit) - cents(l.debit), 0)
+  // VAT waiting for the payment: 44574 on a sale, 44588 on a purchase of services (vat-transfer.ts)
+  const pendingRoot = pendingVatRoot(invoice.direction)
+  const pendingVatCents = pendingVatOf(invoice.direction, invoice.entry.lines.filter((l) => l.account.code.startsWith(pendingRoot)))
   const totalCents = cents(invoice.totalInclTax)
   const paidCents = invoice.payments.reduce((sum, p) => sum + cents(p.amount), 0)
   // The invoice line is a debit (sale, purchase credit note) or a credit; a payment sits on the other side.
@@ -269,19 +269,19 @@ export async function recordInvoicePayment(
       throw new ValidationError('Ce mouvement n’est pas rapproché avec une transaction bancaire : rapprochez d’abord la transaction du règlement.')
     }
 
-    // VAT on receipts: move the VAT of this payment from 44574 to 44571, in the payment's fiscal year.
+    // VAT due or deductible on payment: move the VAT of this payment (44574 to 44571, or 44588 to 44566), in the payment's fiscal year.
     let vatTransferEntryId: string | null = null
-    if (invoice.direction === 'SALE' && pendingVatCents !== 0) {
-      const moved = await tx.entryLine.findMany({
-        where: { accountingEntry: { vatTransfers: { some: { invoiceId } } }, account: { code: { startsWith: '44574' } } },
-        select: { debit: true, credit: true },
-      })
-      const movedCents = moved.reduce((sum, l) => sum + cents(l.debit) - cents(l.credit), 0)
+    if (pendingVatCents !== 0) {
+      const movedCents = await movedVatCents(
+        tx,
+        invoice.direction,
+        invoice.payments.map((p) => p.vatTransferEntryId).filter((id): id is string => !!id),
+      )
       const share =
         amountCents === remaining
           ? pendingVatCents - movedCents
           : Number((BigInt(pendingVatCents) * BigInt(2 * amountCents) + BigInt(totalCents)) / BigInt(2 * totalCents))
-      if (share !== 0) vatTransferEntryId = await createVatTransfer(tx, companyId, line.accountingEntry, invoice.number ?? '', share)
+      if (share !== 0) vatTransferEntryId = await createVatTransfer(tx, companyId, line.accountingEntry, { number: invoice.number ?? '', direction: invoice.direction }, share)
     }
 
     const payment = await tx.invoicePayment.create({

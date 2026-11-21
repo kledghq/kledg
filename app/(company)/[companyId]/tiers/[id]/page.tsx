@@ -22,6 +22,7 @@ interface TiersData {
   defaultVatRateBp: number | null
   paymentTermsDays: number | null
   paymentTermsEndOfMonth: boolean | null
+  vatOnDebits: boolean
   notes: string | null
   address: { street: string; postalCode: string; city: string; country: string } | null
   _count: { invoices: number }
@@ -42,6 +43,7 @@ function toValues(t: TiersData): TiersFormValues {
     ownTerms: t.paymentTermsDays !== null,
     termsDays: String(t.paymentTermsDays ?? 30),
     termsEndOfMonth: t.paymentTermsEndOfMonth ?? false,
+    vatOnDebits: t.vatOnDebits,
     street: t.address?.street ?? '',
     postalCode: t.address?.postalCode ?? '',
     city: t.address?.city ?? '',
