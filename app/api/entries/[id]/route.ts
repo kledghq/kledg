@@ -60,14 +60,8 @@ export const PATCH = companyRoute(
 export const DELETE = companyRoute(
   { company: fromResource(companyOfEntry), permission: { entries: ['delete'] } },
   async ({ params, companyId }) => {
-    const entry = await deleteDraftEntry(companyId, params.id as string)
-
-    await writeAuditLog('info', `Accounting entry deleted: ${entry.description || entry.reference || entry.id}`, {
-      action: 'DELETE_ACCOUNTING_ENTRY',
-      companyId,
-      metadata: { entryId: entry.id, description: entry.description, reference: entry.reference },
-    })
-
+    // The audit row is written in the deletion's transaction (deleteDraftEntry, #161)
+    await deleteDraftEntry(companyId, params.id as string)
     return NextResponse.json({ success: true })
   },
 )

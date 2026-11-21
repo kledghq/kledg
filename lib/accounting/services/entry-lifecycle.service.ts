@@ -15,6 +15,7 @@
  * Every write goes through assertEntryWritableInFiscalYear (closed years).
  */
 
+import { writeAuditLogInTx } from '@/lib/audit/in-transaction'
 import { CLOSING_JOURNAL, OPENING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -516,7 +517,14 @@ export async function deleteDraftEntry(companyId: string, entryId: string): Prom
   return prisma.$transaction(async (db) => {
     // An approved MCP action deletes the draft as the user saw it (KLEDG-R3-MCP-01)
     await checkApprovedState(db, { kind: 'entry', companyId, id: entryId })
-    return deleteDraftEntryInTx(db, companyId, entryId)
+    const entry = await deleteDraftEntryInTx(db, companyId, entryId)
+    // In the transaction: the deletion and its audit row commit together (#161)
+    await writeAuditLogInTx(db, 'info', `Accounting entry deleted: ${entry.description || entry.reference || entry.id}`, {
+      action: 'DELETE_ACCOUNTING_ENTRY',
+      companyId,
+      metadata: { entryId: entry.id, description: entry.description, reference: entry.reference },
+    })
+    return entry
   }, TX_OPTIONS)
 }
 

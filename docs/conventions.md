@@ -298,7 +298,11 @@ it must hold for every code path, by the database (trigger in a migration).
   degraded paths, `debug` for development traces (silent in production).
 - **Audit business operations** with `writeAuditLog` (`lib/audit`) from the
   route or service: action code, company, ids. Never log secrets, tokens,
-  full bank payloads or personal data beyond ids.
+  full bank payloads or personal data beyond ids. `writeAuditLog` runs
+  after the operation and swallows its errors; an accounting event that
+  must exist whenever the operation committed (closing, period lock, draft
+  deletion) is written with `writeAuditLogInTx` (`lib/audit/in-transaction.ts`)
+  in the operation's transaction.
 
 ## Security
 
