@@ -21,8 +21,10 @@
  *   contre-passation (PCG art. 1031-3), not here.
  */
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
+import { ensureAccounts, ensureJournal } from '@/lib/accounting/fiscal-year-closure/ledger'
+import { loadRootAccount } from '@/lib/accounting/root-account'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { assertEntryWritableInFiscalYear, fiscalYearContaining, GUARDED_FISCAL_YEAR_SELECT } from '@/lib/accounting/entry-guards'
 import { createEntryInTx, deleteDraftEntryInTx } from '@/lib/accounting/services/entry-lifecycle.service'
@@ -43,6 +45,20 @@ export const VAT_ACCOUNT_ROOTS: Record<VatAccountKey, { root: string; label: str
   deductibleFixedAssets: { root: '44562', label: 'TVA sur immobilisations' },
   collected: { root: '44571', label: 'TVA collectée' },
   collectedPending: { root: '44574', label: 'TVA collectée en attente d’encaissement' },
+  deductiblePending: { root: '44588', label: 'TVA déductible en attente de paiement' },
+}
+
+/**
+ * 44588, the account Kledg posts the VAT of services waiting for their
+ * payment to: a subdivision of 4458 the PCG list does not name (PCG art.
+ * 933-1 lets the company open it), created in the fiscal year when the
+ * chart does not have it, so posting a purchase never fails on it.
+ */
+export async function pendingDeductibleAccountId(tx: Prisma.TransactionClient, companyId: string, fiscalYear: { id: string; year: number }): Promise<string> {
+  const { root, label } = VAT_ACCOUNT_ROOTS.deductiblePending
+  const found = await loadRootAccount(tx, companyId, fiscalYear.id, root)
+  if (found) return found.id
+  return (await ensureAccounts(tx, companyId, fiscalYear.id, [{ code: root, label }])).get(root)!
 }
 
 /** Revenue account of a sale line without one: 706 for services, 707 for goods (PCG art. 932-1). */
@@ -90,7 +106,7 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
         typeCode: true,
         issueDate: true,
         totalInclTax: true,
-        tiers: { select: { name: true, auxiliaryAccountNumber: true, collectiveAccountCode: true, defaultAccountCode: true } },
+        tiers: { select: { name: true, auxiliaryAccountNumber: true, collectiveAccountCode: true, defaultAccountCode: true, vatOnDebits: true } },
         lines: { orderBy: { position: 'asc' }, select: { label: true, totalExclTax: true, vatRateBp: true, accountCode: true, nature: true, fixedAsset: true } },
         vatBreakdown: { select: { vatRateBp: true, baseAmount: true, vatAmount: true } },
       },
@@ -156,13 +172,17 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
       lines: planLines,
       breakdown,
       servicesVatOnDebits: company.servicesVatOnDebits,
+      supplierVatOnDebits: invoice.tiers.vatOnDebits,
       vatExempt: company.isVatExempt && deductionPercent === undefined,
       deductionPercent,
     })
     const vatAccounts: Partial<Record<VatAccountKey, string>> = {}
     for (const key of needed) {
       const { root, label } = VAT_ACCOUNT_ROOTS[key]
-      vatAccounts[key] = (await accountByRoot(tx, companyId, fiscalYear, root, label)).id
+      vatAccounts[key] =
+        key === 'deductiblePending'
+          ? await pendingDeductibleAccountId(tx, companyId, fiscalYear)
+          : (await accountByRoot(tx, companyId, fiscalYear, root, label)).id
     }
 
     // Last check passed: the series gives the number now, in this transaction.
@@ -184,6 +204,7 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
       tiers: { accountId: tiersAccount.id, auxiliaryAccountNumber: invoice.tiers.auxiliaryAccountNumber, name: invoice.tiers.name },
       vatAccounts,
       servicesVatOnDebits: company.servicesVatOnDebits,
+      supplierVatOnDebits: invoice.tiers.vatOnDebits,
       vatExempt: company.isVatExempt && deductionPercent === undefined,
       deductionPercent,
     })

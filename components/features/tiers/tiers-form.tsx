@@ -38,6 +38,7 @@ const schema = z
     ownTerms: z.boolean(),
     termsDays: z.string(),
     termsEndOfMonth: z.boolean(),
+    vatOnDebits: z.boolean(),
     street: z.string(),
     postalCode: z.string(),
     city: z.string(),
@@ -88,6 +89,7 @@ const EMPTY_TIERS: TiersFormValues = {
   ownTerms: false,
   termsDays: '30',
   termsEndOfMonth: false,
+  vatOnDebits: false,
   street: '',
   postalCode: '',
   city: '',
@@ -140,6 +142,7 @@ export function TiersForm({ companyId, tiersId, initial, locked = false, canWrit
       defaultAccountCode: text(values.defaultAccountCode),
       defaultVatRateBp: values.defaultVatRateBp === NO_RATE ? null : Number(values.defaultVatRateBp),
       paymentTerms: values.ownTerms ? { days: Number(values.termsDays), endOfMonth: values.termsEndOfMonth } : null,
+      ...(values.kind === 'SUPPLIER' ? { vatOnDebits: values.vatOnDebits } : {}),
       address: values.street.trim()
         ? { street: values.street.trim(), postalCode: values.postalCode.trim(), city: values.city.trim(), country: values.country.trim().toUpperCase() || 'FR' }
         : null,
@@ -299,6 +302,25 @@ export function TiersForm({ companyId, tiersId, initial, locked = false, canWrit
                 </div>
               ) : null}
             </div>
+            {kind === 'SUPPLIER' ? (
+              <div className="sm:col-span-2">
+                <Controller
+                  control={control}
+                  name="vatOnDebits"
+                  render={({ field }) => (
+                    <label className="flex items-start gap-2 text-sm">
+                      <Checkbox className="mt-0.5" checked={field.value} onCheckedChange={(c) => field.onChange(c === true)} />
+                      <span>
+                        Ce fournisseur a opté pour le paiement de la TVA d’après les débits
+                        <span className="block text-muted-foreground">
+                          La mention figure sur ses factures. Sa TVA sur prestations est alors déduite à la facture ; sinon elle est déduite au paiement (CGI, art. 271 et 269).
+                        </span>
+                      </span>
+                    </label>
+                  )}
+                />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

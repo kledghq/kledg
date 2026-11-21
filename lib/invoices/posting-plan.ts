@@ -10,6 +10,14 @@
  *   each line's total excluding tax;
  * - deductible VAT, debit per rate: 44566 "TVA sur autres biens et
  *   services", or 44562 "TVA sur immobilisations" for fixed asset lines.
+ *   The VAT of services is deductible once paid (CGI art. 271, I-2: the
+ *   right to deduct arises when the tax is due at the supplier, on receipt
+ *   of the price, art. 269, 2, c; BOI-TVA-DED-20-10-20): until the payment
+ *   it waits in 44588 "TVA déductible en attente de paiement" (subdivision
+ *   of 4458 "taxes à régulariser ou en attente"), moved to 44566 when the
+ *   payment is recorded or the invoice lettered (vat-transfer.ts), unless
+ *   the supplier opted for debits (Tiers.vatOnDebits, a mention of its
+ *   invoices). Fixed asset lines keep 44562 on the invoice (#120).
  *   A company under the VAT franchise (CGI art. 293 B) deducts nothing: the
  *   VAT is part of the cost of each line. A partly exempt company deducts
  *   the share of its coefficient de déduction (CGI ann. II art. 205), the
@@ -35,7 +43,7 @@
 import { ValidationError } from '@/lib/accounting/errors'
 import { allocateCents, formatVatRate, type VatBreakdownRow } from './amounts'
 
-export type VatAccountKey = 'deductible' | 'deductibleFixedAssets' | 'collected' | 'collectedPending'
+export type VatAccountKey = 'deductible' | 'deductibleFixedAssets' | 'deductiblePending' | 'collected' | 'collectedPending'
 
 export interface PlanLine {
   label: string
@@ -59,6 +67,8 @@ export interface PlanInput {
   vatAccounts: Partial<Record<VatAccountKey, string>>
   /** The company opted to pay VAT on services on debits (CGI art. 269, 2, c). */
   servicesVatOnDebits: boolean
+  /** Purchase: the supplier opted for debits, its services VAT is deducted on the invoice. Absent: no option. */
+  supplierVatOnDebits?: boolean
   /** VAT franchise (CGI art. 293 B): no VAT deducted on purchases. */
   vatExempt: boolean
   /**
@@ -83,29 +93,39 @@ export interface PlannedLine {
 
 export interface PostingPlan {
   lines: PlannedLine[]
-  /** VAT credited to 44574, waiting for the payment. */
+  /** VAT waiting for the payment: credited to 44574 (sale) or debited to 44588 (purchase). */
   pendingVatCents: number
 }
 
-function vatKeyOf(direction: PlanInput['direction'], line: Pick<PlanLine, 'nature' | 'fixedAsset'>, servicesVatOnDebits: boolean): VatAccountKey {
-  if (direction === 'PURCHASE') return line.fixedAsset ? 'deductibleFixedAssets' : 'deductible'
-  return line.nature === 'SERVICES' && !servicesVatOnDebits ? 'collectedPending' : 'collected'
+function vatKeyOf(
+  input: Pick<PlanInput, 'direction' | 'servicesVatOnDebits' | 'supplierVatOnDebits'>,
+  line: Pick<PlanLine, 'nature' | 'fixedAsset'>,
+): VatAccountKey {
+  if (input.direction === 'PURCHASE') {
+    if (line.fixedAsset) return 'deductibleFixedAssets'
+    return line.nature === 'SERVICES' && !input.supplierVatOnDebits ? 'deductiblePending' : 'deductible'
+  }
+  return line.nature === 'SERVICES' && !input.servicesVatOnDebits ? 'collectedPending' : 'collected'
 }
 
+const PENDING_KEYS: ReadonlySet<VatAccountKey> = new Set(['collectedPending', 'deductiblePending'])
+
 /** VAT accounts an invoice needs, to resolve before planning. */
-export function vatAccountsNeeded(input: Pick<PlanInput, 'direction' | 'lines' | 'breakdown' | 'servicesVatOnDebits' | 'vatExempt' | 'deductionPercent'>): VatAccountKey[] {
+export function vatAccountsNeeded(
+  input: Pick<PlanInput, 'direction' | 'lines' | 'breakdown' | 'servicesVatOnDebits' | 'supplierVatOnDebits' | 'vatExempt' | 'deductionPercent'>,
+): VatAccountKey[] {
   if (input.direction === 'PURCHASE' && (input.vatExempt || input.deductionPercent === 0)) return []
   const keys = new Set<VatAccountKey>()
   for (const row of input.breakdown) {
     if (row.vatCents === 0) continue
     for (const line of input.lines) {
-      if (line.vatRateBp === row.vatRateBp) keys.add(vatKeyOf(input.direction, line, input.servicesVatOnDebits))
+      if (line.vatRateBp === row.vatRateBp) keys.add(vatKeyOf(input, line))
     }
   }
   return [...keys]
 }
 
-const KEY_ORDER: VatAccountKey[] = ['deductible', 'deductibleFixedAssets', 'collected', 'collectedPending']
+const KEY_ORDER: VatAccountKey[] = ['deductible', 'deductibleFixedAssets', 'deductiblePending', 'collected', 'collectedPending']
 
 export function planInvoiceEntry(input: PlanInput): PostingPlan {
   if (input.lines.length === 0) throw new ValidationError('La facture n’a aucune ligne : ajoutez au moins une ligne avant de la comptabiliser.')
@@ -149,7 +169,7 @@ export function planInvoiceEntry(input: PlanInput): PostingPlan {
     if (deductible === 0) continue
     const groups = new Map<VatAccountKey, number>()
     for (const i of indexes) {
-      const key = vatKeyOf(input.direction, input.lines[i], input.servicesVatOnDebits)
+      const key = vatKeyOf(input, input.lines[i])
       groups.set(key, (groups.get(key) ?? 0) + input.lines[i].totalExclTaxCents)
     }
     const keys = KEY_ORDER.filter((key) => groups.has(key))
@@ -158,11 +178,11 @@ export function planInvoiceEntry(input: PlanInput): PostingPlan {
       if (amounts[k] === 0) return
       const accountId = input.vatAccounts[key]
       if (!accountId) throw new ValidationError('Compte de TVA introuvable pour cette facture.')
-      if (key === 'collectedPending') pendingVatCents += amounts[k]
+      if (PENDING_KEYS.has(key)) pendingVatCents += amounts[k]
       vatLines.push({
         accountId,
         ...side(amounts[k], 'debit'),
-        description: `${input.description}, TVA ${formatVatRate(row.vatRateBp)}${key === 'collectedPending' ? ' en attente d’encaissement' : ''}`,
+        description: `${input.description}, TVA ${formatVatRate(row.vatRateBp)}${key === 'collectedPending' ? ' en attente d’encaissement' : key === 'deductiblePending' ? ' en attente de paiement' : ''}`,
         vat: key,
       })
     })
