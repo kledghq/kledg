@@ -7,7 +7,7 @@ import type { Prisma } from '@prisma/client'
 import { createEntryInTx } from '../services/entry-lifecycle.service'
 import { journalByCode } from '../journal-by-code'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
-import { addUtcDays, lastDayOfMonth, utcDate } from '@/lib/utils/date'
+import { addUtcDays, calendarDayOf, formatIsoDateFr, lastDayOfMonth, utcDate } from '@/lib/utils/date'
 import type { ClosingAccountBalance, ClosingLine } from './closing-entries'
 
 export type Tx = Prisma.TransactionClient
@@ -180,6 +180,7 @@ export async function createValidatedEntry(
     reference: input.reference,
     ...(input.pieceDate && { pieceDate: input.pieceDate }),
     status: 'validated',
+    closingEntry: true,
     lines: input.lines.map((line) => {
       const accountId = input.accountIds.get(line.code)
       if (!accountId) throw new Error(`Account ${line.code} missing in fiscal year ${input.fiscalYearId}`)
@@ -196,6 +197,55 @@ export async function createValidatedEntry(
     select: { id: true, entryNumber: true },
   })
   return created
+}
+
+const HALF_DAY_MS = 12 * 60 * 60 * 1000
+
+/**
+ * The fiscal year that follows one ending on `endDate`: the one starting
+ * the next day, whatever its number (#125). A long year created for a
+ * change of closing date is the next year even when numbered year + 2.
+ */
+export async function findNextFiscalYear<S extends Prisma.FiscalYearSelect>(
+  client: Pick<Tx, 'fiscalYear'>,
+  companyId: string,
+  endDate: Date,
+  select: S,
+) {
+  const start = addUtcDays(endDate, 1)
+  return client.fiscalYear.findFirst({
+    where: { companyId, startDate: { gte: new Date(start.getTime() - HALF_DAY_MS), lt: new Date(start.getTime() + HALF_DAY_MS) } },
+    select,
+  })
+}
+
+/**
+ * Why the closing cannot create the next fiscal year on these dates: they
+ * overlap another year of the company, or its number is taken (#125).
+ * Null when it can.
+ */
+export async function nextFiscalYearConflict(
+  client: Pick<Tx, 'fiscalYear'>,
+  companyId: string,
+  year: number,
+  dates: { startDate: Date; endDate: Date },
+): Promise<string | null> {
+  const overlapping = await client.fiscalYear.findFirst({
+    where: {
+      companyId,
+      startDate: { lt: new Date(dates.endDate.getTime() + HALF_DAY_MS) },
+      endDate: { gt: new Date(dates.startDate.getTime() - HALF_DAY_MS) },
+    },
+    orderBy: { startDate: 'asc' },
+    select: { year: true, startDate: true, endDate: true },
+  })
+  const day = (d: Date) => formatIsoDateFr(calendarDayOf(d) ?? '')
+  if (overlapping) {
+    return `L'exercice suivant (du ${day(dates.startDate)} au ${day(dates.endDate)}) chevaucherait l'exercice ${overlapping.year} (du ${day(overlapping.startDate)} au ${day(overlapping.endDate)})\u00a0: corrigez les dates de l'exercice ${overlapping.year} pour qu'il commence le ${day(dates.startDate)}, le lendemain de la clôture.`
+  }
+  const taken = await client.fiscalYear.findFirst({ where: { companyId, year }, select: { startDate: true } })
+  if (taken) return `Le numéro d'exercice ${year} est déjà pris par un exercice qui ne commence pas le ${day(dates.startDate)}\u00a0: corrigez ses dates avant de clôturer.`
+  return null
 }
 
 /** Dates of the fiscal year after one ending on `endDate`: the next day to the same day a year later. */

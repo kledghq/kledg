@@ -46,7 +46,7 @@ export async function loadRevenueRows(companyId: string, from: string, to: strin
       JOIN "accounts" a ON a."id" = l."accountId"
       LEFT JOIN vat_entries v ON v."id" = e."id"
       WHERE e."companyId" = ${companyId} AND e."status" = 'validated' AND e."date" >= ${utc(from)} AND e."date" <= ${utc(to)}
-        AND a."code" LIKE '7%' AND j."code" NOT IN ('AN', 'CL') AND coalesce(e."reference", '') NOT LIKE 'CL-%'
+        AND a."code" LIKE '7%' AND j."code" NOT IN ('AN', 'CL')
       GROUP BY a."code"
       ORDER BY a."code"
     `,

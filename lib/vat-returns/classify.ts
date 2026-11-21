@@ -191,7 +191,7 @@ const isPendingDeductibleCode = (code: string) => code.startsWith('44588')
 
 /** Opening (AN) and closing (CL) entries carry balances, not operations of the period. */
 export function isBalanceEntry(entry: Pick<VatEntry, 'journalCode' | 'reference'>): boolean {
-  return entry.journalCode === 'AN' || entry.journalCode === 'CL' || (entry.reference?.startsWith('CL-') ?? false)
+  return entry.journalCode === 'AN' || entry.journalCode === 'CL'
 }
 
 /**

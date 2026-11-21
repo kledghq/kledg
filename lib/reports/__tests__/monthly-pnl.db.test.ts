@@ -70,6 +70,8 @@ async function seedCompany(slug: string, siren: string) {
       description: `${journal} ${date}`,
       reference: options.reference,
       status: options.status ?? 'validated',
+      // The closing entry of a year: the only one journal CL takes (#124)
+      closingEntry: journal === 'CL',
       lines: lines.map(([code, debit, credit]) => ({ accountId: accounts[year][code], debit, credit })),
     })
     return created.id

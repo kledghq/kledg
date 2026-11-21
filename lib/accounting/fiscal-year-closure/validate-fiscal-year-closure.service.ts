@@ -9,7 +9,7 @@ import { transactionOfCompany } from '@/lib/api/resources'
 import { endOfDay, formatTransactionDate, normalizeDate, startOfDay, todayUtc } from '@/lib/utils/date'
 import { CLOSING_JOURNAL, OPENING_JOURNAL } from './constants'
 import { applyLines, computeClosingEntry, computeOpeningEntry, OpeningEntryImbalanceError, type ClosingLine } from './closing-entries'
-import { loadYearBalances, type Tx } from './ledger'
+import { findNextFiscalYear, loadYearBalances, nextFiscalYearConflict, nextFiscalYearDates, type Tx } from './ledger'
 import { loadRecordedOpening, openingDifferences, openingDifferencesMessage } from './recorded-opening'
 import { GUARDED_FISCAL_YEAR_SELECT, isFiscalYearClosed } from '../entry-guards'
 import { findUnpostedDepreciation } from '@/lib/fixed-assets/depreciation-entries'
@@ -108,11 +108,12 @@ export async function validateFiscalYearClosure(
   // deleted first; validated ones (an imported FEC, balances entered by
   // hand) are kept and must bring forward the closing balances
   // (recorded-opening.ts).
-  const next = await client.fiscalYear.findFirst({
-    where: { companyId, year: fiscalYear.year + 1 },
-    select: GUARDED_FISCAL_YEAR_SELECT,
-  })
+  const next = await findNextFiscalYear(client as Tx, companyId, fiscalYear.endDate, GUARDED_FISCAL_YEAR_SELECT)
   if (next && isFiscalYearClosed(next)) errors.push(`L'exercice suivant (${next.year}) est déjà clôturé.`)
+  if (!next) {
+    const conflict = await nextFiscalYearConflict(client as Tx, companyId, fiscalYear.year + 1, nextFiscalYearDates(fiscalYear.endDate))
+    if (conflict) errors.push(conflict)
+  }
   if (next) {
     const draftOpenings = await client.accountingEntry.count({
       where: { companyId, fiscalYearId: next.id, status: 'draft', journal: { code: OPENING_JOURNAL.code } },
