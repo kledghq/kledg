@@ -175,7 +175,6 @@ describe('update_year_end_formalities', () => {
         meeting: { date: '2026-05-20' },
         size: { category: 'micro' },
         allocation: { dividends: 5000 },
-        approvedOn: '2026-05-20',
       }),
     )
     expect(guard.require).toHaveBeenCalledWith('c1', { closing: ['execute'] })
@@ -187,9 +186,8 @@ describe('update_year_end_formalities', () => {
       meeting: { place: 'Siège social', date: '2026-05-20' },
       size: { category: 'micro', employees: null },
       allocation: { dividendsCents: 500_000, otherReservesCents: 0 },
-      approvedOn: '2026-05-20',
     })
-    expect(data.changes.fields).toEqual(['approvedOn', 'meeting.date', 'size.category', 'allocation.dividends'])
+    expect(data.changes.fields).toEqual(['meeting.date', 'size.category', 'allocation.dividends'])
     expect(data.missing).toEqual([{ document: 'Procès-verbal', required: true, missing: ['Heure de la réunion'] }])
     expect(data.reviewUrl).toMatch(/\/c1\/approval$/)
   })
@@ -198,8 +196,14 @@ describe('update_year_end_formalities', () => {
     const bad = await tools().get('update_year_end_formalities')!({ companyId: 'c1', fiscalYearId: 'fy', size: { category: 'huge' } })
     expect(bad.isError).toBe(true)
     expect(bad.content[0].text).toContain('size.category')
-    vi.mocked(saveApproval).mockRejectedValueOnce(new ValidationError("La date d'approbation doit être postérieure à la clôture de l'exercice (31/12/2025)."))
-    const early = await tools().get('update_year_end_formalities')!({ companyId: 'c1', fiscalYearId: 'fy', approvedOn: '2025-06-01' })
-    expect(early).toEqual({ content: [{ type: 'text', text: "La date d'approbation doit être postérieure à la clôture de l'exercice (31/12/2025)." }], isError: true })
+    vi.mocked(saveApproval).mockRejectedValueOnce(new ValidationError("La date de l'assemblée ou de la décision doit être postérieure à la clôture de l'exercice (31/12/2025)."))
+    const early = await tools().get('update_year_end_formalities')!({ companyId: 'c1', fiscalYearId: 'fy', meeting: { date: '2025-06-01' } })
+    expect(early).toEqual({ content: [{ type: 'text', text: "La date de l'assemblée ou de la décision doit être postérieure à la clôture de l'exercice (31/12/2025)." }], isError: true })
+    // The approval and filing days are the user's to record in Kledg (#134)
+    for (const day of [{ approvedOn: '2026-05-20' }, { filedOn: '2026-06-01' }]) {
+      const refused = await tools().get('update_year_end_formalities')!({ companyId: 'c1', fiscalYearId: 'fy', ...day })
+      expect(refused.isError).toBe(true)
+      expect(refused.content[0].text).toContain('Approbation des comptes')
+    }
   })
 })

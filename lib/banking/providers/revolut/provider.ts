@@ -13,7 +13,7 @@
  */
 
 import { errorReason } from '@/lib/banking/errors'
-import { toUtcDateOnly } from '@/lib/utils/date'
+import { parisDateOnly } from '@/lib/utils/date'
 import type {
   BankProvider,
   ConnectionHealth,
@@ -40,7 +40,8 @@ export function mapRevolutTransaction(tx: RevolutTransaction, accountId: string)
       accountExternalId: accountId,
       amount: Math.abs(leg.amount),
       side: leg.amount < 0 ? ('debit' as const) : ('credit' as const),
-      date: toUtcDateOnly(tx.completed_at ?? tx.created_at),
+      // Day in France: Revolut returns instants in UTC (#129)
+      date: parisDateOnly(tx.completed_at ?? tx.created_at),
       state: stateOf(tx.state),
       status: tx.state,
       label: leg.description || tx.merchant?.name || tx.reference || tx.type,

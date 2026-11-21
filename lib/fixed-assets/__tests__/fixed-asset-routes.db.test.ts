@@ -228,7 +228,9 @@ describe.skipIf(!available)('fixed asset routes', () => {
     expect(record.amount).toBe('200.1')
 
     // Same period again: the record is replaced, not duplicated.
-    const replaced = await call(routes.records.POST, 'POST', path, { fiscalYearId: ids.fy, periodType: 'year', amount: 200.123 }, params)
+    // A third decimal is refused, never rounded (#135)
+    expect((await call(routes.records.POST, 'POST', path, { fiscalYearId: ids.fy, periodType: 'year', amount: 200.123 }, params)).status).toBe(400)
+    const replaced = await call(routes.records.POST, 'POST', path, { fiscalYearId: ids.fy, periodType: 'year', amount: 200.12 }, params)
     expect(((await replaced.json()) as { id: string; amount: string })).toMatchObject({ id: record.id, amount: '200.12' })
     ids.record = record.id
 
@@ -285,13 +287,14 @@ describe.skipIf(!available)('fixed asset routes', () => {
     expect(list.candidates[0]).toMatchObject({ id: entry.id, total: 200.12, looksLikeAmortization: true })
   })
 
-  it('unlinks and links a record, only to an entry of its fiscal year', async () => {
+  it('keeps a booked record linked to its validated entry, and links only to an entry of its fiscal year', async () => {
     const params = { id: ids.fixedAsset, entryId: ids.record }
     const path = `/api/fixed-assets/${ids.fixedAsset}/depreciation/${ids.record}`
     const entryId = (await prisma.fixedAssetDepreciation.findUniqueOrThrow({ where: { id: ids.record } })).accountingEntryId
 
+    // Unlinked, the next generation would book a second allowance (#135)
     const unlinked = await call(routes.record.PATCH, 'PATCH', path, { accountingEntryId: null }, params)
-    expect(((await unlinked.json()) as { accountingEntryId: string | null }).accountingEntryId).toBeNull()
+    expect(unlinked.status).toBe(409)
 
     const linked = await call(routes.record.PATCH, 'PATCH', path, { accountingEntryId: entryId }, params)
     expect(((await linked.json()) as { accountingEntryId: string | null }).accountingEntryId).toBe(entryId)

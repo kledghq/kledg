@@ -271,7 +271,10 @@ export function registerFullControlTool<S extends Shape, P, R>(
   const automatic = mode === 'automatic'
   const check = (companyId: string, permission: Permission) => (writeLevel ? guard.require(companyId, permission) : guard.requireFullControl(companyId, permission))
   const base = z.object({ companyId: companyIdInput, ...tool.input })
-  const inputSchema = tool.confirmation ? base.extend(automatic ? dryRunFields : confirmFields) : base
+  // A two-step tool refuses unknown keys (#133): "dry_run", "preview" or "confirm" dropped silently would
+  // run an irreversible action in automatic mode, and a client that kept the validation mode's schema
+  // (actionId) would execute instead of asking for approval.
+  const inputSchema = tool.confirmation ? base.extend(automatic ? dryRunFields : confirmFields).strict() : base
   const description = describeTool({
     summary: tool.confirmation ? tool.description.replace(TWO_STEP, stepFor(mode)) : tool.description,
     access: writeLevel ? 'write' : 'admin',
@@ -516,7 +519,7 @@ export function registerInstanceTool<S extends Shape, P, R>(
 ): void {
   const mode = access.executionMode
   const automatic = mode === 'automatic'
-  const inputSchema = z.object(tool.input).extend(automatic ? dryRunFields : confirmFields)
+  const inputSchema = z.object(tool.input).extend(automatic ? dryRunFields : confirmFields).strict()
   server.registerTool(
     tool.name,
     {
