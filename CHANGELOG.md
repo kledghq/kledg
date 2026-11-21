@@ -10,6 +10,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Journal d'audit (#161) : la clôture d'une période et la suppression d'un brouillon s'inscrivaient au journal d'audit après coup, et une écriture du journal qui échouait était ignorée. Elles s'y inscrivent maintenant dans la même transaction que l'opération, comme la clôture de l'exercice.
 - Écritures, montants négatifs (#146) : une ligne pouvait porter un montant négatif, exporté tel quel dans les colonnes Debit et Credit du FEC, alors que le sens porte le signe. La saisie le refuse maintenant ; les imports CSV, Excel et FEC le portent de l'autre côté en positif, l'export FEC fait de même pour les lignes déjà enregistrées et le contrôle du FEC signale un montant négatif.
 - Impôt sur les sociétés, arrondi (#141) : l'IS et la contribution sociale étaient calculés au centime (3 086,25 € pour 12 345 € à 25 %). Ils sont maintenant arrondis à l'euro, comme la 2065 et le relevé de solde 2572 (CGI art. 1657, 1 bis).
 - Exercices, durée (#139) : un exercice de cinq ans était accepté. Un exercice de plus de 24 mois est maintenant refusé, à la création, au changement de dates et à l'import d'un FEC (Code de commerce art. L123-12).
