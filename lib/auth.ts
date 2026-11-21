@@ -24,6 +24,7 @@ import { prisma } from './prisma'
 import { CLIENT_IP_HEADER } from './client-ip'
 import { logger } from './logger'
 import { resilientSingleton } from './resilient-singleton'
+import { RATE_LIMIT_RULES, withinRateLimit } from './rate-limit'
 
 /** Lifetime of the session cookie cache (see `session.cookieCache` below and docs/configuration.md). */
 export const SESSION_COOKIE_CACHE_SECONDS = 60
@@ -152,6 +153,13 @@ function createAuth() {
     // Only HTTP calls are checked; in-process calls (seed, admin services) are trusted.
     before: createAuthMiddleware(async (ctx) => {
       if (!ctx.request) return
+      // Sign-in attempts per address too, not only per IP (#151)
+      if (ctx.path === '/sign-in/email') {
+        const email = (ctx.body as { email?: unknown } | undefined)?.email
+        if (typeof email === 'string' && email && !(await withinRateLimit('sign-in-email', email.trim().toLowerCase()))) {
+          throw new APIError('TOO_MANY_REQUESTS', { message: RATE_LIMIT_RULES['sign-in-email'].message })
+        }
+      }
       // Restrictable actions (password, email, account, users) go through
       // the instance policy (lib/instance/policy.ts, everything allowed by
       // default). The session is only read for these rare paths.

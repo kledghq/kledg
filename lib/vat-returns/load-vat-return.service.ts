@@ -435,7 +435,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   // The credit of the previous return, with its settlement moved into this period (#122)
   const carriedCode = mainCode(opening, isCreditCarriedCode, '44567')
   const creditCarriedCents = Math.max(sumWhere(opening, isCreditCarriedCode) + sumWhere(movedSettlements, isCreditCarriedCode), 0)
-  const computation = computeVatReturn({ form: period.form, movements, creditCarriedCents })
+  const computation = computeVatReturn({ form: period.form, movements, creditCarriedCents, periodEnd: period.end })
 
   // Balances at the end of the period, without this period's settlement (classify left settlements out).
   const nets = periodNets(entries, reference)

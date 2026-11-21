@@ -14,6 +14,7 @@
  *   drops data that does not match its schema.
  */
 
+import { QUOTED_DATA_NOTICE } from '@/lib/ai-assist/prompts'
 import { readFileSync } from 'fs'
 import path from 'path'
 import vm from 'vm'
@@ -598,6 +599,8 @@ describe('requests of the message buttons', () => {
     const prompt = action.kind === 'message' ? action.prompt : ''
     expect(quoted(prompt)).toHaveLength(1)
     expect(prompt).toContain('transaction bancaire t1 ')
+    // The label reads as cited data, not as the user's words (#151)
+    expect(prompt.endsWith(QUOTED_DATA_NOTICE)).toBe(true)
   })
 
   it('quotes the label, counterparty and supplier of Retrouver la pièce', () => {

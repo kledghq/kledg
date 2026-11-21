@@ -45,6 +45,7 @@ import type { VatMovements, RateBucket } from './classify'
 import { DECLARED_RATES_BP } from './classify'
 import { CA12_LINES, CA3_LINES, RATE_LINES, type FormLineDef } from './forms'
 import type { VatForm } from './periods'
+import { lastSimplifiedReturn } from './regime'
 
 type LineStatus = 'computed' | 'manual' | 'total'
 
@@ -80,8 +81,10 @@ interface CA12Acomptes {
   paidCents: number
   /** Line 57: VAT of the year the next acomptes are computed on, whole euros. */
   nextBaseEuros: number
-  /** No acompte when that VAT is under 1 000 € (BOI-TVA-DECLA-20-20-30-10). */
+  /** No acompte when that VAT is under 1 000 € (BOI-TVA-DECLA-20-20-30-10), nor after the last CA12. */
   nextDue: boolean
+  /** The last CA12 (2026): the réel simplifié ends, the company files CA3 returns from January 2027 (regime.ts). */
+  regimeEnds: boolean
   /** 55 % in July and 40 % in December of the next year, whole euros. */
   nextJulyEuros: number
   nextDecemberEuros: number
@@ -99,6 +102,8 @@ export interface ComputeInput {
   movements: VatMovements
   /** Debit balance of 44567 before the period: the credit carried forward (CA3 line 22, CA12 line 24). */
   creditCarriedCents: number
+  /** Last day of the period (yyyy-mm-dd): a CA12 ending in 2026 or later announces no acompte. */
+  periodEnd?: string
 }
 
 /** Cents to whole euros, half up (notices: "les fractions d'euro supérieures ou égales à 0,50 sont comptées pour 1"). */
@@ -272,7 +277,8 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
   const l34 = l30 - l28 >= 0 ? l30 - l28 : 0
   const l35 = l29 + l34
   const l57 = Math.max(taxEuros - (l20.amount ?? 0), 0)
-  const nextDue = l57 >= ACOMPTE_THRESHOLD_EUROS
+  const regimeEnds = input.periodEnd !== undefined && lastSimplifiedReturn(input.periodEnd)
+  const nextDue = !regimeEnds && l57 >= ACOMPTE_THRESHOLD_EUROS
   const booksNetCents = grossCents - deductibleCents - Math.max(m.acomptesPaidCents, 0)
 
   const lines: VatReturnLine[] = [
@@ -305,7 +311,7 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
     total(L.L35, l35, Math.max(-booksNetCents, 0), 'Lignes 29 + 34 : crédit à reporter ligne 24 de la prochaine CA12 ou à imputer sur le prochain acompte.'),
     manual(L.L55, 'Taxes assimilées (lignes 36 à 94) : à remplir à la main.'),
     total(L.L56, l33, Math.max(booksNetCents, 0), 'Lignes 54 + 55 + Z5 : la TVA nette due, plus les taxes assimilées.'),
-    total(L.L57, l57, Math.max(taxCents - m.deductibleOtherCents, 0), 'Ligne 16 moins les lignes 11, 12 et 22 : 55 % en juillet et 40 % en décembre de l’année suivante.'),
+    total(L.L57, l57, Math.max(taxCents - m.deductibleOtherCents, 0), regimeEnds ? 'Ligne 16 moins les lignes 11, 12 et 22. Dernière CA12 : le régime simplifié est supprimé au 1er janvier 2027, aucun acompte n’est dû ensuite.' : 'Ligne 16 moins les lignes 11, 12 et 22 : 55 % en juillet et 40 % en décembre de l’année suivante.'),
   ]
   return {
     form: 'CA12',
@@ -315,6 +321,7 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
       paidCents: Math.max(m.acomptesPaidCents, 0),
       nextBaseEuros: l57,
       nextDue,
+      regimeEnds,
       nextJulyEuros: nextDue ? Math.floor((l57 * 55 + 50) / 100) : 0,
       nextDecemberEuros: nextDue ? Math.floor((l57 * 40 + 50) / 100) : 0,
     },
