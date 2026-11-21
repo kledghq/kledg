@@ -284,7 +284,7 @@ function taxOfGroup(taxableProfitCents: number, turnoverCents: number, parent: I
   const tax = taxAtRates(taxableProfitCents, eligible === true, REDUCED_RATE_PROFIT_CEILING_CENTS)
   const ifEligibleCents = eligible === null ? taxAtRates(taxableProfitCents, true, REDUCED_RATE_PROFIT_CEILING_CENTS).taxCents : null
   const exempt = turnoverCents < SOCIAL_CONTRIBUTION_TURNOVER_CENTS && parent.capitalPaidUp === true && parent.naturalPersons75 === true
-  const socialCents = exempt ? 0 : applyRate(Math.max(tax.taxCents - SOCIAL_CONTRIBUTION_ALLOWANCE_CENTS, 0), SOCIAL_CONTRIBUTION_RATE_BP)
+  const socialCents = exempt ? 0 : roundToEuro(applyRate(Math.max(tax.taxCents - SOCIAL_CONTRIBUTION_ALLOWANCE_CENTS, 0), SOCIAL_CONTRIBUTION_RATE_BP))
   return {
     taxableProfitCents,
     reducedRate: { applied: eligible === true, eligible, baseCents: tax.reducedBaseCents, taxCents: tax.reducedTaxCents },

@@ -187,7 +187,8 @@ export function computeCorporateTax(input: ComputeInput): CorporateTaxComputatio
     eligibility.turnoverAnnualCents < SOCIAL_CONTRIBUTION_TURNOVER_CENTS && input.capitalPaidUp === true && input.naturalPersons75 === true
   const allowanceCents = prorate(SOCIAL_CONTRIBUTION_ALLOWANCE_CENTS, input.duration)
   const socialBaseCents = exempt ? 0 : Math.max(tax.taxCents - allowanceCents, 0)
-  const socialCents = applyRate(socialBaseCents, SOCIAL_CONTRIBUTION_RATE_BP)
+  // In whole euros like the IS (CGI art. 1657, 1 bis)
+  const socialCents = roundToEuro(applyRate(socialBaseCents, SOCIAL_CONTRIBUTION_RATE_BP))
 
   // 5. Credits.
   const creditsCents = input.credits.reduce((s, c) => s + Math.max(c.amountCents, 0), 0)

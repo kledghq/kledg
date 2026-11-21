@@ -103,12 +103,17 @@ export function deficitCap(profitCents: number): number {
   return DEFICIT_CAP_BASE_CENTS + mulDivRound(profitCents - DEFICIT_CAP_BASE_CENTS, DEFICIT_CAP_EXCESS_SHARE_BP, 10_000)
 }
 
-/** IS at the rates of art. 219, I on a taxable profit, with the reduced rate up to `ceilingCents` when eligible. */
+/**
+ * IS at the rates of art. 219, I on a taxable profit, with the reduced rate
+ * up to `ceilingCents` when eligible. Each tax is rounded to the euro, 0,50 €
+ * counting for one (CGI art. 1657, 1 bis; the 2065 and the relevé de solde
+ * 2572 are filled in whole euros, #141).
+ */
 export function taxAtRates(profitCents: number, reducedRate: boolean, ceilingCents: number): { reducedBaseCents: number; normalBaseCents: number; reducedTaxCents: number; normalTaxCents: number; taxCents: number } {
   const profit = Math.max(profitCents, 0)
   const reducedBaseCents = reducedRate ? Math.min(profit, ceilingCents) : 0
   const normalBaseCents = profit - reducedBaseCents
-  const reducedTaxCents = applyRate(reducedBaseCents, REDUCED_RATE_BP)
-  const normalTaxCents = applyRate(normalBaseCents, NORMAL_RATE_BP)
+  const reducedTaxCents = roundToEuro(applyRate(reducedBaseCents, REDUCED_RATE_BP))
+  const normalTaxCents = roundToEuro(applyRate(normalBaseCents, NORMAL_RATE_BP))
   return { reducedBaseCents, normalBaseCents, reducedTaxCents, normalTaxCents, taxCents: reducedTaxCents + normalTaxCents }
 }

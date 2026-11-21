@@ -20,7 +20,7 @@
  *   refused as a whole (a FEC covers one fiscal year, LPF art. A47 A-1).
  */
 
-import { centsToFecAmount, sumCents } from '@/lib/utils/money'
+import { centsToFecAmount, sumCents, unsignedSides } from '@/lib/utils/money'
 import { isDayWithin, type CalendarDay } from '@/lib/accounting/entry-date'
 import { addIsoDays, formatIsoDateFr, lastDayOfMonth } from '@/lib/utils/date'
 import { isFiscalYearClosed, fiscalYearDays, type GuardedFiscalYear } from '@/lib/accounting/entry-guards'
@@ -280,11 +280,13 @@ export function planFecImport(lines: ParsedFecLine[], ctx: PlanContext): FecImpo
     const problems: string[] = []
     const planned: PlannedLine[] = []
     for (const line of g.lines) {
-      const debit = parseFecAmount(line.Debit)
-      const credit = parseFecAmount(line.Credit)
-      if (debit === null) problems.push(`ligne ${line.lineNumber} : débit « ${line.Debit} » illisible`)
-      if (credit === null) problems.push(`ligne ${line.lineNumber} : crédit « ${line.Credit} » illisible`)
-      if (debit === null || credit === null) continue
+      const rawDebit = parseFecAmount(line.Debit)
+      const rawCredit = parseFecAmount(line.Credit)
+      if (rawDebit === null) problems.push(`ligne ${line.lineNumber} : débit « ${line.Debit} » illisible`)
+      if (rawCredit === null) problems.push(`ligne ${line.lineNumber} : crédit « ${line.Credit} » illisible`)
+      if (rawDebit === null || rawCredit === null) continue
+      // A negative amount moves to the other side: amounts are positive in the books (#146)
+      const { debitCents: debit, creditCents: credit } = unsignedSides(rawDebit, rawCredit)
       const accountCode = line.CompteNum.trim()
       if (!accountCode) { problems.push(`ligne ${line.lineNumber} : numéro de compte (CompteNum) absent`); continue }
       if (debit !== 0 && credit !== 0) {

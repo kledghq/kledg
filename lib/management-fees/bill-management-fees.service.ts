@@ -100,15 +100,28 @@ async function ensureTiers(
   return created.id
 }
 
-/** Next number of the series <prefix>-<year>- among the company's sales invoices. */
-async function nextInvoiceNumber(db: Db, companyId: string, prefix: string, year: string): Promise<string> {
-  const stem = `${prefix}-${year}-`
-  const rows = await db.invoice.findMany({ where: { companyId, direction: 'SALE', number: { startsWith: stem } }, select: { number: true }, take: 10_000 })
-  const last = rows.reduce((max, r) => {
+/**
+ * Next number of the series <prefix>-<year>- among the company's sales
+ * invoices. The series is chronological (CGI ann. II art. 242 nonies A,
+ * BOI-TVA-DECLA-30-20-20-10 § 90): an issue date before the latest invoice
+ * of the series is refused (409) instead of taking the next number (#145).
+ */
+async function nextInvoiceNumber(db: Db, companyId: string, prefix: string, issueDate: string): Promise<string> {
+  const stem = `${prefix}-${issueDate.slice(0, 4)}-`
+  const rows = await db.invoice.findMany({ where: { companyId, direction: 'SALE', number: { startsWith: stem } }, select: { number: true, issueDate: true }, take: 10_000 })
+  let last = 0
+  let latest: { number: string; day: string } | null = null
+  for (const r of rows) {
     const rest = (r.number ?? '').slice(stem.length)
-    const n = /^\d+$/.test(rest) ? Number(rest) : 0
-    return Math.max(max, n)
-  }, 0)
+    if (/^\d+$/.test(rest)) last = Math.max(last, Number(rest))
+    const day = calendarDayOf(r.issueDate)
+    if (day && (!latest || day > latest.day)) latest = { number: r.number ?? '', day }
+  }
+  if (latest && latest.day > issueDate) {
+    throw new ConflictError(
+      `La facture n° ${latest.number} du ${formatIsoDateFr(latest.day)} est déjà émise : une facture datée du ${formatIsoDateFr(issueDate)} ne peut pas recevoir le numéro suivant (numérotation chronologique, CGI ann. II art. 242 nonies A). Datez-la du ${formatIsoDateFr(latest.day)} au plus tôt.`,
+    )
+  }
   return `${stem}${String(last + 1).padStart(3, '0')}`
 }
 
@@ -127,7 +140,7 @@ async function createSalesInvoice(
   period: { start: string; end: string },
 ) {
   for (let attempt = 0; ; attempt += 1) {
-    const number = await nextInvoiceNumber(tx, holdingId, convention.invoicePrefix, issueDate.slice(0, 4))
+    const number = await nextInvoiceNumber(tx, holdingId, convention.invoicePrefix, issueDate)
     try {
       return await createInvoice(
         holdingId,

@@ -183,7 +183,9 @@ export function validateFec(content: string, options: FecValidationOptions = {})
       if (record.Idevise.trim() === '') warn(lineNo, 'Montantdevise renseigné sans Idevise', 'Idevise')
     }
     if (debit !== null && credit !== null) {
-      if (debit !== BigInt(0) && credit !== BigInt(0)) {
+      if (debit < BigInt(0) || credit < BigInt(0)) {
+        error(lineNo, 'Montant négatif : les montants sont positifs, le sens (débit ou crédit) porte le signe')
+      } else if (debit !== BigInt(0) && credit !== BigInt(0)) {
         error(lineNo, 'Débit et crédit renseignés sur la même ligne : une ligne est soit au débit, soit au crédit')
       } else if (debit === BigInt(0) && credit === BigInt(0)) {
         warn(lineNo, 'Ligne sans montant (débit et crédit nuls)')

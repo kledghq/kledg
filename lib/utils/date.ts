@@ -265,3 +265,22 @@ export function localDateToIso(date: Date): string {
   // eslint-disable-next-line kledg/no-local-time-date
   return isoOf(date.getFullYear(), date.getMonth() + 1, date.getDate())
 }
+
+/**
+ * End of a period of `months` months starting on `iso`: the day before the
+ * same day `months` months later. When that month has no such day (a year
+ * starting on 29/02, or on the 31st), the anniversary is the first day of
+ * the next month, so the period ends on the last day of that month:
+ * 29/02/2024 + 12 months ends on 28/02/2025, 31/01/2024 + 1 month on
+ * 29/02/2024.
+ */
+export function periodEnd(iso: string, months: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const index = y * 12 + (m - 1) + months
+  const year = Math.floor(index / 12)
+  const month = (index % 12) + 1
+  const last = lastDayOfMonth(year, month)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (d > last) return `${year}-${pad(month)}-${pad(last)}`
+  return addIsoDays(`${year}-${pad(month)}-${pad(d)}`, -1)
+}

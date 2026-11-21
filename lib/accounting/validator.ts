@@ -67,7 +67,11 @@ export function validateEntryBalance(
     if (credit === null) errors.push(`Ligne ${i + 1} : montant au crédit invalide (deux décimales au maximum)`)
     if (debit === null || credit === null) continue
 
-    // Negative amounts are allowed (e.g. overdraft), one side per line only.
+    // Amounts are positive, the side carrying the sign (FEC, A47 A-1 LPF; #146).
+    if (debit < 0 || credit < 0) {
+      errors.push(`Ligne ${i + 1} : montant négatif, portez-le au ${debit < 0 ? 'crédit' : 'débit'} en positif`)
+      continue
+    }
     if (debit !== 0 && credit !== 0) {
       errors.push(`Ligne ${i + 1} : une ligne ne peut pas être à la fois au débit et au crédit (non-compensation)`)
     }

@@ -265,3 +265,14 @@ export function toCents(value: string | number | { toString(): string } | null |
   if (!Number.isSafeInteger(cents)) return null
   return sign === '-' && cents !== 0 ? -cents : cents
 }
+
+/**
+ * Debit and credit of a line with positive amounts, the side carrying the
+ * sign (#146): a negative debit is a credit and a negative credit a debit.
+ * A line with both sides filled is returned as is (refused by the validator).
+ */
+export function unsignedSides(debitCents: number, creditCents: number): { debitCents: number; creditCents: number } {
+  if (debitCents < 0 && creditCents === 0) return { debitCents: 0, creditCents: -debitCents }
+  if (creditCents < 0 && debitCents === 0) return { debitCents: -creditCents, creditCents: 0 }
+  return { debitCents, creditCents }
+}

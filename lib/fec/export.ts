@@ -28,7 +28,7 @@ import { prisma } from '@/lib/prisma'
 import { NotFoundError, ValidationError } from '@/lib/accounting/errors'
 import { fecDateOf, parisDayOf } from '@/lib/accounting/entry-date'
 import { calendarDayOf } from '@/lib/utils/date'
-import { centsToFecAmount, parseCents } from '@/lib/utils/money'
+import { centsToFecAmount, parseCents, unsignedSides } from '@/lib/utils/money'
 import { sequentialPartOf } from '@/lib/accounting/services/generate-next-entry-number.service'
 import { CLOSING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
 import {
@@ -116,6 +116,8 @@ export function fecRecords(entries: FecLedgerEntry[]): FecRecord[] {
     const pieceDate = entry.pieceDate ? fecDateOf(entry.pieceDate) : entryDate
     const validDate = validDateOf(entry)
     for (const line of entry.lines) {
+      // Lines recorded before amounts had to be positive: the side carries the sign (#146)
+      const sides = unsignedSides(cents(line.debit), cents(line.credit))
       records.push({
         JournalCode: sanitizeFecField(entry.journalCode),
         JournalLib: sanitizeFecField(entry.journalLabel),
@@ -131,8 +133,8 @@ export function fecRecords(entries: FecLedgerEntry[]): FecRecord[] {
           sanitizeFecField(line.description) ||
           sanitizeFecField(entry.description) ||
           sanitizeFecField(line.accountLabel),
-        Debit: centsToFecAmount(cents(line.debit)),
-        Credit: centsToFecAmount(cents(line.credit)),
+        Debit: centsToFecAmount(sides.debitCents),
+        Credit: centsToFecAmount(sides.creditCents),
         EcritureLet: sanitizeFecField(line.letteringCode),
         DateLet: line.letteringDate ? fecDateOf(line.letteringDate) : '',
         ValidDate: validDate,
