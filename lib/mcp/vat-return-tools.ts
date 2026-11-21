@@ -69,7 +69,7 @@ export function registerVatReturnReadTools(server: McpServer, guard: CompanyGuar
             hint: l.hint,
           })),
           acomptes: c?.acomptes
-            ? { paid: euros(c.acomptes.paidCents), nextBase: c.acomptes.nextBaseEuros, nextDue: c.acomptes.nextDue, nextJuly: c.acomptes.nextJulyEuros, nextDecember: c.acomptes.nextDecemberEuros }
+            ? { paid: euros(c.acomptes.paidCents), nextBase: c.acomptes.nextBaseEuros, nextDue: c.acomptes.nextDue, regimeEnds: c.acomptes.regimeEnds, nextJuly: c.acomptes.nextJulyEuros, nextDecember: c.acomptes.nextDecemberEuros }
             : null,
           checks: view.checks.map((check) => ({ id: check.id, severity: check.severity, title: check.title, detail: check.detail, items: check.items ?? [] })),
           settlement: view.settlement,

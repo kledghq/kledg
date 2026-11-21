@@ -8,9 +8,10 @@ import { enforceRateLimit } from '@/lib/rate-limit'
  * accountMapping?, journalMapping?, cleanEntryNumbers?): imports the file and
  * returns the importer's report (entries created, refused entries, warnings).
  * The wrapper caps the body at the upload limit before the form is parsed.
+ * Imported entries are validated, so the right to validate is required too (#151).
  */
 export const POST = companyRoute(
-  { company: fromForm(), permission: { entries: ['create'], ledger: ['manage'] }, multipart: true },
+  { company: fromForm(), permission: { entries: ['create', 'validate'], ledger: ['manage'] }, multipart: true },
   async ({ request, companyId, user }) => {
     await enforceRateLimit('import', user.id)
     return NextResponse.json(await importAccountingFile(companyId, await request.formData()))

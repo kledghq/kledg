@@ -117,7 +117,7 @@ describe.skipIf(!available)('approval of actions prepared by assistants', () => 
     expect((await post(id, approve, { cookie: owner.cookie, origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' })).status).toBe(403)
     // Text body (no preflight): 415.
     const text = await decide(
-      new NextRequest(`${ORIGIN}/api/ai-actions/${id}`, { method: 'POST', headers: { cookie: owner.cookie, 'content-type': 'text/plain' }, body: JSON.stringify(approve) }),
+      new NextRequest(`${ORIGIN}/api/ai-actions/${id}`, { method: 'POST', headers: { cookie: owner.cookie, origin: ORIGIN, 'content-type': 'text/plain' }, body: JSON.stringify(approve) }),
       { params: Promise.resolve({ id }) },
     )
     expect(text.status).toBe(415)

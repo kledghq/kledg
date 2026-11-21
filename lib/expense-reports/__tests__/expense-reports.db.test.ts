@@ -461,6 +461,22 @@ describe.skipIf(!available)('expense reports (PostgreSQL)', () => {
     })
   })
 
+  describe('receipts paid by the company (#150)', () => {
+    it('refuses the receipt of a company bank transaction on an expense line', async () => {
+      const bankAccount = await prisma.bankAccount.findFirstOrThrow({ where: { bankConnection: { companyId: books.companyId } }, select: { id: true } })
+      const transaction = await prisma.bankTransaction.create({
+        data: { bankAccountId: bankAccount.id, externalTransactionId: 'ndf-card-150', amount: '-42.00', date: new Date('2026-03-10T00:00:00Z'), side: 'debit' },
+      })
+      const receipt = await prisma.attachment.create({ data: { companyId: books.companyId, bankTransactionId: transaction.id, fileName: 'restaurant.pdf' } })
+      await expect(reports.createExpenseReport(books.companyId, { ...period, lines: [meal({ receiptAttachmentId: receipt.id })] }, EMPLOYEE)).rejects.toThrow(
+        /opération bancaire de la société du 10\/03\/2026, donc payée par la société/,
+      )
+      // A receipt of its own, not tied to a bank transaction, is accepted
+      const own = await prisma.attachment.create({ data: { companyId: books.companyId, fileName: 'taxi.pdf' } })
+      await expect(reports.createExpenseReport(books.companyId, { ...period, lines: [meal({ receiptAttachmentId: own.id })] }, BOSS)).resolves.toMatchObject({ status: 'draft' })
+    })
+  })
+
   describe('another company (IDOR)', () => {
     it('never reaches a report, claimant, receipt or bank line of another company', async () => {
       const other = await seedCompany('900000202', 'ndf-beta')

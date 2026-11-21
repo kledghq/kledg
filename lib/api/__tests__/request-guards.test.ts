@@ -90,10 +90,18 @@ describe('CSRF guard of state-changing routes', () => {
 
   it('refuses a body that a cross-site form can send without preflight (text/plain, urlencoded)', async () => {
     for (const type of ['text/plain;charset=UTF-8', 'application/x-www-form-urlencoded', 'multipart/form-data; boundary=x']) {
-      const response = await jsonRoute(post(json({ companyId: 'c1' }), { cookie: COOKIE, 'content-type': type }))
+      const response = await jsonRoute(post(json({ companyId: 'c1' }), { cookie: COOKIE, origin: ORIGIN, 'content-type': type }))
       expect(response.status, type).toBe(415)
     }
     expect(handled).not.toHaveBeenCalled()
+  })
+
+  it('refuses a cookie request whose origin cannot be checked: neither Origin nor Sec-Fetch-Site (#151)', async () => {
+    const response = await jsonRoute(post(json({ companyId: 'c1' }), { cookie: COOKIE, 'content-type': 'application/json' }))
+    expect(response.status).toBe(403)
+    expect(handled).not.toHaveBeenCalled()
+    // Without a cookie (an API token, a script): no ambient credential, no CSRF risk
+    expect((await jsonRoute(post(json({ companyId: 'c1' }), { 'content-type': 'application/json' }))).status).not.toBe(403)
   })
 
   it('accepts a same-origin JSON request', async () => {
@@ -105,7 +113,7 @@ describe('CSRF guard of state-changing routes', () => {
   })
 
   it('requires multipart on file routes', async () => {
-    const response = await fileRoute(post(json({ companyId: 'c1' }), { cookie: COOKIE, 'content-type': 'application/json' }))
+    const response = await fileRoute(post(json({ companyId: 'c1' }), { cookie: COOKIE, origin: ORIGIN, 'content-type': 'application/json' }))
     expect(response.status).toBe(415)
     const form = new FormData()
     form.set('companyId', 'c1')

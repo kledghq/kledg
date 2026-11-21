@@ -17,7 +17,7 @@ import { prisma } from '@/lib/prisma'
 import type { McpAccess } from '@/lib/mcp/company-access'
 import { kledgPageUrl } from '@/lib/mcp/tool-meta'
 import { formatIsoDateFr } from '@/lib/utils/date'
-import { id as promptId, quote } from '@/lib/ai-assist/prompts'
+import { id as promptId, QUOTED_DATA_NOTICE, quote } from '@/lib/ai-assist/prompts'
 import { formatCentsFr, fromCents, toCents } from '@/lib/utils/money'
 import { isDebitSide, signedBankCents } from '@/lib/banking/side'
 import { generateBalanceSheet } from '@/lib/reports/balance-sheet/generate-balance-sheet.service'
@@ -480,7 +480,7 @@ export function bankTransactionsList(
       actions.push({
         kind: 'message',
         label: 'Proposer une écriture',
-        prompt: `Propose l'écriture de rapprochement de la transaction bancaire ${promptId(t.id)} du ${formatIsoDateFr(t.date)}, libellé ${quote(t.label)}, ${euroText(amount)}, de la société ${promptId(companyId)}. Montre-moi la proposition avant de rapprocher quoi que ce soit.`,
+        prompt: `Propose l'écriture de rapprochement de la transaction bancaire ${promptId(t.id)} du ${formatIsoDateFr(t.date)}, libellé ${quote(t.label)}, ${euroText(amount)}, de la société ${promptId(companyId)}. Montre-moi la proposition avant de rapprocher quoi que ce soit. ${QUOTED_DATA_NOTICE}`,
       })
       if (access.canAdmin) {
         actions.push({
@@ -582,7 +582,7 @@ export function missingReceiptsList(companyId: string, access: Pick<McpAccess, '
         {
           kind: 'message' as const,
           label: 'Retrouver la pièce',
-          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${promptId(t.id)} du ${formatIsoDateFr(t.date)}, libellé ${quote(t.label)}${t.counterparty ? `, contrepartie ${quote(t.counterparty)}` : ''}, ${euroText(t.amount)}, de la société ${promptId(companyId)}\u00a0: quel document chercher et auprès de qui${t.supplier ? ` (fournisseur reconnu\u00a0: ${quote(t.supplier.name)}${t.supplier.invoicesUrl ? `, factures sur ${t.supplier.invoicesUrl}` : ''})` : ''}.`,
+          prompt: `Aide-moi à retrouver le justificatif de la transaction bancaire ${promptId(t.id)} du ${formatIsoDateFr(t.date)}, libellé ${quote(t.label)}${t.counterparty ? `, contrepartie ${quote(t.counterparty)}` : ''}, ${euroText(t.amount)}, de la société ${promptId(companyId)}\u00a0: quel document chercher et auprès de qui${t.supplier ? ` (fournisseur reconnu\u00a0: ${quote(t.supplier.name)}${t.supplier.invoicesUrl ? `, factures sur ${t.supplier.invoicesUrl}` : ''})` : ''}. ${QUOTED_DATA_NOTICE}`,
         },
       ],
     })),

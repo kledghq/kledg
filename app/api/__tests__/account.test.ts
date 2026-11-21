@@ -79,7 +79,7 @@ const ADMIN: User = { id: 'u-admin', email: 'admin@acme.fr', name: 'Admin', role
 function call(handler: Handler, method: string, url: string, body?: unknown, params: Record<string, string> = {}) {
   const request = new NextRequest(`http://localhost:3000${url}`, {
     method,
-    headers: { 'content-type': 'application/json', cookie: 'better-auth.session_token=abc' },
+    headers: { 'content-type': 'application/json', cookie: 'better-auth.session_token=abc', origin: 'http://localhost:3000' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   return handler(request, { params: Promise.resolve(params) })

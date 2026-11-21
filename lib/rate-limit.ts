@@ -20,6 +20,11 @@ import type { RateLimitRule } from '@/lib/instance/types'
  * (lib/instance/policy.ts); Kledg's rules keep their name.
  */
 export const RATE_LIMITS = {
+  /**
+   * Email sign-in attempts per address, on top of Better Auth's limit per IP
+   * (lib/auth-policy.ts): a password guessed from many addresses (#151).
+   */
+  'sign-in-email': { window: 900, max: 20, message: 'Trop de tentatives de connexion pour cette adresse. Réessayez dans quelques minutes.' },
   /** First-run setup, per client IP. */
   setup: { window: 900, max: 10, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
   /** Bank sync cron called without CRON_SECRET (lib/banking/sync-banks.service.ts), instance-wide. */
