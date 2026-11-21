@@ -195,10 +195,10 @@ describe('Revolut transactions', () => {
     expect(newTransactions(eur, ['x1:x1-out'])).toEqual([])
   })
 
-  it('maps a card payment with merchant, amount sign and completion day', () => {
+  it('maps a card payment with merchant, amount sign and completion day in France (#129)', () => {
     const [line] = mapRevolutTransaction(cardPayment('c1', '2026-09-30T23:30:00.000Z', -47.8) as unknown as RevolutTransaction, ACCOUNT_EUR)
     expect(line).toMatchObject({ amount: 47.8, side: 'debit', counterpartyName: 'Papeterie Centrale', operationType: 'card_payment' })
-    expect(line.date.toISOString()).toBe('2026-09-30T00:00:00.000Z')
+    expect(line.date.toISOString()).toBe('2026-10-01T00:00:00.000Z')
   })
 })
 

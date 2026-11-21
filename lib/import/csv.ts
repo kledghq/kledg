@@ -1,4 +1,5 @@
 // Import CSV
+import { importEntryDay, unreadableDayMessage } from './entry-day'
 import Papa from 'papaparse'
 import { prisma } from '@/lib/prisma'
 import { validateEntryBalance } from '@/lib/accounting/validator'
@@ -143,7 +144,7 @@ export async function importCSV(
     const existingEntries = await loadExistingEntries(
       companyId,
       [...new Set(journalsMap.values())],
-      [...entriesMap.values()].map((lines) => new Date(lines[0][defaultMapping.dateColumn])),
+      [...entriesMap.values()].map((lines) => importEntryDay(lines[0][defaultMapping.dateColumn])).filter((d): d is Date => d !== null),
     )
     for (const [key, lines] of entriesMap.entries()) {
       try {
@@ -157,7 +158,11 @@ export async function importCSV(
         }
 
         const entryNumber = String(firstLine[defaultMapping.entryNumberColumn] || '')
-        const entryDate = new Date(firstLine[defaultMapping.dateColumn])
+        const entryDate = importEntryDay(firstLine[defaultMapping.dateColumn])
+        if (!entryDate) {
+          result.errors.push(unreadableDayMessage(key, firstLine[defaultMapping.dateColumn]))
+          continue
+        }
 
 
         // CSV lines to EntryLine, amounts read exactly (French notation accepted)

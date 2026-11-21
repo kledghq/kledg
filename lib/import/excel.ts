@@ -1,4 +1,5 @@
 // Import Excel
+import { importEntryDay, unreadableDayMessage } from './entry-day'
 import { loadWorkbook, readSheetRows } from '@/lib/api/xlsx'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -178,7 +179,7 @@ export async function importExcel(
     const existingEntries = await loadExistingEntries(
       companyId,
       [...new Set(journalsMap.values())],
-      [...entriesMap.values()].map((lines) => new Date(lines[0][defaultMapping.dateColumn] as string | number | Date)),
+      [...entriesMap.values()].map((lines) => importEntryDay(lines[0][defaultMapping.dateColumn])).filter((d): d is Date => d !== null),
     )
     for (const [key, lines] of entriesMap.entries()) {
       try {
@@ -193,7 +194,11 @@ export async function importExcel(
         }
 
         const entryNumber = String(firstLine[defaultMapping.entryNumberColumn] || '')
-        const entryDate = new Date(firstLine[defaultMapping.dateColumn] as string | number | Date)
+        const entryDate = importEntryDay(firstLine[defaultMapping.dateColumn])
+        if (!entryDate) {
+          result.errors.push(unreadableDayMessage(key, firstLine[defaultMapping.dateColumn]))
+          continue
+        }
 
         logger.debug('[import/excel] Processing entry', {
           key,

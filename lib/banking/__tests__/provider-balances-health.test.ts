@@ -139,10 +139,14 @@ describe('mapQontoTransaction', () => {
     expect(mapQontoTransaction(qontoTx({ status: 'settled' }), IBAN)).toMatchObject({ state: 'booked', status: 'settled' })
   })
 
-  it('dates a line without created_at by its settlement day, a UTC calendar day', () => {
+  it('dates a line without created_at by its settlement day in France (#129)', () => {
+    // 23:30 UTC on 30 September is 01:30 on 1 October in Paris: the operation belongs to October
     const line = mapQontoTransaction(qontoTx({ created_at: null, settled_at: '2026-09-30T23:30:00.000Z' }), IBAN)
-    expect(line.date.toISOString()).toBe('2026-09-30T00:00:00.000Z')
-    expect(line.valueDate).toBe('2026-09-30')
+    expect(line.date.toISOString()).toBe('2026-10-01T00:00:00.000Z')
+    expect(line.valueDate).toBe('2026-10-01')
+    // In winter Paris is UTC+1: 23:30 UTC on 31 December is already 1 January
+    expect(mapQontoTransaction(qontoTx({ created_at: '2026-12-31T23:30:00.000Z' }), IBAN).date.toISOString()).toBe('2027-01-01T00:00:00.000Z')
+    expect(mapQontoTransaction(qontoTx({ created_at: '2026-12-31T22:59:00.000Z' }), IBAN).date.toISOString()).toBe('2026-12-31T00:00:00.000Z')
   })
 
   it('leaves empty optional fields undefined', () => {
