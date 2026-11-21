@@ -84,8 +84,8 @@ describe('QontoProvider (BankProvider over the Qonto Business API)', () => {
       vatRate: 5.5,
       vatAmount: 2.19,
     })
-    // created_at day, as a UTC calendar day
-    expect(txs[0].date.toISOString()).toBe('2026-09-01T00:00:00.000Z')
+    // created_at day in France: 22:30 UTC on 1 September is 00:30 on 2 September in Paris (#129)
+    expect(txs[0].date.toISOString()).toBe('2026-09-02T00:00:00.000Z')
     // Qonto reports non standard VAT rates as -1
     expect(txs[1].vatRate).toBeUndefined()
     expect(txs[1].state).toBe('pending')

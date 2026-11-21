@@ -10,7 +10,7 @@
 import { isMaskedIban } from '@/lib/integrations/providers/qonto/account-id'
 import { ValidationError } from '@/lib/accounting/errors'
 import { errorReason } from '@/lib/banking/errors'
-import { toIsoDateUtc, toUtcDateOnly } from '@/lib/utils/date'
+import { parisDateOnly, parisIsoDay } from '@/lib/utils/date'
 import { QontoClient } from '@/lib/integrations/providers/qonto/client'
 import type { QontoTransaction } from '@/lib/integrations/providers/qonto/types'
 import type {
@@ -43,9 +43,10 @@ export function mapQontoTransaction(transaction: QontoTransaction, accountExtern
     accountExternalId,
     amount: transaction.amount,
     side: transaction.side,
-    date: toUtcDateOnly(transactionDate),
+    // Days in France: Qonto returns instants in UTC (#129)
+    date: parisDateOnly(transactionDate),
     // Settlement day: what a bank statement or an aggregator usually books
-    valueDate: transaction.settled_at ? toIsoDateUtc(transaction.settled_at) : null,
+    valueDate: transaction.settled_at ? parisIsoDay(transaction.settled_at) : null,
     state: stateOf(status),
     status: status ?? null,
     label: transaction.label,
