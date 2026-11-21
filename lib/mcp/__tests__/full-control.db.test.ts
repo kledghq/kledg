@@ -341,9 +341,10 @@ describe.skipIf(!available)('full control MCP tools', () => {
       const early = await call(key, 'validate_entries', { ...args, actionId: dry.data.actionId })
       expect(early.ok).toBe(false)
       expect(early.text).toContain("attend encore l'accord")
+      // Unknown fields are refused, never dropped (#133)
       const legacy = await call(key, 'validate_entries', { ...args, confirm: true, confirmationToken: 'kc_forged' })
-      expect(legacy.ok).toBe(true) // unknown fields are ignored: a new dry run, nothing executed
-      expect(legacy.data.dryRun).toBe(true)
+      expect(legacy.ok).toBe(false)
+      expect(legacy.text).toMatch(/confirm/)
       expect((await prisma.accountingEntry.findUniqueOrThrow({ where: { id: entry.id } })).status).toBe('draft')
 
       await approve(dry.data.actionId)
@@ -459,8 +460,15 @@ describe.skipIf(!available)('full control MCP tools', () => {
       expect(dry.data).not.toHaveProperty('actionId')
       expect(await prisma.accountingEntry.count({ where: { id: entry.id } })).toBe(1)
       expect(await auditOf('delete_draft_entry')).toHaveLength(0)
-      // An actionId of the validation flow means nothing here: the call executes.
-      const done = await call(key, 'delete_draft_entry', { companyId: ids.aCompany, entryId: entry.id, actionId: 'act_forged' })
+      // A key it does not know is refused, never dropped (#133): a misnamed preview flag, or the
+      // actionId of a client that kept the validation mode's schema, would otherwise execute.
+      for (const extra of [{ dry_run: true }, { preview: true }, { actionId: 'act_forged' }]) {
+        const refused = await call(key, 'delete_draft_entry', { companyId: ids.aCompany, entryId: entry.id, ...extra })
+        expect(refused.ok, Object.keys(extra)[0]).toBe(false)
+        expect(refused.text).toContain(Object.keys(extra)[0])
+      }
+      expect(await prisma.accountingEntry.count({ where: { id: entry.id } })).toBe(1)
+      const done = await call(key, 'delete_draft_entry', { companyId: ids.aCompany, entryId: entry.id })
       expect(done.ok, done.text).toBe(true)
       expect(await prisma.accountingEntry.count({ where: { id: entry.id } })).toBe(0)
     })

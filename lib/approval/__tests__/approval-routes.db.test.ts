@@ -223,6 +223,23 @@ describe.skipIf(!available)('approval of the accounts routes', () => {
     expect(await prisma.auditLog.count({ where: { companyId: ids.company, action: 'SAVE_ACCOUNTS_APPROVAL' } })).toBe(2)
   })
 
+  it('keeps approved minutes as adopted, and refuses an approval or filing day in the future (#134)', async () => {
+    const saved = { ...COMPLETE, attendance: attendance(), filedOn: '2026-07-01' }
+    const changed = await call('owner', approvalRoute.PUT, 'PUT', path(), params(), { ...saved, allocation: { dividendsCents: 3_000_000 } })
+    expect(changed.status).toBe(400)
+    expect(((await changed.json()) as { error: string }).error).toContain('approuvés depuis le 15/06/2026')
+    const moved = await call('owner', approvalRoute.PUT, 'PUT', path(), params(), { ...saved, approvedOn: '2026-06-16' })
+    expect(moved.status).toBe(400)
+    // The filing data still change
+    expect((await call('owner', approvalRoute.PUT, 'PUT', path(), params(), { ...saved, filedOn: '2026-07-02', confidentiality: 'none' })).status).toBe(200)
+    // Clearing the approval day alone reopens the minutes
+    expect((await call('owner', approvalRoute.PUT, 'PUT', path(), params(), { ...saved, approvedOn: null, filedOn: null })).status).toBe(200)
+    const future = await call('owner', approvalRoute.PUT, 'PUT', path(), params(), { ...saved, approvedOn: '2099-06-15', filedOn: null })
+    expect(future.status).toBe(400)
+    expect(((await future.json()) as { error: string }).error).toContain('futur')
+    expect((await call('owner', approvalRoute.PUT, 'PUT', path(), params(), saved)).status).toBe(200)
+  })
+
   it('generates the minutes in Markdown and PDF for members with reports:export', async () => {
     const md = await doc('accountant', 'decision', 'md')
     expect(md.status).toBe(200)
