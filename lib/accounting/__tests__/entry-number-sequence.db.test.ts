@@ -104,4 +104,36 @@ describe.skipIf(!available)('entry number sequence (PostgreSQL)', () => {
     expect(plan.map((r) => r['QUERY PLAN']).join('\n')).toContain('accounting_entries_validated_sequence_idx')
     expect(await numbering.nextDefinitiveEntryNumber(fy.id)).toBe('5001')
   })
+
+  it('continues each journal sequence in a year imported from a FEC numbered per journal (#127)', async () => {
+    // BOI-CF-IOR-60-40-20 § 100: one sequence per journal is allowed; the import keeps it as "VT-12"
+    const fy = await prisma.fiscalYear.create({ data: { companyId: ids.company, year: 2031, startDate: new Date('2031-01-01T00:00:00Z'), endDate: new Date('2031-12-31T00:00:00Z') } })
+    const bank = await prisma.account.create({ data: { companyId: ids.company, fiscalYearId: fy.id, code: '512000', label: 'Banque' } })
+    const sales = await prisma.account.create({ data: { companyId: ids.company, fiscalYearId: fy.id, code: '706000', label: 'Ventes' } })
+    const vt = await prisma.journal.create({ data: { companyId: ids.company, code: 'VT', label: 'Ventes' } })
+    const ac = await prisma.journal.create({ data: { companyId: ids.company, code: 'AC', label: 'Achats' } })
+    const draft = (journalId: string) =>
+      lifecycle.createEntry({
+        companyId: ids.company,
+        journalId,
+        date: '2031-03-01',
+        description: 'Écriture',
+        lines: [
+          { accountId: bank.id, debit: '10.00', credit: 0 },
+          { accountId: sales.id, debit: 0, credit: '10.00' },
+        ],
+      })
+    for (const [journal, entryNumber] of [[vt.id, 'VT-1'], [vt.id, 'VT-2'], [ac.id, 'AC-1']] as const) {
+      const entry = await draft(journal)
+      await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status: 'validated', entryNumber, validatedAt: new Date() } })
+    }
+    expect(await numbering.numberedPerJournal(fy.id)).toBe(true)
+    const nextVt = await draft(vt.id)
+    const nextAc = await draft(ac.id)
+    expect((await lifecycle.validateEntries(ids.company, [nextVt.id, nextAc.id])).errors).toEqual([])
+    const numbers = await prisma.accountingEntry.findMany({ where: { id: { in: [nextVt.id, nextAc.id] } }, select: { id: true, entryNumber: true } })
+    expect(Object.fromEntries(numbers.map((n) => [n.id === nextVt.id ? 'vt' : 'ac', n.entryNumber]))).toEqual({ vt: 'VT-3', ac: 'AC-2' })
+    // Legacy global numbers with a journal prefix ("OD-0007" above) never share a number: one sequence
+    expect(await numbering.numberedPerJournal(ids.fy)).toBe(false)
+  })
 })

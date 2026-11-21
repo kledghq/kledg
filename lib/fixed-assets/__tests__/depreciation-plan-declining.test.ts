@@ -99,3 +99,35 @@ describe('sumPlanCentsForPeriod', () => {
     expect(sumPlanCentsForPeriod(plan, day('2025-03-01'), day('2025-03-31'))).toBe(25480)
   })
 })
+
+describe('declining allowance per real exercice (BOI-BIC-AMT-20-20-30-20, #128)', () => {
+  const plan = (fiscalYears: Array<[string, string]>) =>
+    buildDepreciationPlan({
+      acquisitionValue: 100000,
+      amortizableAmount: 100000,
+      depreciationMethod: 'declining',
+      depreciationRate: null,
+      depreciationDuration: 5,
+      decliningCoefficient: 1.75,
+      depreciationStartDate: day('2025-07-01'),
+      fiscalYearClosingMonth: 12,
+      fiscalYears: fiscalYears.map(([start, end]) => ({ startDate: day(start), endDate: day(end) })),
+    })
+
+  it('gives an 18-month first exercice 18/12 of the annual allowance', () => {
+    const p = plan([['2025-07-01', '2026-12-31']])
+    // 100 000 x 35 % x 18 / 12 = 52 500,00 over the 18 months, then 47 500 x 35 % = 16 625,00 in 2027
+    expect(sumPlanCentsForPeriod(p, day('2025-07-01'), day('2026-12-31'))).toBe(5_250_000)
+    expect(yearCents(p, 2027)).toBe(1_662_500)
+    expect(totalCents(p)).toBe(10_000_000)
+  })
+
+  it('gives a 6-month exercice 6/12 of it, and keeps the past exercices when the closing date changes', () => {
+    // 2025-07-01 to 2025-12-31, then 2026 closed on 30 June 2026 (change of closing date), then July-June years
+    const p = plan([['2025-07-01', '2025-12-31'], ['2026-01-01', '2026-06-30']])
+    // 6 months: 35 000 x 6 / 12 = 17 500,00; 6 months again: 82 500 x 35 % x 6 / 12 = 14 437,50
+    expect(sumPlanCentsForPeriod(p, day('2025-07-01'), day('2025-12-31'))).toBe(1_750_000)
+    expect(sumPlanCentsForPeriod(p, day('2026-01-01'), day('2026-06-30'))).toBe(1_443_750)
+    expect(totalCents(p)).toBe(10_000_000)
+  })
+})

@@ -55,6 +55,12 @@ export interface FixedAssetPlanInput {
   depreciationStartDate: Date
   /** Month (1 to 12) the company's fiscal years close: the years of the declining method; December when absent. */
   fiscalYearClosingMonth?: number | null
+  /**
+   * The company's fiscal years: a declining allowance is computed per real
+   * exercice, an 18-month first year carrying 18/12 of the annual
+   * allowance (#128). Months past the last one follow fiscalYearClosingMonth.
+   */
+  fiscalYears?: ReadonlyArray<{ startDate: Date; endDate: Date }>
   /** Depreciation booked before openingDepreciationDate, outside Kledg; both set or both absent. */
   openingDepreciation?: Num
   openingDepreciationDate?: Date | null
@@ -240,7 +246,7 @@ function buildTheoreticalPlan(asset: FixedAssetPlanInput): DepreciationPlan {
     const coef = given > 0 ? given : legalDecliningCoefficient(duration)
     return {
       ...empty,
-      byMonth: buildDecliningMonthlyMap(baseCents, duration, coef, start, (asset.fiscalYearClosingMonth ?? 12) - 1),
+      byMonth: buildDecliningMonthlyMap(baseCents, duration, coef, start, (asset.fiscalYearClosingMonth ?? 12) - 1, asset.fiscalYears ?? []),
       duration,
     }
   }
@@ -284,77 +290,80 @@ function buildTheoreticalPlan(asset: FixedAssetPlanInput): DepreciationPlan {
 
 /**
  * Declining-balance plan (French tax rule), prorata in whole months for the
- * first year, switching to linear once the linear rate on the remaining net
- * book value exceeds the declining rate. Works in cents: each annual
+ * first exercice, switching to linear once the linear allowance on the
+ * remaining net book value exceeds the declining one. Works in cents: each
  * allowance is rounded to the cent, spread over its months with the
- * remainder on the last one, and the last year takes what is left, so the
- * months of a year add up to its allowance and the plan ends exactly on the
- * base.
+ * remainder on the last one, and the last period takes what is left, so the
+ * months of a period add up to its allowance and the plan ends exactly on
+ * the base.
  *
- * The years are the company's fiscal years (BOI-BIC-AMT-20-20-30-20: the
- * allowance and the first-year prorata apply per exercice): the first runs
- * from the month of the start to the closing month, then twelve months at
- * a time. December by default (calendar years).
+ * The periods are the company's real fiscal years (BOI-BIC-AMT-20-20-30-20:
+ * the allowance applies per exercice, in proportion to its length when it
+ * is not twelve months; CGI art. 39 A): an 18-month exercice carries 18/12
+ * of the annual allowance, a 6-month one 6/12 (#128). The first period
+ * runs from the month of the start to the end of its exercice; past the
+ * known exercices, twelve months at a time to the closing month (December
+ * by default). The plan covers `duration` years of months from the start,
+ * the last period cut where they end.
  */
 function buildDecliningMonthlyMap(
   baseCents: number,
   duration: number,
   coefficient: number,
   depreciationStart: Date,
-  closingMonth = 11
+  closingMonth = 11,
+  fiscalYears: ReadonlyArray<{ startDate: Date; endDate: Date }> = [],
 ): Map<string, number> {
   const decliningRate = (1 / duration) * coefficient
-  const firstMonth = depreciationStart.getUTCMonth()
-  const startYear = depreciationStart.getUTCFullYear()
-  const firstYearMonths = ((closingMonth - firstMonth + 12) % 12) + 1
-  const isFirstYearPartial = firstYearMonths < 12
-  const maxYears = duration + (isFirstYearPartial ? 1 : 0)
+  const monthIndex = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth()
+  const startIndex = monthIndex(depreciationStart)
+  const endIndex = startIndex + Math.round(duration * 12) // exclusive
+  const years = fiscalYears
+    .map((fy) => ({ first: monthIndex(new Date(fy.startDate)), last: monthIndex(new Date(fy.endDate)) }))
+    .sort((a, b) => a.first - b.first)
+
+  // The periods of the plan: [first month, number of months]
+  const periods: Array<{ first: number; months: number }> = []
+  for (let cursor = startIndex; cursor < endIndex; ) {
+    const known = years.find((fy) => fy.first <= cursor && cursor <= fy.last)
+    const lastOfYear = known ? known.last : cursor + ((closingMonth - (cursor % 12) + 12) % 12)
+    const last = Math.min(lastOfYear, endIndex - 1)
+    periods.push({ first: cursor, months: last - cursor + 1 })
+    cursor = last + 1
+  }
 
   const result = new Map<string, number>()
   let bookCents = baseCents
   let switched = false
   let switchLinearFullCents = 0
 
-  for (let y = 0; y < maxYears; y++) {
+  for (let y = 0; y < periods.length; y++) {
     if (bookCents <= 0) break
-    const yearsLeft = duration - y
-    const yearFraction =
-      y === 0 && isFirstYearPartial
-        ? firstYearMonths / 12
-        : y === maxYears - 1 && isFirstYearPartial
-          ? (12 - firstYearMonths) / 12
-          : 1
+    const { first, months } = periods[y]
+    const yearsLeft = Math.max(duration - y, 1)
+    const fraction = months / 12
 
     let yearCents: number
     if (switched) {
-      yearCents = Math.round(switchLinearFullCents * yearFraction)
+      yearCents = Math.round(switchLinearFullCents * fraction)
     } else {
       const declineFull = bookCents * decliningRate
-      const linearFull = yearsLeft > 0 ? bookCents / yearsLeft : 0
+      const linearFull = bookCents / yearsLeft
       if (linearFull > declineFull) {
         switched = true
         switchLinearFullCents = linearFull
-        yearCents = Math.round(linearFull * yearFraction)
+        yearCents = Math.round(linearFull * fraction)
       } else {
-        yearCents = Math.round(declineFull * yearFraction)
+        yearCents = Math.round(declineFull * fraction)
       }
     }
-    if (yearCents > bookCents || y === maxYears - 1) yearCents = bookCents // ends exactly on the base
-
-    const monthsCount =
-      y === 0 && isFirstYearPartial
-        ? firstYearMonths
-        : y === maxYears - 1 && isFirstYearPartial
-          ? 12 - firstYearMonths
-          : 12
-    // First month of this fiscal year, counted from January of year 0
-    const blockStart = startYear * 12 + firstMonth + (y === 0 ? 0 : firstYearMonths + 12 * (y - 1))
+    if (yearCents > bookCents || y === periods.length - 1) yearCents = bookCents // ends exactly on the base
 
     // Rounded on the cumulative amount: the months add up to the allowance
     let spreadCents = 0
-    for (let i = 0; i < monthsCount; i++) {
-      const cumulative = Math.round((yearCents * (i + 1)) / monthsCount)
-      const g = blockStart + i
+    for (let i = 0; i < months; i++) {
+      const cumulative = Math.round((yearCents * (i + 1)) / months)
+      const g = first + i
       result.set(monthKey(Math.floor(g / 12), g % 12), fromCents(cumulative - spreadCents))
       spreadCents = cumulative
     }

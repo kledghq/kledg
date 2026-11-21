@@ -16,6 +16,13 @@
  * transaction-scoped advisory lock per fiscal year, so concurrent validations
  * never collide nor skip a number.
  *
+ * A fiscal year imported from a FEC numbered per journal keeps that
+ * numbering (#127): its entries are imported as "<journal>-<number>"
+ * (lib/import/fec/plan.ts, "VT-12"), and once a year holds such entries
+ * sharing a number across journals, each journal continues its own
+ * sequence ("VT-13", "AC-81"). One global sequence on top of it would break both: journal AC
+ * would jump from 80 to 102, and the FEC check would report the gap.
+ *
  * Drafts carry a provisional number "BR-<random>". The next definitive
  * number reads the largest sequence number of the validated entries with
  * one indexed query (kledg_entry_sequence, the SQL twin of sequentialPartOf,
@@ -82,10 +89,42 @@ export async function lockEntryNumbering(
  * accounting_entries_validated_sequence_idx). Call under lockEntryNumbering
  * when the number is assigned.
  */
-export async function nextDefinitiveEntryNumber(fiscalYearId: string, db: EntryReader = prisma): Promise<string> {
+export async function nextDefinitiveEntryNumber(
+  fiscalYearId: string,
+  db: EntryReader = prisma,
+  journal?: { id: string; code: string },
+): Promise<string> {
+  if (journal && (await numberedPerJournal(fiscalYearId, db))) {
+    const [row] = await db.$queryRaw<Array<{ max: bigint | null }>>`
+      SELECT max(kledg_entry_sequence("entryNumber")) AS max
+      FROM "accounting_entries"
+      WHERE "fiscalYearId" = ${fiscalYearId} AND "status" = 'validated' AND "journalId" = ${journal.id}`
+    return `${journal.code}-${Number(row?.max ?? 0) + 1}`
+  }
   const [row] = await db.$queryRaw<Array<{ max: bigint | null }>>`
     SELECT max(kledg_entry_sequence("entryNumber")) AS max
     FROM "accounting_entries"
     WHERE "fiscalYearId" = ${fiscalYearId} AND "status" = 'validated'`
   return String(Number(row?.max ?? 0) + 1)
+}
+
+/**
+ * Whether a fiscal year is numbered per journal (#127): two of its
+ * validated entries of different journals, each numbered "<its
+ * journal>-<number>", share a sequence number (the rule the FEC import
+ * and check apply). Older global numbers in that form ("OD-42", "VT-43")
+ * never share one, so they stay one sequence.
+ */
+export async function numberedPerJournal(fiscalYearId: string, db: EntryReader = prisma): Promise<boolean> {
+  const [row] = await db.$queryRaw<Array<{ found: boolean }>>`
+    WITH prefixed AS (
+      SELECT e."journalId", kledg_entry_sequence(e."entryNumber") AS seq
+      FROM "accounting_entries" e JOIN "journals" j ON j."id" = e."journalId"
+      WHERE e."fiscalYearId" = ${fiscalYearId} AND e."status" = 'validated'
+        AND left(e."entryNumber", length(j."code") + 1) = j."code" || '-'
+    )
+    SELECT EXISTS (
+      SELECT 1 FROM prefixed WHERE seq IS NOT NULL GROUP BY seq HAVING count(DISTINCT "journalId") > 1
+    ) AS found`
+  return row?.found ?? false
 }
