@@ -15,6 +15,7 @@
  * Every write goes through assertEntryWritableInFiscalYear (closed years).
  */
 
+import { CLOSING_JOURNAL, OPENING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -126,11 +127,22 @@ export function assertValidEntry(date: Date, description: string | null | undefi
   if (!validation.valid) throw new ValidationError(validation.errors.join(', '))
 }
 
-async function assertJournal(db: Db, journalId: string | undefined, companyId: string): Promise<void> {
+/**
+ * The journal of the company. CL is reserved to the closing entry of a
+ * fiscal year (#124): the FEC, the statements and the closing checks read
+ * every CL entry as the closing, so an ordinary operation there would
+ * vanish from them.
+ */
+async function assertJournal(db: Db, journalId: string | undefined, companyId: string, options: { closingEntry?: boolean } = {}): Promise<void> {
   const journal = journalId
-    ? await db.journal.findFirst({ where: { id: journalId, companyId }, select: { id: true } })
+    ? await db.journal.findFirst({ where: { id: journalId, companyId }, select: { id: true, code: true } })
     : null
   if (!journal) throw new ValidationError('Journal introuvable pour cette société')
+  if (journal.code === CLOSING_JOURNAL.code && !options.closingEntry) {
+    throw new ValidationError(
+      "Le journal CL est réservé à l'écriture que Kledg passe à la clôture de l'exercice\u00a0: choisissez un autre journal (OD pour une opération diverse).",
+    )
+  }
 }
 
 /**
@@ -223,6 +235,8 @@ export interface CreateEntryInput {
   fiscalYearId?: string
   /** For a reversing entry: the validated entry it cancels. */
   reversalOfId?: string
+  /** The closing entry written by the fiscal year closing: the only entry allowed in journal CL. */
+  closingEntry?: boolean
 }
 
 /** PCG warnings that do not block the entry. */
@@ -246,7 +260,7 @@ export async function createEntryInTx(db: Db, input: CreateEntryInput): Promise<
   const date = toEntryDate(input.date)
   const lines = normalizeLines(input.lines ?? [])
   assertValidEntry(date, input.description, lines)
-  await assertJournal(db, input.journalId, input.companyId)
+  await assertJournal(db, input.journalId, input.companyId, { closingEntry: input.closingEntry })
   if (input.fiscalYearId) {
     const own = await db.fiscalYear.findFirst({ where: { id: input.fiscalYearId, companyId: input.companyId }, select: { id: true } })
     if (!own) throw new ValidationError('Exercice introuvable pour cette société')
@@ -527,6 +541,34 @@ export interface ReverseEntryOptions {
 }
 
 /**
+ * Entries that are never reversed (#126): the closing entry (journal CL),
+ * and the à-nouveaux of a year whose previous year is closed. They bring
+ * forward the closing balances of that year, and the opening balance sheet
+ * must be its closing balance sheet (Code de commerce art. L123-19). Before
+ * that closing (balances entered by hand, an imported FEC), they can still
+ * be corrected.
+ */
+async function assertReversible(db: Db, companyId: string, original: { journalId: string; fiscalYearId: string; entryNumber: string }): Promise<void> {
+  const journal = await db.journal.findFirst({ where: { id: original.journalId, companyId }, select: { code: true } })
+  if (journal?.code === CLOSING_JOURNAL.code) {
+    throw new ConflictError(`L'écriture n° ${original.entryNumber} est l'écriture de clôture de l'exercice\u00a0: elle ne se contre-passe pas.`)
+  }
+  if (journal?.code !== OPENING_JOURNAL.code) return
+  const year = await db.fiscalYear.findFirst({ where: { id: original.fiscalYearId, companyId }, select: { startDate: true } })
+  if (!year) return
+  const previousClosed = await db.fiscalYear.findFirst({
+    where: { companyId, isClosed: true, endDate: { lt: year.startDate } },
+    orderBy: { endDate: 'desc' },
+    select: { year: true },
+  })
+  if (previousClosed) {
+    throw new ConflictError(
+      `L'écriture n° ${original.entryNumber} reprend les soldes de clôture de l'exercice ${previousClosed.year}\u00a0: elle ne se contre-passe pas, le bilan d'ouverture est le bilan de clôture de l'exercice précédent (Code de commerce art. L123-19). Corrigez par une écriture de l'exercice en cours.`,
+    )
+  }
+}
+
+/**
  * Contre-passation: creates and validates the entry that cancels a validated
  * entry (same accounts, debits and credits swapped), linked to it. Dated like
  * the original by default, or on a chosen day of an open fiscal year (the
@@ -555,6 +597,7 @@ export async function reverseEntry(
         `L'écriture n° ${original.entryNumber} est déjà contre-passée par l'écriture n° ${original.reversedBy.entryNumber}.`,
       )
     }
+    await assertReversible(db, companyId, original)
 
     const day = options.date ? calendarDayOf(options.date) : calendarDayOf(original.date)
     if (!day) throw new ValidationError('Date de contre-passation invalide\u00a0: utilisez le format AAAA-MM-JJ')
