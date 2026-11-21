@@ -23,6 +23,8 @@
  * - the invoice is a draft: a person chooses its accounts and posts it.
  */
 
+import { findSamePurchaseInvoice } from './duplicate-purchase'
+import { defaultLineNature } from './line-nature'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -123,15 +125,25 @@ async function findSupplier(db: Db, companyId: string, seller: EInvoiceParty): P
 }
 
 /** The invoice already recorded for this file or this supplier number, if any. */
-async function findImported(db: Db, companyId: string, sha256: string, supplierId: string | null, number: string): Promise<{ id: string } | null> {
-  return db.invoice.findFirst({
+async function findImported(db: Db, companyId: string, sha256: string, supplierId: string | null, invoice: ParsedEInvoice): Promise<{ id: string } | null> {
+  const same = await db.invoice.findFirst({
     where: {
       companyId,
       direction: 'PURCHASE',
-      OR: [{ documentFile: { sha256 } }, ...(supplierId ? [{ tiersId: supplierId, number }] : [])],
+      OR: [{ documentFile: { sha256 } }, ...(supplierId ? [{ tiersId: supplierId, number: invoice.number }] : [])],
     },
     select: { id: true },
   })
+  // The same invoice already recorded from another source (Qonto), under another tiers (#136)
+  return (
+    same ??
+    (await findSamePurchaseInvoice(db, companyId, {
+      number: invoice.number,
+      sellerSiren: invoice.seller.siren,
+      issueDate: dayToDate(invoice.issueDate),
+      totalInclTaxCents: invoice.totals.totalInclTaxCents,
+    }))
+  )
 }
 
 function analysisOf(invoice: ParsedEInvoice, supplier: { id: string; auxiliaryAccountNumber: string } | null, alreadyImported: { id: string } | null): EInvoiceAnalysis {
@@ -169,7 +181,7 @@ export async function analyzeEInvoice(companyId: string, file: EInvoiceFile): Pr
   const company = await loadCompany(companyId)
   const invoice = parse(file, company)
   const supplier = await findSupplier(prisma, companyId, invoice.seller)
-  const imported = await findImported(prisma, companyId, sha256Hex(file.bytes), supplier?.id ?? null, invoice.number)
+  const imported = await findImported(prisma, companyId, sha256Hex(file.bytes), supplier?.id ?? null, invoice)
   return analysisOf(invoice, supplier, imported)
 }
 
@@ -205,7 +217,7 @@ export async function importEInvoice(companyId: string, file: EInvoiceFile, opti
       // The lock of the company's invoice numbers: a concurrent import of the same invoice waits, then finds it.
       await lockInvoiceNumbers(tx, companyId)
       let supplier = await findSupplier(tx, companyId, invoice.seller)
-      const existing = await findImported(tx, companyId, sha256, supplier?.id ?? null, invoice.number)
+      const existing = await findImported(tx, companyId, sha256, supplier?.id ?? null, invoice)
       if (existing) return { invoiceId: existing.id, supplier, created: false, supplierCreated: false, usedObject: false }
 
       let storedFile = await tx.receiptFile.findUnique({ where: { companyId_sha256: { companyId, sha256 } }, select: { id: true } })
@@ -258,7 +270,8 @@ export async function importEInvoice(companyId: string, file: EInvoiceFile, opti
               vatRateBp: line.vatRateBp,
               totalExclTax: centsToDecimal(line.totalExclTaxCents),
               accountCode: supplier.defaultAccountCode,
-              nature: 'SERVICES' as const,
+              // The document does not say goods or services: the supplier's account decides (#132)
+              nature: defaultLineNature({ tiersAccountCode: supplier.defaultAccountCode }),
             })),
           },
           vatBreakdown: {

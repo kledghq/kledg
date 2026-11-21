@@ -16,7 +16,7 @@
  *   never turned into "nothing matched".
  */
 
-import { NOT_POSTABLE_STATUSES, POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
+import { EURO_ACCOUNT_TRANSACTION_WHERE, NOT_POSTABLE_STATUSES, POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { prisma } from '@/lib/prisma'
 import { journalByCode } from '@/lib/accounting/journal-by-code'
 import { logger } from '@/lib/logger'
@@ -79,7 +79,7 @@ async function candidateTransactions(companyId: string, entries: readonly BankEn
   const afterLast = addUtcDays(new Date(Math.max(...times)), 2)
   const open = released.length > 0 ? { OR: [{ reconciled: false }, { id: { in: [...released] } }] } : { reconciled: false }
   const rows = await prisma.bankTransaction.findMany({
-    where: { bankAccount: { bankConnection: { companyId } }, ...open, date: { gte: first, lt: afterLast }, AND: [POSTABLE_TRANSACTION_WHERE] },
+    where: { bankAccount: { bankConnection: { companyId } }, ...open, date: { gte: first, lt: afterLast }, AND: [POSTABLE_TRANSACTION_WHERE, EURO_ACCOUNT_TRANSACTION_WHERE] },
     select: { id: true, date: true, amount: true, side: true, bankAccount: { select: { ledgerAccountCode: true } } },
   })
   return rows.map((t) => ({ id: t.id, date: t.date, amount: t.amount, side: t.side, ledgerAccountCode: t.bankAccount.ledgerAccountCode }))

@@ -22,6 +22,8 @@
  *   demand through the SSRF-safe file download (read-invoice-attachment).
  */
 
+import { findSamePurchaseInvoice } from './duplicate-purchase'
+import { defaultLineNature } from './line-nature'
 import { Prisma, type InvoiceDirection } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -118,10 +120,25 @@ async function upsertSupplier(companyId: string, supplierId: string | null, name
     const known = await prisma.tiers.findFirst({ where: { companyId, kind: 'SUPPLIER', qontoId: supplierId }, select: { id: true } })
     if (known) return known.id
   }
-  const byName = await prisma.tiers.findFirst({
-    where: { companyId, kind: 'SUPPLIER', qontoId: null, name: { equals: name, mode: 'insensitive' } },
-    select: { id: true },
-  })
+  // By SIREN or VAT number before the name: "ACME SAS" in an e-invoice is "ACME" at Qonto (#136)
+  const byIdentity =
+    identity.siren || identity.vatNumber
+      ? await prisma.tiers.findFirst({
+          where: {
+            companyId,
+            kind: 'SUPPLIER',
+            qontoId: null,
+            OR: [...(identity.siren ? [{ siren: identity.siren }] : []), ...(identity.vatNumber ? [{ vatNumber: identity.vatNumber }] : [])],
+          },
+          select: { id: true },
+        })
+      : null
+  const byName =
+    byIdentity ??
+    (await prisma.tiers.findFirst({
+      where: { companyId, kind: 'SUPPLIER', qontoId: null, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    }))
   if (byName) {
     if (supplierId) await prisma.tiers.update({ where: { id: byName.id }, data: { qontoId: supplierId } })
     return byName.id
@@ -136,7 +153,7 @@ async function saveInvoice(
   direction: InvoiceDirection,
   tiersId: string,
   mapped: MappedInvoice,
-  company: { siren: string; vatNumber: string | null },
+  company: { siren: string; vatNumber: string | null; activityCode: string | null },
   counters: Counters,
 ) {
   let existing = await prisma.invoice.findFirst({
@@ -182,7 +199,22 @@ async function saveInvoice(
     counters.refused.push({ direction, reference: mapped.number, reason: 'une facture de même numéro est déjà enregistrée dans Kledg' })
     return
   }
-  const tiers = await prisma.tiers.findUniqueOrThrow({ where: { id: tiersId }, select: { siren: true, vatNumber: true, paymentTermsDays: true, paymentTermsEndOfMonth: true } })
+  const tiers = await prisma.tiers.findUniqueOrThrow({ where: { id: tiersId }, select: { siren: true, vatNumber: true, paymentTermsDays: true, paymentTermsEndOfMonth: true, defaultAccountCode: true } })
+  if (direction === 'PURCHASE' && !existing) {
+    // The same supplier invoice already recorded from another source (an e-invoice file), under another tiers (#136)
+    const twin = await findSamePurchaseInvoice(prisma, companyId, {
+      number: mapped.number,
+      sellerSiren: tiers.siren,
+      issueDate: dayToDate(mapped.issueDate),
+      totalInclTaxCents: mapped.totals.totalInclTaxCents,
+    })
+    if (twin) {
+      counters.refused.push({ direction, reference: mapped.number, reason: 'la même facture du fournisseur est déjà enregistrée dans Kledg (même numéro, même SIREN ou même date et montant)' })
+      return
+    }
+  }
+  // Qonto says nothing of goods or services: the tiers' account, else the company's activity (#132)
+  const nature = defaultLineNature({ tiersAccountCode: tiers.defaultAccountCode, activityCode: direction === 'SALE' ? company.activityCode : null })
   const dueDate = mapped.dueDate ?? defaultDueDate(mapped.issueDate, termsOfTiers(tiers) ?? (await getPaymentTerms(companyId)))
   const own = { siren: company.siren, vat: company.vatNumber }
   const other = { siren: tiers.siren, vat: tiers.vatNumber }
@@ -210,7 +242,7 @@ async function saveInvoice(
         unitPrice: centsToDecimal(line.unitPriceCents),
         vatRateBp: line.vatRateBp,
         totalExclTax: centsToDecimal(line.totalExclTaxCents),
-        nature: 'SERVICES' as const,
+        nature,
       })),
     },
     vatBreakdown: {
@@ -244,7 +276,7 @@ export async function importQontoInvoices(companyId: string, input: { since?: st
   const { login, secretKey } = await getQontoCredentials(companyId)
   const qonto = new QontoInvoicing(login, secretKey)
   const since = input.since ? `${input.since}T00:00:00Z` : undefined
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { siren: true, vatNumber: true } })
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { siren: true, vatNumber: true, activityCode: true } })
   const counters: Counters = { tiers: { created: 0, updated: 0 }, invoices: { created: 0, updated: 0, unchanged: 0 }, ignored: 0, refused: [], complete: true, removedDrafts: 0 }
 
   const clients = await qonto.listClients(since)

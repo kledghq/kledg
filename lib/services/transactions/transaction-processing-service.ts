@@ -12,7 +12,7 @@
  * l'écriture", for runs nobody asked for explicitly (lib/transactions/rule-matcher.ts).
  */
 
-import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
+import { EURO_ACCOUNT_TRANSACTION_WHERE, POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { prisma } from '@/lib/prisma'
 import { loadRuleMatcher } from '@/lib/transactions/rule-service'
 import { ApprovedStateChangedError } from '@/lib/approved-state/guard'
@@ -116,7 +116,7 @@ async function getTransactionsToProcess(companyId: string, transactionIds?: stri
         },
         reconciled: false,
         // Pending, declined or reversed operations are never posted (#118)
-        AND: [POSTABLE_TRANSACTION_WHERE],
+        AND: [POSTABLE_TRANSACTION_WHERE, EURO_ACCOUNT_TRANSACTION_WHERE],
         ...dateFilter,
       },
       include: {
