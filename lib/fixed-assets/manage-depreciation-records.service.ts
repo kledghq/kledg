@@ -71,6 +71,26 @@ export function depreciationPeriod(
 }
 
 /**
+ * A record whose allowance is booked stays as booked (#135): linked to a
+ * validated entry, or in a closed fiscal year, it is not replaced, deleted
+ * or unlinked. Unlinked, the next generation would book a second,
+ * validated allowance; replaced, the fixed asset register and the gain of
+ * a disposal would no longer agree with the ledger (PCG art. 1031-3).
+ */
+async function assertRecordBooked(record: { accountingEntryId: string | null; fiscalYear: { year: number; isClosed: boolean } }, action: string) {
+  if (record.fiscalYear.isClosed) {
+    throw new ConflictError(`L'exercice ${record.fiscalYear.year} est clôturé\u00a0: son amortissement ne se ${action} plus.`)
+  }
+  if (!record.accountingEntryId) return
+  const entry = await prisma.accountingEntry.findUnique({ where: { id: record.accountingEntryId }, select: { status: true, entryNumber: true } })
+  if (entry?.status === 'validated') {
+    throw new ConflictError(
+      `Cet amortissement est comptabilisé par l'écriture validée n° ${entry.entryNumber}\u00a0: il ne se ${action} plus. Contre-passez l'écriture pour le corriger.`,
+    )
+  }
+}
+
+/**
  * Records (or replaces) the depreciation of one period of a fixed asset:
  * the amount given, else the plan's amount for the period. One record per
  * (asset, fiscal year, period); `authorizeReplace` runs before an existing
@@ -94,6 +114,9 @@ export async function saveDepreciationRecord(
   let amountCents: number
   if (input.amount !== null && input.amount !== undefined) {
     if (input.amount < 0) throw new ValidationError('Montant négatif')
+    if (Math.abs(input.amount * 100 - Math.round(input.amount * 100)) > 1e-6) {
+      throw new ValidationError('Montant au centime près\u00a0: deux décimales au plus.')
+    }
     amountCents = toCents(input.amount) ?? 0
   } else {
     const plan = buildDepreciationPlan({
@@ -117,10 +140,11 @@ export async function saveDepreciationRecord(
   // unique key with a nullable column (monthIndex).
   const existing = await prisma.fixedAssetDepreciation.findFirst({
     where: { fixedAssetId, fiscalYearId: fiscalYear.id, periodType: input.periodType, monthIndex: period.monthIndex },
-    select: { id: true },
+    select: { id: true, accountingEntryId: true, fiscalYear: { select: { year: true, isClosed: true } } },
   })
   if (existing) {
     options.authorizeReplace?.()
+    await assertRecordBooked(existing, 'remplace')
     return prisma.fixedAssetDepreciation.update({ where: { id: existing.id }, data: { amount, note } })
   }
   return prisma.fixedAssetDepreciation.create({
@@ -149,7 +173,7 @@ async function findRecord(companyId: string, fixedAssetId: string, recordId: str
 
 /** Deletes a depreciation record (not the entry it may be linked to). */
 export async function deleteDepreciationRecord(companyId: string, fixedAssetId: string, recordId: string): Promise<void> {
-  await findRecord(companyId, fixedAssetId, recordId)
+  await assertRecordBooked(await findRecord(companyId, fixedAssetId, recordId), 'supprime')
   await prisma.fixedAssetDepreciation.delete({ where: { id: recordId } })
 }
 
@@ -168,14 +192,21 @@ export async function linkDepreciationRecord(
   if (accountingEntryId) {
     const entry = await prisma.accountingEntry.findFirst({
       where: { id: accountingEntryId, companyId },
-      select: { date: true },
+      select: { date: true, lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
     })
     if (!entry) throw new NotFoundError('Écriture introuvable')
     const entryDate = new Date(entry.date)
     if (entryDate < new Date(record.fiscalYear.startDate) || entryDate > new Date(record.fiscalYear.endDate)) {
       throw new ValidationError("L'écriture doit être dans le même exercice fiscal que l'amortissement")
     }
+    // A depreciation allowance: a 68 debit and a 28 credit (PCG art. 214-13), else the allowance would never be booked (#135)
+    const debits68 = entry.lines.some((l) => l.account.code.startsWith('68') && centsOf(l.debit) > 0)
+    const credits28 = entry.lines.some((l) => l.account.code.startsWith('28') && centsOf(l.credit) > 0)
+    if (!debits68 || !credits28) {
+      throw new ValidationError("Cette écriture n'est pas une dotation aux amortissements\u00a0: elle doit débiter un compte 68 et créditer un compte 28.")
+    }
   }
+  if (record.accountingEntryId !== accountingEntryId) await assertRecordBooked(record, accountingEntryId ? 'relie à une autre écriture' : 'détache')
   return prisma.fixedAssetDepreciation.update({
     where: { id: recordId },
     data: { accountingEntryId: accountingEntryId ?? null },

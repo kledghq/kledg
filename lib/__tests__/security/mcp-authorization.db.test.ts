@@ -307,11 +307,14 @@ describe.skipIf(!available)('MCP authorization boundary', () => {
     // The agent replays what it received: refused until a human approves in Kledg.
     const replay = await call(key, 'close_fiscal_year', { ...args, actionId: preview.actionId })
     expect(replay.ok).toBe(false)
+    // Fields the tool does not know are refused, never dropped (#133)
     const forged = await call(key, 'close_fiscal_year', { ...args, confirm: true, confirmationToken: 'kc_anything' })
-    expect(JSON.parse(forged.text)).toMatchObject({ dryRun: true })
+    expect(forged.ok).toBe(false)
+    expect(forged.text).toContain('confirm')
     // Asking for automatic execution in the arguments changes nothing: the mode is the grant's, set by the user in Kledg.
     const smuggled = await call(key, 'close_fiscal_year', { ...args, dryRun: false, executionMode: 'automatic' })
-    expect(JSON.parse(smuggled.text)).toMatchObject({ dryRun: true })
+    expect(smuggled.ok).toBe(false)
+    expect(smuggled.text).toContain('executionMode')
     expect((await prisma.fiscalYear.findUniqueOrThrow({ where: { id: ids.aFy } })).isClosed).toBe(false)
   })
 

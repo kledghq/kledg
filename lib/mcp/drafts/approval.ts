@@ -14,6 +14,7 @@
  * documents in Kledg.
  */
 
+import { ValidationError } from '@/lib/accounting/errors'
 import { z } from 'zod'
 import { parseInput } from '@/lib/api/zod-fields'
 import { getApproval } from '@/lib/approval/get-approval.service'
@@ -70,14 +71,16 @@ const input = {
   nonDeductibleExpenses: eurosInput.min(0).nullable().optional().describe('Expenses not deductible (CGI art. 39, 4), in euros.'),
   confidentiality: z.enum(CONFIDENTIALITY_OPTIONS).optional(),
   filedOnline: z.boolean().nullable().optional(),
-  approvedOn: day.nullable().optional().describe('Day the accounts were approved, after the closing.'),
-  filedOn: day.nullable().optional().describe('Day the accounts were filed with the greffe.'),
+  approvedOn: day.nullable().optional().describe('Refused: the user records the approval day in Kledg (Approbation des comptes).'),
+  filedOn: day.nullable().optional().describe('Refused: the user records the filing day in Kledg (Approbation des comptes).'),
   signatureCity: text(80),
 }
 
 type Input = z.infer<z.ZodObject<typeof input>>
 
-const SCALARS = ['decisionMode', 'rcsCity', 'secretary', 'hasAuditor', 'auditorName', 'regulatedAgreements', 'groupMember', 'confidentiality', 'filedOnline', 'approvedOn', 'filedOn', 'signatureCity'] as const
+// The approval and filing days are the user's to record in Kledg (#134): they settle the approval and filing
+// deadlines, a fact an assistant at draft level does not assert.
+const SCALARS = ['decisionMode', 'rcsCity', 'secretary', 'hasAuditor', 'auditorName', 'regulatedAgreements', 'groupMember', 'confidentiality', 'filedOnline', 'signatureCity'] as const
 
 /** What is saved, with the fields given replacing theirs (objects merged one level down). */
 function merged(current: ApprovalDetails, args: Input): { details: Record<string, unknown>; fields: string[] } {
@@ -128,8 +131,8 @@ const updateApprovalTool = draftTool({
   name: 'update_year_end_formalities',
   title: 'Renseigner l’approbation des comptes',
   summary:
-    'Fills the data of the approval of the accounts of a fiscal year in Kledg: decision mode, meeting date, place and convocation, chair and secretary, auditor, regulated agreements, size category and headcount, group membership, votes per resolution, allocation proposed (dividends, other reserves), dividends of the three previous years, non-deductible expenses, confidentiality at filing, approval and filing days. Only the fields given change; the others keep what was saved. Kledg checks the dates against the closing (decision, approval and filing after it, convocation before the meeting, filing after the approval). Answers the fields changed and what each document still misses (as get_year_end_formalities).',
-  never: 'generates or signs a document, files the accounts, approves anything for the shareholders or books the allocation of the result (allocate_result does, in full control).',
+    'Fills the data of the approval of the accounts of a fiscal year in Kledg: decision mode, meeting date, place and convocation, chair and secretary, auditor, regulated agreements, size category and headcount, group membership, votes per resolution, allocation proposed (dividends, other reserves), dividends of the three previous years, non-deductible expenses, confidentiality at filing. Only the fields given change; the others keep what was saved. Kledg checks the dates against the closing (decision after it, convocation before the meeting). Answers the fields changed and what each document still misses (as get_year_end_formalities).',
+  never: 'records the approval or filing day (the user does, on the Approbation des comptes page), generates or signs a document, files the accounts, approves anything for the shareholders, changes approved minutes or books the allocation of the result (allocate_result does, in full control).',
   amounts: 'euros',
   units: 'Dates as yyyy-mm-dd, votes as numbers of votes.',
   input,
@@ -137,6 +140,11 @@ const updateApprovalTool = draftTool({
   destructive: true,
   idempotent: true,
   async execute({ companyId, fiscalYearId, ...args }, ctx) {
+    if (args.approvedOn !== undefined || args.filedOn !== undefined) {
+      throw new ValidationError(
+        "La date d'approbation et la date de dépôt au greffe s'enregistrent dans Kledg, page Approbation des comptes\u00a0: elles constatent la décision des associés et le dépôt, et soldent leurs échéances. Les autres informations peuvent être renseignées ici.",
+      )
+    }
     const current = await getApproval(companyId, fiscalYearId)
     const { details, fields } = merged(current.details, { fiscalYearId, ...args })
     await saveApproval(companyId, fiscalYearId, parseInput(ApprovalDetailsSchema, details), ctx.access.user.id)

@@ -11,18 +11,84 @@
 import { prisma } from '@/lib/prisma'
 import { ownedFiscalYear } from '@/lib/accounting/manage-fiscal-years.service'
 import { ValidationError } from '@/lib/accounting/errors'
-import { calendarDayOf, isoDateToUtc } from '@/lib/utils/date'
+import { calendarDayOf, formatIsoDateFr, isoDateToUtc } from '@/lib/utils/date'
+import { todayParis } from '@/lib/accounting/entry-date'
 import { writeAuditLog } from '@/lib/audit'
 import type { ApprovalDetails } from './schemas'
+
+/**
+ * What the minutes say (#134): once the accounts are approved, the
+ * decision as adopted is what the company keeps with its registers (C. com.
+ * art. R221-3, R223-24, R225-106) and what the allocation entry justifies.
+ * These fields no longer change; the filing ones (filedOn, filedOnline,
+ * confidentiality, rcsCity) and the size data do.
+ */
+const MINUTES_FIELDS = [
+  'decisionMode',
+  'meeting',
+  'chair',
+  'secretary',
+  'officers',
+  'attendance',
+  'statutoryRule',
+  'votes',
+  'allocation',
+  'priorDividends',
+  'nonDeductibleExpensesCents',
+  'regulatedAgreements',
+  'hasAuditor',
+  'auditorName',
+  'managementReport',
+  'signatureCity',
+] as const
+
+/** JSON with sorted keys, to compare saved details whatever their key order. */
+function canonical(value: unknown): string {
+  // An empty list or object is the same as nothing (a default added since the save)
+  if (Array.isArray(value)) return value.length === 0 ? 'null' : `[${value.map(canonical).join(',')}]`
+  if (value && typeof value === 'object' && Object.values(value).every((v) => v === undefined)) return 'null'
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value as Record<string, unknown>)
+      .filter((k) => (value as Record<string, unknown>)[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value ?? null)
+}
 
 export async function saveApproval(
   companyId: string,
   fiscalYearId: string,
   details: ApprovalDetails,
   userId: string,
+  options: { now?: Date } = {},
 ): Promise<{ updatedAt: string }> {
   const fiscalYear = await ownedFiscalYear(companyId, fiscalYearId)
   const end = calendarDayOf(fiscalYear.endDate) as string
+  const today = todayParis(options.now)
+  for (const [label, value] of [
+    ["La date d'approbation", details.approvedOn],
+    ['La date de dépôt', details.filedOn],
+  ] as const) {
+    if (value && value > today) throw new ValidationError(`${label} ne peut pas être dans le futur\u00a0: indiquez-la une fois la décision prise ou le dépôt fait.`)
+  }
+
+  // Approved accounts: the minutes stay as adopted. Clearing the approval day alone (a mistake) reopens them.
+  const saved = await prisma.accountsApproval.findUnique({
+    where: { fiscalYearId_companyId: { fiscalYearId: fiscalYear.id, companyId } },
+    select: { approvedOn: true, details: true },
+  })
+  if (saved?.approvedOn && details.approvedOn) {
+    const before = (saved.details ?? {}) as Record<string, unknown>
+    const after = details as unknown as Record<string, unknown>
+    const changed = MINUTES_FIELDS.filter((key) => canonical(before[key]) !== canonical(after[key]))
+    if (changed.length > 0 || calendarDayOf(saved.approvedOn) !== details.approvedOn) {
+      throw new ValidationError(
+        `Les comptes de l'exercice ${fiscalYear.year} sont approuvés depuis le ${formatIsoDateFr(calendarDayOf(saved.approvedOn) ?? '')}\u00a0: la décision ne se modifie plus telle qu'elle a été adoptée. Seules les informations de dépôt changent encore. Pour corriger une erreur de saisie, effacez d'abord la date d'approbation.`,
+      )
+    }
+  }
 
   const ids = details.attendance.map((a) => a.shareholderId)
   if (new Set(ids).size !== ids.length) throw new ValidationError('Un associé figure deux fois dans la feuille de présence.')

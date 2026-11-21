@@ -90,6 +90,27 @@ export function approvalUrl(id: string): string {
   return `${getAppUrl()}/settings/ai-actions?action=${encodeURIComponent(id)}`
 }
 
+/** Longest text kept as is in the stored arguments; longer ones (a file in base64) are summarised. */
+const MAX_STORED_TEXT = 4096
+
+/**
+ * The arguments as stored and shown for the user's decision (#138): a file
+ * sent in base64 (import_statement, upload_receipt...) is replaced by its
+ * size. Up to 6,7 MB each, kept 30 days and listed 100 at a time, they made
+ * the approvals page heavier than a response may be. The execution is bound
+ * to the full arguments by argsHash, never by what is stored here.
+ */
+export function storedArgs(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.length > MAX_STORED_TEXT ? `(contenu de ${Math.max(1, Math.round((value.length * 3) / 4 / 1024))} Ko, non conservé)` : value
+  }
+  if (Array.isArray(value)) return value.map(storedArgs)
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, storedArgs(v)]))
+  }
+  return value
+}
+
 /** JSON as the assistant receives it (Decimal, Date and other toJSON values serialized the same way). */
 const toJson = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue
 
@@ -116,7 +137,7 @@ export async function createPendingAction(
       callerName,
       tool: binding.tool,
       companyId: binding.companyId,
-      args: toJson(binding.args),
+      args: toJson(storedArgs(toJson(binding.args))),
       argsHash: argsHash(binding.args),
       preview: toJson(preview ?? null),
       fingerprint,
@@ -207,7 +228,8 @@ export async function listActionsOfUser(userId: string, now: Date = new Date()):
     companyId: row.companyId,
     companyName: row.company?.name ?? NO_COMPANY_LABEL,
     callerName: row.callerName,
-    args: row.args,
+    // Rows stored before #138 may still hold a file: summarised on the way out too
+    args: storedArgs(row.args),
     preview: row.preview,
     status: row.status === 'pending' && row.expiresAt <= now ? 'expired' : row.status,
     expiresAt: row.expiresAt.toISOString(),
