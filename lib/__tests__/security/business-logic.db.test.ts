@@ -162,10 +162,9 @@ describe.skipIf(!available)('business logic integrity', () => {
     }
   })
 
-  it('allows negative amounts by design (overdraft), still requiring balance', async () => {
-    // lib/accounting/validator.ts documents negative debit/credit as allowed;
-    // this pins that intended policy so a future "reject negatives" change is a
-    // conscious decision and does not regress silently.
+  it('refuses negative amounts: the side carries the sign (#146)', async () => {
+    // Amounts are positive in the books and the FEC (A47 A-1 LPF); a negative
+    // debit is a credit. Refused with a French 400, never stored.
     const response = await call('accountant', {
       route: routes.entries,
       method: 'POST',
@@ -174,14 +173,14 @@ describe.skipIf(!available)('business logic integrity', () => {
         companyId: ids.aCompany,
         journalId: ids.aJournal,
         date: '2026-04-03',
-        description: 'negative-ok',
+        description: 'negative-refused',
         lines: [
           { accountId: ids.aAccount, debit: -100, credit: 0 },
           { accountId: ids.aSales, debit: 0, credit: -100 },
         ],
       },
     })
-    expect(response.status).toBeLessThan(300)
+    expect(response.status).toBe(400)
   })
 
   it('never reconciles one transaction into two links', async () => {
