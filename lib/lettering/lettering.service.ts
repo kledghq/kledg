@@ -27,6 +27,7 @@
  * third-party account into the next year.
  */
 
+import { transferVatOfLetteredInvoicesInTx } from '@/lib/invoices/vat-transfer'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -395,6 +396,8 @@ async function letterGroupInTx(
   })
   if (written.count !== unique.length) throw new ConflictError(LETTERING_MESSAGES.alreadyLettered(code))
   codes.push(code)
+  // A sale settled by this group: its VAT due on receipt leaves 44574 (CGI art. 269, 2, c; #121)
+  await transferVatOfLetteredInvoicesInTx(tx, companyId, unique)
   return { code, letteringDate: letteringDay, lineIds: unique, amountCents: check.debitCents }
 }
 

@@ -415,6 +415,28 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
       await expect(posting.unpostInvoice(books.companyId, invoice.id)).rejects.toThrow(/règlements/)
     })
 
+    it('moves the VAT of services still in 44574 when the invoice is lettered in Lettrage (#121)', async () => {
+      const { invoice, posted } = await postedSale('V22', 10000, 'SERVICES')
+      await svc.validateEntries(books.companyId, [posted.entryId])
+      const tiersLine = await prisma.entryLine.findFirstOrThrow({ where: { accountingEntryId: posted.entryId, account: { code: '411000' } } })
+      // Part paid through the invoice, the rest lettered by hand with a payment never recorded on it
+      const first = await payments.recordInvoicePayment(books.companyId, invoice.id, await books.payment('customer', '2026-04-02', '40.00'))
+      const second = await books.payment('customer', '2026-05-12', '80.00')
+      const firstLine = (await prisma.invoicePayment.findFirstOrThrow({ where: { invoiceId: invoice.id } })).entryLineId
+      await lettering.letterLines(books.companyId, { accountId: tiersLine.accountId, lineIds: [tiersLine.id, firstLine, second] }, { now: NOW })
+
+      const detail = await invoices.getInvoice(books.companyId, invoice.id)
+      expect(detail).toMatchObject({ status: 'paid', remainingCents: 0 })
+      const last = await prisma.invoicePayment.findFirstOrThrow({ where: { invoiceId: invoice.id, entryLineId: second } })
+      expect(last.amount.toString()).toBe('80')
+      const move = await entryLines(last.vatTransferEntryId!)
+      // 20,00 - 6,67 already moved with the first payment
+      expect(move).toEqual(expect.arrayContaining([expect.objectContaining({ code: '445740', debit: '13.33' }), expect.objectContaining({ code: '445710', credit: '13.33' })]))
+      const transfer = await prisma.accountingEntry.findUniqueOrThrow({ where: { id: last.vatTransferEntryId! } })
+      expect(transfer.date.toISOString().slice(0, 10)).toBe('2026-05-12')
+      expect(first.vatTransferEntryId).not.toBe(last.vatTransferEntryId)
+    })
+
     it('posts the VAT of services to 44571 at once with the option for debits', async () => {
       await vat.updateVatSettings(books.companyId, { servicesVatOnDebits: true })
       const { posted } = await postedSale('V21', 10000, 'SERVICES')
