@@ -15,6 +15,7 @@
  * the same entries, numbers and balances (round trip, see the tests).
  */
 
+import { CLOSING_JOURNAL } from '@/lib/accounting/fiscal-year-closure/constants'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -201,6 +202,20 @@ export async function importFEC(options: FECImportOptions): Promise<ImportResult
       : []
     if (mappedJournals.length !== new Set(mappedJournalIds).size) {
       result.errors.push("Correspondance de journaux invalide : un journal choisi n'appartient pas à cette société.")
+    }
+
+    // CL is reserved to the closing entry Kledg writes (#124): a journal of the file named CL goes elsewhere
+    const closingJournalIds = new Set(
+      (await prisma.journal.findMany({ where: { companyId, code: CLOSING_JOURNAL.code }, select: { id: true } })).map((j) => j.id),
+    )
+    const toClosing = [...plan.journals.keys()].filter((code) => {
+      const mapped = journalMapping[code]
+      return mapped ? closingJournalIds.has(mapped) : code.trim().toUpperCase() === CLOSING_JOURNAL.code
+    })
+    if (toClosing.length > 0) {
+      result.errors.push(
+        `Le journal ${CLOSING_JOURNAL.code} est réservé à l'écriture de clôture que Kledg passe à la clôture de l'exercice\u00a0: faites correspondre le journal ${toClosing.join(', ')} du fichier à un autre journal. Les écritures de solde des comptes de charges et de produits n'ont pas leur place dans un FEC (LPF art. A47 A-1).`,
+      )
     }
 
     if (refusedCount > 0) {

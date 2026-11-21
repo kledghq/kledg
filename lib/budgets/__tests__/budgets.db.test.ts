@@ -68,6 +68,8 @@ describe.skipIf(!available)('budgets (PostgreSQL)', () => {
       description: `Écriture ${date}`,
       reference: options.reference ?? null,
       status: options.status ?? 'validated',
+      // The closing entry of a year: the only one journal CL takes (#124)
+      closingEntry: options.journal === 'CL',
       lines: [
         { accountId: books.accounts[debit], debit: amount, credit: '0' },
         { accountId: books.accounts[credit], debit: '0', credit: amount },

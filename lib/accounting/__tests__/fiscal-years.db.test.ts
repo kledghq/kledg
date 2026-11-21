@@ -312,7 +312,9 @@ describe.skipIf(!available)('fiscal years (PostgreSQL)', () => {
       const fy2026 = await fiscalYear(s.companyId, 2026, '2026-01-01', '2026-12-31')
       const cl = await prisma.journal.create({ data: { companyId: s.companyId, code: 'CL', label: 'Clôture' } })
       const an = await prisma.journal.create({ data: { companyId: s.companyId, code: 'AN', label: 'À-nouveaux' } })
-      await entry(s.companyId, cl.id, '2025-12-31', await s.account('120000'), await s.account('706000'), '10.00', 'draft')
+      // An entry left in CL before the journal was reserved to the closing (#124)
+      const legacy = await entry(s.companyId, s.journal, '2025-12-31', await s.account('120000'), await s.account('706000'), '10.00', 'draft')
+      await prisma.accountingEntry.update({ where: { id: legacy.id }, data: { journalId: cl.id } })
       await entry(s.companyId, an.id, '2026-01-01', await s.account('512000', fy2026), await s.account('110000', fy2026), '10.00')
 
       const result = await validateFiscalYearClosure(s.companyId, s.fy2025, prisma, now)
