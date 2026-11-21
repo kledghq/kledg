@@ -83,6 +83,11 @@ describe('validateFec', () => {
     expect(messages(content)).toContain('Débit et crédit renseignés sur la même ligne')
   })
 
+  it('refuses a negative amount: the side carries the sign (#146)', () => {
+    const content = file(row({ Debit: '-100,00' }), row({ CompteNum: '706000', Debit: '-100,00' }))
+    expect(messages(content)).toContain('Montant négatif')
+  })
+
   it('refuses an unbalanced entry and an unbalanced file', () => {
     const content = file(row({ Debit: '100,00' }), row({ CompteNum: '706000', Credit: '99,99' }))
     const text = messages(content)

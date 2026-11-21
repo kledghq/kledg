@@ -19,6 +19,9 @@ import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/
 import { closeFiscalYear, simulateFiscalYearClosure } from '@/lib/accounting/fiscal-year-closure'
 import { logger } from '@/lib/logger'
 import { calendarDayOf, formatIsoDateFr, isoDateToUtc } from '@/lib/utils/date'
+import { assertFiscalYearDuration } from './fiscal-year-duration'
+
+export { assertFiscalYearDuration } from './fiscal-year-duration'
 import { lockFiscalYearRow } from '@/lib/accounting/fiscal-year-closure/lock'
 import { seedPCG } from '@/prisma/seeds/pcg'
 
@@ -57,6 +60,7 @@ function datesOf(input: { startDate: string; endDate: string }): { start: Date; 
   const start = dayOf(input.startDate, 'Date de début')
   const end = dayOf(input.endDate, 'Date de fin')
   if (start >= end) throw new ValidationError('La date de début doit précéder la date de fin.')
+  assertFiscalYearDuration(calendarDayOf(start)!, calendarDayOf(end)!)
   return { start, end }
 }
 

@@ -97,20 +97,33 @@ describe('IS at 15 % and 25 % (CGI art. 219, I)', () => {
   it('short fiscal year of six months: the ceiling is 21 250 € and the chiffre d’affaires is annualized', () => {
     const half = durationOf('2026-01-01', '2026-06-30')
     const c = computeCorporateTax(input({ duration: half, accountingResultCents: k(30_000), turnoverCents: k(400_000) }))
-    expect(c.reducedRate).toMatchObject({ ceilingCents: k(21_250), baseCents: k(21_250), taxCents: 318_750 })
-    expect(c.normalRate).toEqual({ baseCents: k(8_750), taxCents: 218_750 })
-    expect(c.corporateTaxCents).toBe(k(5_375))
+    // Each tax in whole euros (CGI art. 1657, 1 bis; #141): 3 187,50 € is 3 188 €, 2 187,50 € is 2 188 €
+    expect(c.reducedRate).toMatchObject({ ceilingCents: k(21_250), baseCents: k(21_250), taxCents: k(3_188) })
+    expect(c.normalRate).toEqual({ baseCents: k(8_750), taxCents: k(2_188) })
+    expect(c.corporateTaxCents).toBe(k(5_376))
     // 6 M€ in six months is 12 M€ a year: no reduced rate
     const fast = computeCorporateTax(input({ duration: half, accountingResultCents: k(30_000), turnoverCents: k(6_000_000) }))
     expect(fast.eligibility).toMatchObject({ turnoverAnnualCents: k(12_000_000), eligible: false })
     expect(fast.corporateTaxCents).toBe(k(7_500))
   })
 
+  it('rounds the IS and the contribution sociale to the euro (CGI art. 1657, 1 bis, #141)', () => {
+    // 12 345 € at 25 %: 3 086,25 € is 3 086 €
+    const c = computeCorporateTax(input({ accountingResultCents: k(12_345), turnoverCents: k(20_000_000), capitalPaidUp: false }))
+    expect(c.normalRate.taxCents).toBe(k(3_086))
+    expect(c.totalCents % 100).toBe(0)
+    // Contribution sociale: 3,3 % of the IS above 763 000 €
+    const big = computeCorporateTax(input({ accountingResultCents: k(3_100_001), turnoverCents: k(20_000_000), capitalPaidUp: false }))
+    expect(big.socialContribution.cents % 100).toBe(0)
+    expect(big.totalCents % 100).toBe(0)
+  })
+
   it('long fiscal year of eighteen months: the ceiling is 63 750 €', () => {
     const c = computeCorporateTax(input({ duration: durationOf('2025-07-01', '2026-12-31'), accountingResultCents: k(100_000) }))
-    expect(c.reducedRate).toMatchObject({ ceilingCents: k(63_750), taxCents: 956_250 })
-    expect(c.normalRate.taxCents).toBe(906_250)
-    expect(c.corporateTaxCents).toBe(1_862_500)
+    // 9 562,50 € and 9 062,50 € in whole euros
+    expect(c.reducedRate).toMatchObject({ ceilingCents: k(63_750), taxCents: k(9_563) })
+    expect(c.normalRate.taxCents).toBe(k(9_063))
+    expect(c.corporateTaxCents).toBe(k(18_626))
   })
 
   it('rounds the tax result to the euro as the forms are filled', () => {

@@ -251,7 +251,7 @@ describe('IS thresholds (CGI art. 219, I)', () => {
   it('taxes everything at 25 % without the reduced rate, and follows a prorated ceiling', () => {
     expect(allDividends({ resultBeforePayCents: k(42_500), reducedRate: false })).toBe(k(10_625))
     // Six months: ceiling 21 250 €
-    expect(allDividends({ resultBeforePayCents: k(42_500), reducedRateCeilingCents: k(21_250) })).toBe(k(21_250 * 0.15 + 21_250 * 0.25))
+    expect(allDividends({ resultBeforePayCents: k(42_500), reducedRateCeilingCents: k(21_250) })).toBe(k(3_188 + 5_313))
   })
 
   it('pays no IS and no dividends on a loss', () => {

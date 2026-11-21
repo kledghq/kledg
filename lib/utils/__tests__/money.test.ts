@@ -12,6 +12,7 @@ import {
   parseAmount,
   parseCents,
   toCents,
+  unsignedSides,
 } from '../money'
 
 const cents = (input: string, options?: { allowNegative?: boolean }) => {
@@ -260,5 +261,14 @@ describe('one module for money', () => {
       expect(toCents(decimal)).toBe(value)
       expect(parseAmount(decimal.replace('.', ','), { allowNegative: true })).toEqual({ ok: true, cents: value })
     }
+  })
+})
+
+describe('unsignedSides (#146)', () => {
+  it('moves a negative amount to the other side', () => {
+    expect(unsignedSides(-1_000, 0)).toEqual({ debitCents: 0, creditCents: 1_000 })
+    expect(unsignedSides(0, -250)).toEqual({ debitCents: 250, creditCents: 0 })
+    expect(unsignedSides(500, 0)).toEqual({ debitCents: 500, creditCents: 0 })
+    expect(unsignedSides(-1, 2)).toEqual({ debitCents: -1, creditCents: 2 })
   })
 })

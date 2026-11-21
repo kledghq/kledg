@@ -404,5 +404,28 @@ describe.skipIf(!available)('management fees (PostgreSQL)', () => {
       const { billings } = await asHolding(ACCOUNTANT, (a) => billing.generateManagementFeeInvoices(holding.companyId, created.id, { ...Q1, purchaseDrafts: false }, a))
       expect(billings[0].salesInvoice.number).toBe('FG-2026-008')
     })
+
+    it('refuses an issue date before the latest invoice of the series (#145)', async () => {
+      await prisma.invoice.create({
+        data: {
+          companyId: holding.companyId,
+          direction: 'SALE',
+          tiersId: holding.customerId,
+          number: 'FG-2026-004',
+          issueDate: new Date('2026-05-15T00:00:00Z'),
+          dueDate: new Date('2026-06-15T00:00:00Z'),
+          totalExclTax: 10,
+          totalVat: 2,
+          totalInclTax: 12,
+        },
+      })
+      const created = await asHolding(ACCOUNTANT, (a) => conventions.createConvention(holding.companyId, convention({ allocationKey: 'EQUAL', subsidiaries: [{ subsidiaryId: s1.companyId }] }), a))
+      await expect(
+        asHolding(ACCOUNTANT, (a) => billing.generateManagementFeeInvoices(holding.companyId, created.id, { ...Q1, issueDate: '2026-04-05', purchaseDrafts: false }, a)),
+      ).rejects.toThrow(/FG-2026-004 du 15\/05\/2026 est déjà émise/)
+      expect(await prisma.managementFeeBilling.count()).toBe(0)
+      const { billings } = await asHolding(ACCOUNTANT, (a) => billing.generateManagementFeeInvoices(holding.companyId, created.id, { ...Q1, issueDate: '2026-05-15', purchaseDrafts: false }, a))
+      expect(billings[0].salesInvoice.number).toBe('FG-2026-005')
+    })
   })
 })

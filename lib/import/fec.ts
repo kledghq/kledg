@@ -34,7 +34,7 @@ import type { BankEntryToMatch } from '@/lib/reconciliation/bank-line-match'
 import type { FECImportOptions, FiscalYearInfo, ImportResult } from '@/lib/import/fec/types'
 import { plural } from '@/lib/utils/plural'
 import { groupRefusals } from '@/lib/import/fec/refusal-report'
-import { assertNoFiscalYearOverlap, lockCompanyFiscalYears } from '@/lib/accounting/manage-fiscal-years.service'
+import { assertFiscalYearDuration, assertNoFiscalYearOverlap, lockCompanyFiscalYears } from '@/lib/accounting/manage-fiscal-years.service'
 
 // Re-export public types
 export type { FECLine, ImportResult, FECImportOptions, FiscalYearInfo } from '@/lib/import/fec/types'
@@ -292,6 +292,7 @@ async function writePlan(db: Prisma.TransactionClient, companyId: string, plan: 
       fiscalYearIds.set(fy.year, fy.id)
       continue
     }
+    assertFiscalYearDuration(fy.start, fy.end)
     await assertNoFiscalYearOverlap(db, companyId, { start: dayToDate(fy.start), end: dayToDate(fy.end) })
     const row = await db.fiscalYear.create({
       data: {

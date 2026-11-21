@@ -7,7 +7,7 @@ import { createAccountingEntryWithWarnings } from '@/lib/accounting/services'
 import type { EntryLine } from '@/lib/accounting/types'
 import type { PCGWarning } from '@/lib/accounting/services'
 import { handleError, ValidationError } from '@/lib/accounting/errors'
-import { fromCents } from '@/lib/utils/money'
+import { fromCents, unsignedSides } from '@/lib/utils/money'
 import { importAmountCents } from './amount'
 import { assertCsvWithinLimits } from '@/lib/api/files'
 import { ACCOUNTING_IMPORT_MAX_ROWS } from './excel'
@@ -166,10 +166,14 @@ export async function importCSV(
 
 
         // CSV lines to EntryLine, amounts read exactly (French notation accepted)
-        const amounts = lines.map((l) => ({
-          debit: importAmountCents(l[defaultMapping.debitColumn]),
-          credit: importAmountCents(l[defaultMapping.creditColumn]),
-        }))
+        const amounts = lines.map((l) => {
+          const debit = importAmountCents(l[defaultMapping.debitColumn])
+          const credit = importAmountCents(l[defaultMapping.creditColumn])
+          if (debit === null || credit === null) return { debit, credit }
+          // A negative amount moves to the other side (#146)
+          const sides = unsignedSides(debit, credit)
+          return { debit: sides.debitCents, credit: sides.creditCents }
+        })
         if (amounts.some((a) => a.debit === null || a.credit === null)) {
           result.errors.push(`Écriture ${entryNumber}: montant invalide (exemple : 1 234,56)`)
           continue

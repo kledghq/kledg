@@ -131,6 +131,10 @@ l'exercice va d'un 1er à une fin de mois (six mois : 21 250 €, dix-huit
 mois : 63 750 €), sinon en jours sur 365. Le chiffre d'affaires est ramené à
 douze mois de la même façon. Le plafond est arrondi à l'euro.
 
+**Arrondi.** L'impôt à chaque taux et la contribution sociale sont arrondis à
+l'euro le plus proche, 0,50 € comptant pour un (CGI, art. 1657, 1 bis), comme
+sur la 2065 et le relevé de solde 2572 : 3 086,25 € devient 3 086 €.
+
 **Contribution sociale** (CGI, art. 235 ter ZC) : 3,3 % de l'impôt sur les
 sociétés diminué d'un abattement de 763 000 € par période de douze mois.
 Exonérées : les sociétés dont le chiffre d'affaires, ramené à douze mois, est

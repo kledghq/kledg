@@ -75,7 +75,7 @@ describe('Service de Validation Comptable', () => {
       expect(result.errors.some(e => e.includes('débit ou au crédit'))).toBe(true)
     })
 
-    it('devrait accepter des lignes avec montants négatifs (ex. compte en découvert)', () => {
+    it('refuse les montants négatifs : le sens porte le signe (#146)', () => {
       const lines: EntryLine[] = [
         { accountId: '1', debit: -1000, credit: 0 },
         { accountId: '2', debit: 0, credit: -1000 },
@@ -83,10 +83,11 @@ describe('Service de Validation Comptable', () => {
 
       const result = validateEntryBalance(lines)
 
-      expect(result.valid).toBe(true)
-      expect(result.totalDebit).toBe(-1000)
-      expect(result.totalCredit).toBe(-1000)
-      expect(result.balance).toBe(0)
+      expect(result.valid).toBe(false)
+      expect(result.errors).toEqual([
+        'Ligne 1 : montant négatif, portez-le au crédit en positif',
+        'Ligne 2 : montant négatif, portez-le au débit en positif',
+      ])
     })
 
     // Exact amounts: no rounding tolerance (sums in integer cents)
