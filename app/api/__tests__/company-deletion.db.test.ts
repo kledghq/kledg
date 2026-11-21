@@ -60,9 +60,19 @@ async function seedCompany(books: 'empty' | 'validated' | 'closed') {
   })
   if (books !== 'empty') {
     const journal = await prisma.journal.create({ data: { companyId: c.id, code: 'OD', label: 'Opérations diverses' } })
-    await prisma.accountingEntry.create({
-      data: { companyId: c.id, fiscalYearId: fy.id, journalId: journal.id, entryNumber: '1', date: new Date('2025-03-01T00:00:00Z'), description: 'Vente', status: 'validated' },
+    const bank = await prisma.account.create({ data: { companyId: c.id, fiscalYearId: fy.id, code: '512000', label: 'Banque' } })
+    const sales = await prisma.account.create({ data: { companyId: c.id, fiscalYearId: fy.id, code: '706000', label: 'Ventes' } })
+    // Created as a draft, then validated: the database refuses an entry inserted as validated (#161)
+    const entry = await prisma.accountingEntry.create({
+      data: { companyId: c.id, fiscalYearId: fy.id, journalId: journal.id, entryNumber: `BR-${n}`, date: new Date('2025-03-01T00:00:00Z'), description: 'Vente', status: 'draft' },
     })
+    await prisma.entryLine.createMany({
+      data: [
+        { accountingEntryId: entry.id, accountId: bank.id, accountFiscalYearId: fy.id, accountingEntryNumber: `BR-${n}`, debit: 10, credit: 0 },
+        { accountingEntryId: entry.id, accountId: sales.id, accountFiscalYearId: fy.id, accountingEntryNumber: `BR-${n}`, debit: 0, credit: 10 },
+      ],
+    })
+    await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status: 'validated', entryNumber: '1' } })
   }
   if (books === 'closed') {
     await prisma.fiscalYear.update({ where: { id: fy.id }, data: { isClosed: true, closedAt: new Date() } })
@@ -117,6 +127,8 @@ describe.skipIf(!available)('company deletion and archiving', () => {
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('kledg.company_purge', 'on', true)`
       await tx.$executeRaw`SELECT set_config('kledg.closed_year_bypass', 'on', true)`
+      // As the forks' purges do (kledg-demo, kledg-cloud): the lines' foreign keys are checked at commit
+      await tx.$executeRaw`SET CONSTRAINTS ALL DEFERRED`
       await tx.company.delete({ where: { id: purged } })
     })
     expect(await prisma.company.count({ where: { id: purged } })).toBe(0)
