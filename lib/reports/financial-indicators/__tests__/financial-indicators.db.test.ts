@@ -103,6 +103,8 @@ async function seed() {
       description,
       reference,
       status: 'validated',
+      // The closing entry of a year: the only one journal CL takes (#124)
+      closingEntry: journalId === j.CL,
       lines: lines.map(([accountId, debit, credit]) => ({ accountId, debit: String(debit), credit: String(credit) })),
     })
   await entry(j.VE, '2024-05-02', 'Facture 2024', [[b['411000'], 1_200, 0], [b['706000'], 0, 1_000], [b['445710'], 0, 200]])

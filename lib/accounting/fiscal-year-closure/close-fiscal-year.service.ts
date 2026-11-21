@@ -44,7 +44,9 @@ import {
   createValidatedEntry,
   ensureAccounts,
   ensureJournal,
+  findNextFiscalYear,
   loadYearBalances,
+  nextFiscalYearConflict,
   nextFiscalYearDates,
 } from './ledger'
 import { lockFiscalYearRow } from './lock'
@@ -117,10 +119,16 @@ export async function closeFiscalYear(
           where: { id: companyId },
           select: { closingDay: true, closingMonth: true },
         })
-        const next = await tx.fiscalYear.upsert({
-          where: { companyId_year: { companyId, year: fiscalYear.year + 1 } },
-          update: {},
-          create: {
+        // The year starting the next day, whatever its number; created when missing, never over another year (#125).
+        // Same advisory lock as the creations of fiscal years (manage-fiscal-years.service.ts).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kledg:fiscal-years:${companyId}`}))`
+        const found = await findNextFiscalYear(tx, companyId, fiscalYear.endDate, { id: true, year: true, startDate: true })
+        if (!found) {
+          const conflict = await nextFiscalYearConflict(tx, companyId, fiscalYear.year + 1, dates)
+          if (conflict) throw new ClosingRefused([conflict])
+        }
+        const next = found ?? await tx.fiscalYear.create({
+          data: {
             companyId,
             year: fiscalYear.year + 1,
             closingDay: company?.closingDay ?? dates.endDate.getUTCDate(),

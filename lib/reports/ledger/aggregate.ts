@@ -13,7 +13,7 @@
  *   fiscal year (accounts and entries belong to one fiscal year);
  * - dates are calendar days stored at midnight UTC: bounds are compared as
  *   UTC timestamps (startOfDay / endOfDay), never through the session timezone;
- * - closing entries (journal CL or a "CL-" reference, see
+ * - closing entries (journal CL, reserved to the closing, see
  *   lib/accounting/fiscal-year-closure/constants.ts) are excluded on request;
  * - opening balances (ledger): the opening entry (journal AN) and every entry
  *   dated before the period.
@@ -35,7 +35,7 @@ export function sqlTimestamp(date: Date): Prisma.Sql {
 }
 
 /** SQL condition: the entry `e` (joined with its journal `j`) is a closing entry (isClosingEntry). */
-export const IS_CLOSING = Prisma.sql`(j."code" = ${CLOSING_JOURNAL.code} OR COALESCE(e."reference", '') LIKE 'CL-%')`
+export const IS_CLOSING = Prisma.sql`(j."code" = ${CLOSING_JOURNAL.code})`
 
 const toNumber = (value: bigint | number | null): number => (value === null ? 0 : Number(value))
 

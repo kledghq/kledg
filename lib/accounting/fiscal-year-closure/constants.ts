@@ -23,11 +23,14 @@ export function openingReference(year: number): string {
   return `AN-${year}`
 }
 
-/** Whether an entry is a closing entry (CL journal or a CL- reference). */
+/**
+ * Whether an entry is a closing entry: its journal is CL, which only the
+ * closing writes to (createEntryInTx refuses it otherwise, #124). A piece
+ * reference such as "CL-0042" is the user's and says nothing.
+ */
 export function isClosingEntry(entry: {
   reference?: string | null
   journal?: { code: string } | null
 }): boolean {
-  if (entry.journal?.code === CLOSING_JOURNAL.code) return true
-  return entry.reference?.startsWith('CL-') ?? false
+  return entry.journal?.code === CLOSING_JOURNAL.code
 }
