@@ -65,9 +65,9 @@ const OTHER_TABLES = [
 ]
 const ALL_TABLES = [...COMPANY_TABLES, ...Object.keys(CHILD_TABLES), ...OTHER_TABLES]
 
-/** Tables whose row moves to another company by its companyId column. */
+/** Tables whose row moves to another company by its companyId column. Seals never change at all (append only, #147). */
 const MOVABLE_TABLES = COMPANY_TABLES.filter(
-  (table) => !['companies', 'entry_lines', 'bank_transactions', 'company_onboarding'].includes(table),
+  (table) => !['companies', 'entry_lines', 'bank_transactions', 'company_onboarding', 'ledger_seals'].includes(table),
 )
 
 describe.skipIf(!available)('row level security: tenant isolation', () => {
