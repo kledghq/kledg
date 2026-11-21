@@ -54,7 +54,7 @@ période et sont laissées de côté.
 | --- | --- |
 | 4457 TVA collectée (44571), sauf 44574 et 44578 | TVA due sur les ventes de la période |
 | 44574 TVA collectée en attente d'encaissement | Pas encore due : les prestations de services sont taxées à l'encaissement (CGI art. 269, 2, c). Elle est déclarée quand le règlement de la facture la vire au 44571 ([factures et tiers](factures-et-tiers.md)) ; la page affiche le montant en attente |
-| 4452 TVA due intracommunautaire | TVA autoliquidée : acquisitions intracommunautaires de biens (CGI art. 256 bis) et services d'un prestataire non établi en France (CGI art. 283, 2). La TVA déductible correspondante est au 4456 de la même écriture ; son sous-compte 44528 porte la TVA due au titre de l'article 283, 1, second alinéa (lignes B4 et AB) |
+| 4452 TVA due intracommunautaire | TVA autoliquidée : acquisitions intracommunautaires de biens (CGI art. 256 bis) et services d'un prestataire non établi en France (CGI art. 283, 2). La TVA déductible correspondante est au 4456 de la même écriture ; son sous-compte 44528 porte la TVA due au titre de l'article 283, 1, second alinéa (lignes B4 et AB), son sous-compte 44527 la TVA des importations (CGI art. 1695, II ; lignes A4, I1 à I6 et 24) |
 | 44562 TVA sur immobilisations | TVA déductible, ligne 19 de la CA3, ligne 23 de la CA12 |
 | 44566 TVA sur autres biens et services | TVA déductible, ligne 20 de la CA3 et de la CA12 |
 | 44563 TVA transférée par d'autres entités | Autre TVA à déduire, ligne 21 de la CA3, ligne 25 de la CA12 |
@@ -119,6 +119,18 @@ situé en France vendu par un fournisseur étranger) se comptabilise avec sa TVA
 due au sous-compte **44528** du 4452 : Kledg le porte en B4 sur la CA3 et en AB
 sur la CA12, taxé sur les lignes de taux, jamais en B2 ni en ligne 17.
 
+Une importation, dont la TVA est autoliquidée sur la déclaration (CGI art.
+1695, II, obligatoire depuis 2022), se comptabilise avec sa TVA due au
+sous-compte **44527** du 4452 et sa TVA déductible au 44566 (ou 44562 pour
+une immobilisation), dans l'écriture qui porte la base en charges (6) ou en
+immobilisations (2). Kledg porte la base en A4, la taxe sur les lignes
+d'importation I1, I2, I4 et I5 (20, 10, 5,5 et 2,1 %), et la TVA déduite de
+ces écritures en ligne 24 (« dont TVA déductible sur importations »), comprise
+dans les lignes 19 et 20 (notice 3310-CA3-SD 2026). Sans base dans l'écriture,
+ou aux taux de 8,5 et 1,05 % (I3, I6), la TVA reste à répartir à la main. La
+CA12 n'a pas de ligne d'importation : une société qui importe déclare au réel
+normal (CGI art. 287, notice 3517-S-SD), et Kledg laisse cette TVA à répartir.
+
 ## Correspondance avec les formulaires
 
 Formulaires et notices 2026 : 3310-CA3-SD (cerfa n° 10963*31, notice
@@ -135,6 +147,7 @@ depuis d'autres lignes, comme le formulaire.
 | A1 | 0979 | Ventes, prestations de services | Calculé : bases des ventes dont la TVA est au 44571 dans la période |
 | A2 | 0981 | Autres opérations imposables | À remplir : cessions d'immobilisations, livraisons à soi-même, autoliquidations du BTP (comptées en A1 par Kledg) |
 | A3 | 0044 | Achats de prestations de services d'un assujetti non établi en France (283-2) | Calculé : autoliquidation 4452, contrepartie de services |
+| A4 | 0056 | Importations (hors produits pétroliers) | Calculé : autoliquidation au sous-compte 44527, base |
 | B2 | 0031 | Acquisitions intracommunautaires | Calculé : autoliquidation 4452, contrepartie de biens |
 | B4 | 0040 | Achats auprès d'un assujetti non établi en France (283-1) | Calculé : autoliquidation au sous-compte 44528 |
 | B5 | 0036 | Régularisations | Calculé : base des avoirs clients |
@@ -145,6 +158,7 @@ depuis d'autres lignes, comme le formulaire.
 | 09 | 0105 | Taux réduit 5,5 % | Calculé |
 | 9B | 0151 | Taux réduit 10 % | Calculé |
 | T6 | 1010 | France continentale au taux de 2,1 % | Calculé |
+| I1, I2, I4, I5 | 0210, 0211, 0213, 0214 | Importations aux taux de 20, 10, 5,5 et 2,1 % | Calculé : base et taxe du sous-compte 44527 (I3 et I6, 8,5 et 1,05 % : à remplir) |
 | 15 | 0600 | TVA antérieurement déduite à reverser | Calculé : avoirs fournisseurs |
 | 5B | 0602 | Sommes à ajouter | À remplir |
 | 16 | | Total de la TVA brute due (08 à 5B) | Total |
@@ -155,6 +169,7 @@ depuis d'autres lignes, comme le formulaire.
 | 22 | 8001 | Report du crédit de la ligne 27 précédente | Calculé : solde débiteur de 44567 au début de la période |
 | 2C | 0603 | Sommes à imputer | À remplir |
 | 23 | | Total TVA déductible (19 à 2C) | Total |
+| 24 | 0710 | Dont TVA déductible sur importations | Calculé : 44562 et 44566 des écritures d'importation |
 | 25 | 0705 | Crédit de TVA (23 - 16) | Total |
 | TD | 8900 | TVA due (16 - 23) | Total |
 | 26 | 8002 | Remboursement demandé (3519) | À remplir |
@@ -219,7 +234,7 @@ Listé avec chaque déclaration (page, PDF, CSV, outil MCP) : les opérations
 non comptabilisées ou comptabilisées après la préparation ; la ventilation
 des ventes sans TVA (export, livraison intracommunautaire, exonération) ;
 les autres opérations imposables (A2, lignes 11 et 12 de la CA12) ; les
-achats de l'article 283-1 et les importations ; les régimes particuliers
+importations sans base dans l'écriture ou aux taux des DOM ; les régimes particuliers
 (TVA sur la marge des biens d'occasion, des agences de voyage et des
 terrains à bâtir, DOM, Corse, produits pétroliers, droits d'auteur, anciens
 taux) ; le coefficient de déduction des assujettis partiels et les
