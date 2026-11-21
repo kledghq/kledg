@@ -222,6 +222,29 @@ describe.skipIf(!available)('purchase and sales ledger (PostgreSQL)', () => {
       expect((await vat.getVatSettings(books.companyId)).isVatExempt).toBe(true)
     })
 
+    it('finds the same supplier invoice whatever the tiers it was recorded under (#136)', async () => {
+      const { findSamePurchaseInvoice } = await import('../duplicate-purchase')
+      const recorded = await invoices.createInvoice(books.companyId, { direction: 'PURCHASE', tiersId: books.supplierId, number: 'FA-136', issueDate: '2026-04-05', typeCode: '380', lines: [line('Papier', '1', 10000, 2000, { nature: 'GOODS' })] })
+      const doc = { number: 'fa-136 ', sellerSiren: null, issueDate: new Date('2026-04-05T00:00:00Z'), totalInclTaxCents: 12000 }
+      expect(await findSamePurchaseInvoice(prisma, books.companyId, doc)).toMatchObject({ id: recorded.id })
+      // Another total on another day, without SIREN: another invoice of the same number (another supplier)
+      expect(await findSamePurchaseInvoice(prisma, books.companyId, { ...doc, totalInclTaxCents: 99900, issueDate: new Date('2026-05-01T00:00:00Z') })).toBeNull()
+    })
+
+    it('posts the VAT of a purchase on a class 2 account to 44562 even without the fixed asset flag (#137)', async () => {
+      const invoice = await invoices.createInvoice(books.companyId, {
+        direction: 'PURCHASE',
+        tiersId: books.supplierId,
+        number: 'D-137',
+        issueDate: '2026-04-04',
+        typeCode: '380',
+        lines: [line('Écran', '1', 30000, 2000, { accountCode: '2183', nature: 'GOODS' })],
+      })
+      const lines = await entryLines((await posting.postInvoice(books.companyId, invoice.id)).entryId)
+      expect(lines.find((l) => l.code === '445620')).toMatchObject({ debit: '60' })
+      expect(lines.find((l) => l.code === '445660')).toBeUndefined()
+    })
+
     it('posts a purchase with several rates and a fixed asset as a draft AC entry of the fiscal year containing its date', async () => {
       const invoice = await invoices.createInvoice(books.companyId, {
         direction: 'PURCHASE',

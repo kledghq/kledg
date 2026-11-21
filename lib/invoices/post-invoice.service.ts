@@ -164,7 +164,8 @@ export async function postInvoice(companyId: string, invoiceId: string, options:
       vatRateBp: line.vatRateBp,
       accountId: byCode.get(lineCodes[i].code)!.id,
       nature: line.nature,
-      fixedAsset: line.fixedAsset,
+      // A purchase on a class 2 account is a fixed asset: its VAT goes to 44562 (CA3 line 19), whatever the flag (#137)
+      fixedAsset: line.fixedAsset || (invoice.direction === 'PURCHASE' && lineCodes[i].code.startsWith('2')),
     }))
     const breakdown = invoice.vatBreakdown.map((row) => ({ vatRateBp: row.vatRateBp, baseCents: cents(row.baseAmount), vatCents: cents(row.vatAmount) }))
     const needed = vatAccountsNeeded({

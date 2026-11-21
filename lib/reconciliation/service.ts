@@ -10,7 +10,7 @@
  * only when reconciliation created it and it is still a draft.
  */
 
-import { isPostableTransaction, notPostableMessage, NOT_POSTABLE_STATUSES } from '@/lib/banking/postable'
+import { foreignCurrencyMessage, isPostableTransaction, notPostableMessage, NOT_POSTABLE_STATUSES } from '@/lib/banking/postable'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -133,6 +133,9 @@ export async function createEntryAndReconcile(input: GeneratedEntry): Promise<{ 
 
   return prisma.$transaction(
     async (db) => {
+      // The bank line is the transaction's amount: in euros only (#131)
+      const account = await db.bankTransaction.findUnique({ where: { id: input.transactionId }, select: { bankAccount: { select: { currency: true } } } })
+      if (account && account.bankAccount.currency !== 'EUR') throw new ConflictError(foreignCurrencyMessage(account.bankAccount.currency))
       const claimed = await db.$executeRaw`
         UPDATE "bank_transactions"
         SET "reconciled" = true, "reconciledAt" = NOW(), "reconciledWith" = NULL, "updatedAt" = NOW()

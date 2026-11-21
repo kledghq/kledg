@@ -406,6 +406,16 @@ describe.skipIf(!available)('applying transaction rules (PostgreSQL)', () => {
       expect(await reconcileWithExistingEntry(ids.company, declined, null)).toMatchObject({ reconciled: true, reconciledWith: null })
     })
 
+    it('never posts an operation of an account in another currency from its amount (#131)', async () => {
+      const ruleId = await rule('Fournitures', [{ accountCode: '606100' }])
+      await prisma.bankAccount.update({ where: { id: ids.bankAccount }, data: { currency: 'USD' } })
+      const txId = await transaction('1000.00', 'debit')
+      const result = await executor.applyRule(ruleId, txId, ids.company)
+      expect(result).toMatchObject({ success: false, status: 409 })
+      expect(result.error).toContain('en USD')
+      expect(await prisma.accountingEntry.count()).toBe(0)
+    })
+
     it('throws typed errors from applyRuleToTransaction: 404 for a rule of another company, 409 when reconciled', async () => {
       const other = await prisma.company.create({ data: { name: 'Autre', slug: 'autre', siren: '987654321' } })
       const foreign = await prisma.transactionRule.create({ data: { companyId: other.id, name: 'Étrangère' } })

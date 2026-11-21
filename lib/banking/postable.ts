@@ -25,6 +25,20 @@ export const POSTABLE_TRANSACTION_WHERE = {
   OR: [{ status: null }, { status: { notIn: [...NOT_POSTABLE_STATUSES] } }],
 }
 
+/**
+ * Kledg posts the bank line of a transaction at its amount, in euros: an
+ * operation of an account in another currency is never posted from its
+ * amount (#131). 1 000 USD are not 1 000 € (PCG art. 420-5: converted at
+ * the rate of the day). The user writes the entry in euros and links it.
+ * Prisma filter of the transactions of euro accounts (combine under AND).
+ */
+export const EURO_ACCOUNT_TRANSACTION_WHERE = { bankAccount: { currency: 'EUR' } }
+
+/** Why a transaction of an account in `currency` is not posted from its amount, in French. */
+export function foreignCurrencyMessage(currency: string): string {
+  return `Ce compte bancaire est en ${currency}\u00a0: Kledg ne convertit pas les montants. Passez l'écriture en euros dans Saisie (montant réellement débité ou crédité en euros, ou converti au cours du jour, PCG art. 420-5), puis rapprochez l'opération avec cette écriture.`
+}
+
 /** Why a transaction cannot be posted, in French. */
 export function notPostableMessage(status: string | null | undefined): string {
   if (status === 'pending') {
