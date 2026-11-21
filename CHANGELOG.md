@@ -10,6 +10,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Corrigé
 
+- Écritures insérées comme validées (#161) : une écriture insérée directement dans la base avec le statut validé échappait aux contrôles de la validation (numéro définitif, équilibre, empreinte). La base la refuse maintenant : une écriture se crée en brouillon, puis se valide, comme le font toutes les fonctions de Kledg et l'import du FEC. Migration de la base : déclencheur à l'insertion.
 - Journal d'audit (#161) : la clôture d'une période et la suppression d'un brouillon s'inscrivaient au journal d'audit après coup, et une écriture du journal qui échouait était ignorée. Elles s'y inscrivent maintenant dans la même transaction que l'opération, comme la clôture de l'exercice.
 - CA3, TVA à l'importation (#143) : la TVA des importations autoliquidée (CGI art. 1695, II) n'était pas distinguée, et les lignes A4, I1 à I6 et 24 restaient vides. Comptabilisée au sous-compte 44527 avec sa base en charges ou en immobilisations, elle va maintenant en A4 (base), sur la ligne d'importation de son taux (I1, I2, I4, I5) et, pour la TVA déduite, en ligne 24. La CA12, sans ligne d'importation, la laisse à répartir.
 - CA12 2026, acomptes (#142) : la dernière CA12 du régime simplifié annonçait des acomptes de juillet et de décembre 2027, alors que le régime est supprimé au 1er janvier 2027 (loi n° 2025-127, art. 38). Elle n'en annonce plus et explique le passage à la CA3.

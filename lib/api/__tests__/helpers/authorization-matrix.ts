@@ -87,9 +87,17 @@ export async function seedCompany(prefix: 'a' | 'b', name: string, slug: string,
       entryNumber: '2',
       date: new Date('2026-03-02T00:00:00Z'),
       description: 'Validée',
-      status: 'validated',
+      status: 'draft',
     },
   })
+  // Created as a draft, then validated: the database refuses an entry inserted as validated (#161)
+  await prisma.entryLine.createMany({
+    data: [
+      { accountingEntryId: validated.id, accountId: bank.id, accountFiscalYearId: fy.id, accountingEntryNumber: '2', debit: 50, credit: 0 },
+      { accountingEntryId: validated.id, accountId: sales.id, accountFiscalYearId: fy.id, accountingEntryNumber: '2', debit: 0, credit: 50 },
+    ],
+  })
+  await prisma.accountingEntry.update({ where: { id: validated.id }, data: { status: 'validated' } })
   // A validated invoice and its payment on the customer account, lettered AA (unlettering succeeds, lettering again is a 409)
   const receivable = await prisma.account.create({ data: { companyId: company.id, fiscalYearId: fy.id, code: '411000', label: 'Clients' } })
   const invoice = await prisma.accountingEntry.create({

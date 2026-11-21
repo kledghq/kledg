@@ -64,20 +64,22 @@ describe.skipIf(!available)('migration 20261003180000_entry_validation_and_fec_f
       data: { companyId: company.id, year: 2024, startDate: new Date('2024-01-01T00:00:00Z'), endDate: new Date('2024-12-31T00:00:00Z') },
     })
     const journal = await prisma.journal.create({ data: { companyId: company.id, code: 'OD', label: 'OD' } })
-    const row = (entryNumber: string, status: string, updatedAt: string, validatedAt: string | null) =>
-      prisma.accountingEntry.create({
-        data: {
-          companyId: company.id,
-          journalId: journal.id,
-          fiscalYearId: fy.id,
-          entryNumber,
-          status,
-          date: new Date('2024-05-01T00:00:00Z'),
-          description: entryNumber,
-          updatedAt: new Date(updatedAt),
-          validatedAt: validatedAt ? new Date(validatedAt) : null,
-        },
+    // Rows of released versions, inserted as validated before the guards refused it (#161): written as the
+    // owner with the guard off, as the backfill runs
+    const row = async (entryNumber: string, status: string, updatedAt: string, validatedAt: string | null) => {
+      const entry = await prisma.accountingEntry.create({
+        data: { companyId: company.id, journalId: journal.id, fiscalYearId: fy.id, entryNumber, status: 'draft', date: new Date('2024-05-01T00:00:00Z'), description: entryNumber },
       })
+      await queryAsOwner(
+        'cov_validated_at_backfill',
+        `BEGIN;
+         ALTER TABLE "accounting_entries" DISABLE TRIGGER "accounting_entries_guard";
+         UPDATE "accounting_entries" SET "status" = '${status}', "updatedAt" = '${updatedAt}', "validatedAt" = ${validatedAt ? `'${validatedAt}'` : 'NULL'} WHERE "id" = '${entry.id}';
+         ALTER TABLE "accounting_entries" ENABLE TRIGGER "accounting_entries_guard";
+         COMMIT;`,
+      )
+      return entry
+    }
     // Rows as released versions left them: inserted directly, before validation dates existed
     const legacy = await row('1', 'validated', '2024-06-15T09:30:00.000Z', null)
     const alreadyDated = await row('2', 'validated', '2024-07-01T10:00:00.000Z', '2024-06-20T08:00:00.000Z')
