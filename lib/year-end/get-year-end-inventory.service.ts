@@ -126,6 +126,7 @@ function assetAtYearEnd(
     openingDepreciation: asset.openingDepreciation,
     openingDepreciationDate: asset.openingDepreciationDate,
     fiscalYearClosingMonth: closingMonthOf(endDate),
+    fiscalYears: years,
   })
   const recorded = new Map<string, number>()
   for (const r of asset.depreciations) recorded.set(r.fiscalYearId, (recorded.get(r.fiscalYearId) ?? 0) + cents(r.amount))

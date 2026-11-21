@@ -130,6 +130,7 @@ export async function saveDepreciationRecord(
       openingDepreciation: fixedAsset.openingDepreciation,
       openingDepreciationDate: fixedAsset.openingDepreciationDate,
       fiscalYearClosingMonth: closingMonthOf(fiscalYear.endDate),
+      fiscalYears: await prisma.fiscalYear.findMany({ where: { companyId }, select: { startDate: true, endDate: true } }),
     })
     amountCents = sumPlanCentsForPeriod(plan, period.start, period.end)
   }

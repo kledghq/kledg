@@ -101,7 +101,7 @@ async function loadRegister(companyId: string, fy: { startDate: Date; endDate: D
   ])
   const dayBefore = addUtcDays(fy.startDate, -1)
   return assets.map((asset) => {
-    const plan = buildDepreciationPlan({ ...asset, fiscalYearClosingMonth: closingMonthOf(fy.endDate) })
+    const plan = buildDepreciationPlan({ ...asset, fiscalYearClosingMonth: closingMonthOf(fy.endDate), fiscalYears: years })
     const recorded = new Map<string, number>()
     for (const r of asset.depreciations) recorded.set(r.fiscalYearId, (recorded.get(r.fiscalYearId) ?? 0) + cents(r.amount))
     const input = { plan, fiscalYears: years, recordedByFiscalYear: recorded, disposalDate: asset.disposalDate }

@@ -317,6 +317,7 @@ export async function validateEntryInTx(db: Db, entryId: string, companyId?: str
       entryNumber: true,
       date: true,
       status: true,
+      journal: { select: { id: true, code: true } },
       lines: { select: { accountId: true, debit: true, credit: true } },
     },
   })
@@ -329,7 +330,7 @@ export async function validateEntryInTx(db: Db, entryId: string, companyId?: str
   )
   if (!balance.valid) throw new ValidationError(balance.errors.join(', '))
 
-  const entryNumber = await nextDefinitiveEntryNumber(entry.fiscalYearId, db)
+  const entryNumber = await nextDefinitiveEntryNumber(entry.fiscalYearId, db, entry.journal)
   if (entry.entryNumber !== entryNumber) {
     // A draft numbered by bank reconciliation (or before numbering moved to
     // validation) may hold this number: give it a provisional one.

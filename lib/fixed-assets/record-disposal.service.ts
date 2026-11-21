@@ -127,7 +127,7 @@ async function buildPreview(db: Db, companyId: string, asset: DisposalAsset, inp
   if (!fiscalYear) throw new ValidationError(`Aucun exercice de la société ne couvre le ${disposalDate} : créez-le avant d'enregistrer la sortie.`)
   if (fiscalYear.isClosed) throw new ClosedFiscalYearError(fiscalYear.year)
 
-  const plan = buildDepreciationPlan({ ...asset, fiscalYearClosingMonth: closingMonthOf(fiscalYear.endDate) })
+  const plan = buildDepreciationPlan({ ...asset, fiscalYearClosingMonth: closingMonthOf(fiscalYear.endDate), fiscalYears: years })
   const recorded = new Map<string, number>()
   for (const r of asset.depreciations) recorded.set(r.fiscalYearId, (recorded.get(r.fiscalYearId) ?? 0) + cents(r.amount))
   const depreciable = asset.depreciationMethod !== 'none'

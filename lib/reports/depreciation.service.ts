@@ -100,6 +100,8 @@ export async function calculateDepreciationTable(
 
   let unpostedCount = 0
   let unpostedCents = 0
+  // The company's exercices: a declining allowance follows their real length (#128)
+  const fiscalYears = await prisma.fiscalYear.findMany({ where: { companyId }, select: { startDate: true, endDate: true } })
   const depreciationTable = fixedAssets.map((asset: FixedAssetWithAccounts) => {
     const base = cents(asset.amortizableAmount ?? asset.acquisitionValue)
     const plan = buildDepreciationPlan({
@@ -113,6 +115,7 @@ export async function calculateDepreciationTable(
       openingDepreciation: asset.openingDepreciation,
       openingDepreciationDate: asset.openingDepreciationDate,
       fiscalYearClosingMonth: closingMonthOf(fiscalYear?.endDate),
+      fiscalYears,
     })
 
     let previousCents: number

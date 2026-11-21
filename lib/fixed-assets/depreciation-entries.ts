@@ -66,6 +66,8 @@ export async function findUnpostedDepreciation(
     orderBy: { acquisitionDate: 'asc' },
   })
 
+  // The company's exercices: a declining allowance follows their real length (#128)
+  const fiscalYears = await client.fiscalYear.findMany({ where: { companyId }, select: { startDate: true, endDate: true } })
   const out: DepreciationToPost[] = []
   for (const asset of assets) {
     const base = {
@@ -92,6 +94,7 @@ export async function findUnpostedDepreciation(
       openingDepreciation: asset.openingDepreciation,
       openingDepreciationDate: asset.openingDepreciationDate,
       fiscalYearClosingMonth: closingMonthOf(fiscalYear.endDate),
+      fiscalYears,
     })
     const end =
       asset.disposalDate && asset.disposalDate < fiscalYear.endDate ? asset.disposalDate : fiscalYear.endDate
