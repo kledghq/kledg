@@ -106,6 +106,14 @@ export interface ComputeInput {
   periodEnd?: string
 }
 
+/** Import rate lines of the CA3 Kledg fills (notice 3310-CA3-SD 2026: I1 20 %, I2 10 %, I4 5,5 %, I5 2,1 %). */
+const IMPORT_RATE_LINES = [
+  [2000, CA3_LINES.I1],
+  [1000, CA3_LINES.I2],
+  [550, CA3_LINES.I4],
+  [210, CA3_LINES.I5],
+] as const
+
 /** Cents to whole euros, half up (notices: "les fractions d'euro supérieures ou égales à 0,50 sont comptées pour 1"). */
 export function roundEuros(cents: number): number {
   const sign = cents < 0 ? -1 : 1
@@ -180,11 +188,17 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
   const other = otherRates(rates)
   const unidentified = { baseCents: sum(m.unidentified.map((u) => u.baseCents)) + other.baseCents, vatCents: sum(m.unidentified.map((u) => u.vatCents)) + other.vatCents }
   const rateRows = rateLines('CA3', rates, unidentified)
+  // Imports (44527, #143): their own rate lines I1 to I6; 8,5 % and 1,05 % (I3, I6) are not read
+  const imports = byRate([m.autoliquidationImports])
+  const importRows = IMPORT_RATE_LINES.map(([rate, def]) => {
+    const values = imports.get(rate) ?? { baseCents: 0, vatCents: 0 }
+    return lineOf(def, 'computed', { baseCents: values.baseCents, amountCents: values.vatCents }, `Importations au taux de ${rateLabel(rate)} : TVA autoliquidée au sous-compte 44527.`)
+  })
 
   const l15 = lineOf(L.L15, 'computed', { amountCents: m.deductibleReversalCents }, 'TVA déduite reversée : avoirs de fournisseurs (crédit net des comptes 44562, 44566 et 44563 sur une écriture).')
   const l5B = manual(L.L5B, 'Insuffisances de déclarations antérieures, acompte congés : à remplir à la main.')
-  const grossEuros = sum(rateRows.map((r) => r.amount ?? 0)) + (l15.amount ?? 0)
-  const grossCents = sum(rateRows.map((r) => r.amountCents ?? 0)) + m.deductibleReversalCents
+  const grossEuros = sum([...rateRows, ...importRows].map((r) => r.amount ?? 0)) + (l15.amount ?? 0)
+  const grossCents = sum([...rateRows, ...importRows].map((r) => r.amountCents ?? 0)) + m.deductibleReversalCents
   const l17Cents = sum(m.autoliquidationGoods.map((b) => b.vatCents))
 
   const l19 = lineOf(L.L19, 'computed', { amountCents: m.deductibleFixedAssetsCents }, 'TVA déductible sur immobilisations : débit net du compte 44562.')
@@ -202,6 +216,7 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
     lineOf(L.A1, 'computed', { baseCents: sum(m.collected.map((b) => b.baseCents)) }, 'Ventes et prestations taxées : base des ventes dont la TVA est au compte 44571 (exigible sur la période).'),
     manual(L.A2, 'Cessions d’immobilisations, livraisons à soi-même, autoliquidations du BTP : Kledg les compte en A1, déplacez-les ici.'),
     lineOf(L.A3, 'computed', { baseCents: sum(m.autoliquidationServices.map((b) => b.baseCents)) }, 'Services achetés à un prestataire non établi en France (TVA autoliquidée au compte 4452, contrepartie hors comptes 60 et 2).'),
+    lineOf(L.A4, 'computed', { baseCents: sum(m.autoliquidationImports.map((b) => b.baseCents)) }, 'Importations : TVA autoliquidée au sous-compte 44527 (CGI, art. 1695, II), base en charges ou immobilisations de la même écriture.'),
     lineOf(L.B2, 'computed', { baseCents: sum(m.autoliquidationGoods.map((b) => b.baseCents)) }, 'Acquisitions intracommunautaires de biens (TVA autoliquidée au compte 4452, contrepartie en achats 60 ou immobilisations 2).'),
     lineOf(L.B4, 'computed', { baseCents: sum(m.autoliquidationArt2831.map((b) => b.baseCents)) }, 'Achats auprès d’un assujetti non établi en France dont la société est redevable (article 283-1, second alinéa) : TVA autoliquidée au sous-compte 44528, taxée sur les lignes de taux, jamais ligne 17.'),
     lineOf(L.B5, 'computed', { baseCents: m.salesCreditNotes.baseCents }, 'Avoirs et rabais accordés aux clients : base des écritures qui diminuent le compte 44571.'),
@@ -209,6 +224,7 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
     lineOf(L.E2, 'computed', { baseCents: m.nonTaxedSalesCents }, 'Ventes (comptes 70) sans TVA : à répartir entre E1, E2 et F2 selon leur nature.'),
     manual(L.F2, 'Livraisons intracommunautaires : à déplacer depuis E2.'),
     ...rateRows,
+    ...importRows,
     l15,
     l5B,
     total(L.L16, grossEuros, grossCents, 'Somme des lignes 08 à 5B arrondies.'),
@@ -219,6 +235,7 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
     l22,
     l2C,
     total(L.L23, deductibleEuros, deductibleCents, 'Somme des lignes 19 à 2C arrondies.'),
+    lineOf(L.L24, 'computed', { amountCents: m.deductibleImportsCents }, 'TVA déduite (44562, 44566) dans les écritures d’importation : comprise dans les lignes 19 et 20.'),
     total(L.L25, credit, Math.max(deductibleCents - grossCents, 0), 'Ligne 23 moins ligne 16, quand elle est positive.'),
     total(L.TD, due, Math.max(grossCents - deductibleCents, 0), 'Ligne 16 moins ligne 23, quand elle est positive.'),
     manual(L.L26, 'Remboursement demandé sur le formulaire 3519 : à remplir à la main, il diminue la ligne 27.'),
@@ -240,8 +257,13 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
   const L = CA12_LINES
   // No line of intra-Community acquisitions on the CA12: they are taxed on the rate lines (notice 3517-S-SD 2026, lines 5A to 13)
   const rates = byRate([m.collected, m.autoliquidationGoods])
+  // No import line on the CA12 (a company that imports files under the réel normal): to split by hand
   const other = otherRates(rates)
-  const unidentified = { baseCents: sum(m.unidentified.map((u) => u.baseCents)) + other.baseCents, vatCents: sum(m.unidentified.map((u) => u.vatCents)) + other.vatCents }
+  const imported = { baseCents: sum(m.autoliquidationImports.map((b) => b.baseCents)), vatCents: sum(m.autoliquidationImports.map((b) => b.vatCents)) }
+  const unidentified = {
+    baseCents: sum(m.unidentified.map((u) => u.baseCents)) + other.baseCents + imported.baseCents,
+    vatCents: sum(m.unidentified.map((u) => u.vatCents)) + other.vatCents + imported.vatCents,
+  }
   const rateRows = rateLines('CA12', rates, unidentified)
   const ac = lineOf(
     L.AC,

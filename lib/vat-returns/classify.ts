@@ -20,7 +20,13 @@
  *   a taxable person not established in France for which the company is
  *   liable under the second paragraph of CGI art. 283, 1 (CA3 line B4,
  *   CA12 line AB, notices 2026): neither an intra-Community acquisition nor
- *   a service of art. 283, 2, they never go to B2, A3 or line 17;
+ *   a service of art. 283, 2, they never go to B2, A3 or line 17. Its
+ *   subaccount 44527 holds the VAT of imports the company self-assesses
+ *   (CGI art. 1695, II; CA3 line A4 for the base, I1 to I6 for the tax by
+ *   rate, and line 24 for the VAT deducted in the same entry, notice
+ *   3310-CA3-SD 2026, #143). A company that imports files under the réel
+ *   normal (notice 3517-S-SD: CA12 has no import line), so on a CA12 they
+ *   stay unidentified;
  * - 44562 "TVA sur immobilisations", 44566 "TVA sur autres biens et
  *   services": deductible VAT (CA3 lines 19 and 20, CA12 lines 23 and 20);
  * - 44563 "TVA transférée par d'autres entités": other VAT to deduct
@@ -139,6 +145,10 @@ export interface VatMovements {
   autoliquidationServices: RateBucket[]
   /** Self-assessed purchases of CGI art. 283, 1, second paragraph, on 44528 (CA3 B4, CA12 AB). */
   autoliquidationArt2831: RateBucket[]
+  /** Self-assessed imports on 44527 (CA3 A4 and I1 to I6; not on the CA12). */
+  autoliquidationImports: RateBucket[]
+  /** VAT deducted in the import entries (44562, 44566), at most their VAT: CA3 line 24, part of lines 19 and 20. */
+  deductibleImportsCents: number
   /** Collected or self-assessed VAT whose rate could not be read. */
   unidentified: UnidentifiedEntry[]
   /** Sales credit notes: base (CA3 B5) and VAT (CA3 21, CA12 25), as positive amounts. */
@@ -180,6 +190,9 @@ export const isAutoliquidationCode = (code: string) => code.startsWith('4452')
 /** Subaccount of 4452 for the VAT due under CGI art. 283, 1, second paragraph (CA3 B4, CA12 AB). */
 const ART_283_1_ACCOUNT = '44528'
 const isArt2831Code = (code: string) => code.startsWith(ART_283_1_ACCOUNT)
+/** Subaccount of 4452 for the VAT of imports self-assessed under CGI art. 1695, II (CA3 A4, I1 to I6, 24). */
+export const IMPORT_VAT_ACCOUNT = '44527'
+const isImportCode = (code: string) => code.startsWith(IMPORT_VAT_ACCOUNT)
 export const isDeductibleFixedAssetsCode = (code: string) => code.startsWith('44562')
 export const isDeductibleOtherCode = (code: string) => code.startsWith('44566') || code === '4456'
 const isTransferredCode = (code: string) => code.startsWith('44563')
@@ -322,6 +335,8 @@ function emptyMovements(): VatMovements {
     autoliquidationGoods: [],
     autoliquidationServices: [],
     autoliquidationArt2831: [],
+    autoliquidationImports: [],
+    deductibleImportsCents: 0,
     unidentified: [],
     salesCreditNotes: { baseCents: 0, vatCents: 0 },
     autoliquidationReversalCents: 0,
@@ -371,7 +386,20 @@ export function classifyEntries(entries: VatEntry[]): VatMovements {
     }
 
     const art2831 = -net(lines, isArt2831Code)
-    if (autoliquidated > 0 && art2831 === autoliquidated) {
+    const imported = -net(lines, isImportCode)
+    if (autoliquidated > 0 && imported === autoliquidated) {
+      // An import (44527): base on A4, tax on the import rate lines, deducted VAT of the entry on line 24
+      const baseLines = lines.filter((l) => l.code.startsWith('6') || l.code.startsWith('2'))
+      const base = baseLines.reduce((s, l) => s + l.debitCents - l.creditCents, 0)
+      const rate = inferRate(autoliquidated, base, Math.max(1, baseLines.length))
+      if (rate && base > 0) addTo(m.autoliquidationImports, [{ rateBp: rate, baseCents: base, vatCents: autoliquidated }])
+      else m.unidentified.push({ id: entry.id, number: entry.number, date: entry.date, vatCents: autoliquidated, baseCents: Math.max(base, 0), kind: 'autoliquidation' })
+      const deducted = net(lines, isDeductibleFixedAssetsCode) + net(lines, isDeductibleOtherCode)
+      m.deductibleImportsCents += Math.min(Math.max(deducted, 0), autoliquidated)
+    } else if (autoliquidated > 0 && imported !== 0) {
+      // An import and other self-assessed VAT in one entry: the split by line is not known
+      m.unidentified.push({ id: entry.id, number: entry.number, date: entry.date, vatCents: autoliquidated, baseCents: 0, kind: 'autoliquidation' })
+    } else if (autoliquidated > 0 && art2831 === autoliquidated) {
       // A purchase of art. 283, 1 (44528): goods and services alike on B4 (CA3) or AB (CA12)
       const baseLines = lines.filter((l) => l.code.startsWith('6') || l.code.startsWith('2'))
       const base = baseLines.reduce((s, l) => s + l.debitCents - l.creditCents, 0)
