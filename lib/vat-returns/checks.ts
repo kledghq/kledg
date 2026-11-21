@@ -26,7 +26,7 @@ import type { UnhandledAccount, UnidentifiedEntry } from './classify'
 export type CheckSeverity = 'blocking' | 'warning' | 'info' | 'ok'
 
 export interface VatCheck {
-  id: 'drafts' | 'bank' | 'rates' | 'accounts' | 'balances' | 'to-pay' | 'credit' | 'pending' | 'rejected'
+  id: 'drafts' | 'bank' | 'rates' | 'accounts' | 'balances' | 'to-pay' | 'credit' | 'pending' | 'rejected' | 'paid-pending'
   severity: CheckSeverity
   title: string
   detail: string
@@ -66,6 +66,8 @@ export interface CheckInput {
   }
   credit: { carriedCents: number; previousCreditCents: number | null }
   pendingCollectedCents: number
+  /** Numbers of sales paid (lettered) whose VAT due on receipt still waits in 44574 (#121). */
+  paidPendingInvoices?: string[]
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`
@@ -169,6 +171,19 @@ export function vatChecks(input: CheckInput): VatCheck[] {
       title: `${plural(input.rejectedPosted.count, 'opération comptabilisée', 'opérations comptabilisées')} puis ${input.rejectedPosted.count > 1 ? 'refusées ou annulées' : 'refusée ou annulée'} par la banque`,
       detail: `Pour ${euros(input.rejectedPosted.totalCents)}\u00a0: aucun argent n'a bougé, mais leur écriture (et sa TVA) est restée. Contre-passez-la ou supprimez le brouillon.`,
       link: { label: 'Voir les transactions', page: 'transactions' },
+    })
+  }
+
+  if (input.paidPendingInvoices && input.paidPendingInvoices.length > 0) {
+    const count = input.paidPendingInvoices.length
+    checks.push({
+      id: 'paid-pending',
+      severity: 'warning',
+      title: `${plural(count, 'facture payée', 'factures payées')} dont la TVA attend encore en 44574`,
+      detail:
+        "Ces factures de prestations sont lettrées avec leur règlement, mais leur TVA n'est pas passée en 44571\u00a0: elle n'est donc déclarée sur aucune période (CGI art. 269, 2, c). Délettrez la facture et enregistrez son règlement depuis la facture, ou passez vous-même l'écriture de 44574 à 44571 à la date du paiement.",
+      link: { label: 'Voir les factures', page: 'invoices' },
+      items: input.paidPendingInvoices,
     })
   }
 

@@ -58,7 +58,7 @@ période et sont laissées de côté.
 | 44562 TVA sur immobilisations | TVA déductible, ligne 19 de la CA3, ligne 23 de la CA12 |
 | 44566 TVA sur autres biens et services | TVA déductible, ligne 20 de la CA3 et de la CA12 |
 | 44563 TVA transférée par d'autres entités | Autre TVA à déduire, ligne 21 de la CA3, ligne 25 de la CA12 |
-| 44567 Crédit de TVA à reporter | Son solde débiteur au début de la période (écritures validées de l'exercice datées avant la période, à-nouveaux compris) est le crédit reporté : ligne 22 de la CA3, ligne 24 de la CA12 |
+| 44567 Crédit de TVA à reporter | Son solde débiteur au début de la période est le crédit reporté : ligne 22 de la CA3, ligne 24 de la CA12. Il se lit sur les écritures validées de l'exercice datées avant la période et ses à-nouveaux, plus les exercices précédents pas encore clôturés (le crédit de décembre se déclare en janvier, avant la clôture), plus la liquidation d'une période antérieure datée dans la période parce que la sienne était clôturée (date de pièce avant la période) |
 | 44581 Acomptes, régime simplifié | Acomptes payés dans l'année : ligne 30 de la CA12 |
 | 4455 Taxes à décaisser | Liquidation et paiement des déclarations, jamais une opération |
 | 44586, 44587 | TVA sur factures non parvenues ou à établir : écritures d'inventaire, pas encore exigibles, laissées de côté |

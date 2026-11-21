@@ -15,6 +15,7 @@
  * then runs the pure modules: classify.ts, compute.ts, checks.ts.
  */
 
+import type { Prisma } from '@prisma/client'
 import { POSTABLE_TRANSACTION_WHERE } from '@/lib/banking/postable'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -168,18 +169,105 @@ async function loadPeriodEntries(companyId: string, period: VatPeriod): Promise<
   }))
 }
 
+/** Paid invoices shown at most by the check. */
+const PAID_PENDING_SHOWN = 20
+
 /**
- * Debit minus credit of the VAT accounts (445) before the period, by code:
- * the validated entries of the fiscal year containing the period's first
- * day dated before it, and that year's opening entries (journal AN).
+ * Sales whose tiers line is lettered (paid) while part of their VAT due on
+ * receipt was never moved from 44574 to 44571 (#121): lettered with a
+ * payment Kledg could not record (one payment for several invoices).
  */
-async function openingVatBalances(companyId: string, fiscalYearId: string | null, start: string): Promise<Map<string, number>> {
-  if (!fiscalYearId) return new Map()
+async function paidInvoicesWithPendingVat(companyId: string): Promise<string[]> {
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      companyId,
+      direction: 'SALE',
+      AND: [
+        { entry: { lines: { some: { account: { code: { startsWith: '41' } }, letteringCode: { not: null } } } } },
+        { entry: { lines: { some: { account: { code: { startsWith: '44574' } } } } } },
+      ],
+    },
+    select: {
+      number: true,
+      entry: { select: { lines: { where: { account: { code: { startsWith: '44574' } } }, select: { debit: true, credit: true } } } },
+      payments: { select: { vatTransferEntry: { select: { lines: { where: { account: { code: { startsWith: '44574' } } }, select: { debit: true, credit: true } } } } } },
+    },
+    orderBy: { issueDate: 'asc' },
+    take: 500,
+  })
+  const net = (lines: Array<{ debit: Prisma.Decimal; credit: Prisma.Decimal }>) => lines.reduce((sum, l) => sum + cents(l.credit) - cents(l.debit), 0)
+  return invoices
+    .filter((i) => net(i.entry?.lines ?? []) + i.payments.reduce((sum, p) => sum + net(p.vatTransferEntry?.lines ?? []), 0) !== 0)
+    .slice(0, PAID_PENDING_SHOWN)
+    .map((i) => i.number ?? 'sans numéro')
+}
+
+/** Fiscal years whose entries give the VAT balances before a period, as the context lists them. */
+interface OpeningFiscalYear {
+  id: string
+  startDate: string
+  isClosed: boolean
+}
+
+/**
+ * Debit minus credit of the VAT accounts (445) before the period, by code.
+ *
+ * - The fiscal year of the period's first day: its validated entries dated
+ *   before that day, and its opening entries (journal AN, whatever their
+ *   day: they may be dated on the first open day, PCG art. 1031-4).
+ * - The earlier fiscal years not closed yet, while the year has no opening
+ *   entry: their balances are not carried forward yet (#122). The credit of
+ *   a December CA3 is declared on line 22 of the January return, filed
+ *   weeks before the closing. The walk stops at a closed year or at a year
+ *   with its own opening entries, which already carry what came before.
+ * - The settlements of earlier periods dated after the period's start
+ *   (moved to the first open day of a closed period, their natural day in
+ *   the date of document, BOI-BIC-DECLA-30-10-20-40 § 140): returned apart,
+ *   since the period's own entries already contain them.
+ */
+async function openingVatBalances(
+  companyId: string,
+  fiscalYears: readonly OpeningFiscalYear[],
+  fiscalYearId: string | null,
+  start: string,
+  reference: string,
+): Promise<{ opening: Map<string, number>; movedSettlements: Map<string, number> }> {
+  if (!fiscalYearId) return { opening: new Map(), movedSettlements: new Map() }
+  const ordered = [...fiscalYears].sort((a, b) => a.startDate.localeCompare(b.startDate))
+  const hasOpeningEntry = async (id: string) =>
+    (await prisma.accountingEntry.count({ where: { companyId, fiscalYearId: id, status: 'validated', journal: { code: 'AN' } } })) > 0
+  const earlier: string[] = []
+  if (!(await hasOpeningEntry(fiscalYearId))) {
+    for (let i = ordered.findIndex((fy) => fy.id === fiscalYearId) - 1; i >= 0; i--) {
+      const fy = ordered[i]
+      if (fy.isClosed) break
+      earlier.push(fy.id)
+      if (await hasOpeningEntry(fy.id)) break
+    }
+  }
+  const [opening, moved] = await Promise.all([
+    vatBalancesWhere(companyId, {
+      OR: [
+        { fiscalYearId, OR: [{ date: { lt: utc(start) } }, { journal: { code: 'AN' } }] },
+        ...(earlier.length > 0 ? [{ fiscalYearId: { in: earlier } }] : []),
+      ],
+    }),
+    vatBalancesWhere(companyId, {
+      reference: { startsWith: SETTLEMENT_REFERENCE_PREFIX, not: reference },
+      date: { gte: utc(start) },
+      pieceDate: { lt: utc(start) },
+    }),
+  ])
+  return { opening, movedSettlements: moved }
+}
+
+/** Debit minus credit of the 445 accounts on the validated entries matching `where`, by code. */
+async function vatBalancesWhere(companyId: string, where: Prisma.AccountingEntryWhereInput): Promise<Map<string, number>> {
   const groups = await prisma.entryLine.groupBy({
     by: ['accountId'],
     where: {
-      account: { companyId, fiscalYearId, code: { startsWith: '445' } },
-      accountingEntry: { companyId, fiscalYearId, status: 'validated', OR: [{ date: { lt: utc(start) } }, { journal: { code: 'AN' } }] },
+      account: { companyId, code: { startsWith: '445' } },
+      accountingEntry: { companyId, status: 'validated', ...where },
     },
     _sum: { debit: true, credit: true },
   })
@@ -304,9 +392,9 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   // NOT on a nullable column would leave out the drafts without a reference.
   const notSettlement = { OR: [{ reference: null }, { reference: { not: reference } }] }
 
-  const [entries, opening, drafts, draftCount, unreconciled, settlementEntry, filings, rejectedPosted] = await Promise.all([
+  const [entries, openingBalances, drafts, draftCount, unreconciled, settlementEntry, filings, rejectedPosted] = await Promise.all([
     loadPeriodEntries(companyId, period),
-    openingVatBalances(companyId, fiscalYear?.id ?? null, period.start),
+    openingVatBalances(companyId, context.fiscalYears, fiscalYear?.id ?? null, period.start, reference),
     prisma.accountingEntry.findMany({
       where: { companyId, status: 'draft', date: range, ...notSettlement },
       orderBy: [{ date: 'asc' }, { entryNumber: 'asc' }],
@@ -330,8 +418,10 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   ])
 
   const movements = classifyEntries(entries)
+  const { opening, movedSettlements } = openingBalances
+  // The credit of the previous return, with its settlement moved into this period (#122)
   const carriedCode = mainCode(opening, isCreditCarriedCode, '44567')
-  const creditCarriedCents = Math.max(sumWhere(opening, isCreditCarriedCode), 0)
+  const creditCarriedCents = Math.max(sumWhere(opening, isCreditCarriedCode) + sumWhere(movedSettlements, isCreditCarriedCode), 0)
   const computation = computeVatReturn({ form: period.form, movements, creditCarriedCents })
 
   // Balances at the end of the period, without this period's settlement (classify left settlements out).
@@ -370,6 +460,7 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
     },
     credit: { carriedCents: creditCarriedCents, previousCreditCents: previousFiling?.creditCents ?? null },
     pendingCollectedCents: movements.pendingCollectedCents,
+    paidPendingInvoices: await paidInvoicesWithPendingVat(companyId),
   })
 
   const deadline = deadlines.find((d) => d.id === deadlineIdOfPeriod(period)) ?? null

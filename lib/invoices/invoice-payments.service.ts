@@ -23,7 +23,8 @@
  *   when the price is received) gets, with each payment, a draft entry
  *   moving the VAT of that payment to 44571, dated on the payment, in the
  *   payment's fiscal year: pending VAT x payment / total, the payment that
- *   completes the invoice taking the rest, so the moves sum to the pending VAT;
+ *   completes the invoice taking the rest, so the moves sum to the pending VAT
+ *   (vat-transfer.ts, which also moves it for an invoice lettered in Lettrage);
  * - recording and removing run under a lock per invoice.
  */
 
@@ -42,6 +43,7 @@ import { accountByRoot } from './ledger-accounts'
 import { INVOICE_NOT_FOUND, lockInvoice } from './manage-invoices.service'
 import { VAT_ACCOUNT_ROOTS } from './post-invoice.service'
 import { checkApprovedState } from '@/lib/approved-state/guard'
+import { createVatTransfer } from './vat-transfer'
 
 type Db = Prisma.TransactionClient | typeof prisma
 
@@ -296,38 +298,6 @@ export async function recordInvoicePayment(
   })
   const settlement = await letterIfCovered(companyId, invoiceId, options.now)
   return { ...settlement, paymentId: recorded.paymentId, vatTransferEntryId: recorded.vatTransferEntryId }
-}
-
-/** Draft OD entry: debit 44574, credit 44571 (a negative share swaps them: a credit note). */
-async function createVatTransfer(
-  tx: Prisma.TransactionClient,
-  companyId: string,
-  paymentEntry: { date: Date; fiscalYearId: string },
-  invoiceNumber: string,
-  shareCents: number,
-): Promise<string> {
-  const fiscalYear = await tx.fiscalYear.findFirst({ where: { id: paymentEntry.fiscalYearId, companyId }, select: GUARDED_FISCAL_YEAR_SELECT })
-  assertEntryWritableInFiscalYear(fiscalYear, paymentEntry.date, 'create')
-  const journal = await ensureJournal(tx, companyId, { code: 'OD', label: 'Opérations diverses' })
-  const pending = await accountByRoot(tx, companyId, fiscalYear!, VAT_ACCOUNT_ROOTS.collectedPending.root, VAT_ACCOUNT_ROOTS.collectedPending.label)
-  const collected = await accountByRoot(tx, companyId, fiscalYear!, VAT_ACCOUNT_ROOTS.collected.root, VAT_ACCOUNT_ROOTS.collected.label)
-  const amount = centsToDecimal(Math.abs(shareCents))
-  const description = `TVA exigible à l’encaissement, facture ${invoiceNumber}`.slice(0, 250)
-  const [from, to] = shareCents > 0 ? [pending, collected] : [collected, pending]
-  const entry = await createEntryInTx(tx, {
-    companyId,
-    journalId: journal.id,
-    fiscalYearId: fiscalYear!.id,
-    date: paymentEntry.date,
-    description,
-    reference: invoiceNumber.slice(0, 200),
-    status: 'draft',
-    lines: [
-      { accountId: from.id, debit: amount, credit: '0', description },
-      { accountId: to.id, debit: '0', credit: amount, description },
-    ],
-  })
-  return entry.id
 }
 
 /** Removes a payment recorded on an invoice (and its draft VAT move); refused once the invoice is lettered. */
