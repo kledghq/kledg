@@ -27,6 +27,56 @@ export interface ClosingLine {
   code: string
   debitCents: number
   creditCents: number
+  /** Tiers of an opening line on a customer or supplier account (FEC CompAuxNum and CompAuxLib). */
+  auxiliaryAccountNumber?: string
+  auxiliaryAccountLabel?: string | null
+}
+
+/** Balance of one tiers on one account (cents, debit positive). */
+export interface AuxiliaryBalance {
+  code: string
+  auxiliaryAccountNumber: string
+  auxiliaryAccountLabel: string | null
+  balanceCents: number
+}
+
+/**
+ * The opening lines split per tiers (#140): an account whose lines carry
+ * auxiliary accounts (411 per customer, 401 per supplier) brings forward
+ * one line per tiers with its balance, plus a line without tiers for what
+ * no tiers holds, so the per-tiers balances, the aged balance and the
+ * lettering of the next year start from the right amounts. The total per
+ * account is unchanged.
+ */
+export function splitOpeningByTiers(opening: ClosingLine[], auxiliary: AuxiliaryBalance[]): ClosingLine[] {
+  const byCode = new Map<string, AuxiliaryBalance[]>()
+  for (const a of auxiliary) {
+    if (a.balanceCents === 0) continue
+    const list = byCode.get(a.code) ?? []
+    list.push(a)
+    byCode.set(a.code, list)
+  }
+  const out: ClosingLine[] = []
+  for (const line of opening) {
+    const tiers = byCode.get(line.code)
+    if (!tiers) {
+      out.push(line)
+      continue
+    }
+    let rest = line.debitCents - line.creditCents
+    for (const t of [...tiers].sort((x, y) => x.auxiliaryAccountNumber.localeCompare(y.auxiliaryAccountNumber))) {
+      rest -= t.balanceCents
+      out.push({
+        code: line.code,
+        debitCents: Math.max(t.balanceCents, 0),
+        creditCents: Math.max(-t.balanceCents, 0),
+        auxiliaryAccountNumber: t.auxiliaryAccountNumber,
+        auxiliaryAccountLabel: t.auxiliaryAccountLabel,
+      })
+    }
+    if (rest !== 0) out.push({ code: line.code, debitCents: Math.max(rest, 0), creditCents: Math.max(-rest, 0) })
+  }
+  return out
 }
 
 export const PROFIT_ACCOUNT = { code: '120', label: "Résultat de l'exercice - bénéfice" } as const

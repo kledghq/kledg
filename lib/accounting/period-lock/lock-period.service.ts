@@ -23,6 +23,7 @@
  *   (assertEntryWritableInFiscalYear, lib/accounting/entry-guards.ts).
  */
 
+import { sealFiscalYearInTx } from '@/lib/accounting/integrity/ledger-integrity.service'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/accounting/errors'
@@ -86,6 +87,8 @@ export async function lockPeriod(companyId: string, fiscalYearId: string, throug
       where: { id: fiscalYear.id },
       data: { periodLockedThrough: dayToDate(through), periodLockedAt: new Date(), periodLockedById: userId },
     })
+    // The validated entries as the closed period leaves them (#147)
+    await sealFiscalYearInTx(tx, { companyId, fiscalYearId: fiscalYear.id, reason: 'period_lock', throughDay: dayToDate(through), userId })
     return { year: fiscalYear.year, previous: current }
   })
 

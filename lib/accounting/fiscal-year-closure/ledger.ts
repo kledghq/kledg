@@ -8,7 +8,7 @@ import { createEntryInTx } from '../services/entry-lifecycle.service'
 import { journalByCode } from '../journal-by-code'
 import { centsToDecimal, parseCents } from '@/lib/utils/money'
 import { addUtcDays, calendarDayOf, formatIsoDateFr, lastDayOfMonth, utcDate } from '@/lib/utils/date'
-import type { ClosingAccountBalance, ClosingLine } from './closing-entries'
+import type { AuxiliaryBalance, ClosingAccountBalance, ClosingLine } from './closing-entries'
 
 export type Tx = Prisma.TransactionClient
 
@@ -52,6 +52,24 @@ export async function loadYearBalances(
     debitCents: cents(s._sum.debit),
     creditCents: cents(s._sum.credit),
   }))
+}
+
+/**
+ * Balances (cents, debit positive) per account code and auxiliary account
+ * of the validated entries of a fiscal year, for the lines that carry one
+ * (#140), with the latest label of each tiers.
+ */
+export async function loadAuxiliaryBalances(tx: Tx, companyId: string, fiscalYearId: string): Promise<AuxiliaryBalance[]> {
+  const rows = await tx.$queryRaw<Array<{ code: string; aux: string; label: string | null; balance: Prisma.Decimal }>>`
+    SELECT a."code", l."auxiliaryAccountNumber" AS aux, max(l."auxiliaryAccountLabel") AS label,
+           SUM(l."debit") - SUM(l."credit") AS balance
+    FROM "entry_lines" l
+    JOIN "accounting_entries" e ON e."id" = l."accountingEntryId"
+    JOIN "accounts" a ON a."id" = l."accountId"
+    WHERE e."companyId" = ${companyId} AND e."fiscalYearId" = ${fiscalYearId} AND e."status" = 'validated'
+      AND l."auxiliaryAccountNumber" IS NOT NULL AND btrim(l."auxiliaryAccountNumber") <> ''
+    GROUP BY a."code", l."auxiliaryAccountNumber"`
+  return rows.map((r) => ({ code: r.code, auxiliaryAccountNumber: r.aux.trim(), auxiliaryAccountLabel: r.label, balanceCents: cents(r.balance) }))
 }
 
 /** Gets or creates a journal of the company by code. */
@@ -189,6 +207,7 @@ export async function createValidatedEntry(
         debit: centsToDecimal(line.debitCents),
         credit: centsToDecimal(line.creditCents),
         description: input.lineDescription(line),
+        ...(line.auxiliaryAccountNumber && { auxiliaryAccountNumber: line.auxiliaryAccountNumber, auxiliaryAccountLabel: line.auxiliaryAccountLabel ?? null }),
       }
     }),
   })

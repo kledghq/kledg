@@ -74,7 +74,7 @@ const DeadlineSettingsSchema = z.object({
   isAcomptes: z.boolean(),
   /** CFE acompte of 15 June (when the previous year's CFE reached 3 000 €). */
   cfeAcompte: z.boolean(),
-  /** The company paid fees of more than 2 400 € to one beneficiary in the year (DAS2, BOI-BIC-DECLA-30-70-20 §140). */
+  /** The company paid fees of more than 2 400 € to one beneficiary in the year (DAS2, CGI art. 240; BOI-BIC-DECLA-30-70-20 § 140: raised from 1 200 € for the payments of 2024 onwards, BOFiP ACTU-2024-00154). */
   das2: z.boolean(),
   /** Turnover above 152 500 € excluding tax: the 1330-CVAE is due. */
   cvae: z.boolean(),

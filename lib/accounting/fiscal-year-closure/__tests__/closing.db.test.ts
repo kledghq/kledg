@@ -593,6 +593,34 @@ describe.skipIf(!available)('fiscal year closing', () => {
     await expect(reverseEntry(c.id, closed.closingEntryId!, { date: '2026-01-15' })).rejects.toThrow(/clôture/)
   })
 
+  it('brings forward the customer and supplier balances per tiers (#140)', async () => {
+    const c = await createCompany()
+    await book(c, 'BQ', '2025-01-02', [['512', 10000, 0], ['101', 0, 10000]])
+    const line = (code: string, debit: number, credit: number, aux?: [string, string]) => ({
+      accountId: c.accounts.get(code)!,
+      debit,
+      credit,
+      ...(aux && { auxiliaryAccountNumber: aux[0], auxiliaryAccountLabel: aux[1] }),
+    })
+    const entry = (journal: string, date: string, lines: ReturnType<typeof line>[]) =>
+      createEntry({ companyId: c.id, fiscalYearId: c.fy2025, journalId: c.journals.get(journal)!, date: day(date), description: 'Écriture', status: 'validated', lines })
+    await entry('VE', '2025-03-01', [line('411', 1200, 0, ['C00001', 'Martin SA']), line('706', 0, 1000), line('44571', 0, 200)])
+    await entry('VE', '2025-04-01', [line('411', 600, 0, ['C00002', 'Durand SARL']), line('706', 0, 500), line('44571', 0, 100)])
+    await entry('BQ', '2025-05-01', [line('512', 1200, 0), line('411', 0, 1200, ['C00001', 'Martin SA'])])
+    await entry('AC', '2025-06-01', [line('606', 300, 0), line('44566', 60, 0), line('401', 0, 360, ['F00001', 'Papeterie'])])
+
+    const closed = await closeFiscalYear(c.id, c.fy2025)
+    expect(closed.success).toBe(true)
+    const lines = await prisma.entryLine.findMany({
+      where: { accountingEntryId: closed.openingEntryId! },
+      select: { debit: true, credit: true, auxiliaryAccountNumber: true, auxiliaryAccountLabel: true, account: { select: { code: true } } },
+    })
+    const of = (code: string) => lines.filter((l) => l.account.code === code).map((l) => [l.auxiliaryAccountNumber, Number(l.debit) - Number(l.credit), l.auxiliaryAccountLabel])
+    // Martin SA paid in full: no line; Durand SARL owes 600; the supplier is owed 360
+    expect(of('411')).toEqual([['C00002', 600, 'Durand SARL']])
+    expect(of('401')).toEqual([['F00001', -360, 'Papeterie']])
+  })
+
   it('keeps 31/12 in its year whatever the server timezone', async () => {
     const c = await createCompany()
     await bookYear(c)

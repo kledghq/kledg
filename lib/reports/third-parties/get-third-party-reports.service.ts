@@ -4,10 +4,10 @@
  * its customer (411) and supplier (401) accounts in one fiscal year.
  *
  * Accounts belong to one fiscal year, so both reports read one year: lines
- * of earlier years reach it through the opening entry (journal AN), which
- * carries the balance of each account. An opening line without auxiliary
- * account is one tiers named after its account, aged from the first day of
- * the year: detail the opening entry per auxiliary account for exact ages.
+ * of earlier years reach it through the opening entry (journal AN). The
+ * closing writes it per auxiliary account (splitOpeningByTiers, #140); an
+ * opening line without one (balances entered by hand, an older closing) is
+ * one tiers named after its account, aged from the first day of the year.
  *
  * Also the flows of a year with the customers and suppliers (Tiers page,
  * tiers-flows.ts for the rule): billing entries only, opening excluded.
