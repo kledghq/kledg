@@ -111,7 +111,6 @@ export async function getGroupLedger(holdingId: string, query: GroupLedgerQuery,
               fiscalYearId: year.id,
               status: 'validated',
               journal: { code: { not: CLOSING_JOURNAL.code } },
-              OR: [{ reference: null }, { NOT: { reference: { startsWith: 'CL-' } } }],
             },
           },
           select: {

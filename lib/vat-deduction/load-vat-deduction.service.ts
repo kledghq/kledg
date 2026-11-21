@@ -93,7 +93,7 @@ export async function deductedVatOf(companyId: string, from: string, to: string)
     WHERE e."companyId" = ${companyId} AND e."status" = 'validated' AND e."date" >= ${utc(from)} AND e."date" <= ${utc(to)}
       AND (a."code" LIKE '44562%' OR a."code" LIKE '44566%' OR a."code" = '4456')
       AND j."code" NOT IN ('AN', 'CL')
-      AND coalesce(e."reference", '') NOT LIKE 'TVA-%' AND coalesce(e."reference", '') NOT LIKE ${`${REGULARISATION_REFERENCE_PREFIX}%`} AND coalesce(e."reference", '') NOT LIKE 'CL-%'
+      AND coalesce(e."reference", '') NOT LIKE 'TVA-%' AND coalesce(e."reference", '') NOT LIKE ${`${REGULARISATION_REFERENCE_PREFIX}%`}
   `
   return Number(row?.cents ?? 0)
 }

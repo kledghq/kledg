@@ -70,7 +70,7 @@ async function revenueByTiers(companyId: string, fiscalYearId: string): Promise<
     JOIN "accounts" a ON a."id" = l."accountId"
     LEFT JOIN customers c ON c."id" = e."id"
     WHERE e."companyId" = ${companyId} AND e."fiscalYearId" = ${fiscalYearId} AND e."status" = 'validated'
-      AND (a."code" LIKE '70%' OR a."code" LIKE '74%') AND j."code" NOT IN ('AN', 'CL') AND coalesce(e."reference", '') NOT LIKE 'CL-%'
+      AND (a."code" LIKE '70%' OR a."code" LIKE '74%') AND j."code" NOT IN ('AN', 'CL')
     GROUP BY a."code", c."aux"
     HAVING sum(l."credit" - l."debit") <> 0
     ORDER BY a."code", c."aux"
@@ -90,7 +90,7 @@ async function chargesOf(companyId: string, fiscalYearId: string) {
     JOIN "journals" j ON j."id" = e."journalId"
     JOIN "accounts" a ON a."id" = l."accountId"
     WHERE e."companyId" = ${companyId} AND e."fiscalYearId" = ${fiscalYearId} AND e."status" = 'validated'
-      AND a."code" LIKE '6%' AND j."code" NOT IN ('AN', 'CL') AND coalesce(e."reference", '') NOT LIKE 'CL-%'
+      AND a."code" LIKE '6%' AND j."code" NOT IN ('AN', 'CL')
   `
   return { totalCents: Number(row?.total ?? 0), trainerSalariesCents: Number(row?.salaries ?? 0), trainingPurchasesCents: Number(row?.purchases ?? 0) }
 }
