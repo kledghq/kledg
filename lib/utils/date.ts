@@ -27,6 +27,27 @@ export function toUtcDateOnly(date: Date | string): Date {
   )
 }
 
+const PARIS_CALENDAR_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' })
+
+/**
+ * The calendar day in France of an instant a bank API returns
+ * ("2026-09-30T23:30:00Z" is 1 October in Paris), as yyyy-mm-dd (#129).
+ * The UTC day would put the operations of the first hour or two of a day
+ * in the previous day, month, VAT period or fiscal year. A day without a
+ * time ("2026-09-30") stays that day.
+ */
+export function parisIsoDay(instant: Date | string): string {
+  if (typeof instant === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(instant)) return instant
+  const d = typeof instant === 'string' ? new Date(instant) : instant
+  return PARIS_CALENDAR_DAY.format(d)
+}
+
+/** parisIsoDay at midnight UTC, the way transaction days are stored. */
+export function parisDateOnly(instant: Date | string): Date {
+  const [y, m, d] = parisIsoDay(instant).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d))
+}
+
 /**
  * Formats a bank transaction date (date-only, no timezone shift).
  *
