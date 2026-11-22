@@ -259,8 +259,11 @@ await withUserContext(userId, () => createDemoCompany(userId))
 
 `'instance-extension'` is the reason reserved to forks; the system
 context reaches every company when `companyIds` is absent, so pass it
-whenever the job concerns known companies. The flags of the database
-guards (`kledg.company_purge`, `kledg.closed_year_bypass`) still work inside
-such a transaction. Add the file to the allowlist of
+whenever the job concerns known companies. To delete companies with their
+books (throwaway companies, an account deleted on request), call
+`purgeCompaniesInTx(tx, ids)` (`lib/companies/purge-companies.ts`) in such a
+transaction: the flags `kledg.company_purge` and `kledg.closed_year_bypass`
+no longer open the database guards to the application role
+([rls.md](rls.md#guard-bypasses)). Add the file to the allowlist of
 `lib/rls/__tests__/system-context-usage.test.ts` in the fork.
 

@@ -235,6 +235,33 @@ checks that the role is not a superuser, has no `BYPASSRLS`, does not own
 the tables and that the policies are switched on, and refuses every query
 otherwise.
 
+### Guard bypasses
+
+The ledger guards (closed fiscal years, period locks, ledger references,
+the deletion of a company with books, the seals) have two transaction
+settings for maintenance: `kledg.closed_year_bypass` and
+`kledg.company_purge`. Any role can set them with `set_config`, so they
+count only when the connected role (`session_user`) owns the ledger tables
+or is a superuser (`kledg_maintenance_role()`, migration
+`20261224090000_company_purge_function`, #161): the migrations and a
+maintenance session with the owner's connection.
+
+The application deletes companies with their books through
+`kledg_purge_companies(ids)` only (`purgeCompaniesInTx`,
+`lib/companies/purge-companies.ts`). This `SECURITY DEFINER` function:
+
+1. deletes only the companies the transaction's context may delete (the
+   delete policy of `companies`), all or none (`KLEDG_PURGE_REFUSED`);
+2. marks its transaction in `kledg_purge_marks`, a table only the owner
+   reads or writes, and the guards let that deletion through;
+3. removes the mark before returning, so the guards hold again for the rest
+   of the transaction.
+
+An install that connects as the owner (`KLEDG_RLS=off`, the default) keeps
+one role for everything: the settings still work there, and nothing
+separates the application from maintenance. Tested by
+`lib/rls/__tests__/company-purge.db.test.ts`.
+
 ## Roles
 
 | Role | Used by | Rights |

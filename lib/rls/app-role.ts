@@ -18,7 +18,9 @@ export const DEFAULT_APP_ROLE = 'kledg_app'
  * functions of the policies, the company identifier check
  * (lib/companies/identifiers.ts) and the read of the applied migrations
  * (lib/updates/migration-history.ts: names and end times only, the role
- * keeps no right on "_prisma_migrations"). Every other definer function is a trigger
+ * keeps no right on "_prisma_migrations"), the purge of companies with their
+ * books (kledg_purge_companies, lib/companies/purge-companies.ts) and the
+ * check of its mark by the guards (kledg_purge_marked, #161). Every other definer function is a trigger
  * function or runs from one, or is a maintenance function for the owner
  * (kledg_purge_audit_logs): migration 20261029090000_definer_function_hardening
  * revokes EXECUTE on those from PUBLIC and the application role.
@@ -27,6 +29,8 @@ export const APP_CALLABLE_DEFINER_FUNCTIONS: readonly string[] = [
   'kledg_applied_migrations',
   'kledg_company_identifier_taken',
   'kledg_group_subsidiary_ids',
+  'kledg_purge_companies',
+  'kledg_purge_marked',
   'kledg_rls_company_ids',
   'kledg_rls_unrestricted',
 ]
@@ -69,6 +73,12 @@ END $$`,
     `DO $$ BEGIN
   IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
     REVOKE ALL ON TABLE public."_prisma_migrations" FROM "${role}";
+  END IF;
+END $$`,
+    // The marks of a company purge belong to the owner only (migration 20261224090000_company_purge_function).
+    `DO $$ BEGIN
+  IF to_regclass('public.kledg_purge_marks') IS NOT NULL THEN
+    REVOKE ALL ON TABLE public."kledg_purge_marks" FROM "${role}";
   END IF;
 END $$`,
     `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${role}"`,
