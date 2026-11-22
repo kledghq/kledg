@@ -16,7 +16,7 @@
 -- application role cannot write.
 
 CREATE TABLE "kledg_purge_marks" (
-  "txid" xid8 NOT NULL DEFAULT pg_current_xact_id(),
+  "txid" TEXT NOT NULL DEFAULT (pg_current_xact_id())::text,
   CONSTRAINT "kledg_purge_marks_pkey" PRIMARY KEY ("txid")
 );
 -- Owner only: no role but the owner may read or write a mark (default privileges included).
@@ -42,7 +42,7 @@ $$;
 -- The current transaction is inside kledg_purge_companies. Definer: the guards that call it may run as the application role.
 CREATE OR REPLACE FUNCTION kledg_purge_marked() RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-  SELECT EXISTS (SELECT 1 FROM "kledg_purge_marks" WHERE "txid" = pg_current_xact_id())
+  SELECT EXISTS (SELECT 1 FROM "kledg_purge_marks" WHERE "txid" = pg_current_xact_id()::text)
 $$;
 
 CREATE OR REPLACE FUNCTION kledg_closed_year_bypass() RETURNS boolean
@@ -104,7 +104,7 @@ BEGIN
   SET CONSTRAINTS ALL DEFERRED;
   DELETE FROM "companies" WHERE "id" = ANY (company_ids);
   GET DIAGNOSTICS deleted = ROW_COUNT;
-  DELETE FROM "kledg_purge_marks" WHERE "txid" = pg_current_xact_id();
+  DELETE FROM "kledg_purge_marks" WHERE "txid" = pg_current_xact_id()::text;
   RETURN deleted;
 END;
 $$;

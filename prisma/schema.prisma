@@ -3223,3 +3223,12 @@ model LedgerSeal {
   @@index([fiscalYearId, createdAt])
   @@map("ledger_seals")
 }
+
+/// The transaction of a company purge (#161): kledg_purge_companies writes
+/// it, the ledger guards honour it, and it is removed before the function
+/// returns. Owner only: the application role has no right on it (docs/rls.md#guard-bypasses).
+model KledgPurgeMark {
+  txid String @id @default(dbgenerated("(pg_current_xact_id())::text"))
+
+  @@map("kledg_purge_marks")
+}
