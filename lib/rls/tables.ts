@@ -24,6 +24,7 @@ export const RLS_EXEMPT_TABLES: Readonly<Record<string, string>> = {
   update_connection: 'Instance GitHub connection, instance administrators only (checked by the route); no tenant data',
   instance_versions: 'Update history of the instance, instance administrators only (checked by the route); no tenant data',
   _prisma_migrations: 'Migration history, owned by the migration tool',
+  kledg_purge_marks: 'Owner only: the transaction of a company purge (kledg_purge_companies); no role but the owner reads or writes it',
 }
 
 /** Tables whose rows belong to a company through a `companyId` column (or `id` for companies). */
