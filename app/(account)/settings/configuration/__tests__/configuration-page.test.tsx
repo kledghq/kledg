@@ -60,7 +60,7 @@ describe('configuration page', () => {
     render(await ConfigurationPage())
     expect(screen.getByText('Non configuré')).toBeInTheDocument()
     expect(screen.getByText(/Aucun email ne part/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Ajouter les emails/ })).toHaveAttribute('href', 'https://www.kledg.com/docs/installer-kledg#ajouter-les-emails')
+    expect(screen.getByRole('link', { name: /Ajouter les emails/ })).toHaveAttribute('href', 'https://www.kledg.com/docs/demarrer/installer-kledg#ajouter-les-emails')
     expect(screen.queryByRole('button', { name: 'Envoyer un email de test' })).toBeNull()
     expect(screen.getByText('1.3.0')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Créer ma première société/ })).toHaveAttribute('href', '/companies/new')

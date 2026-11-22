@@ -1,6 +1,6 @@
 # Conformité : ce que Kledg garantit et ce qu'il ne garantit pas
 
-La version à remettre aux utilisateurs, à leur expert-comptable ou à un vérificateur (obligations expliquées, ce qui reste à la charge de la société, modèle de description des procédures comptables) est sur le site : [Conformité : ce que Kledg garantit](https://www.kledg.com/fr/docs/ce-que-kledg-garantit). Cette page garde le détail technique : mécanismes (services, déclencheurs, migrations), table des cases des états et décisions avec leurs sources, FEC, routes.
+La version à remettre aux utilisateurs, à leur expert-comptable ou à un vérificateur (obligations expliquées, ce qui reste à la charge de la société, modèle de description des procédures comptables) est sur le site : [Conformité : ce que Kledg garantit](https://www.kledg.com/fr/docs/references/ce-que-kledg-garantit). Cette page garde le détail technique : mécanismes (services, déclencheurs, migrations), table des cases des états et décisions avec leurs sources, FEC, routes.
 
 Pour les sociétés qui tiennent leurs comptes dans Kledg, leurs experts-comptables et commissaires aux comptes, et un vérificateur de l'administration fiscale. Chaque règle renvoie à son texte et au code qui l'applique. Textes vérifiés en octobre 2026 ; le plan comptable général (PCG) est le règlement ANC n° 2014-03 modifié, en dernier lieu par le règlement n° 2022-06 (exercices ouverts depuis le 1er janvier 2025), dont la numérotation est utilisée ici.
 
@@ -64,7 +64,7 @@ Là où les formulaires et leurs notices de 2026 n'ont pas de case dédiée, Kle
 
 ## Modèle de description des procédures comptables
 
-Le modèle du document exigé par le Code de commerce (art. R123-172), que la société complète (logiciel, organisation, sources des écritures, validation, clôture des périodes, pièces, sauvegardes, FEC), est sur le site : [Modèle de description des procédures comptables](https://www.kledg.com/fr/docs/ce-que-kledg-garantit#modèle-de-description-des-procédures-comptables). Le mettre à jour quand un réglage qu'il cite change (clôture automatique, rôles, page Mises à jour).
+Le modèle du document exigé par le Code de commerce (art. R123-172), que la société complète (logiciel, organisation, sources des écritures, validation, clôture des périodes, pièces, sauvegardes, FEC), est sur le site : [Modèle de description des procédures comptables](https://www.kledg.com/fr/docs/references/ce-que-kledg-garantit#modèle-de-description-des-procédures-comptables). Le mettre à jour quand un réglage qu'il cite change (clôture automatique, rôles, page Mises à jour).
 
 ## Fichier des écritures comptables (FEC)
 

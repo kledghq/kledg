@@ -1,6 +1,6 @@
 # Espace groupe
 
-Le guide d'utilisation (à quoi sert l'espace groupe, comment le lire, règles expliquées) est sur le site : [La vue groupe](https://www.kledg.com/fr/docs/la-vue-groupe). Cette page est la spécification technique des pages du groupe : adresses, règles de calcul, sources des données, droits, API et outils MCP.
+Le guide d'utilisation (à quoi sert l'espace groupe, comment le lire, règles expliquées) est sur le site : [La vue groupe](https://www.kledg.com/fr/docs/groupe/la-vue-groupe). Cette page est la spécification technique des pages du groupe : adresses, règles de calcul, sources des données, droits, API et outils MCP.
 
 Une holding a son **espace groupe** (`/<holding>/group`), ouvert depuis le sélecteur de société (section **Groupes**) ou l'entrée **États, Vue groupe** de la holding. Il remplace le menu de la société par celui du groupe, comme si le groupe était une société :
 

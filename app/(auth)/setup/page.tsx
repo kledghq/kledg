@@ -101,7 +101,7 @@ function SetupPending() {
           <code className="bg-muted rounded px-1">BETTER_AUTH_SECRET</code>{" "}
           sur{" "}
           <a
-            href="https://www.kledg.com/fr/docs/installer-kledg#créer-le-compte-administrateur"
+            href="https://www.kledg.com/fr/docs/demarrer/installer-kledg#créer-le-compte-administrateur"
             className="underline underline-offset-4"
           >
             kledg.com

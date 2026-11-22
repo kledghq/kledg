@@ -1,6 +1,6 @@
 # Notes de frais
 
-Le guide d'utilisation (bénéficiaires, saisie d'une note, TVA récupérable, indemnités kilométriques, repas de l'exploitant, validation, remboursement) est sur le site : [Les notes de frais](https://www.kledg.com/fr/docs/les-notes-de-frais). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (bénéficiaires, saisie d'une note, TVA récupérable, indemnités kilométriques, repas de l'exploitant, validation, remboursement) est sur le site : [Les notes de frais](https://www.kledg.com/fr/docs/saisie/les-notes-de-frais). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Les dépenses qu'un salarié, un dirigeant ou un associé avance pour la société, et ses trajets avec un véhicule personnel : saisie avec les justificatifs, TVA récupérable calculée ligne par ligne, indemnités kilométriques au barème officiel, validation, comptabilisation au crédit du compte de la personne et remboursement constaté par le lettrage. Code : `lib/expense-reports`, pages `/expense-reports`, outils MCP `list_expense_reports`, `get_expense_report`, `list_expense_claimants` et, avec l'accès brouillons, `create_draft_expense_report`.
 

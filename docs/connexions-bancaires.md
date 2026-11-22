@@ -1,6 +1,6 @@
 # Connexions bancaires
 
-Le guide d'utilisation (choisir la méthode, étapes de connexion Qonto, Revolut et Ponto, compte 512, expiration de l'accès) est sur le site : [Connecter sa banque](https://www.kledg.com/fr/docs/connecter-sa-banque). Cette page décrit le fonctionnement technique : identifiants, données lues, règles des fournisseurs, synchronisation planifiée.
+Le guide d'utilisation (choisir la méthode, étapes de connexion Qonto, Revolut et Ponto, compte 512, expiration de l'accès) est sur le site : [Connecter sa banque](https://www.kledg.com/fr/docs/banque/connecter-sa-banque). Cette page décrit le fonctionnement technique : identifiants, données lues, règles des fournisseurs, synchronisation planifiée.
 
 Kledg reçoit les opérations de quatre façons, combinables dans une même société (une connexion par fournisseur) :
 
