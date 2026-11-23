@@ -122,7 +122,7 @@ describe('EmptyState', () => {
         title="Aucun exercice"
         description="Créez le premier exercice."
         action={<button>Créer un exercice</button>}
-        docsHref="https://www.kledg.com/docs/l-exercice-et-la-cloture"
+        docsHref="https://www.kledg.com/docs/comprendre/l-exercice-et-la-cloture"
       />,
     )
     expect(screen.getByRole('heading', { name: 'Aucun exercice' })).toBeInTheDocument()

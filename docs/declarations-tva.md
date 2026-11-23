@@ -1,7 +1,7 @@
 # Déclarations de TVA
 
 Le guide d'utilisation (à quoi sert la fonctionnalité, étapes, règles
-expliquées) est sur le site : [Les déclarations de TVA](https://www.kledg.com/fr/docs/les-declarations-de-tva).
+expliquées) est sur le site : [Les déclarations de TVA](https://www.kledg.com/fr/docs/declarations/les-declarations-de-tva).
 Cette page décrit le fonctionnement technique : code, API, règles de calcul,
 droits et limites d'implémentation.
 

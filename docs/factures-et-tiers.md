@@ -1,6 +1,6 @@
 # Factures et tiers
 
-Le guide d'utilisation (tiers, saisie d'une facture, numérotation des factures de vente, création dans Qonto, comptabilisation, règlements, TVA sur les encaissements, import Qonto, facturation électronique) est sur le site : [Les factures et les tiers](https://www.kledg.com/fr/docs/les-factures-et-les-tiers) et [Faire ses factures clients avec Qonto](https://www.kledg.com/fr/docs/factures-clients-avec-qonto). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (tiers, saisie d'une facture, numérotation des factures de vente, création dans Qonto, comptabilisation, règlements, TVA sur les encaissements, import Qonto, facturation électronique) est sur le site : [Les factures et les tiers](https://www.kledg.com/fr/docs/ventes-et-achats/les-factures-et-les-tiers) et [Faire ses factures clients avec Qonto](https://www.kledg.com/fr/docs/ventes-et-achats/factures-clients-avec-qonto). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Le journal des achats et des ventes : les clients et fournisseurs (tiers), les factures reçues et émises enregistrées avec leurs lignes et leur TVA par taux, leur comptabilisation, leurs règlements venus de la banque, et leur import depuis Qonto. Kledg **enregistre** les factures, il ne les émet pas et ne les envoie pas. Code : `lib/tiers`, `lib/invoices`, `lib/integrations/providers/qonto/invoicing.ts`.
 
@@ -207,7 +207,7 @@ Kledg ne deviendra pas lui-même une plateforme agréée.
 
 ### Import d'une facture électronique
 
-Bouton **Importer une facture électronique** de la page Factures d'achat, `POST /api/invoices/import-e-invoice` (formulaire `companyId`, `file`, `mode` : `import` par défaut, `preview` lit sans écrire ; droit `entries:create`, limite `import`), outil MCP `import_e_invoice`. Code : `lib/invoices/e-invoice/` (lecture, sans base de données) et `lib/invoices/import-e-invoice.service.ts` (enregistrement). Guide : [Les factures et les tiers](https://www.kledg.com/fr/docs/les-factures-et-les-tiers).
+Bouton **Importer une facture électronique** de la page Factures d'achat, `POST /api/invoices/import-e-invoice` (formulaire `companyId`, `file`, `mode` : `import` par défaut, `preview` lit sans écrire ; droit `entries:create`, limite `import`), outil MCP `import_e_invoice`. Code : `lib/invoices/e-invoice/` (lecture, sans base de données) et `lib/invoices/import-e-invoice.service.ts` (enregistrement). Guide : [Les factures et les tiers](https://www.kledg.com/fr/docs/ventes-et-achats/les-factures-et-les-tiers).
 
 **Formats** : les trois syntaxes de la réforme (spécifications externes de la DGFiP).
 

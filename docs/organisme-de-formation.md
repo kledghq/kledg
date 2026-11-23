@@ -1,6 +1,6 @@
 # Organisme de formation
 
-Le guide d'utilisation (déclaration d'activité, mention d'exonération, coefficient de déduction, BPF et taxe sur les salaires expliqués, étapes) est sur le site : [Organisme de formation : TVA et bilan pédagogique](https://www.kledg.com/fr/docs/organisme-de-formation). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
+Le guide d'utilisation (déclaration d'activité, mention d'exonération, coefficient de déduction, BPF et taxe sur les salaires expliqués, étapes) est sur le site : [Organisme de formation : TVA et bilan pédagogique](https://www.kledg.com/fr/docs/declarations/organisme-de-formation). Cette page décrit le fonctionnement technique : code, API, règles de calcul, droits et limites d'implémentation.
 
 Périmètre : organismes de formation professionnelle continue et sociétés dont
 une partie des opérations est exonérée de TVA. Kledg prépare, ne dépose rien.

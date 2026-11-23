@@ -1,6 +1,6 @@
 # Serveur MCP : connecter Claude ou ChatGPT
 
-Le guide d'utilisation (connecter Claude, ChatGPT ou Claude Code, choisir l'accès et les sociétés, mode d'exécution, approuver une action, révoquer, Proposer avec l'IA, parcours guidés) est sur le site : [Connecter Claude ou ChatGPT](https://www.kledg.com/fr/docs/connecter-claude-ou-chatgpt). Cette page décrit le fonctionnement technique : autorisations OAuth, portées, outils et leurs conventions, actions en attente, journal d'audit, prompts, couverture et inventaire de l'API.
+Le guide d'utilisation (connecter Claude, ChatGPT ou Claude Code, choisir l'accès et les sociétés, mode d'exécution, approuver une action, révoquer, Proposer avec l'IA, parcours guidés) est sur le site : [Connecter Claude ou ChatGPT](https://www.kledg.com/fr/docs/assistant-ia/connecter-claude-ou-chatgpt). Cette page décrit le fonctionnement technique : autorisations OAuth, portées, outils et leurs conventions, actions en attente, journal d'audit, prompts, couverture et inventaire de l'API.
 
 Chaque instance Kledg expose un serveur [MCP](https://modelcontextprotocol.io) sur `https://votre-instance/api/mcp`. Votre assistant peut alors lire votre comptabilité et proposer des écritures, sans que vos données ne transitent par un service tiers autre que l'assistant que vous choisissez.
 

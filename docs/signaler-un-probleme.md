@@ -1,6 +1,6 @@
 # Signaler un problème ou proposer une idée
 
-Le guide d'utilisation est sur le site : [Signaler un problème ou proposer une idée](https://www.kledg.com/fr/docs/signaler-un-probleme). Cette page décrit le fonctionnement technique : code, contexte ajouté, configuration et limites.
+Le guide d'utilisation est sur le site : [Signaler un problème ou proposer une idée](https://www.kledg.com/fr/docs/references/signaler-un-probleme). Cette page décrit le fonctionnement technique : code, contexte ajouté, configuration et limites.
 
 Depuis Kledg, l'utilisateur prépare une issue GitHub préremplie à partir des modèles du dépôt (`.github/ISSUE_TEMPLATE/bug_report.yml` et `feature_request.yml`), la relit sur GitHub et l'envoie depuis son propre compte. Kledg ne crée jamais d'issue lui-même et n'appelle pas GitHub. Code : `lib/feedback` (lien et contexte, pur), `components/features/feedback` (fenêtre), outil MCP `prepare_feedback` (`lib/mcp/feedback-tools.ts`).
 

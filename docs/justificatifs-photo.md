@@ -1,6 +1,6 @@
 # Justificatifs photographiés (assistants et page Justificatifs)
 
-Le guide d'utilisation (photo dans Claude ou ChatGPT, rattachement, note de frais, page Justificatifs) est sur le site : [Classer ses justificatifs en photo](https://www.kledg.com/fr/docs/classer-ses-justificatifs-en-photo), et la page Justificatifs elle-même dans [Les justificatifs](https://www.kledg.com/fr/docs/les-justificatifs). Cette page décrit le fonctionnement technique : outils MCP, routes, rapprochement, droits, stockage, limites et sécurité.
+Le guide d'utilisation (photo dans Claude ou ChatGPT, rattachement, note de frais, page Justificatifs) est sur le site : [Classer ses justificatifs en photo](https://www.kledg.com/fr/docs/saisie/classer-ses-justificatifs-en-photo), et la page Justificatifs elle-même dans [Les justificatifs](https://www.kledg.com/fr/docs/saisie/les-justificatifs). Cette page décrit le fonctionnement technique : outils MCP, routes, rapprochement, droits, stockage, limites et sécurité.
 
 Prendre en photo un ticket ou une facture dans Claude ou ChatGPT, et le retrouver dans Kledg sur la bonne transaction bancaire ; si aucune transaction ne correspond, Kledg propose une note de frais et la prépare en brouillon. La page **Justificatifs** fait la même chose sans assistant, avec la zone **Déposer des justificatifs**.
 

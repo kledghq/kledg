@@ -1,6 +1,6 @@
 # Liasse fiscale
 
-Le guide d'utilisation (à quoi sert la liasse, comment la préparer et la déposer) est sur le site : [La liasse fiscale](https://www.kledg.com/fr/docs/la-liasse-fiscale). Cette page décrit le fonctionnement technique : code, API, règles de calcul, contrôles, droits et limites.
+Le guide d'utilisation (à quoi sert la liasse, comment la préparer et la déposer) est sur le site : [La liasse fiscale](https://www.kledg.com/fr/docs/declarations/la-liasse-fiscale). Cette page décrit le fonctionnement technique : code, API, règles de calcul, contrôles, droits et limites.
 
 La page États, Liasse fiscale (`/reports/liasse-fiscale`) réunit tous les tableaux de la déclaration de résultat d'une société à l'impôt sur les sociétés, selon son régime à la clôture (`corporateTaxStatusOf`, `lib/corporate-tax/load-corporate-tax.service.ts`, avec l'historique des régimes) :
 

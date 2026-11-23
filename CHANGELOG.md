@@ -8,6 +8,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 - Preuve d'intégrité du grand livre (#147) : la base calcule l'empreinte SHA-256 de chaque écriture validée et de ses lignes, et chaque clôture de période ou d'exercice scelle les écritures validées de l'exercice (scellements en ajout seul). Le rapport de conformité du FEC recalcule empreintes et scellements et signale une écriture modifiée, ajoutée ou supprimée directement dans la base de données. Migration de la base : empreinte des écritures déjà validées, table des scellements.
 
+### Modifié
+
+- Liens vers la documentation : la documentation du site est rangée par rubrique (Démarrer, Banque, Saisie et justificatifs, Déclarations et impôts…) et ses pages ont une nouvelle adresse, `www.kledg.com/fr/docs/<rubrique>/<page>`. Les liens d'aide de Kledg et les renvois de `docs/` pointent vers ces adresses. Les anciennes adresses redirigent vers les nouvelles.
+
 ### Corrigé
 
 - Contournements des contrôles de la base (#161) : `kledg.company_purge` et `kledg.closed_year_bypass` pouvaient être activés par le rôle de l'application. Ils ne valent plus que pour le propriétaire de la base (migrations, maintenance). L'application supprime une société et sa comptabilité par la seule fonction `kledg_purge_companies` (`purgeCompaniesInTx`), limitée aux sociétés que le contexte de la requête peut supprimer. Les instances dérivées qui posaient ces réglages (démo, offre hébergée) doivent passer par cette fonction. Migration de la base : fonction de purge, table des marques de purge réservée au propriétaire.

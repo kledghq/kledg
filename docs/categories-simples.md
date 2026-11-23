@@ -1,6 +1,6 @@
 # Catégories simples et dépenses à vérifier
 
-Le guide d'utilisation (vérifier ses dépenses et ses recettes, questions, immobilisations, validation par le comptable, expliqués pas à pas) est sur le site : [Les catégories simples](https://www.kledg.com/fr/docs/les-categories-simples). Cette page décrit le fonctionnement technique : catalogue et règles comptables avec leurs sources, moteur de proposition, écritures produites, API, droits et outils MCP.
+Le guide d'utilisation (vérifier ses dépenses et ses recettes, questions, immobilisations, validation par le comptable, expliqués pas à pas) est sur le site : [Les catégories simples](https://www.kledg.com/fr/docs/banque/les-categories-simples). Cette page décrit le fonctionnement technique : catalogue et règles comptables avec leurs sources, moteur de proposition, écritures produites, API, droits et outils MCP.
 
 En mode simple, l'utilisateur confirme une **catégorie en langage courant** pour chaque transaction bancaire non rapprochée ; Kledg en déduit l'écriture complète. Le code est dans `lib/simple`.
 
