@@ -23,7 +23,13 @@
  *   (VAT of sales credit notes, self-assessed VAT cancelled, 44563),
  *   22 credit carried from line 27 of the previous return, 23 total;
  * - 25 credit (23 - 16) or TD VAT due (16 - 23), 27 credit to carry
- *   (25 - 26), 28 net VAT due (TD - X5), 32 total to pay (28 + 29 + Z5).
+ *   (25 - 26), 28 net VAT due (TD - X5), 32 total to pay (28 + 29 + Z5);
+ * - 26 refund of the credit requested on form 3519 (#173): what the user
+ *   recorded with the filing, never more than line 25 ("Le crédit de TVA
+ *   dont le remboursement n'est pas demandé (ligne 25 - ligne 26) est
+ *   reporté ligne 22 de la prochaine déclaration", notice 3310-NOT-CA3-SD
+ *   n° 50449#29; a credit whose refund is requested can no longer be
+ *   imputed, CGI ann. II art. 242-0 E, BOI-TVA-DED-50-20-10 § 80).
  * CA12 (3517-S-SD):
  * - 03 sales without VAT (to split with 02 and 04), 5A (20 %), 6C (10 %),
  *   06 (5,5 %), 09 (other rate, 2,1 %), AB purchases of art. 283-1, AC
@@ -72,6 +78,8 @@ interface VatReturnResult {
   /** On the form, whole euros: CA3 line 28 or CA12 line 33; CA3 line 27 or CA12 line 35. */
   dueEuros: number
   creditEuros: number
+  /** CA3 line 26, whole euros: the part of the credit (line 25 = 26 + 27) whose refund is requested; 0 on a CA12. */
+  refundEuros: number
   /** From the books, in cents, before rounding: positive due, negative credit. */
   booksNetCents: number
 }
@@ -104,6 +112,8 @@ export interface ComputeInput {
   creditCarriedCents: number
   /** Last day of the period (yyyy-mm-dd): a CA12 ending in 2026 or later announces no acompte. */
   periodEnd?: string
+  /** CA3: refund requested on form 3519 recorded with the filing (line 26), in cents; capped at the credit of line 25. */
+  refundRequestedCents?: number
 }
 
 /** Import rate lines of the CA3 Kledg fills (notice 3310-CA3-SD 2026: I1 20 %, I2 10 %, I4 5,5 %, I5 2,1 %). */
@@ -212,6 +222,10 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
 
   const credit = Math.max(deductibleEuros - grossEuros, 0)
   const due = Math.max(grossEuros - deductibleEuros, 0)
+  const creditCents = Math.max(deductibleCents - grossCents, 0)
+  // Line 26 never exceeds line 25: the rest of the credit is carried on line 27 (notice 3310-NOT-CA3-SD)
+  const refund = Math.min(roundEuros(Math.max(input.refundRequestedCents ?? 0, 0)), credit)
+  const carried = credit - refund
   const lines: VatReturnLine[] = [
     lineOf(L.A1, 'computed', { baseCents: sum(m.collected.map((b) => b.baseCents)) }, 'Ventes et prestations taxées : base des ventes dont la TVA est au compte 44571 (exigible sur la période).'),
     manual(L.A2, 'Cessions d’immobilisations, livraisons à soi-même, autoliquidations du BTP : Kledg les compte en A1, déplacez-les ici.'),
@@ -236,10 +250,12 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
     l2C,
     total(L.L23, deductibleEuros, deductibleCents, 'Somme des lignes 19 à 2C arrondies.'),
     lineOf(L.L24, 'computed', { amountCents: m.deductibleImportsCents }, 'TVA déduite (44562, 44566) dans les écritures d’importation : comprise dans les lignes 19 et 20.'),
-    total(L.L25, credit, Math.max(deductibleCents - grossCents, 0), 'Ligne 23 moins ligne 16, quand elle est positive.'),
+    total(L.L25, credit, creditCents, 'Ligne 23 moins ligne 16, quand elle est positive.'),
     total(L.TD, due, Math.max(grossCents - deductibleCents, 0), 'Ligne 16 moins ligne 23, quand elle est positive.'),
-    manual(L.L26, 'Remboursement demandé sur le formulaire 3519 : à remplir à la main, il diminue la ligne 27.'),
-    total(L.L27, credit, Math.max(deductibleCents - grossCents, 0), 'Ligne 25 moins ligne 26 : à reporter ligne 22 de la prochaine déclaration.'),
+    refund > 0
+      ? lineOf(L.L26, 'computed', { amountCents: refund * 100, amount: refund }, 'Remboursement demandé sur le formulaire 3519, enregistré avec le dépôt : l’écriture de liquidation le porte au compte 44583.')
+      : manual(L.L26, 'Remboursement demandé sur le formulaire 3519 : indiquez-le avec le dépôt, il diminue la ligne 27 et va au compte 44583.'),
+    total(L.L27, carried, Math.max(creditCents - refund * 100, 0), 'Ligne 25 moins ligne 26 : à reporter ligne 22 de la prochaine déclaration.'),
     total(L.L28, due, Math.max(grossCents - deductibleCents, 0), 'Ligne TD moins le crédit d’accise imputé (X5).'),
     manual(L.L29, 'Taxes assimilées de l’annexe 3310 A : à remplir à la main.'),
     total(L.L32, due, Math.max(grossCents - deductibleCents, 0), 'Lignes 28 + 29 + Z5 - AB.'),
@@ -247,7 +263,7 @@ function computeCA3(input: ComputeInput): VatReturnComputation {
   return {
     form: 'CA3',
     lines,
-    result: { kind: due > 0 ? 'due' : credit > 0 ? 'credit' : 'nil', dueEuros: due, creditEuros: credit, booksNetCents: grossCents - deductibleCents },
+    result: { kind: due > 0 ? 'due' : credit > 0 ? 'credit' : 'nil', dueEuros: due, creditEuros: carried, refundEuros: refund, booksNetCents: grossCents - deductibleCents },
     acomptes: null,
   }
 }
@@ -338,7 +354,7 @@ function computeCA12(input: ComputeInput): VatReturnComputation {
   return {
     form: 'CA12',
     lines,
-    result: { kind: l33 > 0 ? 'due' : l35 > 0 ? 'credit' : 'nil', dueEuros: l33, creditEuros: l35, booksNetCents },
+    result: { kind: l33 > 0 ? 'due' : l35 > 0 ? 'credit' : 'nil', dueEuros: l33, creditEuros: l35, refundEuros: 0, booksNetCents },
     acomptes: {
       paidCents: Math.max(m.acomptesPaidCents, 0),
       nextBaseEuros: l57,

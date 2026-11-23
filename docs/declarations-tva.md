@@ -62,8 +62,9 @@ période et sont laissées de côté.
 | 44567 Crédit de TVA à reporter | Son solde débiteur au début de la période est le crédit reporté : ligne 22 de la CA3, ligne 24 de la CA12. Il se lit sur les écritures validées de l'exercice datées avant la période et ses à-nouveaux, plus les exercices précédents pas encore clôturés (le crédit de décembre se déclare en janvier, avant la clôture), plus la liquidation d'une période antérieure datée dans la période parce que la sienne était clôturée (date de pièce avant la période) |
 | 44581 Acomptes, régime simplifié | Acomptes payés dans l'année : ligne 30 de la CA12 |
 | 4455 Taxes à décaisser | Liquidation et paiement des déclarations, jamais une opération |
-| 44586, 44587 | TVA sur factures non parvenues ou à établir : écritures d'inventaire, pas encore exigibles, laissées de côté |
-| Tout autre compte 445 (44568, 44578 taxes assimilées, 44583, 44584, 445 seul...) | Signalé par les contrôles : Kledg ne sait pas sur quelle ligne le porter |
+| 44586, 44587 | TVA sur factures non parvenues ou à établir : écritures d'inventaire, pas encore exigibles, laissées de côté |
+| 44583 Remboursement de taxes sur le chiffre d'affaires demandé | Remboursement d'un crédit demandé sur le formulaire 3519 (ligne 26 de la CA3) : la liquidation le débite, le remboursement reçu le solde. Jamais une opération de la déclaration, laissé de côté |
+| Tout autre compte 445 (44568, 44578 taxes assimilées, 44584, 445 seul...) | Signalé par les contrôles : Kledg ne sait pas sur quelle ligne le porter |
 
 ### Taux
 
@@ -172,7 +173,7 @@ depuis d'autres lignes, comme le formulaire.
 | 24 | 0710 | Dont TVA déductible sur importations | Calculé : 44562 et 44566 des écritures d'importation |
 | 25 | 0705 | Crédit de TVA (23 - 16) | Total |
 | TD | 8900 | TVA due (16 - 23) | Total |
-| 26 | 8002 | Remboursement demandé (3519) | À remplir |
+| 26 | 8002 | Remboursement demandé (3519) | Le montant enregistré avec le dépôt, au plus la ligne 25 ; à remplir sinon |
 | 27 | 8003 | Crédit à reporter (25 - 26) | Total |
 | 28 | 8901 | TVA nette due (TD - X5) | Total |
 | 29 | 9979 | Taxes assimilées (annexe 3310 A) | À remplir |
@@ -282,9 +283,15 @@ journal OD daté du dernier jour de la période, référence `TVA-<formulaire>-<
   leur : les comptes de la période sont soldés ;
 - crédit de 44567 par le crédit reporté utilisé, et, sur une CA12, de 44581
   par les acomptes payés ;
-- crédit de 44551 « TVA à décaisser » par le montant dû du formulaire, ou
+- crédit de 44551 « TVA à décaisser » par le montant dû du formulaire, ou
   débit de 44567 par le crédit à reporter (le crédit utilisé et le crédit
-  reporté se compensent sur une seule ligne de 44567) ;
+  reporté se compensent sur une seule ligne de 44567) ;
+- sur une CA3 dont le crédit est remboursé en tout ou partie (#173), débit
+  de 44583 « Remboursement de taxes sur le chiffre d'affaires demandé »
+  par le remboursement demandé (ligne 26) : seul le reste (ligne 27 = ligne
+  25 - ligne 26, notice 3310-NOT-CA3-SD n° 50449#29) va au 44567. Un crédit
+  dont le remboursement est demandé ne peut plus être imputé (CGI, ann. II,
+  art. 242-0 E ; BOI-TVA-DED-50-20-10 § 80) ;
 - l'arrondi à l'euro au 658 « Pénalités et autres charges » ou au 758
   « Indemnités et autres produits ».
 
@@ -294,22 +301,38 @@ un verrou par société et période et le verrou de l'exercice : un brouillon
 identique est gardé, un brouillon périmé (une écriture ajoutée depuis) est
 supprimé et préparé de nouveau, une liquidation validée n'est jamais
 modifiée (elle se corrige par contre-passation). Kledg ne valide jamais
-l'écriture : elle se valide une fois la déclaration déposée. Les lignes à
-remplir à la main ne sont pas dans l'écriture.
+l'écriture : elle se valide une fois la déclaration déposée. Les autres
+lignes à remplir à la main ne sont pas dans l'écriture. Le remboursement
+demandé vient du dépôt enregistré : un brouillon préparé avant se met à
+jour avec « Mettre à jour le brouillon ».
 
 ## Dépôt enregistré
 
 Une fois la déclaration déposée sur impots.gouv.fr, « Enregistrer le
 dépôt » garde la date de dépôt, le montant payé (ligne 28 de la CA3, 33 de
-la CA12) et le crédit reporté (ligne 27, 35). La période suivante s'en sert
-pour les contrôles du 4455 et du crédit reporté ; la liste des périodes
-marque les périodes déposées.
+la CA12), le crédit reporté (ligne 27, 35) et, sur une CA3, le
+remboursement demandé sur le formulaire 3519 (ligne 26). La période
+suivante s'en sert pour les contrôles du 4455 et du crédit reporté ; la
+liste des périodes marque les périodes déposées.
+
+Règles du remboursement demandé (`lib/vat-returns/record-vat-filing.service.ts`,
+erreurs 400 en français) : une CA3 seulement (sur la CA12, la demande se
+fait sur la déclaration, cadre VII), en euros entiers comme toute ligne du
+formulaire, jamais avec un montant à payer, et au plus le crédit de la
+période (ligne 25) ; le reste du crédit se reporte ligne 27 (notice
+3310-NOT-CA3-SD n° 50449#29, lignes 26 et 27). Les montants minimaux d'une
+demande (760 € pour un mois ou un trimestre, 150 € pour décembre ou le
+quatrième trimestre : notice, ligne 26 ; BOI-TVA-DED-50-20-10 § 40 à 60)
+sont rappelés sous la case, pas imposés. Le formulaire 3519 se dépose à
+part sur impots.gouv.fr ; Kledg ne le prépare pas.
 
 Table `vat_return_filings` (migration
 `20261103090000_vat_return_filings`) : une ligne par société et période
 (`periodKey` unique avec `companyId`), contraintes de la base sur le
 formulaire et la forme de la période, l'ordre des dates, des montants
-jamais négatifs et jamais les deux à la fois. Table d'une société : les
+jamais négatifs et jamais les deux à la fois, un remboursement
+(`refundAmount`, migration `20261225090000_vat_refund_requested`) jamais
+négatif, seulement sur une CA3 et sans montant à payer. Table d'une société : les
 quatre politiques `kledg_rls_*` sur `companyId` ([rls.md](rls.md)).
 
 ## Export
@@ -336,7 +359,7 @@ de la CA12 précédente.
 | `GET /api/companies/[id]/vat-returns?period=` | `reports:read` | La déclaration préparée d'une période (la prochaine due par défaut) |
 | `GET /api/companies/[id]/vat-returns/export?period=&format=pdf\|csv` | `reports:export` | Le document de travail |
 | `POST /api/companies/[id]/vat-returns/settlement { period }` | `entries:create` | L'écriture de liquidation en brouillon (201 créée ou remplacée, 200 inchangée ou déjà validée) |
-| `PUT /api/companies/[id]/vat-returns/filing { period, filedOn, amountDueCents, creditCents }` | `entries:create` | Enregistre le dépôt |
+| `PUT /api/companies/[id]/vat-returns/filing { period, filedOn, amountDueCents, creditCents, refundCents? }` | `entries:create` | Enregistre le dépôt |
 | `DELETE /api/companies/[id]/vat-returns/filing?period=` | `entries:create` | Retire l'enregistrement |
 
 Outils MCP ([mcp.md](mcp.md)) : `get_vat_return` (lecture) et

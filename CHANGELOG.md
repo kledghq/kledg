@@ -6,6 +6,7 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ### Ajouté
 
+- Remboursement d'un crédit de TVA (#173) : sur la page Déclarations de TVA, le dépôt d'une CA3 créditrice a une case « Remboursement demandé » (ligne 26, formulaire 3519), à côté du montant payé et du crédit reporté. L'écriture de liquidation porte ce montant au compte 44583 « Remboursement de taxes sur le chiffre d'affaires demandé » et seul le reste du crédit au 44567 : plus d'écriture manuelle de 44567 vers 44583. Le remboursement ne peut pas dépasser le crédit de la période (ligne 25) ; le remboursement reçu solde le 44583 sans contrôle bloquant. Migration de la base : colonne du remboursement demandé.
 - Preuve d'intégrité du grand livre (#147) : la base calcule l'empreinte SHA-256 de chaque écriture validée et de ses lignes, et chaque clôture de période ou d'exercice scelle les écritures validées de l'exercice (scellements en ajout seul). Le rapport de conformité du FEC recalcule empreintes et scellements et signale une écriture modifiée, ajoutée ou supprimée directement dans la base de données. Migration de la base : empreinte des écritures déjà validées, table des scellements.
 
 ### Modifié

@@ -339,7 +339,7 @@ describe.skipIf(!available)('VAT returns (PostgreSQL)', () => {
       expect((await call('viewer', routes.filing.PUT, 'PUT', `${base()}/filing`, { period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0 })).status).toBe(403)
       const saved = await call('accountant', routes.filing.PUT, 'PUT', `${base()}/filing`, { period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0 })
       expect(saved.status).toBe(200)
-      expect(await saved.json()).toEqual({ period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0, periodLock: null })
+      expect(await saved.json()).toEqual({ period: '2026-07', filedOn: '2026-08-20', amountDueCents: 0, creditCents: 0, refundCents: 0, periodLock: null })
       const removed = await call('accountant', routes.filing.DELETE, 'DELETE', `${base()}/filing?period=2026-07`)
       expect(removed.status).toBe(200)
       expect((await call('accountant', routes.filing.DELETE, 'DELETE', `${base()}/filing?period=2026-07`)).status).toBe(404)

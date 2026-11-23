@@ -2724,6 +2724,8 @@ model VatReturnFiling {
   amountDue    Decimal  @db.Decimal(15, 2)
   /// Credit carried forward (CA3 line 27, CA12 line 51), 0 when VAT is due.
   creditAmount Decimal  @db.Decimal(15, 2)
+  /// Refund of the credit requested on form 3519 (CA3 line 26), whole euros, 0 when none: booked on 44583.
+  refundAmount Decimal  @default(0) @db.Decimal(15, 2)
   createdById  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

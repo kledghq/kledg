@@ -65,6 +65,7 @@ export async function prepareVatSettlement(companyId: string, periodKey: string,
     acomptes: basis.acomptes,
     dueEuros: view.computation.result.dueEuros,
     creditEuros: view.computation.result.creditEuros,
+    refundEuros: view.computation.result.refundEuros,
   })
   if (planned.length === 0) {
     return { status: 'nothing', reference, entryId: null, entryNumber: null, lines: planned, message: 'Aucun montant de TVA sur la période : il n’y a rien à liquider.' }
