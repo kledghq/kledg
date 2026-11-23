@@ -7,6 +7,12 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # The types match the oldest Node.js Kledg supports (engines in
+      # package.json): newer majors describe APIs it may not have. Bump
+      # them by hand together with engines.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
