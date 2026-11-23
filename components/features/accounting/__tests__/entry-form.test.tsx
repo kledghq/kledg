@@ -456,5 +456,36 @@ describe('EntryForm', () => {
         screen.getByText(/doit être égal au total crédit/i)
       ).toBeInTheDocument()
     })
+
+    it('asks for the journal in French when none is chosen', async () => {
+      const onEntrySubmit = vi.fn()
+      installFetchMock({ fiscalYears: [FY_2025], onEntrySubmit })
+
+      const user = userEvent.setup()
+      render(
+        <EntryForm
+          companyId="company-1"
+          journals={journals}
+          accounts={accounts}
+        />
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('2025')).toBeInTheDocument()
+      })
+
+      // Balanced lines, no journal.
+      const accountSelects = screen.getAllByTestId('account-combobox')
+      await user.selectOptions(accountSelects[0], 'acc-1')
+      await user.selectOptions(accountSelects[1], 'acc-2')
+      await user.type(screen.getByLabelText('Débit, ligne 1'), '10')
+      await user.type(screen.getByLabelText('Crédit, ligne 2'), '10')
+
+      await user.click(screen.getByRole('button', { name: /Enregistrer/i }))
+
+      expect(await screen.findByText('Journal requis')).toBeInTheDocument()
+      expect(screen.queryByText(/Invalid input/i)).not.toBeInTheDocument()
+      expect(onEntrySubmit).not.toHaveBeenCalled()
+    })
   })
 })
