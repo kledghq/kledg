@@ -46,6 +46,11 @@ const BOI_DAS2 = {
   label: 'BOI-BIC-DECLA-30-70-20 (DAS2)',
   url: `${BOFIP}8661-PGP.html/identifiant=BOI-BIC-DECLA-30-70-20-20250212`,
 }
+const CGI_240 = { label: 'CGI, art. 240', url: `${LEGIFRANCE}LEGIARTI000030751913` }
+const DAS2_SPECS = {
+  label: 'DGFiP : cahier des charges salaires et honoraires, revenus 2026',
+  url: 'https://www.impots.gouv.fr/sites/default/files/media/1_metier/3_partenaire/tiers_declarants/cdc_td_bilateral/cdc_salaires-et-honoraires_revenus-2026.pdf',
+}
 const CVAE_PAGE = { label: 'impots.gouv.fr : CET, CFE et CVAE', url: 'https://www.impots.gouv.fr/professionnel/cet-cfe-et-cvae' }
 const CVAE_2026 = {
   label: 'impots.gouv.fr : échéance de la 1330-CVAE en 2026',
@@ -140,8 +145,8 @@ export const RULES = {
     category: 'liasse',
     form: 'DAS2',
     summary:
-      "La déclaration des honoraires, commissions et vacations versés à un même bénéficiaire au-delà de 2 400 € dans l'année civile est déposée avec la déclaration de résultat : le deuxième jour ouvré qui suit le 1er mai pour un exercice clos le 31 décembre, dans les trois mois de la clôture sinon, au titre de l'année civile précédente.",
-    sources: [BOI_DAS2],
+      "La déclaration des honoraires, commissions, courtages, ristournes, vacations, gratifications, droits d'auteur et d'inventeur versés à un même bénéficiaire au-delà de 2 400 € dans l'année civile (CGI art. 240 et 241) se dépose en ligne uniquement : formulaire en ligne de l'espace professionnel jusqu'à 50 bénéficiaires, fichier ou DSN au-delà, sous peine d'une amende de 15 € par bénéficiaire omis (CGI art. 1738). Une société à l'IS la dépose avec sa déclaration de résultat : le deuxième jour ouvré qui suit le 1er mai pour un exercice clos le 31 décembre, dans les trois mois de la clôture sinon, au titre de l'année civile précédente. Les autres déclarants la déposent le deuxième jour ouvré qui suit le 1er mai. L'administration accorde 15 jours de plus pour le dépôt en ligne.",
+    sources: [CGI_240, BOI_DAS2, DAS2_SPECS],
   },
   cvae: {
     id: 'cvae',

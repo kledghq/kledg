@@ -323,6 +323,9 @@ function toDeadline(c: Candidate): Deadline {
   return deadline
 }
 
+/** DAS2: fees and the like above 2 400 € to one beneficiary (CGI art. 240; BOI-BIC-DECLA-30-70-20 § 140). */
+const DAS2_CONDITION = "Si plus de 2 400 € d'honoraires, commissions ou autres rémunérations ont été versés à un même bénéficiaire dans l'année."
+
 const ONLINE_EXTENSION_NOTE =
   "15 jours de plus en cas de télédéclaration, un délai que l'administration annonce chaque année."
 
@@ -519,7 +522,9 @@ function corporateTaxDeadlines(input: DeadlineInput, spans: FiscalYearSpan[]): C
         legalDate: liasseDate,
         bringForward: !december,
         label: `Déclaration des honoraires versés en ${coveredYear}`,
-        condition: 'Si plus de 2 400 € ont été versés à un même bénéficiaire dans l\'année.',
+        condition: DAS2_CONDITION,
+        extendedDate: addIsoDays(liasseDate, 15),
+        note: ONLINE_EXTENSION_NOTE,
         projected,
       })
     }
@@ -547,6 +552,21 @@ function yearlyDeadlines(input: DeadlineInput): Candidate[] {
   const out: Candidate[] = []
   const foundationYear = company.foundationDate ? yearOf(company.foundationDate) : null
   for (let y = yearOf(input.from) - 1; y <= yearOf(input.to); y++) {
+    // DAS2 of a company not subject to IS: no results return to file it with,
+    // so the second business day after 1 May (DGFiP specifications, revenus
+    // 2026). A company under IS files it with its liasse (corporateTaxDeadlines).
+    if (settings.das2 && !corporateTaxRegimeAt(company, `${y}-12-31`)) {
+      const date = secondBusinessDayAfterMayFirst(y + 1)
+      out.push({
+        key: `${y}`,
+        ruleId: 'das2',
+        legalDate: date,
+        label: `Déclaration des honoraires versés en ${y}`,
+        condition: DAS2_CONDITION,
+        extendedDate: addIsoDays(date, 15),
+        note: ONLINE_EXTENSION_NOTE,
+      })
+    }
     // CVAE: nothing for the years after its abolition (2030 on).
     if (settings.cvae && y <= CVAE_LAST_YEAR) {
       const date = secondBusinessDayAfterMayFirst(y + 1)
