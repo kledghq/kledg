@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, ExternalLink, Github, Loader2, Unplug } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Loader2, Unplug } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +24,7 @@ import type { ConnectionSummary } from '@/lib/updates/connection'
 import type { RepoRef } from '@/lib/updates/github'
 import { TOKEN_EXPIRY_DAYS, tokenCreationUrl } from '@/lib/updates/token-url'
 import { formatDate, updatesApi } from './api'
+import { GithubIcon } from './github-icon'
 
 const PERMISSIONS: Array<[string, string]> = [
   ['Contents', 'Read and write'],
@@ -68,7 +69,7 @@ function ConnectedCard({ connection, onChange }: { connection: ConnectionSummary
     <Card>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
-          <Github className="size-4" />
+          <GithubIcon className="size-4" />
           Connexion GitHub
           <Badge variant="secondary">{connection.kind === 'fork' ? 'Fork de kledghq/kledg' : 'Copie de kledghq/kledg'}</Badge>
         </CardTitle>
@@ -172,7 +173,7 @@ function ConnectForm({ detected, onChange }: { detected: RepoRef | null; onChang
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Github className="size-4" />
+          <GithubIcon className="size-4" />
           Connecter GitHub
         </CardTitle>
         <CardDescription>
