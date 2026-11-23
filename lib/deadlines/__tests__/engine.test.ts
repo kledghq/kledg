@@ -327,10 +327,24 @@ describe('DAS2 and CVAE (on demand)', () => {
   it('files the DAS2 with the results return when the company says it pays fees', () => {
     expect(ofRule(run(), 'das2')).toEqual([])
     const das2 = byId(run({ settings: { das2: true } }), 'das2:2025')
-    expect(das2).toMatchObject({ date: '2026-05-05', form: 'DAS2', label: 'Déclaration des honoraires versés en 2025' })
+    // With the liasse, 15 more days online (DGFiP specifications: 5 May 2026 + 15 days).
+    expect(das2).toMatchObject({ date: '2026-05-05', extendedDate: '2026-05-20', form: 'DAS2', label: 'Déclaration des honoraires versés en 2025' })
     expect(das2?.condition).toMatch(/2 400/)
     // Non-calendar exercice: with the liasse, for the previous calendar year.
-    expect(byId(run({ fiscalYears: [fy('2025-07-01', '2026-06-30')], settings: { das2: true } }), 'das2:2025')?.date).toBe('2026-09-30')
+    expect(byId(run({ fiscalYears: [fy('2025-07-01', '2026-06-30')], settings: { das2: true } }), 'das2:2025')).toMatchObject({
+      date: '2026-09-30',
+      extendedDate: '2026-10-15',
+    })
+  })
+
+  it('files the DAS2 of a company not subject to IS the second business day after 1 May', () => {
+    // An association, or a company under the income tax: no 2065 to file it with.
+    const notUnderIs: DeadlineCompany = { ...SAS, legalType: 'ASSOCIATION', corporateTaxRegime: null }
+    expect(ofRule(run({ company: notUnderIs }), 'das2')).toEqual([])
+    const das2 = byId(run({ company: notUnderIs, settings: { das2: true } }), 'das2:2025')
+    expect(das2).toMatchObject({ date: '2026-05-05', extendedDate: '2026-05-20', label: 'Déclaration des honoraires versés en 2025' })
+    // A non-calendar exercice changes nothing: the payments of the calendar year.
+    expect(byId(run({ company: notUnderIs, fiscalYears: [fy('2025-07-01', '2026-06-30')], settings: { das2: true } }), 'das2:2025')?.date).toBe('2026-05-05')
   })
 
   it('files the 1330-CVAE the second business day after 1 May, 15 more days online', () => {

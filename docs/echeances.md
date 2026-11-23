@@ -24,7 +24,7 @@ règle et ses sources officielles (`lib/deadlines/rules.ts`) :
 | --- | --- | --- |
 | TVA | CA3 mensuelle ou trimestrielle, CA12 et ses acomptes (réel simplifié supprimé en 2027) | CGI, art. 287 ; CGI, ann. IV, art. 39 ; BOI-TVA-DECLA-20-20-10-10 et 20-30-10 |
 | IS | Acomptes 2571 et solde 2572 | CGI, art. 1668 ; BOI-IS-DECLA-20-10 |
-| Liasse | Déclaration de résultat 2065 et liasse, DAS2 | CGI, art. 223 ; BOI-BIC-DECLA-30-70-20 |
+| Liasse | Déclaration de résultat 2065 et liasse, DAS2 (avec la liasse pour une société à l'IS, le deuxième jour ouvré après le 1er mai sinon ; 15 jours de plus en ligne) | CGI, art. 223 et 240 ; BOI-BIC-DECLA-30-70-20 |
 | CFE | Acompte du 15 juin (d'après l'avis de l'année précédente quand il est saisi), solde du 15 décembre, déclaration initiale 1447-C-SD, déclaration modificative 1447-M-SD | CGI, art. 1477, 1478 et 1679 quinquies |
 | CVAE | Déclaration 1330-CVAE, acomptes 1329-AC, liquidation 1329-DEF ; plus rien pour les années 2030 et suivantes (CVAE supprimée) | CGI, art. 1586 ter à 1586 nonies et 1679 septies ; loi n° 2025-127, art. 62 |
 | Taxe sur les salaires | Relevés 2501 mensuels ou trimestriels (d'après la taxe de l'année précédente), déclaration annuelle 2502 au 15 janvier (31 janvier admis), pour les années où la taxe est due, d'après la page Taxe sur les salaires | CGI, art. 231 ; BOI-TPS-TS-40 ; notice 2501-SD |

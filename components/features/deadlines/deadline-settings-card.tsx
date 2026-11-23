@@ -44,7 +44,7 @@ const SWITCHES: Array<{ key: BooleanSetting; label: string; hint: string }> = [
   {
     key: 'das2',
     label: 'Déclaration des honoraires (DAS2)',
-    hint: "Si la société verse plus de 2 400 € d'honoraires, commissions ou vacations à un même bénéficiaire dans l'année.",
+    hint: "Si la société verse plus de 2 400 € d'honoraires, commissions, courtages, droits d'auteur ou autres rémunérations à un même bénéficiaire dans l'année. Dépôt en ligne uniquement.",
   },
   {
     key: 'cvae',
