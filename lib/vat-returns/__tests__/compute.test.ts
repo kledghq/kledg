@@ -120,7 +120,7 @@ describe('CA3 of a month with several rates (notice 3310-CA3-SD, lines A1, 08, 9
     expect(line(ca3, 'TD')).toMatchObject({ box: '8900', amount: 813 })
     expect(line(ca3, '28').amount).toBe(813)
     expect(line(ca3, '25').amount).toBe(0)
-    expect(ca3.result).toEqual({ kind: 'due', dueEuros: 813, creditEuros: 0, booksNetCents: 81_310 })
+    expect(ca3.result).toEqual({ kind: 'due', dueEuros: 813, creditEuros: 0, refundEuros: 0, booksNetCents: 81_310 })
   })
 
   it('lists what Kledg cannot know as lines to fill by hand', () => {
@@ -273,7 +273,7 @@ describe('credit carried forward (line 22 repeats line 27 of the previous return
     expect(line(ca3, '25')).toMatchObject({ box: '0705', amount: 2_100 })
     expect(line(ca3, '27')).toMatchObject({ box: '8003', amount: 2_100 })
     expect(line(ca3, 'TD').amount).toBe(0)
-    expect(ca3.result).toEqual({ kind: 'credit', dueEuros: 0, creditEuros: 2_100, booksNetCents: -210_000 })
+    expect(ca3.result).toEqual({ kind: 'credit', dueEuros: 0, creditEuros: 2_100, refundEuros: 0, booksNetCents: -210_000 })
   })
 
   it('settles into 44567: the old credit used, the new credit carried', () => {
@@ -294,6 +294,75 @@ describe('credit carried forward (line 22 repeats line 27 of the previous return
       // The credit used (1 500 €) and the credit carried (2 100 €) net on 44567
       { code: '445670', label: 'Crédit de TVA à reporter', debitCents: 60_000, creditCents: 0 },
     ])
+  })
+})
+
+describe('refund of the credit requested on form 3519 (notice 3310-NOT-CA3-SD n° 50449#29: line 27 = line 25 - line 26; PCG 44583; BOI-TVA-DED-50-20-10 § 80)', () => {
+  const entries = [sale(100_000, 20_000), purchase(400_000, 80_000)]
+  const movements = classifyEntries(entries)
+
+  it('moves the refund requested to line 26 and carries only the rest on line 27', () => {
+    const ca3 = computeVatReturn({ form: 'CA3', movements, creditCarriedCents: 150_000, refundRequestedCents: 80_000 })
+    expect(line(ca3, '25').amount).toBe(2_100)
+    expect(line(ca3, '26')).toMatchObject({ box: '8002', amount: 800, status: 'computed' })
+    expect(line(ca3, '27')).toMatchObject({ box: '8003', amount: 1_300 })
+    expect(ca3.result).toEqual({ kind: 'credit', dueEuros: 0, creditEuros: 1_300, refundEuros: 800, booksNetCents: -210_000 })
+  })
+
+  it('leaves line 26 to fill by hand without a refund, and never refunds more than line 25', () => {
+    const none = computeVatReturn({ form: 'CA3', movements, creditCarriedCents: 0 })
+    expect(line(none, '26')).toMatchObject({ status: 'manual', amount: 0 })
+    expect(none.result).toMatchObject({ creditEuros: 600, refundEuros: 0 })
+    const over = computeVatReturn({ form: 'CA3', movements, creditCarriedCents: 0, refundRequestedCents: 1_000_000 })
+    expect(line(over, '26').amount).toBe(600)
+    expect(line(over, '27').amount).toBe(0)
+    expect(over.result).toMatchObject({ kind: 'credit', creditEuros: 0, refundEuros: 600 })
+  })
+
+  it('has no refund line on a return with VAT due, nor on a CA12', () => {
+    const due = computeVatReturn({ form: 'CA3', movements: classifyEntries([sale(100_000, 20_000)]), creditCarriedCents: 0, refundRequestedCents: 10_000 })
+    expect(due.result).toMatchObject({ kind: 'due', dueEuros: 200, refundEuros: 0 })
+    const ca12 = computeVatReturn({ form: 'CA12', movements, creditCarriedCents: 0, refundRequestedCents: 10_000 })
+    expect(ca12.result.refundEuros).toBe(0)
+  })
+
+  const settle = (refundEuros: number, creditEuros: number) =>
+    planSettlement({
+      period: { id: '2026-09', form: 'CA3', label: 'septembre 2026' },
+      periodNetByCode: new Map([
+        ['445710', -20_000],
+        ['445660', 80_000],
+      ]),
+      creditCarried: { cents: 0, code: '445670' },
+      acomptes: null,
+      dueEuros: 0,
+      creditEuros,
+      refundEuros,
+    })
+
+  it('books a partial refund on 44583 and the rest of the credit on 44567', () => {
+    expect(settle(400, 200)).toEqual([
+      { code: '445660', label: 'TVA sur autres biens et services', debitCents: 0, creditCents: 80_000 },
+      { code: '445710', label: 'TVA collectée', debitCents: 20_000, creditCents: 0 },
+      { code: '445670', label: 'Crédit de TVA à reporter', debitCents: 20_000, creditCents: 0 },
+      { code: '44583', label: 'Remboursement de taxes sur le chiffre d’affaires demandé', debitCents: 40_000, creditCents: 0 },
+    ])
+  })
+
+  it('books the whole credit on 44583 when all of it is refunded', () => {
+    const lines = settle(600, 0)
+    expect(lines.find((l) => l.code === '445670')).toBeUndefined()
+    expect(lines.find((l) => l.code === '44583')).toMatchObject({ debitCents: 60_000, creditCents: 0 })
+    expect(lines.reduce((s, l) => s + l.debitCents - l.creditCents, 0)).toBe(0)
+  })
+
+  it('takes the chart’s own code for 44583', () => {
+    expect(resolveRootCode('44583', ['445830', '4458'])).toBe('445830')
+  })
+
+  it('never reports 44583 as a VAT account the return does not read: the refund received clears it', () => {
+    const received = entry([['512000', 60_000, 0], ['445830', 0, 60_000]], { journalCode: 'BQ' })
+    expect(classifyEntries([received]).unhandled).toEqual([])
   })
 })
 

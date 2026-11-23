@@ -156,11 +156,11 @@ export const recordTaxFilingTool = fullControlTool({
   name: 'record_tax_filing',
   title: 'Enregistrer le dépôt d’une déclaration',
   level: 'write',
-  description: `Records that the user filed a return on impots.gouv.fr, or removes that record (action remove): tax vat for a VAT return (period aaaa-mm, aaaa-Tn or aaaa; filing date, amount paid and credit carried forward), tax corporate_tax for the corporate tax return of a fiscal year (filing date, result before deficits, deficits imputed, tax, reduced rate). The deadlines then show it filed; with the automatic closing after a VAT filing, the periods it covers are closed. Other deadlines are marked with mark_declaration. ${SETTLES} ${TWO_STEP}`,
+  description: `Records that the user filed a return on impots.gouv.fr, or removes that record (action remove): tax vat for a VAT return (period aaaa-mm, aaaa-Tn or aaaa; filing date, amount paid, credit carried forward and, on a CA3, the refund of the credit requested on form 3519 (line 26, whole euros, at most the credit of line 25; the settlement entry books it on 44583)), tax corporate_tax for the corporate tax return of a fiscal year (filing date, result before deficits, deficits imputed, tax, reduced rate). The deadlines then show it filed; with the automatic closing after a VAT filing, the periods it covers are closed. Other deadlines are marked with mark_declaration. ${SETTLES} ${TWO_STEP}`,
   input: {
     tax: z.enum(['vat', 'corporate_tax']),
     action: z.enum(['record', 'remove']).default('record'),
-    vat: assistantInput(VatFilingBodySchema).optional().describe('tax vat, action record: the filing (period, filedOn, amountDue, credit).'),
+    vat: assistantInput(VatFilingBodySchema).optional().describe('tax vat, action record: the filing (period, filedOn, amountDue, credit, refund).'),
     corporateTax: assistantInput(CorporateTaxFilingBodySchema).optional().describe('tax corporate_tax, action record: the filing.'),
     period: z.string().max(20).optional().describe('tax vat, action remove: the period.'),
     fiscalYearId: z.string().max(100).optional().describe('tax corporate_tax, action remove: the fiscal year.'),

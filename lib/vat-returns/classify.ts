@@ -42,8 +42,12 @@
  * - 44588 "TVA déductible en attente de paiement": VAT of purchased
  *   services not paid yet (CGI art. 271, I-2), not deductible yet, left
  *   out; the payment moves it to 44566, deducted then (#120);
- * - any other 445 account (44568 and 44578 taxes assimilées, 44583
- *   refund requested, 44584...) is reported as not handled.
+ * - 44583 "Remboursement de taxes sur le chiffre d'affaires demandé": the
+ *   refund of a credit requested on form 3519, booked by the settlement
+ *   (CA3 line 26, #173) and cleared by the refund received, never an
+ *   operation of a return, left out;
+ * - any other 445 account (44568 and 44578 taxes assimilées, 44584...) is
+ *   reported as not handled.
  *
  * Signs, as the forms want them (notices 3310-CA3-SD and 3517-S-SD: never a
  * negative amount on a line):
@@ -201,6 +205,7 @@ export const isAcompteCode = (code: string) => code.startsWith('44581')
 export const isToPayCode = (code: string) => code.startsWith('4455')
 const isAccrualCode = (code: string) => starts(code, '44586', '44587')
 const isPendingDeductibleCode = (code: string) => code.startsWith('44588')
+export const isRefundRequestedCode = (code: string) => code.startsWith('44583')
 
 /** Opening (AN) and closing (CL) entries carry balances, not operations of the period. */
 export function isBalanceEntry(entry: Pick<VatEntry, 'journalCode' | 'reference'>): boolean {
@@ -451,7 +456,8 @@ export function classifyEntries(entries: VatEntry[]): VatMovements {
         isTransferredCode(code) ||
         isAcompteCode(code) ||
         isAccrualCode(code) ||
-        isPendingDeductibleCode(code)
+        isPendingDeductibleCode(code) ||
+        isRefundRequestedCode(code)
       ) {
         continue
       }

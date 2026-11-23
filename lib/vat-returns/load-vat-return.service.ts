@@ -74,6 +74,8 @@ export interface VatFilingRecord {
   filedOn: string
   amountDueCents: number
   creditCents: number
+  /** CA3 line 26: refund of the credit requested on form 3519 (0 when none). */
+  refundCents: number
 }
 
 export interface VatReturnView {
@@ -359,10 +361,12 @@ function deadlinesAround(context: CompanyContext, from: string, to: string) {
 async function filingsOf(companyId: string, keys: string[]): Promise<Map<string, VatFilingRecord>> {
   const rows = await prisma.vatReturnFiling.findMany({
     where: { companyId, periodKey: { in: keys } },
-    select: { periodKey: true, filedOn: true, amountDue: true, creditAmount: true },
+    select: { periodKey: true, filedOn: true, amountDue: true, creditAmount: true, refundAmount: true },
     take: keys.length,
   })
-  return new Map(rows.map((r) => [r.periodKey, { filedOn: day(r.filedOn), amountDueCents: cents(r.amountDue), creditCents: cents(r.creditAmount) }]))
+  return new Map(
+    rows.map((r) => [r.periodKey, { filedOn: day(r.filedOn), amountDueCents: cents(r.amountDue), creditCents: cents(r.creditAmount), refundCents: cents(r.refundAmount) }]),
+  )
 }
 
 export interface BuiltVatReturn {
@@ -435,7 +439,9 @@ export async function buildVatReturn(companyId: string, periodKey: string | unde
   // The credit of the previous return, with its settlement moved into this period (#122)
   const carriedCode = mainCode(opening, isCreditCarriedCode, '44567')
   const creditCarriedCents = Math.max(sumWhere(opening, isCreditCarriedCode) + sumWhere(movedSettlements, isCreditCarriedCode), 0)
-  const computation = computeVatReturn({ form: period.form, movements, creditCarriedCents, periodEnd: period.end })
+  // The refund requested with the filing (CA3 line 26) splits the credit between 44583 and 44567 (#173)
+  const refundRequestedCents = filings.get(period.id)?.refundCents ?? 0
+  const computation = computeVatReturn({ form: period.form, movements, creditCarriedCents, periodEnd: period.end, refundRequestedCents })
 
   // Balances at the end of the period, without this period's settlement (classify left settlements out).
   const nets = periodNets(entries, reference)

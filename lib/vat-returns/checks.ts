@@ -119,7 +119,7 @@ export function vatChecks(input: CheckInput): VatCheck[] {
       id: 'accounts',
       severity: 'blocking',
       title: 'Mouvements sur des comptes de TVA que Kledg ne déclare pas',
-      detail: 'Taxes assimilées, remboursements demandés, TVA récupérée d’avance ou compte de TVA général : Kledg ne sait pas sur quelle ligne les porter. Vérifiez ces écritures et complétez la déclaration à la main.',
+      detail: 'Taxes assimilées, TVA récupérée d’avance ou compte de TVA général : Kledg ne sait pas sur quelle ligne les porter. Vérifiez ces écritures et complétez la déclaration à la main.',
       items: input.unhandled.map((u) => `Compte ${u.code} : ${u.netCents >= 0 ? 'débit' : 'crédit'} net de ${euros(Math.abs(u.netCents))}`),
     })
   }

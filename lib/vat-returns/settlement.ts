@@ -13,10 +13,17 @@
  * - the result: credit of 44551 "TVA à décaisser" by the amount due on the
  *   form (CA3 line 28, CA12 line 33), or debit of 44567 by the credit to
  *   carry (CA3 line 27, CA12 line 35);
+ * - on a CA3 whose credit is partly or wholly refunded (#173): debit of
+ *   44583 "Remboursement de taxes sur le chiffre d'affaires demandé" (PCG
+ *   art. 944-44 and list of accounts art. 932-1) by the refund requested on
+ *   form 3519 (line 26), only the rest (line 27 = line 25 - line 26, notice
+ *   3310-NOT-CA3-SD n° 50449#29) on 44567: a credit whose refund is
+ *   requested can no longer be carried (CGI ann. II art. 242-0 E,
+ *   BOI-TVA-DED-50-20-10 § 80). The refund received later clears 44583;
  * - the form rounds every line to the euro: the difference with the books
  *   goes to 658 "Pénalités et autres charges" or 758 "Indemnités et autres
  *   produits" (PCG 2025 accounts of other operating charges and income).
- * Lines the user fills by hand (refunds, taxes assimilées, regularisations
+ * Other lines the user fills by hand (taxes assimilées, regularisations
  * of earlier returns) are not in the books of the period and not in this
  * entry. Pure; settle-vat-return.service.ts books it as a draft.
  */
@@ -42,11 +49,14 @@ export interface SettlementInput {
   /** What the form declares, whole euros: due (CA3 28, CA12 33) or credit (CA3 27, CA12 35). */
   dueEuros: number
   creditEuros: number
+  /** CA3 line 26: refund of the credit requested on form 3519, whole euros (0 when none). */
+  refundEuros?: number
 }
 
 const SETTLEMENT_ACCOUNTS = {
   toPay: { code: '44551', label: 'TVA à décaisser' },
   credit: { code: '44567', label: 'Crédit de TVA à reporter' },
+  refund: { code: '44583', label: 'Remboursement de taxes sur le chiffre d’affaires demandé' },
   roundingCharge: { code: '658', label: 'Pénalités et autres charges' },
   roundingIncome: { code: '758', label: 'Indemnités et autres produits' },
 } as const
@@ -99,8 +109,13 @@ export function planSettlement(input: SettlementInput): SettlementLine[] {
 
   if (input.dueEuros > 0) {
     lines.push({ ...SETTLEMENT_ACCOUNTS.toPay, debitCents: 0, creditCents: input.dueEuros * 100 })
-  } else if (input.creditEuros > 0) {
-    lines.push({ code: input.creditCarried.code, label: SETTLEMENT_ACCOUNTS.credit.label, debitCents: input.creditEuros * 100, creditCents: 0 })
+  } else {
+    if (input.creditEuros > 0) {
+      lines.push({ code: input.creditCarried.code, label: SETTLEMENT_ACCOUNTS.credit.label, debitCents: input.creditEuros * 100, creditCents: 0 })
+    }
+    if ((input.refundEuros ?? 0) > 0) {
+      lines.push({ ...SETTLEMENT_ACCOUNTS.refund, debitCents: (input.refundEuros ?? 0) * 100, creditCents: 0 })
+    }
   }
   // What remains is the rounding of the form to the euro.
   const difference = lines.reduce((s, l) => s + l.debitCents - l.creditCents, 0)
@@ -126,7 +141,7 @@ export function netByAccount(lines: SettlementLine[]): SettlementLine[] {
 }
 
 /** Accounts the plan names by their PCG root; the chart of a fiscal year may hold them as 445510, 445670... */
-export const SETTLEMENT_ROOTS: readonly string[] = ['44551', '44567', '44581', '658', '758']
+export const SETTLEMENT_ROOTS: readonly string[] = ['44551', '44567', '44581', '44583', '658', '758']
 
 /**
  * The account of the chart to use for a root, by the rule every module

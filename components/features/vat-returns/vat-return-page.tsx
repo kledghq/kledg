@@ -146,17 +146,27 @@ function FilingCard({ companyId, view, canWrite, onSaved }: { companyId: string;
   const [filedOn, setFiledOn] = React.useState(view.today)
   const [due, setDue] = React.useState<number | null>((result?.dueEuros ?? 0) * 100)
   const [credit, setCredit] = React.useState<number | null>((result?.creditEuros ?? 0) * 100)
+  const [refund, setRefund] = React.useState<number | null>((result?.refundEuros ?? 0) * 100)
   const [saving, setSaving] = React.useState(false)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const period = view.period
   if (!period) return null
   const url = `/api/companies/${encodeURIComponent(companyId)}/vat-returns/filing`
+  // CA3 line 25 = line 26 (refund on form 3519) + line 27 (credit carried)
+  const periodCreditCents = ((result?.creditEuros ?? 0) + (result?.refundEuros ?? 0)) * 100
+  const canRefund = period.form === 'CA3' && periodCreditCents > 0
+  // Fourth quarter or December: annual request (notice 3310-NOT-CA3-SD, line 26; BOI-TVA-DED-50-20-10)
+  const refundMinimum = period.id.endsWith('-12') || period.id.endsWith('-T4') ? '150\u00a0€' : '760\u00a0€'
+  const changeRefund = (value: number | null) => {
+    setRefund(value)
+    setCredit(Math.max(periodCreditCents - (value ?? 0), 0))
+  }
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault()
     setSaving(true)
     try {
-      await sendJson(url, 'PUT', { period: period.id, filedOn, amountDueCents: due ?? 0, creditCents: credit ?? 0 }, 'Le dépôt n’a pas été enregistré. Réessayez dans un instant.')
+      await sendJson(url, 'PUT', { period: period.id, filedOn, amountDueCents: due ?? 0, creditCents: credit ?? 0, refundCents: canRefund ? (refund ?? 0) : 0 }, 'Le dépôt n’a pas été enregistré. Réessayez dans un instant.')
       toast.success('Dépôt enregistré')
       onSaved()
     } catch (e) {
@@ -204,6 +214,11 @@ function FilingCard({ companyId, view, canWrite, onSaved }: { companyId: string;
                   , crédit de <Amount value={euros(view.filing.creditCents)} /> reporté
                 </>
               ) : null}
+              {view.filing.refundCents > 0 ? (
+                <>
+                  , remboursement de <Amount value={euros(view.filing.refundCents)} /> demandé
+                </>
+              ) : null}
               .
             </p>
             {canWrite ? (
@@ -213,7 +228,7 @@ function FilingCard({ companyId, view, canWrite, onSaved }: { companyId: string;
             ) : null}
           </div>
         ) : canWrite ? (
-          <form onSubmit={save} className="grid gap-4 sm:grid-cols-3">
+          <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
             <Field label="Date de dépôt" htmlFor="vat-filed-on" required>
               <DateInput id="vat-filed-on" value={filedOn} onValueChange={setFiledOn} />
             </Field>
@@ -223,7 +238,16 @@ function FilingCard({ companyId, view, canWrite, onSaved }: { companyId: string;
             <Field label="Crédit reporté" htmlFor="vat-filed-credit" hint="Ligne 27 de la CA3, ligne 35 de la CA12">
               <AmountInput id="vat-filed-credit" value={credit} onValueChange={setCredit} />
             </Field>
-            <div className="sm:col-span-3">
+            {canRefund ? (
+              <Field
+                label="Remboursement demandé"
+                htmlFor="vat-filed-refund"
+                hint={`Ligne 26 de la CA3, en euros entiers, au plus le crédit de la ligne 25. Demande sur le formulaire 3519, au moins ${refundMinimum}. Porté au compte 44583.`}
+              >
+                <AmountInput id="vat-filed-refund" value={refund} onValueChange={changeRefund} />
+              </Field>
+            ) : null}
+            <div className="sm:col-span-2">
               <Button type="submit" loading={saving}>
                 Enregistrer le dépôt
               </Button>
@@ -277,7 +301,7 @@ function SettlementCard({ companyId, view, canWrite, onDone }: { companyId: stri
           <h2>Écriture de liquidation</h2>
         </CardTitle>
         <CardDescription>
-          Elle solde les comptes de TVA de la période et constate la TVA à décaisser (44551) ou le crédit à reporter (44567). Kledg la prépare en brouillon&nbsp;: vous la validez une fois la déclaration déposée.
+          Elle solde les comptes de TVA de la période et constate la TVA à décaisser (44551) ou le crédit à reporter (44567). Un remboursement demandé, enregistré avec le dépôt, va au compte 44583. Kledg la prépare en brouillon&nbsp;: vous la validez une fois la déclaration déposée.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-3">
@@ -292,6 +316,9 @@ function SettlementCard({ companyId, view, canWrite, onDone }: { companyId: stri
             , référence <span className="font-mono text-xs">{settlement.reference}</span>.
           </p>
         )}
+        {settlement.status === 'draft' && (view.filing?.refundCents ?? 0) > 0 ? (
+          <p className="text-muted-foreground w-full text-sm">Remboursement demandé avec le dépôt&nbsp;: mettez à jour le brouillon s’il a été préparé avant, pour porter ce montant au compte 44583.</p>
+        ) : null}
         {canWrite && settlement.status !== 'validated' ? (
           <Button size="sm" variant="outline" onClick={prepare} loading={preparing}>
             <FilePlus2 aria-hidden />
@@ -441,7 +468,7 @@ export function VatReturnPage({ companyId }: { companyId: string }) {
           <div className="grid gap-4 sm:grid-cols-3">
             <StatCard
               label={result.kind === 'credit' ? 'Crédit de TVA' : 'TVA à payer'}
-              value={<Amount value={result.kind === 'credit' ? result.creditEuros : result.dueEuros} decimals={0} />}
+              value={<Amount value={result.kind === 'credit' ? result.creditEuros + result.refundEuros : result.dueEuros} decimals={0} />}
               hint={view.reliable ? `Montant de la déclaration de ${view.period.label}` : 'Estimation : des contrôles sont à corriger'}
             />
             <StatCard
