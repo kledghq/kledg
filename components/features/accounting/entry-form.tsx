@@ -49,7 +49,8 @@ const entryLineSchema = z.object({
 
 const entrySchema = z
   .object({
-    journalId: z.string().min(1, 'Journal requis'),
+    // The field starts empty (undefined): the type error needs its own French message.
+    journalId: z.string({ error: 'Journal requis' }).min(1, 'Journal requis'),
     date: z.string().min(1, 'Date requise'),
     description: z.string().optional(),
     reference: z.string().optional(),
