@@ -5,5 +5,8 @@
   "dependencies": {
     "dotenv": "17.4.2",
     "prisma": "7.10.1"
+  },
+  "overrides": {
+    "effect": ">=3.22.1 <4.0.0"
   }
 }

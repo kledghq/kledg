@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Modifié
+
+- Dépendances : `effect` passe en 3.22 (alerte Dependabot, déni de service par une expression régulière de `Schema.TemplateLiteral`), dans l'application et dans l'outil de migration de l'image Docker. Kledg ne l'utilise qu'à travers Prisma et ne lui passe aucune donnée d'utilisateur.
+
 ## [0.9.0] - 2026-11-24
 
 ### Ajouté
