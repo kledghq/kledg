@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Modifié
+
+- Dépendances : dotenv 18, dans l'application et dans l'outil de migration de l'image Docker. Kledg charge le fichier `.env` par `import "dotenv/config"`, que cette version garde ; le préchargement (`node -r dotenv/config`), qu'elle retire, n'était pas utilisé.
+
 ## [0.9.1] - 2026-11-24
 
 ### Modifié

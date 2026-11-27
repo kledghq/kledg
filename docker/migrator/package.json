@@ -3,7 +3,7 @@
   "private": true,
   "description": "Prisma CLI of the Docker image (Dockerfile, migrator stage), run by docker-migrate.sh. Keep prisma and dotenv at the versions of pnpm-lock.yaml (lib/__tests__/docker-migrator.test.ts).",
   "dependencies": {
-    "dotenv": "17.4.2",
+    "dotenv": "18.0.10",
     "prisma": "7.10.1"
   },
   "overrides": {
