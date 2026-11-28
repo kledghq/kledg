@@ -6,7 +6,9 @@
  * - Balance transactions: GET /v1/balance_transactions
  *   (https://docs.stripe.com/api/balance_transactions/list), most recent
  *   first, cursor pagination (limit up to 100, starting_after), filters
- *   created[gte] and currency.
+ *   created[gte], currency and payout. The payout filter works "for
+ *   automatic Stripe payouts only": Stripe cannot tell which transactions
+ *   an instant or manual payout took (https://docs.stripe.com/reports/payout-reconciliation).
  * - Restricted keys: https://docs.stripe.com/keys/restricted-api-keys
  *
  * Amounts are integers in the smallest unit of the currency (money.ts).
@@ -34,6 +36,10 @@ export const STRIPE_KEY_PERMISSIONS_MESSAGE =
 /** Shown when Stripe does not recognise the key (revoked, expired, mistyped). */
 export const STRIPE_KEY_REFUSED_MESSAGE =
   'Stripe refuse cette clé : vérifiez la clé restreinte (rk_live_…) dans le Dashboard Stripe, ou créez-en une nouvelle, puis mettez-la à jour depuis la page Banque.'
+
+/** Per-payout mode on a payout Stripe cannot break down (instant or manual). */
+export const STRIPE_PAYOUT_NOT_AUTOMATIC_MESSAGE =
+  "Stripe ne détaille pas les opérations d'un virement instantané ou manuel : le mode « par virement » ne fonctionne qu'avec les virements automatiques. Reconnectez Stripe en mode « par paiement », ou repassez aux virements automatiques dans le Dashboard Stripe."
 
 const BalanceAmountSchema = z.looseObject({ amount: z.number().int(), currency: z.string() })
 
@@ -84,7 +90,7 @@ export class StripeClient {
     this.apiUrl = (options.apiUrl ?? STRIPE_API_URL).replace(/\/$/, '')
   }
 
-  private async get(path: string, params: URLSearchParams, operation: string): Promise<unknown> {
+  private async get(path: string, params: URLSearchParams, operation: string, onBadRequest?: string): Promise<unknown> {
     const query = params.toString()
     const response = await bankFetch('Stripe', this.fetchImpl, `${this.apiUrl}${path}${query ? `?${query}` : ''}`, {
       headers: { Authorization: `Bearer ${this.secretKey}`, Accept: 'application/json' },
@@ -96,6 +102,7 @@ export class StripeClient {
       const failure = providerError({ provider: 'Stripe', status: response.status, code: error?.code, detail: error?.message, operation })
       if (response.status === 401) throw new BankAuthorizationError(STRIPE_KEY_REFUSED_MESSAGE)
       if (response.status === 403) throw new BankAuthorizationError(STRIPE_KEY_PERMISSIONS_MESSAGE)
+      if (response.status === 400 && onBadRequest) throw new ExternalServiceError(onBadRequest)
       throw failure
     }
     return body
@@ -107,14 +114,28 @@ export class StripeClient {
   }
 
   /** Every balance transaction in `currency` created since `since` (all history when omitted), most recent first. */
-  async listBalanceTransactions(currency: string, since?: Date): Promise<StripeBalanceTransaction[]> {
+  listBalanceTransactions(currency: string, since?: Date): Promise<StripeBalanceTransaction[]> {
+    const params = new URLSearchParams({ currency: currency.toLowerCase() })
+    if (since) params.set('created[gte]', String(Math.floor(since.getTime() / 1000)))
+    return this.listPages(params)
+  }
+
+  /**
+   * The balance transactions an automatic payout took, whenever they were
+   * created. Stripe answers 400 for an instant or manual payout.
+   */
+  listPayoutTransactions(payoutId: string): Promise<StripeBalanceTransaction[]> {
+    return this.listPages(new URLSearchParams({ payout: payoutId }), STRIPE_PAYOUT_NOT_AUTOMATIC_MESSAGE)
+  }
+
+  private async listPages(filters: URLSearchParams, onBadRequest?: string): Promise<StripeBalanceTransaction[]> {
     const all: StripeBalanceTransaction[] = []
     let startingAfter: string | undefined
     for (let page = 0; page < MAX_PAGES; page++) {
-      const params = new URLSearchParams({ limit: String(PAGE_SIZE), currency: currency.toLowerCase() })
-      if (since) params.set('created[gte]', String(Math.floor(since.getTime() / 1000)))
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) })
+      for (const [key, value] of filters) params.set(key, value)
       if (startingAfter) params.set('starting_after', startingAfter)
-      const body = await this.get('/balance_transactions', params, 'balance_transactions')
+      const body = await this.get('/balance_transactions', params, 'balance_transactions', onBadRequest)
       const { data, has_more } = parseProviderResponse<z.infer<typeof BalanceTransactionPageSchema>>(
         'Stripe',
         'balance_transactions',

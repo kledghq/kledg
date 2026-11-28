@@ -23,10 +23,16 @@ export const TypedCredentialsProvider = z.enum(['QONTO', 'PONTO', 'STRIPE'], {
 /**
  * Settings of a Stripe connection, kept on Integration.config: the account
  * of the Stripe balance (517 "Autres organismes financiers" by default, or
- * 467 "Divers comptes débiteurs", lib/banking/stripe-setup.service.ts).
+ * 467 "Divers comptes débiteurs", lib/banking/stripe-setup.service.ts) and
+ * the granularity of its lines (per payment by default, or per automatic
+ * payout, lib/banking/providers/stripe/map.ts). Both are set once: changing
+ * the granularity of a connection with lines would book them twice.
  */
 export const StripeConnectionConfig = z.object({
   balanceAccount: z.enum(['517', '467'], { message: 'Choisissez le compte du solde Stripe : 517 ou 467.' }).default('517'),
+  granularity: z
+    .enum(['payment', 'payout'], { message: 'Choisissez le détail des opérations Stripe : par paiement ou par virement.' })
+    .default('payment'),
 })
 export type StripeConnectionConfig = z.infer<typeof StripeConnectionConfig>
 

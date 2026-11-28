@@ -23,7 +23,7 @@
  * itself for zero-decimal ones (JPY), thousandths for three-decimal ones.
  */
 
-import { parisDateOnly, parisIsoDay } from '@/lib/utils/date'
+import { lastDayOfMonth, parisDateOnly, parisIsoDay, utcDate } from '@/lib/utils/date'
 import type { ProviderTransaction } from '../types'
 import type { StripeBalanceTransaction } from './client'
 
@@ -31,11 +31,14 @@ import type { StripeBalanceTransaction } from './client'
 const ZERO_DECIMAL = new Set(['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'])
 const THREE_DECIMAL = new Set(['bhd', 'jod', 'kwd', 'omr', 'tnd'])
 
+function decimalsOf(currency: string): number {
+  const code = currency.toLowerCase()
+  return ZERO_DECIMAL.has(code) ? 0 : THREE_DECIMAL.has(code) ? 3 : 2
+}
+
 /** Amount in units of the currency from Stripe's smallest unit. */
 export function stripeAmount(minor: number, currency: string): number {
-  const code = currency.toLowerCase()
-  const decimals = ZERO_DECIMAL.has(code) ? 0 : THREE_DECIMAL.has(code) ? 3 : 2
-  return minor / 10 ** decimals
+  return minor / 10 ** decimalsOf(currency)
 }
 
 /**
@@ -148,4 +151,68 @@ export function mapStripeBalanceTransaction(txn: StripeBalanceTransaction, accou
     })
   }
   return lines
+}
+
+/**
+ * Granularity "per payout": the lines of an automatic payout, from the
+ * balance transactions it took (client.listPayoutTransactions).
+ *
+ * The transactions are mapped as per payment (gross and fee lines), then
+ * summed by kind: one line for the payments, one for the refunds, one for
+ * the fees..., plus the payout itself. A summary is at most a monthly recap
+ * (PCG art. 1031-2: "par récapitulation au moins mensuelle des totaux des
+ * opérations, à la condition de conserver tous les documents permettant de
+ * vérifier ces opérations jour par jour, opération par opération"): it
+ * never spans two months. Transactions of a month before the payout's are summed apart and
+ * dated the last day of their month, so a sale of 30 December paid out on
+ * 2 January stays in its fiscal year.
+ *
+ * The detail (each transaction's id, amount, fee and day) is kept in
+ * providerData, and in Stripe's payout reconciliation report.
+ */
+export function mapStripePayout(
+  payout: StripeBalanceTransaction,
+  taken: StripeBalanceTransaction[],
+  accountExternalId: string,
+): ProviderTransaction[] {
+  const payoutLines = mapStripeBalanceTransaction(payout, accountExternalId)
+  const payoutDay = parisIsoDay(new Date(payout.created * 1000))
+  const payoutMonth = payoutDay.slice(0, 7)
+  const payoutId = sourceId(payout.source) ?? payout.id
+  const scale = 10 ** decimalsOf(payout.currency)
+
+  type Group = { month: string; kind: string; label: string; line: ProviderTransaction; minor: number; items: Record<string, unknown>[] }
+  const groups = new Map<string, Group>()
+  for (const txn of taken) {
+    if (txn.id === payout.id) continue
+    const month = parisIsoDay(new Date(txn.created * 1000)).slice(0, 7)
+    for (const line of mapStripeBalanceTransaction(txn, accountExternalId)) {
+      const fee = line.externalId.endsWith(':fee')
+      const kind = fee ? 'fee' : (txn.reporting_category ?? txn.type)
+      const key = `${month}|${line.operationType}|${line.side}|${kind}`
+      const group = groups.get(key) ?? { month, kind, label: fee ? 'Frais Stripe' : stripeTypeLabel(txn.type, txn.reporting_category), line, minor: 0, items: [] }
+      group.minor += Math.round(line.amount * scale)
+      group.items.push({ id: txn.id, amount: fee ? txn.fee : txn.amount, day: parisIsoDay(new Date(txn.created * 1000)), source: sourceId(txn.source) ?? null })
+      groups.set(key, group)
+    }
+  }
+
+  const summaries = [...groups.values()].map(({ month, kind, label, line, minor, items }): ProviderTransaction => {
+    const [year, monthNumber] = month.split('-').map(Number)
+    // A month before the payout's: its last day; the payout's month: the payout's day
+    const date = month < payoutMonth ? utcDate(year, monthNumber, lastDayOfMonth(year, monthNumber)) : parisDateOnly(new Date(payout.created * 1000))
+    const count = items.length
+    return {
+      ...line,
+      externalId: `${payout.id}:${month}:${line.operationType}:${line.side}:${kind}`,
+      category: kind === 'fee' ? 'fee' : line.category,
+      date,
+      valueDate: payoutLines[0]?.valueDate ?? null,
+      amount: minor / scale,
+      label: `${label} : virement ${payoutId}${month < payoutMonth ? ` (${month.slice(5)}/${month.slice(0, 4)})` : ''}, ${count} opération${count > 1 ? 's' : ''}`,
+      reference: payoutId,
+      providerData: { payout: payoutId, payoutBalanceTransaction: payout.id, month, currency: payout.currency, transactions: items },
+    }
+  })
+  return [...summaries.filter((line) => line.amount !== 0), ...payoutLines]
 }

@@ -13,7 +13,9 @@ vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: 
 import { BankAuthorizationError } from '@/lib/banking/errors'
 import { ValidationError } from '@/lib/accounting/errors'
 import { StripeProvider } from '@/lib/banking/providers/stripe/provider'
-import { mapStripeBalanceTransaction, stripeAmount } from '@/lib/banking/providers/stripe/map'
+import { mapStripeBalanceTransaction, mapStripePayout, stripeAmount } from '@/lib/banking/providers/stripe/map'
+import { STRIPE_PAYOUT_NOT_AUTOMATIC_MESSAGE } from '@/lib/banking/providers/stripe/client'
+import { StripeConnectionConfig } from '@/lib/integrations/create-integration.service'
 import type { StripeBalanceTransaction } from '@/lib/banking/providers/stripe/client'
 import { createBankProvider } from '@/lib/banking/providers'
 
@@ -164,5 +166,84 @@ describe('stripe provider', () => {
   it('stops on a response it does not understand', async () => {
     const provider = new StripeProvider({ secretKey: KEY }, { fetch: (async () => jsonResponse(200, { data: 'nope' })) as unknown as typeof globalThis.fetch })
     await expect(provider.syncTransactions('EUR')).rejects.toThrow(/Réponse inattendue de Stripe/)
+  })
+})
+
+/** 2 February 2026, 09:00 UTC: an automatic payout. */
+const PAYOUT_DAY = Date.UTC(2026, 1, 2, 9) / 1000
+
+describe('stripe per payout (PCG art. 1031-2, monthly recap at most)', () => {
+  const payout = txn({ id: 'txn_po', type: 'payout', amount: -29410, fee: 0, net: -29410, reporting_category: 'payout', description: 'STRIPE PAYOUT', source: 'po_1', created: PAYOUT_DAY, available_on: PAYOUT_DAY })
+  const taken = [
+    payout,
+    // Two payments of January, one of February, a refund of February
+    txn({ id: 'txn_a', amount: 10000, fee: 175, created: Date.UTC(2026, 0, 30, 10) / 1000 }),
+    txn({ id: 'txn_b', amount: 5000, fee: 100, created: Date.UTC(2026, 0, 31, 23, 30) / 1000 }),
+    txn({ id: 'txn_c', amount: 20000, fee: 315, created: Date.UTC(2026, 1, 1, 12) / 1000 }),
+    txn({ id: 'txn_d', type: 'refund', amount: -5000, fee: 0, reporting_category: 'refund', created: Date.UTC(2026, 1, 1, 15) / 1000 }),
+  ]
+
+  it('sums the transactions of a payout by kind and month, and keeps the payout line', () => {
+    const lines = mapStripePayout(payout, taken, 'EUR')
+    expect(lines.map((l) => [l.operationType, l.side, l.amount, l.date.toISOString().slice(0, 10)])).toEqual([
+      // 31 January 23:30 in Paris is 1 February: txn_b is a February sale
+      ['stripe.charge', 'credit', 100, '2026-01-31'],
+      ['stripe.fee', 'debit', 1.75, '2026-01-31'],
+      ['stripe.charge', 'credit', 250, '2026-02-02'],
+      ['stripe.fee', 'debit', 4.15, '2026-02-02'],
+      ['stripe.refund', 'debit', 50, '2026-02-02'],
+      ['stripe.payout', 'debit', 294.1, '2026-02-02'],
+    ])
+    // The account moves by zero: everything the payout took leaves with it
+    expect(lines.reduce((sum, l) => sum + (l.side === 'credit' ? l.amount : -l.amount), 0)).toBeCloseTo(0, 10)
+    expect(lines[2]).toMatchObject({
+      externalId: 'txn_po:2026-02:stripe.charge:credit:charge',
+      label: 'Paiement : virement po_1, 2 opérations',
+      reference: 'po_1',
+      status: null,
+      providerData: { payout: 'po_1', month: '2026-02', transactions: [expect.objectContaining({ id: 'txn_b', amount: 5000 }), expect.objectContaining({ id: 'txn_c' })] },
+    })
+    expect(lines[0].label).toBe('Paiement : virement po_1 (01/2026), 1 opération')
+    expect(lines[1].category).toBe('fee')
+  })
+
+  it('reads the payouts since the last sync and the transactions each one took', async () => {
+    const fetch = vi.fn(async (url: string) => {
+      const params = new URL(url).searchParams
+      if (params.get('payout') === 'po_1') return jsonResponse(200, { data: taken, has_more: false })
+      return jsonResponse(200, { data: [payout, taken[3], taken[2]], has_more: false })
+    })
+    const provider = new StripeProvider({ secretKey: KEY }, { fetch: fetch as unknown as typeof globalThis.fetch, granularity: 'payout' })
+    const lines = await provider.syncTransactions('EUR', new Date('2026-02-01T00:00:00Z'))
+    // Not yet paid-out transactions have no line; the payout brings its January sales
+    expect(lines).toHaveLength(6)
+    expect(new Set(lines.map((l) => l.externalId)).size).toBe(6)
+    expect(Object.fromEntries(new URL((fetch.mock.calls[1] as unknown as [string])[0]).searchParams)).toEqual({ limit: '100', payout: 'po_1' })
+  })
+
+  it('stops on an instant or manual payout, which Stripe cannot break down', async () => {
+    const fetch = vi.fn(async (url: string) =>
+      new URL(url).searchParams.has('payout')
+        ? jsonResponse(400, { error: { type: 'invalid_request_error', message: 'Balance transaction history can only be filtered on automatic transfers' } })
+        : jsonResponse(200, { data: [payout], has_more: false }),
+    )
+    const provider = new StripeProvider({ secretKey: KEY }, { fetch: fetch as unknown as typeof globalThis.fetch, granularity: 'payout' })
+    await expect(provider.syncTransactions('EUR')).rejects.toThrow(STRIPE_PAYOUT_NOT_AUTOMATIC_MESSAGE)
+  })
+
+  it('takes the granularity from the connection settings', async () => {
+    const fetch = vi.fn(async (url: string) =>
+      jsonResponse(200, { data: new URL(url).searchParams.has('payout') ? taken : [payout], has_more: false }),
+    )
+    const of = (config: unknown) => createBankProvider('STRIPE', { secretKey: KEY }, { fetch: fetch as unknown as typeof globalThis.fetch, config })
+    expect((await of({ granularity: 'payout' }).syncTransactions('EUR')).map((l) => l.externalId).at(-1)).toBe('txn_po')
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect((await of(null).syncTransactions('EUR')).map((l) => l.externalId)).toEqual(['txn_po'])
+  })
+
+  it('is per payment unless the connection says per payout', () => {
+    expect(StripeConnectionConfig.parse({})).toEqual({ balanceAccount: '517', granularity: 'payment' })
+    expect(StripeConnectionConfig.parse({ granularity: 'payout' }).granularity).toBe('payout')
+    expect(StripeConnectionConfig.safeParse({ granularity: 'monthly' }).success).toBe(false)
   })
 })

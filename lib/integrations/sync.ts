@@ -103,6 +103,7 @@ export async function syncIntegration(
       createBankProvider(
         integration.provider,
         openCredentials(integration.provider, integration.credentials, integration.credentialsEncrypted, encryptionKey, integration.companyId),
+        { config: integration.config },
       )
   } catch (error) {
     // Credentials sealed with another instance key, or incomplete: the user reconnects
