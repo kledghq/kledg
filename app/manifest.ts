@@ -22,6 +22,13 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: THEME_COLORS.light,
     theme_color: THEME_COLORS.light,
     categories: ['finance', 'business'],
+    // Kledg in the share menu of the phone (installed app): a photo of a receipt or a PDF goes to /share (public/sw.js)
+    share_target: {
+      action: '/share',
+      method: 'POST',
+      enctype: 'multipart/form-data',
+      params: { files: [{ name: 'files', accept: ['image/*', 'application/pdf', '.pdf', '.jpg', '.jpeg', '.png', '.heic'] }] },
+    },
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

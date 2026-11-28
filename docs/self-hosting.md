@@ -440,7 +440,7 @@ Installer :
 - **Android (Chrome, Edge)** et **ordinateur (Chrome, Edge)** : menu du compte (en bas de la barre latérale), **Installer l'application**. L'entrée n'apparaît que lorsque le navigateur propose l'installation (HTTPS, application pas encore installée).
 - **iPhone et iPad (Safari)** : bouton **Partager**, puis **Sur l'écran d'accueil**. Le menu **Aide** de l'en-tête le rappelle.
 
-Ce que l'application garde sur l'appareil : la page hors ligne, les icônes et les fichiers de construction (JavaScript, CSS, polices), jamais une page connectée, une réponse de l'API ou une donnée comptable. Les pages viennent toujours du serveur : hors ligne, Kledg n'affiche que la page « Vous êtes hors ligne ». Après un déploiement, un message « Nouvelle version disponible » propose de recharger.
+Ce que l'application garde sur l'appareil : la page hors ligne, les icônes et les fichiers de construction (JavaScript, CSS, polices), jamais une page connectée, une réponse de l'API ou une donnée comptable. Seule exception, les fichiers partagés vers Kledg depuis une autre application (voir [justificatifs-photo.md](justificatifs-photo.md#partage-depuis-le-téléphone)) attendent sur l'appareil que l'utilisateur choisisse la société, puis sont effacés. Les pages viennent toujours du serveur : hors ligne, Kledg n'affiche que la page « Vous êtes hors ligne ». Après un déploiement, un message « Nouvelle version disponible » propose de recharger.
 
 En cas de problème avec le service worker, définissez `NEXT_PUBLIC_DISABLE_SW=true`, reconstruisez et redéployez : chaque navigateur le désinscrit et supprime ses caches à sa visite suivante.
 

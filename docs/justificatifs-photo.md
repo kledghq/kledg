@@ -47,6 +47,14 @@ photo ──▶ justificatif déposé (staged) ──▶ recherche de la transac
 
 Chaque résultat de `capture_receipt`, `stage_receipt` et `file_receipt` porte les données de la vue (`structuredContent`, `lib/mcp/views/receipt.ts`) : correspondance trouvée, candidates avec un bouton « Rattacher », proposition de note de frais avec « Créer la note de frais », aperçu à approuver, puis lien vers l'élément dans Kledg. Chaque bouton rappelle ces mêmes outils.
 
+## Partage depuis le téléphone
+
+L'application installée (`app/manifest.ts`, `share_target`) apparaît dans le menu Partager du téléphone, pour les images et les PDF. Le partage cible est pris en charge par Chrome et Edge sur Android ; Safari sur iPhone ne le propose pas, la page Justificatifs reste le chemin.
+
+- Le navigateur envoie les fichiers en `POST /share` (multipart, champ `files`). Le service worker (`public/sw.js`, route `share`) répond lui-même : rien ne part au serveur. Il garde les fichiers dans le cache `kledg-share`, sur l'appareil seulement (10 fichiers au plus, 25 Mo chacun ; un nouveau partage remplace le précédent ; le cache survit aux mises à jour de l'application), puis ouvre la page `/share`.
+- La page `/share` (`app/(account)/share/page.tsx`, connexion requise : sans session, le proxy passe par la page de connexion et revient) lit ces fichiers (`components/features/receipts/shared-files.ts`), demande la société (choisie d'office quand l'utilisateur n'en a qu'une), puis dépose chaque fichier comme sur la page Justificatifs (`POST /api/receipts/staged`, même réduction des photos, mêmes droits `expenses:submit`) et ouvre la page Justificatifs de la société, qui cherche leur transaction. « Ne pas déposer » efface les fichiers sans rien envoyer ; ils sont aussi effacés une fois envoyés.
+- Pas de route serveur pour le partage : un autre site ne peut pas faire déposer un fichier dans Kledg par un formulaire, puisque seul le service worker reçoit ce `POST` et que rien n'est envoyé avant le choix de la société par l'utilisateur connecté.
+
 ## Droits et approbation
 
 | Action | Outil | Route | Droit |

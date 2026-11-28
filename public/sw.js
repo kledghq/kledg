@@ -13,6 +13,14 @@
  *   answers (the page itself is never stored).
  * - Only same-origin GET requests under /_next/static/ (file names carry a
  *   content hash, so they never change) are cached, cache first.
+ * - Files shared to Kledg from another app (the share target of
+ *   app/manifest.ts: a photo of a receipt, a PDF invoice) arrive as a POST
+ *   to /share. The worker answers it itself: the files are kept in the
+ *   share cache, on this device only, and the browser goes to the /share
+ *   page, which asks for the company, sends them to Kledg and empties the
+ *   cache. A new share replaces the files of the previous one. Nothing
+ *   reaches the server before the user picks the company, signed in: no
+ *   other site can post files into Kledg this way.
  *
  * The routing decision is the pure function `routeRequest`, tested in
  * lib/pwa/__tests__/sw.test.ts. The page registers this worker as
@@ -30,19 +38,25 @@ const OFFLINE_URL = '/offline.html'
 const PRECACHE_URLS = [OFFLINE_URL, '/logo.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png']
 /** Upper bound of the static cache within one build (lazy chunks of every page visited). */
 const STATIC_CACHE_MAX_ENTRIES = 300
+/** Files shared to Kledg, kept across builds until the /share page takes them (components/features/receipts/shared-files.ts). */
+const SHARE_CACHE = `${CACHE_PREFIX}share`
+const SHARE_PATH = '/share'
+/** At most this many files per share, each at most this size (a photo is then reduced in the page). */
+const SHARE_MAX_FILES = 10
+const SHARE_MAX_BYTES = 25 * 1024 * 1024
 
 /**
  * What the worker does with a request: 'static' (cache first), 'shell'
  * (the precached public files, from the cache, so the offline page shows
- * its logo), 'navigation' (network, offline page on failure) or 'bypass' (the worker
+ * its logo), 'navigation' (network, offline page on failure), 'share' (files
+ * shared from another app, kept for the /share page) or 'bypass' (the worker
  * does not answer, the browser fetches normally and nothing is stored).
  * Pure: takes plain values so it can be tested without a browser.
  *
  * @param {{ url: string, method: string, mode: string, origin: string }} request
- * @returns {'static' | 'shell' | 'navigation' | 'bypass'}
+ * @returns {'static' | 'shell' | 'navigation' | 'share' | 'bypass'}
  */
 function routeRequest(request) {
-  if (request.method !== 'GET') return 'bypass'
   let url
   try {
     url = new URL(request.url)
@@ -51,6 +65,8 @@ function routeRequest(request) {
   }
   if (url.origin !== request.origin) return 'bypass'
   const path = url.pathname
+  if (request.method === 'POST' && path === SHARE_PATH) return 'share'
+  if (request.method !== 'GET') return 'bypass'
   // Accounting data and authenticated answers: never touched.
   if (path === '/api' || path.startsWith('/api/')) return 'bypass'
   if (request.mode === 'navigate') return 'navigation'
@@ -96,6 +112,30 @@ async function networkWithOfflineFallback(event) {
   }
 }
 
+/**
+ * The files of a share (form field "files"), kept in the share cache as
+ * /share/file/<n> with their type and name, then the browser goes to the
+ * /share page. Anything else in the form (a title, a text, a link) is ignored.
+ */
+async function receiveShare(request) {
+  try {
+    const form = await request.formData()
+    const files = form.getAll('files').filter((value) => typeof value === 'object' && value !== null && typeof value.arrayBuffer === 'function')
+    const cache = await caches.open(SHARE_CACHE)
+    for (const key of await cache.keys()) await cache.delete(key)
+    let kept = 0
+    for (const file of files.slice(0, SHARE_MAX_FILES)) {
+      if (file.size === 0 || file.size > SHARE_MAX_BYTES) continue
+      const headers = { 'Content-Type': file.type || 'application/octet-stream', 'X-Kledg-File-Name': encodeURIComponent(file.name || 'justificatif') }
+      await cache.put(new Request(`${SHARE_PATH}/file/${kept}`), new Response(file, { headers }))
+      kept++
+    }
+    return Response.redirect(new URL(`${SHARE_PATH}?files=${kept}${files.length > kept ? `&skipped=${files.length - kept}` : ''}`, self.location.origin).href, 303)
+  } catch {
+    return Response.redirect(new URL(`${SHARE_PATH}?error=1`, self.location.origin).href, 303)
+  }
+}
+
 self.addEventListener('install', (event) => {
   // Waits for the page to ask (SKIP_WAITING) before taking over, so a tab
   // never runs with assets of two builds: the page shows "Nouvelle version
@@ -108,7 +148,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      const keep = new Set([SHELL_CACHE, STATIC_CACHE])
+      // The share cache outlives builds: files shared just before an update stay until the page takes them
+      const keep = new Set([SHELL_CACHE, STATIC_CACHE, SHARE_CACHE])
       const names = await caches.keys()
       await Promise.all(names.filter((name) => name.startsWith(CACHE_PREFIX) && !keep.has(name)).map((name) => caches.delete(name)))
       if (self.registration.navigationPreload) await self.registration.navigationPreload.enable()
@@ -127,8 +168,9 @@ self.addEventListener('fetch', (event) => {
   if (route === 'static') event.respondWith(staticFirst(request))
   else if (route === 'shell') event.respondWith(shellFirst(request))
   else if (route === 'navigation') event.respondWith(networkWithOfflineFallback(event))
+  else if (route === 'share') event.respondWith(receiveShare(request))
   // 'bypass': no respondWith, the browser handles the request itself.
 })
 
 // Read by the test harness (lib/pwa/__tests__/sw.test.ts); harmless in the worker.
-self.__kledgSw = { routeRequest, SHELL_CACHE, STATIC_CACHE, PRECACHE_URLS, OFFLINE_URL }
+self.__kledgSw = { routeRequest, receiveShare, SHELL_CACHE, STATIC_CACHE, SHARE_CACHE, PRECACHE_URLS, OFFLINE_URL }

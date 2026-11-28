@@ -56,6 +56,16 @@ describe('web app manifest', () => {
     }
   })
 
+  it('offers Kledg in the share menu for receipt photos and PDFs, received by the service worker at /share', () => {
+    expect(m.share_target).toMatchObject({ action: '/share', method: 'POST', enctype: 'multipart/form-data' })
+    const declared = m.share_target?.params.files
+    const files = Array.isArray(declared) ? declared : declared ? [declared] : []
+    expect(files.map((f) => f.name)).toEqual(['files'])
+    expect(files[0].accept).toEqual(expect.arrayContaining(['image/*', 'application/pdf']))
+    // The worker answers that POST itself (public/sw.js SHARE_PATH)
+    expect(readFileSync(path.join(ROOT, 'public/sw.js'), 'utf8')).toContain("const SHARE_PATH = '/share'")
+  })
+
   it('has a 180px Apple touch icon (app/apple-icon.png, linked by Next.js)', () => {
     expect(pngSize(path.join(ROOT, 'app/apple-icon.png'))).toEqual({ width: 180, height: 180 })
   })
