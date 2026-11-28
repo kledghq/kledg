@@ -4,7 +4,13 @@ Le guide d'utilisation (photo dans Claude ou ChatGPT, rattachement, note de frai
 
 Prendre en photo un ticket ou une facture dans Claude ou ChatGPT, et le retrouver dans Kledg sur la bonne transaction bancaire ; si aucune transaction ne correspond, Kledg propose une note de frais et la prépare en brouillon. La page **Justificatifs** fait la même chose sans assistant, avec la zone **Déposer des justificatifs**.
 
-Kledg n'appelle aucun modèle : ce sont les assistants qui lisent la photo (montant, date, commerçant, TVA). Dans Kledg, l'utilisateur confirme ces champs dans un petit formulaire prérempli à partir du nom du fichier quand c'est possible.
+Kledg n'appelle aucun modèle : ce sont les assistants qui lisent la photo (montant, date, commerçant, TVA). Dans Kledg, l'utilisateur confirme ces champs dans un petit formulaire prérempli par ce que Kledg lit lui-même dans le fichier, sans modèle ni OCR (`lib/receipts/read`, réponse `guess` de `POST /api/receipts/staged`) :
+
+1. **Une facture électronique** (PDF Factur-X, lecture de `lib/invoices/e-invoice`) : ses données structurées, exactes. Montant à payer = total TTC (BT-112) moins le montant déjà payé (BT-113), date d'émission, nom du vendeur, TVA par taux. `readFrom: e-invoice`.
+2. **Un autre PDF** : sa couche texte, lue avec PDF.js (`pdfjs-dist`, 3 pages au plus, les premières et la dernière, 8 secondes au plus, sans police chargée ni requête). Le montant est celui libellé « net à payer » ou « total à payer », sinon « total TTC », sinon un total qui n'est ni hors taxes ni un total de TVA, la dernière ligne l'emportant ; il lui faut ses deux décimales. La date est la date de facture libellée, sinon la première date qui n'est pas une échéance ni une livraison, jour d'abord. Le commerçant est un fournisseur connu nommé dans le texte (`vendors.ts`), sinon un fournisseur de la société. `readFrom: pdf`.
+3. **Le nom du fichier** pour ce que le contenu ne dit pas (`file-name-fields.ts`). `readFrom: file-name`.
+
+Une photo ou un PDF scanné (une image) n'a pas de texte : seul son nom est lu. Un PDF illisible, protégé ou trop long ne fait jamais échouer le dépôt. Rien n'est enregistré sur le justificatif avant que l'utilisateur lance la recherche : le formulaire dit d'où viennent les valeurs (« Lu dans le PDF : vérifiez le montant et la date »), et la TVA lue dans une facture électronique est envoyée avec la recherche tant que le montant n'est pas modifié.
 
 ## Parcours
 

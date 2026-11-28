@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { companyRoute, fromForm, fromQuery } from '@/lib/api/route'
 import { routeReceiptActor } from '@/lib/receipts/actor'
-import { fieldsFromFileName } from '@/lib/receipts/file-name-fields'
+import { guessReceiptFields } from '@/lib/receipts/read/guess-receipt.service'
 import { listPendingReceipts, stageUploadedReceipt } from '@/lib/receipts/stage-receipt.service'
 
 /**
@@ -17,7 +17,8 @@ export const GET = companyRoute({ company: fromQuery(), permission: { expenses: 
  * POST /api/receipts/staged (multipart: companyId, file)
  * Stages a photo or a PDF of a receipt: type checked from its bytes, 5 MB
  * at most, once per content in the company. Answers the receipt and the
- * date, amount and merchant its file name gives, to prefill the form.
+ * amount, date and merchant Kledg reads in it (an e-invoice's data, a
+ * PDF's text) or in its file name, to prefill the form (`guess`).
  */
 export const POST = companyRoute(
   // The wrapper caps the body at the upload limit before the form is parsed.
@@ -25,7 +26,13 @@ export const POST = companyRoute(
   async (ctx) => {
     const file = (await ctx.request.formData()).get('file')
     const staged = await stageUploadedReceipt(ctx.companyId, routeReceiptActor(ctx), file)
-    const guess = fieldsFromFileName(file && typeof file !== 'string' ? file.name : staged.receipt.fileName)
+    const upload = file && typeof file !== 'string' ? file : null
+    const guess = await guessReceiptFields(ctx.companyId, {
+      bytes: upload ? new Uint8Array(await upload.arrayBuffer()) : new Uint8Array(),
+      // Read from the bytes when staged, never the declared type
+      contentType: staged.receipt.contentType,
+      fileName: upload?.name ?? staged.receipt.fileName,
+    })
     return NextResponse.json({ ...staged, guess }, { status: staged.duplicate ? 200 : 201 })
   },
 )

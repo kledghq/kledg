@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
     return STATIC_SECURITY_HEADERS;
   },
   poweredByHeader: false,
+  // PDF.js loads its worker module at run time (lib/receipts/read/pdf-text.ts): required as is, not bundled.
+  serverExternalPackages: ["pdfjs-dist"],
   // Former account pages, now in the settings area.
   async redirects() {
     return [

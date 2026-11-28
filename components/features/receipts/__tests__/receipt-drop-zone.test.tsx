@@ -43,7 +43,7 @@ let fetchMock: ReturnType<typeof vi.fn>
 const calls = () => fetchMock.mock.calls.map(([input, init]) => ({ url: String(input), method: (init as RequestInit | undefined)?.method ?? 'GET', body: (init as RequestInit | undefined)?.body }))
 
 beforeEach(() => {
-  stageAnswer = { receipt: receipt(), duplicate: false, guess: { date: '2026-10-03', amountCents: 2_345, merchant: 'Carrefour' } }
+  stageAnswer = { receipt: receipt(), duplicate: false, guess: { date: '2026-10-03', amountCents: 2_345, merchant: 'Carrefour', currency: null, vatLines: [], readFrom: 'file-name' } }
   matchAnswer = { receipt: receipt(), outcome: 'candidates', match: null, candidates: [candidate('t1', false), candidate('t2', true)], reason: null, expenseProposal: null }
   fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost')
@@ -85,12 +85,34 @@ describe('ReceiptDropZone', () => {
     expect(screen.getByLabelText(/Commerçant/)).toHaveValue('Carrefour')
   })
 
+  it('says what was read in an e-invoice, and searches with its currency and VAT until the amount is changed', async () => {
+    stageAnswer = {
+      receipt: receipt({ fileName: 'facture.pdf', contentType: 'application/pdf' }),
+      duplicate: false,
+      guess: { date: '2026-03-02', amountCents: 29_275, merchant: 'Papeterie Durand SARL', currency: 'EUR', vatLines: [{ rateBp: 2000, amountCents: 4_000 }], readFrom: 'e-invoice' },
+    }
+    await dropOne()
+    expect(screen.getByText(/Lu dans la facture électronique \(Factur-X\)/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Montant TTC')).toHaveValue('292,75')
+    fireEvent.click(screen.getByRole('button', { name: 'Rechercher la transaction' }))
+    await screen.findByText(/Plusieurs transactions peuvent correspondre/)
+    const first = calls().filter((c) => c.url.endsWith('/match')).at(-1)!
+    expect(JSON.parse(String(first.body)).fields).toMatchObject({ amountCents: 29_275, currency: 'EUR', vatLines: [{ rateBp: 2000, amountCents: 4_000 }] })
+
+    // Another amount: the VAT read with the first one no longer holds
+    fireEvent.change(screen.getByLabelText('Montant TTC'), { target: { value: '100,00' } })
+    fireEvent.blur(screen.getByLabelText('Montant TTC'))
+    fireEvent.click(screen.getByRole('button', { name: 'Rechercher la transaction' }))
+    await vi.waitFor(() => expect(calls().filter((c) => c.url.endsWith('/match'))).toHaveLength(2))
+    expect(JSON.parse(String(calls().filter((c) => c.url.endsWith('/match')).at(-1)!.body)).fields).toMatchObject({ amountCents: 10_000, vatLines: [] })
+  })
+
   it('finds the candidates and attaches to the chosen one; a Qonto one asks a confirmation first', async () => {
     await dropOne()
     fireEvent.click(screen.getByRole('button', { name: 'Rechercher la transaction' }))
     await screen.findByText(/Plusieurs transactions peuvent correspondre/)
     const match = calls().find((c) => c.url.endsWith('/match'))!
-    expect(JSON.parse(String(match.body))).toEqual({ fields: { amountCents: 2_345, date: '2026-10-03', merchant: 'Carrefour' } })
+    expect(JSON.parse(String(match.body))).toEqual({ fields: { amountCents: 2_345, date: '2026-10-03', merchant: 'Carrefour', vatLines: [] } })
 
     // Qonto: a confirmation, nothing sent before it
     const rows = screen.getAllByRole('button', { name: 'Rattacher' })
