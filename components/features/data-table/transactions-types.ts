@@ -35,6 +35,8 @@ export interface BankTransaction {
     name: string
     displayName: string | null
     iban: string | null
+    /** The bank connection: its provider says where an attached receipt goes (Qonto receives the file). */
+    bankConnection?: { provider: string } | null
   }
   /** Present when viewing group transactions (all companies) */
   companyId?: string

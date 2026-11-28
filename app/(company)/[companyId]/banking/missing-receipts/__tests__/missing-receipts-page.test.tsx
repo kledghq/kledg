@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let urlParams = new URLSearchParams()
@@ -31,11 +31,13 @@ const respond = (body: unknown) => new Response(JSON.stringify(body), { status: 
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost')
     if (url.pathname === '/api/companies/c1/fiscal-years') return respond([{ id: 'fy-2026', year: 2026, startDate: '2026-01-01', endDate: '2026-12-31', isClosed: false }])
     if (url.pathname === '/api/banking/accounts') return respond({ accounts: [] })
     if (url.pathname === '/api/banking/missing-receipts') return respond(missing)
+    if (url.pathname === '/api/receipts/staged' && init?.method === 'POST') return respond({ receipt: { id: 'r1', status: 'staged' }, duplicate: false, guess: null })
+    if (url.pathname === '/api/receipts/staged/r1/attach') return respond({ transactionId: 't1', destination: 'kledg' })
     return respond({})
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -101,5 +103,39 @@ describe('MissingReceiptsPage', () => {
     await waitFor(() => expect(screen.getAllByText('CB BOULANGERIE DU MARCHE').length).toBeGreaterThan(0))
     expect(screen.queryByText(/Fournisseur/)).toBeNull()
     expect(screen.queryByText('Où trouver la facture')).toBeNull()
+  })
+
+  describe('attaching a receipt from its row', () => {
+    const posts = () =>
+      fetchMock.mock.calls
+        .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+        .map(([input, init]) => ({ path: new URL(String(input), 'http://localhost').pathname, body: (init as RequestInit).body }))
+    const pick = (name: string) => {
+      const file = new File(['%PDF-1.7'], name, { type: 'application/pdf' })
+      fireEvent.change(screen.getByTestId('attach-receipt-input'), { target: { files: [file] } })
+    }
+
+    it('drops the file picked and attaches it to that transaction, without a search', async () => {
+      missing = { transactions: [{ ...row('t1', 'CB BOULANGERIE DU MARCHE', null), bankProvider: 'PONTO' }], count: 1, totalCents: 2_399, truncated: false, period: null, thresholdCents: 0 }
+      render(<MissingReceiptsPage />)
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Joindre un justificatif à CB BOULANGERIE DU MARCHE' }))[0])
+      pick('ticket.pdf')
+      await waitFor(() => expect(posts().map((p) => p.path)).toEqual(['/api/receipts/staged', '/api/receipts/staged/r1/attach']))
+      expect((posts()[0].body as FormData).get('companyId')).toBe('c1')
+      expect(JSON.parse(String(posts()[1].body))).toEqual({ transactionId: 't1' })
+      // The list is read again: the row leaves it
+      await waitFor(() => expect(sides()).toHaveLength(2))
+    })
+
+    it('asks before sending a file to Qonto, which Kledg cannot take back', async () => {
+      missing = { transactions: [row('t1', 'CB BOULANGERIE DU MARCHE', null)], count: 1, totalCents: 2_399, truncated: false, period: null, thresholdCents: 0 }
+      render(<MissingReceiptsPage />)
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Joindre un justificatif à CB BOULANGERIE DU MARCHE' }))[0])
+      pick('facture.pdf')
+      expect(await screen.findByText(/facture\.pdf sera joint à la transaction CB BOULANGERIE DU MARCHE chez Qonto/)).toBeInTheDocument()
+      expect(posts()).toEqual([])
+      fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }))
+      await waitFor(() => expect(posts().map((p) => p.path)).toEqual(['/api/receipts/staged', '/api/receipts/staged/r1/attach']))
+    })
   })
 })

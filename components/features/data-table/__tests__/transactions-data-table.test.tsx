@@ -59,6 +59,26 @@ describe('TransactionsDataTable', () => {
     expect(screen.queryByRole('button', { name: 'Charger plus' })).not.toBeInTheDocument()
   })
 
+  it('offers to attach a receipt on a company page, to the transaction of the row, and reads the list again', async () => {
+    const refresh = vi.fn()
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input) =>
+      String(input).endsWith('/attach') ? Response.json({ destination: 'kledg' }) : Response.json({ receipt: { id: 'r9', status: 'staged' } }, { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    render(<TransactionsDataTable data={[tx('t1', '2026-03-01', 12, 'debit', { bankAccount: { id: 'ba', name: 'pro', displayName: null, iban: null, bankConnection: { provider: 'PONTO' } } })]} companyId="c1" onRefresh={refresh} />)
+    expect(cell('Contrepartie t1', 'Pièces')).toBe('Joindre')
+    await userEvent.click(screen.getByRole('button', { name: 'Joindre un justificatif à la transaction Contrepartie t1' }))
+    await userEvent.upload(screen.getByTestId('attach-receipt-input'), new File(['%PDF-1.7'], 'ticket.pdf', { type: 'application/pdf' }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(['/api/receipts/staged', '/api/receipts/staged/r9/attach'])
+    expect(JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body))).toEqual({ transactionId: 't1' })
+  })
+
+  it('offers no attach outside a company page (the group view)', () => {
+    render(<TransactionsDataTable data={page1} showCompanyColumn />)
+    expect(screen.queryByRole('button', { name: /Joindre un justificatif/ })).toBeNull()
+  })
+
   it('names every control in French', () => {
     render(<TransactionsDataTable data={page1} />)
     expect(screen.getByRole('checkbox', { name: 'Sélectionner toutes les transactions affichées' })).toBeInTheDocument()

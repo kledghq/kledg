@@ -6,7 +6,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table"
 import type { TransactionTableFeatures } from "./table-features"
-import { FileText, MoreHorizontal, Paperclip } from "lucide-react"
+import { FileText, MoreHorizontal, Paperclip, Plus } from "lucide-react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +40,12 @@ export interface TransactionColumnHandlers {
   onReconcile: (transaction: BankTransaction) => void
   onUnreconcile: (transaction: BankTransaction) => void
   onCopyId: (transaction: BankTransaction) => void
+  /** The user may attach a receipt to this row (a company page, staging and reconciling allowed). */
+  canAttachReceipt?: (transaction: BankTransaction) => boolean
+  /** Opens the file picker for this transaction (components/features/receipts/use-attach-receipt.tsx). */
+  onAttachReceipt?: (transaction: BankTransaction) => void
+  /** Id of the transaction a receipt is being attached to. */
+  attachingId?: string | null
   /** Id of the transaction whose reconciliation is changing. */
   busyId: string | null
 }
@@ -187,6 +193,21 @@ export function transactionColumns(handlers: TransactionColumnHandlers): ColumnD
       cell: ({ row }) => {
         const t = row.original
         const count = t.attachmentsCount ?? 0
+        if (count === 0 && handlers.canAttachReceipt?.(t)) {
+          return (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => handlers.onAttachReceipt?.(t)}
+              loading={handlers.attachingId === t.id}
+              aria-label={`Joindre un justificatif à la transaction ${counterpartyOf(t)}`.trim()}
+              title="Joindre un justificatif"
+            >
+              <Plus aria-hidden />
+              Joindre
+            </Button>
+          )
+        }
         if (count === 0) return <span className="text-muted-foreground">Aucune</span>
         const label = `${count} pièce${count > 1 ? "s" : ""}`
         return handlers.canViewAttachment(t) ? (
@@ -282,6 +303,11 @@ export function transactionColumns(handlers: TransactionColumnHandlers): ColumnD
                   Rapprocher
                 </DropdownMenuItem>
               )}
+              {handlers.canAttachReceipt?.(t) ? (
+                <DropdownMenuItem onClick={() => handlers.onAttachReceipt?.(t)} disabled={handlers.attachingId === t.id}>
+                  Joindre un justificatif
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handlers.onCopyId(t)}>Copier l&apos;identifiant</DropdownMenuItem>
             </DropdownMenuContent>
