@@ -7,17 +7,25 @@
  * balance, keyed by the currency code ("EUR"), with no IBAN. Its lines are
  * the balance transactions (map.ts); its balance is what Stripe holds,
  * available and pending funds together, since the lines include both.
+ *
+ * Granularity (Integration.config.granularity, chosen at connection):
+ * - "payment" (default): every balance transaction, gross and fee (map.ts);
+ * - "payout": the automatic payouts made since the last sync, each summed by
+ *   kind and month (mapStripePayout). A transaction not yet paid out has no
+ *   line until its payout.
  */
 
 import { ValidationError } from '@/lib/accounting/errors'
 import { errorReason } from '@/lib/banking/errors'
 import type { BankProvider, ConnectionHealth, ProviderAccount, ProviderBalance, ProviderTransaction } from '../types'
 import { StripeClient, type StripeBalance } from './client'
-import { mapStripeBalanceTransaction, stripeAmount } from './map'
+import { mapStripeBalanceTransaction, mapStripePayout, stripeAmount } from './map'
 
 export interface StripeCredentials {
   secretKey: string
 }
+
+export type StripeGranularity = 'payment' | 'payout'
 
 /** A restricted key (rk_live_ or rk_test_): never the account's secret key, which can move money. */
 const RESTRICTED_KEY = /^rk_(live|test)_[A-Za-z0-9]{10,}$/
@@ -49,11 +57,13 @@ export class StripeProvider implements BankProvider {
   readonly id = 'STRIPE' as const
   readonly kind = 'direct' as const
   private client: StripeClient
+  private granularity: StripeGranularity
 
-  constructor(credentials: StripeCredentials, options: { fetch?: typeof fetch; apiUrl?: string } = {}) {
+  constructor(credentials: StripeCredentials, options: { fetch?: typeof fetch; apiUrl?: string; granularity?: StripeGranularity } = {}) {
     if (!credentials.secretKey) throw new ValidationError('Collez la clé restreinte Stripe.')
     assertRestrictedStripeKey(credentials.secretKey)
     this.client = new StripeClient({ secretKey: credentials.secretKey.trim(), fetch: options.fetch, apiUrl: options.apiUrl })
+    this.granularity = options.granularity ?? 'payment'
   }
 
   async listAccounts(): Promise<ProviderAccount[]> {
@@ -72,7 +82,15 @@ export class StripeProvider implements BankProvider {
 
   async syncTransactions(accountExternalId: string, since?: Date): Promise<ProviderTransaction[]> {
     const transactions = await this.client.listBalanceTransactions(accountExternalId, since)
-    return transactions.flatMap((txn) => mapStripeBalanceTransaction(txn, accountExternalId))
+    if (this.granularity === 'payment') return transactions.flatMap((txn) => mapStripeBalanceTransaction(txn, accountExternalId))
+    const lines: ProviderTransaction[] = []
+    // One payout at a time: a few payouts per sync, each read page by page
+    for (const payout of transactions.filter((txn) => txn.type === 'payout')) {
+      const source = typeof payout.source === 'string' ? payout.source : payout.source?.id
+      const taken = source ? await this.client.listPayoutTransactions(source) : []
+      lines.push(...mapStripePayout(payout, taken, accountExternalId))
+    }
+    return lines
   }
 
   async getBalances(): Promise<ProviderBalance[]> {

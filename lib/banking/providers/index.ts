@@ -1,5 +1,6 @@
 /**
- * Builds the adapter of an integration from its decrypted credentials.
+ * Builds the adapter of an integration from its decrypted credentials, and
+ * its settings (Integration.config: Stripe's granularity).
  */
 
 import { ValidationError } from '@/lib/accounting/errors'
@@ -31,13 +32,16 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 export function createBankProvider(
   provider: string,
   credentials: Record<string, unknown>,
-  options: { fetch?: typeof fetch } = {},
+  options: { fetch?: typeof fetch; config?: unknown } = {},
 ): BankProvider {
   switch (provider) {
     case 'QONTO':
       return new QontoProvider({ login: str(credentials.login), secretKey: str(credentials.secretKey) })
     case 'STRIPE':
-      return new StripeProvider({ secretKey: str(credentials.secretKey) }, { fetch: options.fetch })
+      return new StripeProvider(
+        { secretKey: str(credentials.secretKey) },
+        { fetch: options.fetch, granularity: (options.config as { granularity?: unknown } | null)?.granularity === 'payout' ? 'payout' : 'payment' },
+      )
     case 'PONTO':
       return new PontoProvider({
         clientId: str(credentials.clientId),

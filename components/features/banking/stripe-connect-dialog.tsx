@@ -30,6 +30,54 @@ const BALANCE_ACCOUNTS: Array<{ value: BalanceAccount; label: string; descriptio
   },
 ]
 
+type Granularity = 'payment' | 'payout'
+
+const GRANULARITIES: Array<{ value: Granularity; label: string; description: string }> = [
+  {
+    value: 'payment',
+    label: 'Par paiement (recommandé)',
+    description: 'Chaque paiement, remboursement et frais est une opération, à son jour. Le détail le plus fidèle.',
+  },
+  {
+    value: 'payout',
+    label: 'Par virement',
+    description:
+      'Une opération par nature et par virement automatique : les paiements, les frais, le virement. Moins de lignes, le détail reste chez Stripe. Ne fonctionne pas avec les virements instantanés ou manuels.',
+  },
+]
+
+/** Radio choices of the connection, set once: changing them later would book the lines twice. */
+function ChoiceGroup<T extends string>({
+  legend,
+  name,
+  value,
+  onChange,
+  options,
+}: {
+  legend: string
+  name: string
+  value: T
+  onChange: (value: T) => void
+  options: Array<{ value: T; label: string; description: string }>
+}) {
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium">{legend}</legend>
+      <RadioGroup value={value} onValueChange={(next) => onChange(next as T)} className="gap-2">
+        {options.map((option) => (
+          <div key={option.value} className="flex items-start gap-2 pointer-coarse:items-center">
+            <RadioGroupItem value={option.value} id={`${name}-${option.value}`} className="mt-0.5 pointer-coarse:mt-0" />
+            <Label htmlFor={`${name}-${option.value}`} className="flex-1 flex-col items-start gap-0.5 font-normal leading-snug">
+              <span>{option.label}</span>
+              <span className="text-muted-foreground text-xs">{option.description}</span>
+            </Label>
+          </div>
+        ))}
+      </RadioGroup>
+    </fieldset>
+  )
+}
+
 /** A restricted key: rk_live_ (or rk_test_ for a trial with test data). */
 const RESTRICTED_KEY = /^rk_(live|test)_[A-Za-z0-9]{10,}$/
 
@@ -58,6 +106,7 @@ export function StripeConnectDialog({ companyId, open, onOpenChange, onConnected
   const id = useId()
   const [secretKey, setSecretKey] = useState('')
   const [balanceAccount, setBalanceAccount] = useState<BalanceAccount>('517')
+  const [granularity, setGranularity] = useState<Granularity>('payment')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [secretHint, setSecretHint] = useState<string | null>(null)
@@ -138,7 +187,7 @@ export function StripeConnectDialog({ companyId, open, onOpenChange, onConnected
           name: 'Stripe',
           credentials,
           features: ['BANKING_ACCOUNTS', 'BANKING_TRANSACTIONS'],
-          config: { balanceAccount },
+          config: { balanceAccount, granularity },
         }),
       })
       if (!created.ok) {
@@ -196,20 +245,10 @@ export function StripeConnectDialog({ companyId, open, onOpenChange, onConnected
             <Input type="password" autoComplete="off" placeholder="rk_live_…" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} />
           </Field>
           {editing ? null : (
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Compte du solde Stripe</legend>
-              <RadioGroup value={balanceAccount} onValueChange={(next) => setBalanceAccount(next as BalanceAccount)} className="gap-2">
-                {BALANCE_ACCOUNTS.map((option) => (
-                  <div key={option.value} className="flex items-start gap-2 pointer-coarse:items-center">
-                    <RadioGroupItem value={option.value} id={`${id}-${option.value}`} className="mt-0.5 pointer-coarse:mt-0" />
-                    <Label htmlFor={`${id}-${option.value}`} className="flex-1 flex-col items-start gap-0.5 font-normal leading-snug">
-                      <span>{option.label}</span>
-                      <span className="text-muted-foreground text-xs">{option.description}</span>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </fieldset>
+            <>
+              <ChoiceGroup legend="Compte du solde Stripe" name={`${id}-account`} value={balanceAccount} onChange={setBalanceAccount} options={BALANCE_ACCOUNTS} />
+              <ChoiceGroup legend="Détail des opérations" name={`${id}-granularity`} value={granularity} onChange={setGranularity} options={GRANULARITIES} />
+            </>
           )}
           {editing ? null : (
             <p className="text-muted-foreground text-xs">
