@@ -71,7 +71,8 @@ export function ReceiptMailboxCard({ companyId, canManage, onRead }: ReceiptMail
     fetch(`/api/receipts/mailbox?companyId=${encodeURIComponent(companyId)}`)
       .then((response) => (response.ok ? (response.json() as Promise<MailboxView>) : null))
       .then((view) => {
-        if (!cancelled) setMailbox(view)
+        // An answer without the mailbox fields (an older server, a test double) leaves the card hidden, never the page broken
+        if (!cancelled && view && typeof view.configured === 'boolean') setMailbox({ ...view, oauthProviders: Array.isArray(view.oauthProviders) ? view.oauthProviders : [] })
       })
       .catch(() => undefined)
     return () => {
