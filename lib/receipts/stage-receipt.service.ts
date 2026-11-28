@@ -34,6 +34,7 @@ import { calendarDayOf } from '@/lib/utils/date'
 import { parseCents } from '@/lib/utils/money'
 import { RECEIPT_FILE_MESSAGES, RECEIPT_MAX_BYTES, checkReceiptFile, receiptFileName, type ReceiptContentType } from './file-type'
 import { configuredStorageDriver } from '@/lib/storage'
+import type { ReceiptReadFrom } from './read/guess'
 import { deleteUnreferencedReceiptFiles, discardObject, putReceiptObject, receiptFileData, type PendingObject } from './receipt-file-store'
 
 export const STAGED_RECEIPT_TTL_DAYS = 30
@@ -78,6 +79,10 @@ export interface StagedReceiptView {
     vatLines: ReceiptVatLine[]
     paymentHint: string | null
   }
+  /** Where Kledg read the fields, while they wait for the user's confirmation (lib/receipts/read); null once confirmed. */
+  fieldsReadFrom: ReceiptReadFrom | null
+  /** The transaction found after a bank sync, to attach on the user's click (suggest-receipts.service.ts). */
+  suggestedTransactionId: string | null
   bankTransactionId: string | null
   expenseReportId: string | null
   /** The file is still kept by Kledg (false once sent to Qonto or discarded). */
@@ -101,6 +106,8 @@ export const STAGED_SELECT = {
   merchantName: true,
   vatLines: true,
   paymentHint: true,
+  fieldsReadFrom: true,
+  suggestedTransactionId: true,
   bankTransactionId: true,
   attachmentId: true,
   expenseReportId: true,
@@ -139,6 +146,8 @@ export function stagedReceiptView(row: StagedReceiptRow): StagedReceiptView {
       vatLines: vatLinesOf(row.vatLines),
       paymentHint: row.paymentHint,
     },
+    fieldsReadFrom: (row.fieldsReadFrom as ReceiptReadFrom | null) ?? null,
+    suggestedTransactionId: row.suggestedTransactionId,
     bankTransactionId: row.bankTransactionId,
     expenseReportId: row.expenseReportId,
     hasFile: row.fileId !== null,

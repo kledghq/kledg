@@ -82,7 +82,7 @@ function itemOf(receipt: StagedReceiptView, guess?: ReceiptGuess | null): Item {
     merchant: receipt.fields.merchant ?? guess?.merchant ?? '',
     currency: receipt.fields.currency ?? guess?.currency ?? null,
     vatLines: receipt.fields.vatLines.length > 0 ? receipt.fields.vatLines : (guess?.vatLines ?? []),
-    readFrom: receipt.fields.amountCents !== null ? null : (guess?.readFrom ?? null),
+    readFrom: receipt.fieldsReadFrom ?? (receipt.fields.amountCents !== null ? null : (guess?.readFrom ?? null)),
     state: { step: 'form' },
     busy: false,
   }
@@ -92,6 +92,18 @@ async function postJson<T>(url: string, body: unknown, fallback: string): Promis
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (!response.ok) throw new Error(await responseError(response, fallback))
   return (await response.json()) as T
+}
+
+/** At most this many receipts searched when the page opens, one after the other. */
+const MAX_AUTO_SEARCHES = 20
+
+/** A receipt with an amount and a date recorded (read by Kledg or confirmed): its transaction is searched without a click. */
+const searchable = (receipt: StagedReceiptView | null): receipt is StagedReceiptView =>
+  receipt !== null && receipt.status === 'staged' && receipt.fields.amountCents !== null && receipt.fields.date !== null
+
+/** Searches with the fields recorded on the receipt: nothing is confirmed, nothing attached. */
+function searchRecorded(receiptId: string): Promise<ReceiptMatchResult> {
+  return postJson<ReceiptMatchResult>(`/api/receipts/staged/${receiptId}/match`, {}, 'La recherche de la transaction a échoué. Réessayez.')
 }
 
 export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDropZoneProps) {
@@ -110,8 +122,18 @@ export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDro
     let cancelled = false
     fetch(`/api/receipts/staged?companyId=${encodeURIComponent(companyId)}`)
       .then((response) => (response.ok ? (response.json() as Promise<{ receipts: StagedReceiptView[] }>) : null))
-      .then((result) => {
-        if (!cancelled && result?.receipts?.length) setItems((list) => [...list, ...result.receipts.filter((r) => !list.some((i) => i.receipt?.id === r.id)).map((r) => itemOf(r))])
+      .then(async (result) => {
+        if (cancelled || !result?.receipts?.length) return
+        setItems((list) => [...list, ...result.receipts.filter((r) => !list.some((i) => i.receipt?.id === r.id)).map((r) => itemOf(r))])
+        // Their transaction may have arrived since: searched again, one after the other
+        for (const receipt of result.receipts.filter(searchable).slice(0, MAX_AUTO_SEARCHES)) {
+          if (cancelled) return
+          const found = await searchRecorded(receipt.id).catch(() => null)
+          if (cancelled || !found) continue
+          setItems((list) =>
+            list.map((i) => (i.receipt?.id === receipt.id && i.state.step === 'form' && !i.busy ? { ...i, receipt: found.receipt, state: { step: 'result', result: found } } : i)),
+          )
+        }
       })
       .catch(() => undefined)
     return () => {
@@ -133,14 +155,22 @@ export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDro
         const { receipt, guess } = (await response.json()) as { receipt: StagedReceiptView; guess: ReceiptGuess }
         const item = itemOf(receipt, guess)
         setItems((list) => (list.some((i) => i.receipt?.id === receipt.id && i.key !== key) ? list.filter((i) => i.key !== key) : list.map((i) => (i.key === key ? { ...item, key } : i))))
+        if (searchable(receipt)) void match({ ...item, key }, { recorded: true })
       } catch (error) {
         update(key, { busy: false, state: { step: 'error', message: (error as Error).message } })
       }
     }
   }
 
-  async function match(item: Item) {
+  async function match(item: Item, options: { recorded?: boolean } = {}) {
     if (!item.receipt) return
+    if (options.recorded) {
+      // Right after the upload, with what Kledg read: a failure leaves the form to the user
+      update(item.key, { busy: true, state: { step: 'matching' } })
+      const found = await searchRecorded(item.receipt.id).catch(() => null)
+      update(item.key, found ? { busy: false, receipt: found.receipt, state: { step: 'result', result: found } } : { busy: false, state: { step: 'form' } })
+      return
+    }
     if (item.amountCents === null || !item.date) {
       update(item.key, { state: { step: 'error', message: 'Indiquez le montant TTC et la date du justificatif.' } })
       return
@@ -219,6 +249,9 @@ export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDro
     </div>
   )
 
+  // Suggested after a bank sync, still to attach
+  const found = items.filter((i) => i.receipt?.suggestedTransactionId && i.state.step === 'result' && i.state.result.outcome === 'matched').length
+
   return (
     <Card>
       <CardHeader>
@@ -244,6 +277,14 @@ export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDro
           <p className="text-muted-foreground text-sm">Glissez vos justificatifs ici, ou</p>
           {pickers}
         </div>
+
+        {found > 0 ? (
+          <p className="text-sm" role="status">
+            {found === 1
+              ? 'Un justificatif déposé avant sa transaction l’a trouvée\u00a0: vérifiez-la puis cliquez sur Rattacher.'
+              : `${found} justificatifs déposés avant leur transaction l’ont trouvée\u00a0: vérifiez-les puis cliquez sur Rattacher.`}
+          </p>
+        ) : null}
 
         {items.length > 0 ? (
           <ul className="space-y-3" aria-label="Justificatifs déposés">

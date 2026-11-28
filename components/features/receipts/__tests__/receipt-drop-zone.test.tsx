@@ -85,6 +85,36 @@ describe('ReceiptDropZone', () => {
     expect(screen.getByLabelText(/Commerçant/)).toHaveValue('Carrefour')
   })
 
+  it('searches the transaction right after the upload with what Kledg read, without confirming it', async () => {
+    const read = receipt({ fields: { amountCents: 2_345, currency: 'EUR', date: '2026-10-03', merchant: 'Carrefour', vatLines: [], paymentHint: null }, fieldsReadFrom: 'pdf', suggestedTransactionId: null })
+    stageAnswer = { receipt: read, duplicate: false, guess: { date: '2026-10-03', amountCents: 2_345, merchant: 'Carrefour', currency: 'EUR', vatLines: [], readFrom: 'pdf' } }
+    matchAnswer = { ...(matchAnswer as object), receipt: read }
+    await dropOne()
+    await screen.findByText(/Plusieurs transactions peuvent correspondre/)
+    const search = calls().find((c) => c.url.endsWith('/match'))!
+    // The recorded fields: nothing sent, nothing confirmed, nothing attached
+    expect(JSON.parse(String(search.body))).toEqual({})
+    expect(calls().some((c) => c.url.endsWith('/attach'))).toBe(false)
+    expect(screen.getByText(/Lu dans le PDF/)).toBeInTheDocument()
+  })
+
+  it('searches again, on opening, the receipts dropped earlier, and says which found their transaction', async () => {
+    const waiting = receipt({ fields: { amountCents: 2_345, currency: 'EUR', date: '2026-10-03', merchant: null, vatLines: [], paymentHint: null }, fieldsReadFrom: null, suggestedTransactionId: 't1' })
+    matchAnswer = { receipt: waiting, outcome: 'matched', match: candidate('t1', true), candidates: [candidate('t1', true)], reason: null, expenseProposal: null }
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), 'http://localhost')
+      if (url.pathname === '/api/receipts/staged' && (init?.method ?? 'GET') === 'GET') return respond({ receipts: [waiting] })
+      if (url.pathname.endsWith('/match')) return respond(matchAnswer)
+      return respond({})
+    })
+    render(<ReceiptDropZone companyId="c1" canAttach onAttached={onAttached} />)
+    await screen.findByText(/Un justificatif déposé avant sa transaction l’a trouvée/)
+    expect(JSON.parse(String(calls().find((c) => c.url.endsWith('/match'))!.body))).toEqual({})
+    // Qonto: still the user's click, with its confirmation
+    expect(calls().some((c) => c.url.endsWith('/attach'))).toBe(false)
+    expect(screen.getByRole('button', { name: 'Rattacher' })).toBeInTheDocument()
+  })
+
   it('says what was read in an e-invoice, and searches with its currency and VAT until the amount is changed', async () => {
     stageAnswer = {
       receipt: receipt({ fileName: 'facture.pdf', contentType: 'application/pdf' }),

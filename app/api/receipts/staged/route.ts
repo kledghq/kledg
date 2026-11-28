@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { companyRoute, fromForm, fromQuery } from '@/lib/api/route'
 import { routeReceiptActor } from '@/lib/receipts/actor'
-import { guessReceiptFields } from '@/lib/receipts/read/guess-receipt.service'
-import { listPendingReceipts, stageUploadedReceipt } from '@/lib/receipts/stage-receipt.service'
+import { guessReceiptFields, prefillStagedReceipt } from '@/lib/receipts/read/guess-receipt.service'
+import { listPendingReceipts, stageUploadedReceipt, stagedReceiptView } from '@/lib/receipts/stage-receipt.service'
 
 /**
  * GET /api/receipts/staged?companyId=
@@ -18,7 +18,8 @@ export const GET = companyRoute({ company: fromQuery(), permission: { expenses: 
  * Stages a photo or a PDF of a receipt: type checked from its bytes, 5 MB
  * at most, once per content in the company. Answers the receipt and the
  * amount, date and merchant Kledg reads in it (an e-invoice's data, a
- * PDF's text) or in its file name, to prefill the form (`guess`).
+ * PDF's text) or in its file name, to prefill the form (`guess`), and
+ * records them on the receipt as read, not confirmed (fieldsReadFrom).
  */
 export const POST = companyRoute(
   // The wrapper caps the body at the upload limit before the form is parsed.
@@ -33,6 +34,9 @@ export const POST = companyRoute(
       contentType: staged.receipt.contentType,
       fileName: upload?.name ?? staged.receipt.fileName,
     })
-    return NextResponse.json({ ...staged, guess }, { status: staged.duplicate ? 200 : 201 })
+    // Recorded as read: the page searches the transaction at once, a later bank sync can find it
+    const prefilled = staged.duplicate ? null : await prefillStagedReceipt(ctx.companyId, staged.receipt.id, guess)
+    const receipt = prefilled ? stagedReceiptView(prefilled) : staged.receipt
+    return NextResponse.json({ ...staged, receipt, guess }, { status: staged.duplicate ? 200 : 201 })
   },
 )

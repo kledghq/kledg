@@ -272,22 +272,22 @@ model Shareholder {
 }
 
 model FiscalYear {
-  id           String    @id @default(cuid())
-  companyId    String
-  year         Int // Année de l'exercice (ex: 2024)
-  closingDay   Int? // Jour de clôture (1-31)
-  closingMonth Int? // Mois de clôture (1-12)
-  startDate    DateTime // Date de début de l'exercice (calculée)
-  endDate      DateTime // Date de fin de l'exercice (calculée)
-  isClosed     Boolean   @default(false) // Indique si l'exercice est clôturé
-  closedAt     DateTime? // Date de la clôture (null tant que l'exercice est ouvert)
-  closedById   String? // Utilisateur qui a clôturé l'exercice
+  id                  String    @id @default(cuid())
+  companyId           String
+  year                Int // Année de l'exercice (ex: 2024)
+  closingDay          Int? // Jour de clôture (1-31)
+  closingMonth        Int? // Mois de clôture (1-12)
+  startDate           DateTime // Date de début de l'exercice (calculée)
+  endDate             DateTime // Date de fin de l'exercice (calculée)
+  isClosed            Boolean   @default(false) // Indique si l'exercice est clôturé
+  closedAt            DateTime? // Date de la clôture (null tant que l'exercice est ouvert)
+  closedById          String? // Utilisateur qui a clôturé l'exercice
   /// Last day of the closed periods (clôture des périodes, PCG art. 1031-4): no entry dated on or before it can be created or validated. Only moves forward (trigger of migration 20261108090000_period_lock).
   periodLockedThrough DateTime?
   periodLockedAt      DateTime?
   periodLockedById    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Relations
   company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -610,7 +610,8 @@ model BankTransaction {
   reconciliationEntry AccountingEntry?      @relation("ReconciliationEntry")
   syncMatch           BankTransactionMatch?
   simpleModeEntries   SimpleModeEntry[]
-  stagedReceipts      StagedReceipt[]
+  stagedReceipts      StagedReceipt[]       @relation("StagedReceiptFiledOn")
+  suggestedReceipts   StagedReceipt[]       @relation("StagedReceiptSuggestedFor")
 
   /// Company of the bank account's connection, set by the database (trigger
   /// kledg_rls_bank_transaction_company) for the row level security policies
@@ -861,32 +862,32 @@ model ImportMapping {
 }
 
 model FixedAsset {
-  id                    String    @id @default(cuid())
-  companyId             String
-  label                 String // Libellé de l'immobilisation
-  comment               String? // Commentaire
-  acquisitionDate       DateTime // Date d'acquisition
-  acquisitionValue      Decimal   @db.Decimal(15, 2) // Valeur d'acquisition (HT)
-  amortizableAmount     Decimal?  @db.Decimal(15, 2) // Montant amortissable (peut être différent de acquisitionValue)
-  disposalDate          DateTime? // Date de cession
+  id                      String    @id @default(cuid())
+  companyId               String
+  label                   String // Libellé de l'immobilisation
+  comment                 String? // Commentaire
+  acquisitionDate         DateTime // Date d'acquisition
+  acquisitionValue        Decimal   @db.Decimal(15, 2) // Valeur d'acquisition (HT)
+  amortizableAmount       Decimal?  @db.Decimal(15, 2) // Montant amortissable (peut être différent de acquisitionValue)
+  disposalDate            DateTime? // Date de cession
   /// Exit of the asset (lib/fixed-assets/disposal.ts): sale, scrap or
   /// destruction; null while none is recorded (an older disposalDate alone
   /// only stops the depreciation plan).
-  disposalKind          String?
+  disposalKind            String?
   /// Sale price excluding VAT; 0 for a retirement without compensation.
-  disposalPrice         Decimal?  @db.Decimal(15, 2)
+  disposalPrice           Decimal?  @db.Decimal(15, 2)
   /// Exit entry Kledg prepared as a draft (record-disposal.service.ts).
-  disposalEntryId       String?
-  depreciationRate      Decimal?  @db.Decimal(5, 2) // Taux d'amortissement annuel (%)
-  depreciationDuration  Int? // Durée d'amortissement en années
-  depreciationMethod    String    @default("linear") // linear, declining
-  decliningCoefficient  Decimal?  @db.Decimal(5, 2) // Coefficient dégressif (ex: 1.25, 1.75, 2.25)
-  depreciationStartDate DateTime // Date de début d'amortissement
-  assetAccountId        String // Compte d'actif (ex: 211)
-  depreciationAccountId String // Compte d'amortissement (ex: 281)
-  expenseAccountId      String // Compte de charge d'amortissement (ex: 681)
-  isActive              Boolean   @default(true) // Indique si l'immobilisation est active
-  isFullyPaid           Boolean   @default(false) // Indique si l'immobilisation est entièrement payée
+  disposalEntryId         String?
+  depreciationRate        Decimal?  @db.Decimal(5, 2) // Taux d'amortissement annuel (%)
+  depreciationDuration    Int? // Durée d'amortissement en années
+  depreciationMethod      String    @default("linear") // linear, declining
+  decliningCoefficient    Decimal?  @db.Decimal(5, 2) // Coefficient dégressif (ex: 1.25, 1.75, 2.25)
+  depreciationStartDate   DateTime // Date de début d'amortissement
+  assetAccountId          String // Compte d'actif (ex: 211)
+  depreciationAccountId   String // Compte d'amortissement (ex: 281)
+  expenseAccountId        String // Compte de charge d'amortissement (ex: 681)
+  isActive                Boolean   @default(true) // Indique si l'immobilisation est active
+  isFullyPaid             Boolean   @default(false) // Indique si l'immobilisation est entièrement payée
   /// Depreciation booked before openingDepreciationDate, outside Kledg (an asset
   /// acquired before the first fiscal year in Kledg): the plan's months before
   /// that day add up to it (lib/fixed-assets/depreciation-plan.ts). Both or neither.
@@ -896,9 +897,9 @@ model FixedAsset {
   /// (simple mode, durable equipment). The asset goes with that entry: deleting
   /// the draft deletes the asset first (deleteFixedAssetsAcquiredByEntryInTx),
   /// and NO ACTION refuses any other path that would leave the asset behind.
-  acquisitionEntryId    String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  acquisitionEntryId      String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   // Relations
   company             Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1069,17 +1070,17 @@ model Attachment {
   updatedAt            DateTime @updatedAt
 
   // Relations
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  integration     Integration?     @relation(fields: [integrationId], references: [id], onDelete: SetNull)
-  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
-  expenseLines    ExpenseLine[]
+  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration         Integration?        @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  bankTransaction     BankTransaction?    @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  expenseLines        ExpenseLine[]
   declarationStatuses DeclarationStatus[]
   /// A receipt whose file Kledg keeps itself (a photo filed for a bank
   /// without receipt API, or the receipt of an expense line); null for the
   /// receipts the bank holds (Qonto). docs/justificatifs-photo.md.
-  receiptFileId   String?
-  receiptFile     ReceiptFile?     @relation(fields: [receiptFileId], references: [id], onDelete: NoAction)
-  stagedReceipts  StagedReceipt[]
+  receiptFileId       String?
+  receiptFile         ReceiptFile?        @relation(fields: [receiptFileId], references: [id], onDelete: NoAction)
+  stagedReceipts      StagedReceipt[]
 
   @@unique([integrationId, externalAttachmentId])
   @@index([externalAttachmentId])
@@ -1255,13 +1256,13 @@ model User {
   oauthAccessTokens  OauthAccessToken[]
   oauthConsents      OauthConsent[]
 
-  aiAccessGrants    AiAccessGrant[]
-  mcpConfirmations  McpConfirmation[]
-  mcpPendingActions McpPendingAction[]
-  dashboardLayouts  DashboardLayout[]
+  aiAccessGrants     AiAccessGrant[]
+  mcpConfirmations   McpConfirmation[]
+  mcpPendingActions  McpPendingAction[]
+  dashboardLayouts   DashboardLayout[]
   sidebarPreferences SidebarPreference[]
-  preference        UserPreference?
-  expenseClaimants  ExpenseClaimant[]
+  preference         UserPreference?
+  expenseClaimants   ExpenseClaimant[]
 
   @@unique([email])
   @@map("user")
@@ -1599,19 +1600,19 @@ model RateLimit {
 // with the integrations key (lib/crypto/encryption-key.ts) and never sent to
 // the browser.
 model UpdateConnection {
-  id             String    @id @default("default")
-  owner          String
-  repo           String
-  tokenEncrypted String
-  tokenLast4     String
-  tokenExpiresAt DateTime?
-  isFork         Boolean   @default(false)
-  defaultBranch  String    @default("main")
-  connectedById  String?
+  id                     String    @id @default("default")
+  owner                  String
+  repo                   String
+  tokenEncrypted         String
+  tokenLast4             String
+  tokenExpiresAt         DateTime?
+  isFork                 Boolean   @default(false)
+  defaultBranch          String    @default("main")
+  connectedById          String?
   // The token listed another private repository at connection (null: not checked)
   tokenReachesOtherRepos Boolean?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@map("update_connection")
 }
@@ -1654,26 +1655,26 @@ model InstanceVersion {
 // migration), deleting a key, a client, a user or a company removes the
 // matching rows.
 model AiAccessGrant {
-  id            String                 @id @default(cuid())
-  userId        String
-  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     String                 @id @default(cuid())
+  userId                 String
+  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// OAuth client (assistant) the grant applies to; exactly one of clientId and apiKeyId is set.
-  clientId      String?
-  client        OauthClient?           @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
-  apiKeyId      String?                @unique
-  apiKey        Apikey?                @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  clientId               String?
+  client                 OauthClient?           @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  apiKeyId               String?                @unique
+  apiKey                 Apikey?                @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
   /// Every company of the user, including future ones. When false, only `companies`.
-  allCompanies  Boolean                @default(true)
+  allCompanies           Boolean                @default(true)
   /// How full control runs high-impact tools: "automatic" (executes on the call)
   /// or "validation" (approved by the user in Kledg first). lib/ai-access/access.ts
-  executionMode String                 @default("automatic")
+  executionMode          String                 @default("automatic")
   /// Last time the user typed their password to give this assistant full
   /// control (KLEDG-R3-AUTH-01). An OAuth token's kledg:admin scope counts only
   /// when set, so a session alone cannot plant a full control assistant.
   fullControlConfirmedAt DateTime?
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
-  companies     AiAccessGrantCompany[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  companies              AiAccessGrantCompany[]
 
   @@unique([userId, clientId])
   @@index([clientId])
@@ -1726,30 +1727,30 @@ model McpConfirmation {
 /// it only once approved, with the same arguments, before expiresAt.
 model McpPendingAction {
   /// Random, unguessable (it appears in the approval URL).
-  id         String    @id
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// The connection that asked: "oauth:<clientId>" or "apiKey:<id>".
-  caller     String
+  caller      String
   /// OAuth client or API key name, shown on the approval page.
-  callerName String?
-  tool       String
+  callerName  String?
+  tool        String
   /// Null for a tool acting outside any company (create_company).
-  companyId  String?
-  company    Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId   String?
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   /// Normalized arguments (without actionId) and their SHA-256.
-  args       Json
-  argsHash   String
+  args        Json
+  argsHash    String
   /// The dry run shown to the user before they decide.
-  preview    Json
+  preview     Json
   /// SHA-256 of the state the user approved (dry run and target rows), checked again at execution.
   fingerprint String?
   /// pending, approved, rejected, executing, executed, failed
-  status     String    @default("pending")
-  expiresAt  DateTime
-  decidedAt  DateTime?
-  executedAt DateTime?
-  createdAt  DateTime  @default(now())
+  status      String    @default("pending")
+  expiresAt   DateTime
+  decidedAt   DateTime?
+  executedAt  DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([userId, status])
   @@index([companyId])
@@ -2165,10 +2166,10 @@ model ExpenseReport {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  claimant ExpenseClaimant  @relation(fields: [claimantId], references: [id], onDelete: Restrict)
-  entry    AccountingEntry? @relation("ExpenseReportEntry", fields: [entryId], references: [id], onDelete: SetNull)
-  lines    ExpenseLine[]
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  claimant       ExpenseClaimant  @relation(fields: [claimantId], references: [id], onDelete: Restrict)
+  entry          AccountingEntry? @relation("ExpenseReportEntry", fields: [entryId], references: [id], onDelete: SetNull)
+  lines          ExpenseLine[]
   stagedReceipts StagedReceipt[]
 
   @@unique([companyId, number])
@@ -2858,16 +2859,16 @@ model LocalTaxYear {
 /// approval of the accounts) are never stored here: they feed the same
 /// status (lib/declarations).
 model DeclarationStatus {
-  id                  String      @id @default(cuid())
+  id                  String    @id @default(cuid())
   companyId           String
   /// The deadline id of the engine: "<rule>:<key>" (cfe:2026, is-solde:2026-12-31).
   deadlineId          String
   filedOn             DateTime?
   paidOn              DateTime?
   /// Amount filed or paid, in euros with cents.
-  amount              Decimal?    @db.Decimal(15, 2)
+  amount              Decimal?  @db.Decimal(15, 2)
   /// The conditional deadline does not apply this time (acompte under its threshold...).
-  notDue              Boolean     @default(false)
+  notDue              Boolean   @default(false)
   /// A receipt already in Kledg (a Qonto attachment): Kledg stores no file.
   attachmentId        String?
   /// Reference of a receipt kept elsewhere (accusé de réception, avis).
@@ -2875,8 +2876,8 @@ model DeclarationStatus {
   note                String?
   createdById         String?
   updatedById         String?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   attachment Attachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
@@ -2994,7 +2995,7 @@ model AnnexeNote {
 /// year; the provisional coefficient of a year comes from the definitive one
 /// of the year before, else from the estimate entered here.
 model VatDeductionYear {
-  id                       String   @id @default(cuid())
+  id                       String    @id @default(cuid())
   companyId                String
   /// Calendar year.
   year                     Int
@@ -3003,18 +3004,18 @@ model VatDeductionYear {
   /// before decides.
   estimatedTaxationPercent Int?
   /// Coefficient d'assujettissement in percent (art. 206, II); 100 by default.
-  assujettissementPercent  Int      @default(100)
+  assujettissementPercent  Int       @default(100)
   /// VAT borne in the year on goods and services subject to the coefficient,
   /// entered when the books cannot give it; null: derived from 44562 and 44566.
-  incurredVat              Decimal? @db.Decimal(15, 2)
+  incurredVat              Decimal?  @db.Decimal(15, 2)
   /// First day the coefficient applied to the year's postings changed after
   /// VAT was deducted in the year: the VAT borne must then be entered
   /// (lib/vat-deduction/load-vat-deduction.service.ts). Null: unchanged.
   coefficientChangedOn     DateTime? @db.Date
   note                     String?
   createdById              String?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -3052,13 +3053,13 @@ model RevenueAccountSetting {
 /// JSON validated by lib/training-report/schemas.ts. The financial frame C
 /// comes from the books.
 model TrainingReport {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid())
   companyId    String
   fiscalYearId String
-  data         Json       @default("{}")
+  data         Json     @default("{}")
   createdById  String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
@@ -3155,41 +3156,48 @@ model ReceiptFile {
 /// attached to a bank transaction, turned into an expense line, or
 /// discarded. An unclaimed one (staged) expires after 30 days with its file.
 model StagedReceipt {
-  id                String    @id @default(cuid())
-  companyId         String
+  id                     String    @id @default(cuid())
+  companyId              String
   /// The stored file; null once it lives elsewhere (sent to Qonto) or was discarded.
-  fileId            String?
+  fileId                 String?
   /// SHA-256 of the content: the same file is staged once per company.
-  sha256            String
-  fileName          String
-  contentType       String
-  size              Int
+  sha256                 String
+  fileName               String
+  contentType            String
+  size                   Int
   /// view (capture view of an assistant), file_param (ChatGPT file), base64, app (Justificatifs page).
-  source            String
+  source                 String
   /// staged, attached, expense or discarded (check constraint).
-  status            String    @default("staged")
-  uploadedById      String?
+  status                 String    @default("staged")
+  uploadedById           String?
   /// Fields read from the receipt (by the assistant, or typed by the user): amount TTC.
-  amount            Decimal?  @db.Decimal(15, 2)
-  currency          String?
-  receiptDate       DateTime?
-  merchantName      String?
+  amount                 Decimal?  @db.Decimal(15, 2)
+  currency               String?
+  receiptDate            DateTime?
+  merchantName           String?
   /// [{ ratePercent, amount }] as read on the receipt, in euros.
-  vatLines          Json?
-  paymentHint       String?
-  bankTransactionId String?
-  attachmentId      String?
-  expenseReportId   String?
-  expenseLineId     String?
-  expiresAt         DateTime
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  vatLines               Json?
+  paymentHint            String?
+  /// e-invoice, pdf or file-name: the fields were read by Kledg in the file (lib/receipts/read), not yet
+  /// confirmed by the user or the assistant (check constraint); null once confirmed or typed.
+  fieldsReadFrom         String?
+  /// The transaction a re-matching after a bank sync found for this receipt, waiting for the user's click.
+  suggestedTransactionId String?
+  suggestedAt            DateTime?
+  bankTransactionId      String?
+  attachmentId           String?
+  expenseReportId        String?
+  expenseLineId          String?
+  expiresAt              DateTime
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  file            ReceiptFile?     @relation(fields: [fileId], references: [id], onDelete: SetNull)
-  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
-  attachment      Attachment?      @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
-  expenseReport   ExpenseReport?   @relation(fields: [expenseReportId], references: [id], onDelete: SetNull)
+  company              Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  file                 ReceiptFile?     @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  bankTransaction      BankTransaction? @relation("StagedReceiptFiledOn", fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  suggestedTransaction BankTransaction? @relation("StagedReceiptSuggestedFor", fields: [suggestedTransactionId], references: [id], onDelete: SetNull)
+  attachment           Attachment?      @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  expenseReport        ExpenseReport?   @relation(fields: [expenseReportId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, sha256])
   @@index([companyId, status])
@@ -3197,6 +3205,7 @@ model StagedReceipt {
   @@index([expiresAt])
   @@index([fileId])
   @@index([bankTransactionId])
+  @@index([suggestedTransactionId])
   @@index([attachmentId])
   @@index([expenseReportId])
   @@map("staged_receipts")
@@ -3207,18 +3216,18 @@ model StagedReceipt {
 /// sealHash covers the content hashes of the entries validated up to
 /// lastHashedAt, in hashing order (SQL function kledg_ledger_seal).
 model LedgerSeal {
-  id              String    @id @default(cuid())
-  companyId       String
-  fiscalYearId    String
+  id           String    @id @default(cuid())
+  companyId    String
+  fiscalYearId String
   /// period_lock or closing.
-  reason          String
+  reason       String
   /// Last day of the closed period (period_lock).
-  throughDay      DateTime?
-  entryCount      Int
-  lastHashedAt    DateTime?
-  sealHash        String
-  createdById     String?
-  createdAt       DateTime  @default(now())
+  throughDay   DateTime?
+  entryCount   Int
+  lastHashedAt DateTime?
+  sealHash     String
+  createdById  String?
+  createdAt    DateTime  @default(now())
 
   company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)

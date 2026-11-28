@@ -12,6 +12,10 @@ Kledg n'appelle aucun modèle : ce sont les assistants qui lisent la photo (mont
 
 Une photo ou un PDF scanné (une image) n'a pas de texte : seul son nom est lu. Un PDF illisible, protégé ou trop long ne fait jamais échouer le dépôt. Rien n'est enregistré sur le justificatif avant que l'utilisateur lance la recherche : le formulaire dit d'où viennent les valeurs (« Lu dans le PDF : vérifiez le montant et la date »), et la TVA lue dans une facture électronique est envoyée avec la recherche tant que le montant n'est pas modifié.
 
+**Ce qui est lu est enregistré, pas confirmé.** Au dépôt, un justificatif sans champs reçoit le montant, la date, le commerçant et la TVA lus, avec `fieldsReadFrom` (`e-invoice`, `pdf` ou `file-name`, contrainte de vérification) : la page **Justificatifs** cherche aussitôt sa transaction avec ces champs (`POST /api/receipts/staged/[id]/match` sans corps), sans les confirmer. Des champs donnés par l'utilisateur ou l'assistant les confirment (`fieldsReadFrom` remis à null) et ne sont jamais remplacés par une lecture.
+
+**Les justificatifs déposés avant leur transaction** (`lib/receipts/suggest-receipts.service.ts`) : après chaque synchronisation bancaire qui apporte des opérations (`syncIntegration`) et chaque import de relevé, les justificatifs en attente qui ont un montant et une date (50 au plus, les plus anciens d'abord) sont rapprochés de nouveau. Une transaction qu'ils désignent seule (résultat `matched`) devient leur suggestion (`suggestedTransactionId`, `suggestedAt`) ; **rien n'est rattaché sans le clic de l'utilisateur** : un rattachement à Qonto envoie le fichier à Qonto, que Kledg ne peut pas reprendre. Une suggestion qui ne tient plus (la transaction a reçu un justificatif ailleurs, les champs ont changé) est retirée au passage suivant, et les justificatifs expirés sont supprimés au passage, sans attendre le prochain dépôt. À l'ouverture de la page, les justificatifs en attente (20 au plus) sont cherchés de nouveau, et la page dit combien ont trouvé leur transaction.
+
 ## Parcours
 
 ```

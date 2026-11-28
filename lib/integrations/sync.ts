@@ -30,6 +30,7 @@ import { openCredentials } from '@/lib/banking/credentials'
 import { createBankProvider, isBankProvider, providerKind } from '@/lib/banking/providers'
 import { shouldStoreTransaction, type BankProvider } from '@/lib/banking/providers/types'
 import { supersededAccounts } from '@/lib/banking/sync-rules'
+import { suggestReceiptMatches } from '@/lib/receipts/suggest-receipts.service'
 import { ensureStripeLedgerAccount, stripeBalanceAccountOf } from '@/lib/banking/stripe-setup.service'
 import { ledgerCodePickerForNewBankAccounts } from '@/lib/banking/ledger-account'
 import { storeSyncedTransactions } from '@/lib/banking/store-synced-transactions.service'
@@ -138,6 +139,12 @@ export async function syncIntegration(
 
   result.success = result.errors.length === 0
   await recordOutcome(integration.id, connection.id, result, now)
+  // New lines may be the transactions of receipts dropped before them: suggested, never attached here
+  if (result.itemsSynced > 0) {
+    await suggestReceiptMatches(integration.companyId, now).catch((error: unknown) =>
+      logger.warn('[Sync] Matching staged receipts failed', { integrationId, error: errorReason(error) }),
+    )
+  }
   return result
 }
 

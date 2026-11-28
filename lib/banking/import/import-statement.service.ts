@@ -20,6 +20,8 @@ import { commitImport, planImport, type KeptProbable } from './importer'
 import { centsToDecimal } from '@/lib/utils/money'
 import { COLUMN_ROLES, DATE_FORMAT_VALUES, type TabularOptions } from './types'
 import { plural } from '@/lib/utils/plural'
+import { suggestReceiptMatches } from '@/lib/receipts/suggest-receipts.service'
+import { logger } from '@/lib/logger'
 
 const columnIndex = z.number().int().min(0).max(500)
 
@@ -129,6 +131,12 @@ export async function importStatement(file: StatementFile & { allowErrors?: bool
   if (result.rows.length === 0) throw new ValidationError('Aucune opération à importer dans ce fichier.')
 
   const created = await commitImport(account, result, { format: parsed.format, fileName: file.fileName }, file.keep ?? [])
+  // Receipts dropped before these lines may find them: suggested, attached on the user's click
+  if (created > 0) {
+    await suggestReceiptMatches(file.companyId).catch((error: unknown) =>
+      logger.warn('[Import] Matching staged receipts failed', { companyId: file.companyId, error: (error as Error).message }),
+    )
+  }
   return {
     ...base,
     created,
