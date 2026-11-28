@@ -262,8 +262,8 @@ export function receiptDigestEmail(to: string, input: { companies: ReceiptDigest
 </html>`
   const text = [
     `${total} justificatif${plural} à retrouver (${input.days} derniers jours)`,
-    ...input.companies.map((c) => `${c.name} : ${c.count}, ${euros(c.totalCents)}. ${c.url}`),
-    `Ne plus recevoir ce récapitulatif : ${input.settingsUrl}`,
+    ...input.companies.map((c) => `${c.name} : ${c.count}, ${euros(c.totalCents)}. ${c.url}`),
+    `Ne plus recevoir ce récapitulatif : ${input.settingsUrl}`,
   ].join('\n\n')
   return { to, subject: `${total} justificatif${plural} manquant${plural} dans ${APP_NAME}`, html, text }
 }
