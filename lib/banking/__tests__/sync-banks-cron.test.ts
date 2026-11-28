@@ -9,7 +9,9 @@
  *   and answers with a count only;
  * - every active bank integration is synced, Qonto with transactions only;
  * - a failing integration is reported with a French reason and does not
- *   stop the others; the summary lists each run.
+ *   stop the others; the summary lists each run;
+ * - the receipt mailboxes are read after the banks (mailbox.db.test.ts
+ *   covers the reading itself).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,6 +21,9 @@ vi.mock('@/lib/integrations/sync', () => ({ syncIntegration: vi.fn() }))
 vi.mock('@/lib/rate-limit', async () => ({
   ...(await vi.importActual<typeof import('@/lib/rate-limit')>('@/lib/rate-limit')),
   withinRateLimit: vi.fn(async () => true),
+}))
+vi.mock('@/lib/receipts/mailbox/mailbox.service', () => ({
+  readAllMailboxes: vi.fn(async () => [{ companyId: 'company-a', ok: true, staged: 2 }]),
 }))
 vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
@@ -30,6 +35,7 @@ import { ExternalServiceError, INTERNAL_ERROR_MESSAGE } from '@/lib/accounting/e
 import { UNEXPECTED_BANK_ERROR_MESSAGE } from '@/lib/banking/errors'
 import { syncAllBankIntegrations } from '@/lib/banking/sync-banks.service'
 import { withinRateLimit } from '@/lib/rate-limit'
+import { readAllMailboxes } from '@/lib/receipts/mailbox/mailbox.service'
 import { GET as syncBanks } from '@/app/api/cron/sync-banks/route'
 import { GET as syncQonto } from '@/app/api/cron/sync-qonto/route'
 
@@ -89,6 +95,8 @@ describe.each([
     const cutoff = where.OR[1].lastSyncAt.lt.getTime()
     expect(before - cutoff).toBeGreaterThanOrEqual(20 * 3_600_000 - 1000)
     expect(before - cutoff).toBeLessThanOrEqual(20 * 3_600_000 + 1000)
+    // The mailboxes too, only those not read for 20 hours
+    expect(vi.mocked(readAllMailboxes).mock.calls[0]?.[1]).toEqual({ notReadSince: new Date(cutoff) })
   })
 
   it('without CRON_SECRET, does nothing once the instance-wide limit is reached', async () => {
@@ -119,7 +127,9 @@ describe.each([
         },
         { companyId: 'company-c', integrationId: 'int-revolut', provider: 'REVOLUT', success: true, itemsSynced: 3, errors: [] },
       ],
+      mailboxes: 1,
     })
+    expect(readAllMailboxes).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -158,7 +168,7 @@ describe('syncAllBankIntegrations', () => {
   it('returns an empty summary when no bank is connected', async () => {
     db.integration.findMany.mockResolvedValue([])
     const response = await syncBanks(cron(`Bearer ${SECRET}`))
-    expect(await response.json()).toEqual({ success: true, synced: 0, results: [] })
+    expect(await response.json()).toEqual({ success: true, synced: 0, results: [], mailboxes: 1 })
     expect(syncIntegration).not.toHaveBeenCalled()
   })
 })

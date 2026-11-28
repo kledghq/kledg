@@ -34,6 +34,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/rbac/remove-member.service.ts': ['member-removal'],
   // A receipt email posted by the inbound email provider, without session: the company found by its address token, then that company only.
   'lib/receipts/inbound/receive-email.service.ts': ['receipt-email'],
+  // The nightly reading of the receipt mailboxes, after the bank sync: the mailboxes listed, then each company's read in its own context.
+  'lib/receipts/mailbox/mailbox.service.ts': ['cron:bank-sync'],
 }
 
 function files(entry: string): string[] {
