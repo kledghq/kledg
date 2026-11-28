@@ -1831,15 +1831,19 @@ model SidebarPreference {
 /// on read and write (lib/appearance/schema.ts); a row that no longer parses
 /// reads as the defaults. Without a row the user sees the default colours.
 model UserPreference {
-  id          String   @id @default(cuid())
-  userId      String   @unique
+  id                  String    @id @default(cuid())
+  userId              String    @unique
   /// { "version": 1, "palette": "custom", "base": "sobre", "custom": { "light": { "revenue": "#0072b2" }, "dark": {} } }
   /// Null when the user never saved colours (they only chose a display mode): the default colours.
-  appearance  Json?
+  appearance          Json?
   /// 'simple', 'standard' or 'expert' (lib/appearance/display-mode.ts, check constraint); null until chosen, read as 'expert'.
-  displayMode String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  displayMode         String?
+  /// Weekly email of the receipts still missing (lib/receipts/digest), on unless the user turns it off.
+  receiptDigest       Boolean   @default(true)
+  /// When the last one was sent: one a week at most, even when the cron runs twice.
+  receiptDigestSentAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

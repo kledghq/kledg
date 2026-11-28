@@ -405,6 +405,7 @@ export const ROUTE_MODULES = {
   dashboardLayout: () => import('@/app/api/dashboard/layout/route'),
   appearance: () => import('@/app/api/account/appearance/route'),
   displayMode: () => import('@/app/api/account/display-mode/route'),
+  accountNotifications: () => import('@/app/api/account/notifications/route'),
   simpleCounts: () => import('@/app/api/companies/[id]/simple/counts/route'),
   sidebarPreferences: () => import('@/app/api/companies/[id]/sidebar-preferences/route'),
   importFile: () => import('@/app/api/import/route'),

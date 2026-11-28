@@ -182,6 +182,33 @@ describe.skipIf(!available)('authorization matrix', () => {
     })
   })
 
+  describe('own emails (any signed-in user, no company)', () => {
+    beforeAll(reseed)
+    const notifications = (method: 'GET' | 'PUT', body?: unknown): Call => ({
+      label: `emails ${method}`,
+      route: 'accountNotifications',
+      method,
+      path: () => '/api/account/notifications',
+      ...(body === undefined ? {} : { body: () => body }),
+    })
+    const read = async (who: Who) => (await (await call(who, notifications('GET'))).json()) as { receiptDigest: boolean }
+
+    it('anonymous: 401 on read and write', async () => {
+      expect((await call('anonymous', notifications('GET'))).status).toBe(401)
+      expect((await call('anonymous', notifications('PUT', { receiptDigest: false }))).status).toBe(401)
+    })
+
+    it('every role turns its own weekly email off, and only its own', async () => {
+      expect(await read('viewer')).toEqual({ receiptDigest: true })
+      for (const who of ['viewer', 'accountant', 'companyAdmin', 'memberB', 'admin'] as const) {
+        expect((await call(who, notifications('PUT', { receiptDigest: false }))).status, who).toBe(200)
+        expect(await read(who), who).toEqual({ receiptDigest: false })
+      }
+      expect((await call('accountant', notifications('PUT', { receiptDigest: true, userId: 'u-viewer' }))).status).toBe(400)
+      expect(await read('viewer')).toEqual({ receiptDigest: false })
+    })
+  })
+
   describe('own sidebar menu (any role, per company)', () => {
     beforeAll(reseed)
     const menu = (method: 'GET' | 'PUT', body?: unknown): Call => ({

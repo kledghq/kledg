@@ -36,6 +36,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/receipts/inbound/receive-email.service.ts': ['receipt-email'],
   // The nightly reading of the receipt mailboxes, after the bank sync: the mailboxes listed, then each company's read in its own context.
   'lib/receipts/mailbox/mailbox.service.ts': ['cron:bank-sync'],
+  // The weekly email of missing receipts: the members of every company listed, then each company's missing receipts read in its own context.
+  'lib/receipts/digest/receipt-digest.service.ts': ['cron:receipt-digest'],
 }
 
 function files(entry: string): string[] {

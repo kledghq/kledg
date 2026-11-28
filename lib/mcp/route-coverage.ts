@@ -21,7 +21,7 @@ export type RouteCoverage =
 /** Why a route stays out of the MCP server. */
 export const EXCLUSIONS = {
   auth: 'Authentification du navigateur (Better Auth\u00a0: connexion, sessions, fournisseur OAuth)\u00a0; un assistant se connecte par OAuth ou par clé API.',
-  account: 'Compte personnel de l\'utilisateur (identité, mot de passe, sessions, préférences d\'affichage)\u00a0; un assistant n\'agit jamais sur l\'identité ni la sécurité du compte.',
+  account: 'Compte personnel de l\'utilisateur (identité, mot de passe, sessions, préférences d\'affichage et e-mails)\u00a0; un assistant n\'agit jamais sur l\'identité ni la sécurité du compte.',
   aiAccess: 'Accès des assistants (clés API, autorisations, mode d\'exécution)\u00a0; un assistant ne peut pas modifier ses propres droits.',
   aiApproval: 'Approbation des actions IA, réservée à la session et au mot de passe de l\'utilisateur dans Kledg (mode validation)\u00a0; un assistant ne peut pas approuver.',
   mcp: 'Le serveur MCP lui-même.',
@@ -46,6 +46,8 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'PUT /api/account/appearance': { excluded: 'account' },
   'GET /api/account/display-mode': { excluded: 'account' },
   'PUT /api/account/display-mode': { excluded: 'account' },
+  'GET /api/account/notifications': { excluded: 'account' },
+  'PUT /api/account/notifications': { excluded: 'account' },
   'POST /api/account/email': { excluded: 'account' },
   'POST /api/account/password': { excluded: 'account' },
   'PATCH /api/account/profile': { excluded: 'account' },

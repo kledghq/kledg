@@ -3,11 +3,13 @@ import { getCurrentUser } from '@/lib/session'
 import { getAccountOverview } from '@/lib/account/account-overview'
 import { PageHeader } from '@/components/shared'
 import { ProfileSettings, type EmailConfirmation } from '@/components/features/account/profile-settings'
+import { EmailNotificationsCard } from '@/components/features/account/email-notifications-card'
+import { receiptDigestOf } from '@/lib/receipts/digest/receipt-digest.service'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Profil' }
 
-/** The signed-in user's account: name, email, password, sessions and deletion. */
+/** The signed-in user's account: name, email, password, sessions and deletion, and the emails Kledg sends them. */
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
@@ -23,6 +25,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         description="Votre nom, l'adresse avec laquelle vous vous connectez, votre mot de passe et les appareils connectés à votre compte."
       />
       <ProfileSettings overview={await getAccountOverview(user)} emailConfirmation={emailConfirmation} />
+      <EmailNotificationsCard initial={await receiptDigestOf(user.id)} />
     </div>
   )
 }

@@ -28,6 +28,10 @@ export type SystemReason =
   | 'cron:bank-sync'
   /** The daily automatic period closing (CRON_SECRET), lib/accounting/period-lock/auto-lock.service.ts. */
   | 'cron:period-lock'
+  /** The weekly email of missing receipts, with the daily bank sync, lib/receipts/digest/receipt-digest.service.ts. */
+  | 'cron:receipt-digest'
+  /** The weekly email of missing receipts, with the daily bank sync, lib/receipts/digest/receipt-digest.service.ts. */
+  | 'cron:receipt-digest'
   /**
    * A company created by a user the instance policy allows
    * (companyCreationRefusal): the company and its organization do not exist
