@@ -84,7 +84,7 @@ export const FINANCE_TEMPLATES: RuleTemplate[] = [
     name: 'Virements Stripe',
     category: 'encaissements',
     description:
-      "Virements de Stripe vers le compte : ils soldent ce que Stripe vous doit au titre des ventes encaissées, à suivre sur un sous-compte 467 Stripe.",
+      "Virements de Stripe vers le compte quand Stripe n'est pas connecté à Kledg : ils soldent ce que Stripe vous doit au titre des ventes encaissées, sur un sous-compte 467 Stripe.",
     conditions: [CREDIT, labelMatches('\\bstripe\\b', 'STRIPE')],
     lines: [noVatLine('467', 'credit')],
     vat: {

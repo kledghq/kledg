@@ -8,11 +8,12 @@ import { QontoProvider } from './qonto'
 import { getRevolutUrls, type RevolutEnvironment } from './revolut/config'
 import { issuerFromRedirectUri } from './revolut/jwt'
 import { RevolutProvider } from './revolut/provider'
+import { StripeProvider } from './stripe/provider'
 import type { BankProvider, BankProviderId } from './types'
 
 export type { BankProvider, BankProviderId } from './types'
 
-export const BANK_PROVIDERS: readonly BankProviderId[] = ['QONTO', 'REVOLUT', 'PONTO']
+export const BANK_PROVIDERS: readonly BankProviderId[] = ['QONTO', 'REVOLUT', 'PONTO', 'STRIPE']
 
 export function isBankProvider(value: unknown): value is BankProviderId {
   return typeof value === 'string' && (BANK_PROVIDERS as readonly string[]).includes(value)
@@ -35,6 +36,8 @@ export function createBankProvider(
   switch (provider) {
     case 'QONTO':
       return new QontoProvider({ login: str(credentials.login), secretKey: str(credentials.secretKey) })
+    case 'STRIPE':
+      return new StripeProvider({ secretKey: str(credentials.secretKey) }, { fetch: options.fetch })
     case 'PONTO':
       return new PontoProvider({
         clientId: str(credentials.clientId),

@@ -10,7 +10,8 @@
  * lack one, so the user attaches it at the bank, then syncs.
  *
  * Declined operations (provider status "declined") never moved money and
- * need no receipt. Amounts are stored positive with a side; the threshold
+ * need no receipt. The lines of a Stripe account are not listed: their
+ * supporting document is Stripe's record of the operation. Amounts are stored positive with a side; the threshold
  * applies to the amount. The list is bounded (MAX_ROWS) and its count and
  * total cover every matching transaction.
  *
@@ -105,6 +106,9 @@ export async function listMissingReceipts(companyId: string, query: ParsedQuery)
     ...transactionOfCompany(companyId),
     attachments: { none: {} },
     OR: [{ status: null }, { status: { not: 'declined' } }],
+    // A Stripe line rests on Stripe's own record (its balance transaction,
+    // the monthly invoice for the fees): no receipt to attach at a bank
+    AND: [{ bankAccount: { bankConnection: { provider: { not: 'STRIPE' } } } }],
     ...(query.bankAccountId && { bankAccountId: query.bankAccountId }),
     ...(query.side !== 'all' && { side: query.side }),
     ...(query.minAmount > 0 && { amount: { gte: new Prisma.Decimal(centsToDecimal(query.minAmount)) } }),

@@ -83,6 +83,8 @@ export function vatTreatmentLabel(template: Pick<TemplateView, 'vat' | 'lines'>)
       return 'TVA non déductible'
     case 'none':
       return 'Sans TVA'
+    case 'collected':
+      return 'TVA collectée 20 %'
   }
 }
 

@@ -21,6 +21,7 @@ const DOCS_PAGES = {
   calendar: 'comprendre/le-calendrier-d-une-petite-societe',
   aiAssistants: 'assistant-ia/connecter-claude-ou-chatgpt',
   importStatement: 'banque/importer-un-releve-bancaire',
+  stripe: 'banque/connecter-stripe',
   install: 'demarrer/installer-kledg',
   hosting: 'auto-hebergement/choisir-son-hebergement',
   docker: 'auto-hebergement/heberger-avec-docker',

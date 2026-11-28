@@ -28,9 +28,18 @@ export function companyOfBankConnection(id: string): Promise<{ companyId: string
 
 /** A 512 ledger account code (Banques, PCG art. 512): 512, 5121, 512100... */
 export const LEDGER_BANK_CODE = /^512\d{0,5}$/
+/**
+ * A Stripe balance may also be held on 517 (Autres organismes financiers)
+ * or 467 (Divers comptes débiteurs), lib/banking/stripe-setup.service.ts.
+ */
+export const LEDGER_STRIPE_CODE = /^(512|517|467)\d{0,5}$/
 
-async function assertLedgerAccount(companyId: string, code: string): Promise<void> {
-  if (!LEDGER_BANK_CODE.test(code)) {
+async function assertLedgerAccount(companyId: string, code: string, provider?: string): Promise<void> {
+  if (provider === 'STRIPE') {
+    if (!LEDGER_STRIPE_CODE.test(code)) {
+      throw new ValidationError('Choisissez le compte du solde Stripe : un compte 517 (ex. 517100), 467 ou 512.')
+    }
+  } else if (!LEDGER_BANK_CODE.test(code)) {
     throw new ValidationError('Choisissez un compte de banque de la classe 512 (ex. 512000, 512100).')
   }
   const exists = await prisma.account.count({ where: { companyId, code } })
@@ -191,9 +200,12 @@ export async function updateBankAccount(
   companyId: string,
   input: { displayName?: string | null; ledgerAccountCode?: string | null },
 ) {
-  const account = await prisma.bankAccount.findFirst({ where: { id, bankConnection: { companyId } }, select: { id: true } })
+  const account = await prisma.bankAccount.findFirst({
+    where: { id, bankConnection: { companyId } },
+    select: { id: true, bankConnection: { select: { provider: true } } },
+  })
   if (!account) throw new NotFoundError('Compte bancaire non trouvé')
-  if (input.ledgerAccountCode) await assertLedgerAccount(companyId, input.ledgerAccountCode)
+  if (input.ledgerAccountCode) await assertLedgerAccount(companyId, input.ledgerAccountCode, account.bankConnection.provider)
   return prisma.bankAccount.update({
     where: { id },
     data: {
@@ -268,10 +280,10 @@ export async function setConnectionSyncedAccounts(companyId: string, bankConnect
 }
 
 /** Providers whose credentials are typed by the user and checked before saving (Revolut goes through OAuth). */
-const UPDATABLE_PROVIDERS: readonly string[] = ['QONTO', 'PONTO']
+const UPDATABLE_PROVIDERS: readonly string[] = ['QONTO', 'PONTO', 'STRIPE']
 
 /**
- * Replaces the credentials of a Qonto or Ponto connection (new API key,
+ * Replaces the credentials of a Qonto, Ponto or Stripe connection (new API key,
  * renewed secret). The new credentials are checked against the provider
  * first; a secret left empty keeps the stored one. Secrets are sealed with
  * the instance key and the legacy Qonto columns of the connection are
@@ -310,7 +322,11 @@ export async function updateIntegrationCredentials(input: {
   } catch (error) {
     if (error instanceof BankAuthorizationError) {
       throw new ValidationError(
-        provider === 'QONTO' ? QONTO_CREDENTIALS_REFUSED : "Ponto refuse ces identifiants : vérifiez l'identifiant et le secret de l'intégration.",
+        provider === 'QONTO'
+          ? QONTO_CREDENTIALS_REFUSED
+          : provider === 'STRIPE'
+            ? error.message
+            : "Ponto refuse ces identifiants : vérifiez l'identifiant et le secret de l'intégration.",
       )
     }
     throw error

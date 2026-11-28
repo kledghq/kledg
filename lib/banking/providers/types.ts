@@ -5,13 +5,15 @@
  * - REVOLUT: Revolut Business API, OAuth with a client certificate (direct).
  * - PONTO: Ponto (Isabel Group) custom integration, client credentials
  *   (aggregator for the other banks).
+ * - STRIPE: Stripe balance, restricted API key (direct, read only): the
+ *   balance is an account of its own, one per currency (stripe/provider.ts).
  *
  * Direct connectors are preferred over the aggregator when both reach the
  * same IBAN (see lib/banking/dedupe.ts). MANUAL accounts have no provider:
  * their lines come from statement files.
  */
 
-export type BankProviderId = 'QONTO' | 'REVOLUT' | 'PONTO'
+export type BankProviderId = 'QONTO' | 'REVOLUT' | 'PONTO' | 'STRIPE'
 
 /** Direct connections talk to the bank itself; aggregators reach many banks. */
 export type BankProviderKind = 'direct' | 'aggregator'

@@ -49,6 +49,11 @@ async function seed() {
   await tx(main.id, '2026-04-02', 80, 'debit', { status: 'declined' })
   await tx(main.id, '2025-12-31', 500, 'debit')
   await tx(foreign.id, '2026-02-01', 999, 'debit')
+  // Stripe lines rest on Stripe's record: never listed
+  const stripeConnection = await prisma.bankConnection.create({ data: { companyId: company.id, provider: 'STRIPE' } })
+  const stripe = await account(stripeConnection.id, 'Stripe EUR')
+  await tx(stripe.id, '2026-02-02', 2.05, 'debit', { operationType: 'stripe.fee' })
+  await tx(stripe.id, '2026-02-02', 120, 'credit', { operationType: 'stripe.charge' })
   const withReceipt = await tx(main.id, '2026-02-05', 60, 'debit')
   await prisma.attachment.create({ data: { companyId: company.id, bankTransactionId: withReceipt.id, fileName: 'facture.pdf' } })
   Object.assign(ids, { ovh: ovh.id, company: company.id, fy: fy.id, main: main.id, savings: savings.id, foreign: foreign.id, rent: rent.id })
@@ -70,7 +75,7 @@ describe.skipIf(!available)('missing receipts (PostgreSQL)', () => {
     await prisma?.$disconnect()
   })
 
-  it('lists the transactions of the fiscal year without attachment, newest first, declined ones left out', async () => {
+  it('lists the transactions of the fiscal year without attachment, newest first, declined and Stripe ones left out', async () => {
     const result = await service.listMissingReceipts(ids.company, parse({ fiscalYearId: ids.fy }))
     expect(result.transactions.map((t) => [t.date, t.amountCents])).toEqual([
       ['2026-04-01', -30_000],

@@ -67,7 +67,7 @@ export default function BankingPage() {
   const [error, setError] = useState<string | null>(null)
   const [editingAccount, setEditingAccount] = useState<BankAccountRow | null>(null)
   const [displayNameValue, setDisplayNameValue] = useState<string>('')
-  const { accounts: ledgerAccounts } = useLedgerBankAccounts(companyId)
+  const { accounts: ledgerAccounts, stripeAccounts: stripeLedgerAccounts } = useLedgerBankAccounts(companyId)
   const { can, denied, roleLabel } = useCompanyAccess()
   const canManage = can({ banking: ['manage'] })
   const canReconcile = can({ banking: ['reconcile'] })
@@ -335,7 +335,7 @@ export default function BankingPage() {
                           <LedgerAccountSelect
                             bankAccountId={account.id}
                             value={account.ledgerAccountCode}
-                            options={ledgerAccounts}
+                            options={account.bankConnection.provider === 'STRIPE' ? stripeLedgerAccounts : ledgerAccounts}
                             label={`Compte comptable de ${name}`}
                             className="w-full"
                           />
@@ -396,7 +396,7 @@ export default function BankingPage() {
                           <LedgerAccountSelect
                             bankAccountId={account.id}
                             value={account.ledgerAccountCode}
-                            options={ledgerAccounts}
+                            options={account.bankConnection.provider === 'STRIPE' ? stripeLedgerAccounts : ledgerAccounts}
                             label={`Compte comptable de ${name}`}
                           />
                         </TableCell>

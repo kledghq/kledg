@@ -5,7 +5,7 @@ import { guardBankConnect } from '@/lib/banking/guard'
 import { UpdateIntegrationSchema, updateIntegration } from '@/lib/integrations/update-integration.service'
 
 /**
- * PUT /api/integrations/[id] - Met à jour les identifiants d'une connexion Qonto ou Ponto.
+ * PUT /api/integrations/[id] - Met à jour les identifiants d'une connexion Qonto, Ponto ou Stripe.
  * The new credentials are checked with the bank before being stored.
  * Credentials are write-only: the response never contains them.
  */

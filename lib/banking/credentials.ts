@@ -22,6 +22,7 @@ export const SECRET_FIELDS: Record<string, readonly string[]> = {
   QONTO: ['secretKey'],
   PONTO: ['clientSecret'],
   REVOLUT: ['privateKey', 'refreshToken'],
+  STRIPE: ['secretKey'],
 }
 
 /** Secret fields of a provider, defaulting to Qonto's `secretKey` for unknown providers. */

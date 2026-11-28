@@ -55,8 +55,8 @@ export function conditionsKey(conditions: ReadonlyArray<{ conditionType: string;
     .join('\u0002')
 }
 
-/** A bank transaction made of a sample label, on the side the template expects. */
-export function sampleTransaction(label: string, side: string): MatchableTransaction {
+/** A bank transaction made of a sample label, on the side the template expects (and its operation type, when the template names one). */
+export function sampleTransaction(label: string, side: string, operationType: string | null = null): MatchableTransaction {
   return {
     label,
     reference: null,
@@ -64,7 +64,7 @@ export function sampleTransaction(label: string, side: string): MatchableTransac
     category: null,
     cashflowCategory: null,
     cashflowSubcategory: null,
-    operationType: null,
+    operationType,
     side,
     status: null,
     amount: 100,
@@ -82,7 +82,13 @@ function asMatchable(rule: ExistingRule): MatchableRule {
 
 /** Duplicate status of a rule to add (template or copied rule) against the company's rules. */
 export function duplicateStatus(
-  candidate: { name: string; conditions: RuleTemplate['conditions'] | ExistingRule['conditions']; sampleLabels?: readonly string[]; side?: string },
+  candidate: {
+    name: string
+    conditions: RuleTemplate['conditions'] | ExistingRule['conditions']
+    sampleLabels?: readonly string[]
+    side?: string
+    sampleOperationType?: string | null
+  },
   rules: readonly ExistingRule[],
 ): DuplicateStatus {
   const name = normalizeName(candidate.name)
@@ -101,7 +107,7 @@ export function duplicateStatus(
     const matchable = others.map(asMatchable)
     const hits = new Set<string>()
     for (const label of candidate.sampleLabels) {
-      for (const match of findMatchingRules(matchable, sampleTransaction(label, candidate.side ?? 'debit'))) hits.add(match.ruleId)
+      for (const match of findMatchingRules(matchable, sampleTransaction(label, candidate.side ?? 'debit', candidate.sampleOperationType ?? null))) hits.add(match.ruleId)
     }
     for (const rule of others) if (hits.has(rule.id)) nearDuplicates.push({ ruleId: rule.id, ruleName: rule.name, reason: 'labels' })
   }

@@ -14,6 +14,7 @@ import { EmptyState, PageHeader, StatusBadge, type StatusTone } from '@/componen
 import { BankProviderLogo } from '@/components/features/banking/bank-provider-logo'
 import { ManualAccountDialog } from '@/components/features/banking/manual-account-dialog'
 import { QontoConnectDialog } from '@/components/features/banking/qonto-connect-dialog'
+import { StripeConnectDialog } from '@/components/features/banking/stripe-connect-dialog'
 import { responseError, type BankConnectionRow } from '@/components/features/banking/types'
 import { BANK_TRADEMARKS_NOTICE } from '@/lib/banking/links'
 import { AccessNotice, useCompanyAccess } from '@/components/features/companies/company-access'
@@ -43,6 +44,7 @@ export default function ConnectBankPage() {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [qontoOpen, setQontoOpen] = useState(false)
+  const [stripeOpen, setStripeOpen] = useState(false)
   const [connections, setConnections] = useState<BankConnectionRow[]>([])
 
   const load = useCallback(async () => {
@@ -131,6 +133,32 @@ export default function ConnectBankPage() {
         </div>
       </section>
 
+      <section className="space-y-3" aria-labelledby="payments-title">
+        <div>
+          <h2 id="payments-title" className="text-base font-semibold">
+            Paiements en ligne
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Le solde de votre prestataire de paiement, tenu comme un compte&nbsp;: paiements, frais, remboursements et virements vers la banque.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => (connected('STRIPE') ? router.push(`/${companyId}/banking`) : setStripeOpen(true))}
+            className="bg-card hover:bg-muted/40 focus-visible:ring-ring/50 flex flex-col items-start gap-2 rounded-lg border p-4 text-left outline-none focus-visible:ring-[3px]"
+          >
+            <div className="flex w-full items-center justify-between gap-2">
+              <BankProviderLogo provider="STRIPE" withLabel />
+              {connected('STRIPE') ? <StatusBadge tone="success">Connecté</StatusBadge> : <StatusBadge>Gratuit</StatusBadge>}
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Avec une clé restreinte en lecture seule. Chaque paiement et ses frais, comptabilisés par les règles Stripe.
+            </p>
+          </button>
+        </div>
+      </section>
+
       <Card>
         <CardHeader>
           <CardTitle>Autre banque</CardTitle>
@@ -215,6 +243,15 @@ export default function ConnectBankPage() {
 
       <p className="text-muted-foreground text-xs">{BANK_TRADEMARKS_NOTICE}</p>
 
+      <StripeConnectDialog
+        companyId={companyId}
+        open={stripeOpen}
+        onOpenChange={setStripeOpen}
+        onConnected={() => {
+          setStripeOpen(false)
+          router.push(`/${companyId}/banking`)
+        }}
+      />
       <QontoConnectDialog
         companyId={companyId}
         open={qontoOpen}
