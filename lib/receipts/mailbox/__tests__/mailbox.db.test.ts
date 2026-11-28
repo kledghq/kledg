@@ -8,7 +8,10 @@
  *   UIDVALIDITY starts over without staging a file twice;
  * - mode "move": each message read goes to the chosen folder;
  * - a failed reading is recorded with its French reason; the nightly run
- *   reads every company's mailbox.
+ *   reads every company's mailbox;
+ * - signing in with a Google account: the callback checks the state, stores
+ *   the tokens encrypted and reads INBOX; an expiring token is renewed and
+ *   the new one stored; a revoked access asks to sign in again.
  * Skipped when the test database server is unreachable.
  */
 
@@ -20,6 +23,8 @@ const imap = await vi.hoisted(async () => {
   useTestDatabase('receipt_mailbox')
   process.env.RATE_LIMIT_DISABLED = 'true'
   process.env.ENCRYPTION_KEY = 'a'.repeat(64)
+  process.env.GOOGLE_MAIL_CLIENT_ID = 'google-client'
+  process.env.GOOGLE_MAIL_CLIENT_SECRET = 'google-secret'
   interface Message {
     uid: number
     date: Date
@@ -28,6 +33,7 @@ const imap = await vi.hoisted(async () => {
   }
   return {
     password: 'app-password',
+    accessToken: 'access-1',
     uidValidity: BigInt(1),
     folders: { INBOX: [] as Message[], Factures: [] as Message[] } as Record<string, Message[]>,
     connections: [] as Array<{ host: string; user: string }>,
@@ -38,14 +44,15 @@ vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: 
 vi.mock('../imap-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../imap-client')>()),
   // An IMAP server in memory: the calls the service makes, nothing more
-  openMailboxClient: (server: { host: string; username: string }, secret: { password?: string }) => {
+  openMailboxClient: (server: { host: string; username: string }, secret: { password?: string; accessToken?: string }) => {
     let selected = 'INBOX'
     const box = () => imap.folders[selected]
     return {
       mailbox: null as null | { uidValidity: bigint },
       async connect() {
         imap.connections.push({ host: server.host, user: server.username })
-        if (secret.password !== imap.password) throw Object.assign(new Error('Invalid credentials'), { authenticationFailed: true })
+        const signedIn = secret.accessToken ? secret.accessToken === imap.accessToken : secret.password === imap.password
+        if (!signedIn) throw Object.assign(new Error('Invalid credentials'), { authenticationFailed: true })
       },
       async list() {
         return Object.keys(imap.folders).map((path) => ({ path }))
@@ -117,6 +124,7 @@ describe.skipIf(!available)('receipt mailbox', () => {
   beforeEach(async () => {
     await prepareTestDatabase('receipt_mailbox')
     imap.password = 'app-password'
+    imap.accessToken = 'access-1'
     imap.uidValidity = BigInt(1)
     imap.connections.length = 0
     imap.folders = {
@@ -189,5 +197,69 @@ describe.skipIf(!available)('receipt mailbox', () => {
 
     await service.deleteMailbox(ids.company, 'u-admin')
     expect(await service.mailboxOf(ids.company)).toMatchObject({ configured: false })
+  })
+
+  describe('signed in with a Google account', () => {
+    const idToken = (email: string) => `e30.${Buffer.from(JSON.stringify({ email })).toString('base64url')}.sig`
+    const tokenEndpoint = (responses: Array<{ status: number; body: Record<string, unknown> }>) => {
+      const forms: URLSearchParams[] = []
+      const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+        forms.push(new URLSearchParams(String(init.body)))
+        const next = responses.shift() ?? { status: 500, body: {} }
+        return new Response(JSON.stringify(next.body), { status: next.status })
+      })
+      return { forms, fetcher: fetcher as unknown as typeof fetch }
+    }
+
+    async function signIn(fetcher: typeof fetch, now = NOW) {
+      const { state } = service.startMailboxOAuth(ids.company, 'u-admin', 'google', now)
+      return { state, outcome: await service.finishMailboxOAuth({ companyId: ids.company, userId: 'u-admin', query: { code: 'code-1', state }, cookieState: state, fetch: fetcher, now }) }
+    }
+
+    it('checks the state, stores the tokens encrypted and reads INBOX without changing it', async () => {
+      const { state } = service.startMailboxOAuth(ids.company, 'u-admin', 'google', NOW)
+      // Another user, another browser (no cookie), another state: refused before any exchange
+      const finish = (userId: string, cookieState: string | null, queryState = state) =>
+        service.finishMailboxOAuth({ companyId: ids.company, userId, query: { code: 'code-1', state: queryState }, cookieState, fetch: vi.fn() as unknown as typeof fetch, now: NOW })
+      await expect(finish('u-other', state)).rejects.toThrow(/invalide ou expiré/)
+      await expect(finish('u-admin', null)).rejects.toThrow(/invalide ou expiré/)
+      await expect(finish('u-admin', state, `${state}x`)).rejects.toThrow(/invalide ou expiré/)
+      expect(await service.finishMailboxOAuth({ companyId: ids.company, userId: 'u-admin', query: { state, error: 'access_denied' }, cookieState: state, now: NOW })).toBe('denied')
+
+      const google = tokenEndpoint([{ status: 200, body: { access_token: 'access-1', refresh_token: 'refresh-1', expires_in: 3600, id_token: idToken('Factures@Atelier.fr') } }])
+      // Signed in now: saving the settings below checks the token against the clock
+      expect((await signIn(google.fetcher, new Date())).outcome).toBe('connected')
+      expect(google.forms[0].get('code_verifier')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+      expect(imap.connections.at(-1)).toEqual({ host: 'imap.gmail.com', user: 'factures@atelier.fr' })
+      expect(await service.mailboxOf(ids.company)).toMatchObject({ configured: true, auth: 'google', oauthProviders: ['google'], host: 'imap.gmail.com', username: 'factures@atelier.fr', folder: 'INBOX', mode: 'read' })
+      const row = await prisma.integration.findFirstOrThrow({ where: { companyId: ids.company, provider: 'IMAP' } })
+      expect(JSON.stringify(row.credentials)).not.toMatch(/access-1|refresh-1/)
+
+      // The folder is then chosen like any mailbox, without a password: the account signs in
+      imap.folders.INBOX = imap.folders.Factures
+      expect(await service.saveMailbox(ids.company, 'u-admin', { ...SETTINGS, host: 'imap.gmail.com', username: 'factures@atelier.fr', password: '', folder: 'Factures' })).toMatchObject({ auth: 'google', folder: 'Factures' })
+      expect(await service.readMailbox(ids.company, NOW)).toMatchObject({ messages: 2, staged: 1 })
+    })
+
+    it('renews an expiring token and stores the new one; a revoked access asks to sign in again', async () => {
+      await signIn(tokenEndpoint([{ status: 200, body: { access_token: 'access-1', refresh_token: 'refresh-1', expires_in: 3600, id_token: idToken('factures@atelier.fr') } }]).fetcher)
+      const later = new Date(NOW.getTime() + 3600_000)
+      imap.accessToken = 'access-2'
+      const renewal = tokenEndpoint([{ status: 200, body: { access_token: 'access-2', expires_in: 3600 } }])
+      vi.stubGlobal('fetch', renewal.fetcher)
+      try {
+        await service.readMailbox(ids.company, later)
+        expect(Object.fromEntries(renewal.forms[0])).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'refresh-1' })
+        // Still valid an hour later minus the margin: no new renewal
+        await service.readMailbox(ids.company, new Date(later.getTime() + 30 * 60_000))
+        expect(renewal.forms).toHaveLength(1)
+
+        vi.stubGlobal('fetch', tokenEndpoint([{ status: 400, body: { error: 'invalid_grant' } }]).fetcher)
+        await expect(service.readMailbox(ids.company, new Date(later.getTime() + 2 * 3600_000))).rejects.toThrow(/retiré ou a expiré/)
+        expect(await service.mailboxOf(ids.company)).toMatchObject({ lastError: expect.stringContaining('reconnectez') })
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
   })
 })

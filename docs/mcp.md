@@ -449,9 +449,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 243 | 195 | 48 |
-| Lectures (GET) | 186 | 155 | 31 |
-| Total | 429 | 350 | 79 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 244 | 195 | 49 |
+| Lectures (GET) | 187 | 155 | 32 |
+| Total | 431 | 350 | 81 |
 
 ### Exclusions
 
@@ -470,7 +470,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
 | E-mails entrants | Webhook du fournisseur d'e-mails entrants (adresse des justificatifs), authentifié par sa signature, jamais appelé par un utilisateur. | 1 (1) |
-| Boîte e-mail des justificatifs | Boîte e-mail relevée pour les justificatifs (serveur, identifiant, mot de passe) ; ses identifiants restent dans l'interface, comme ceux d'une banque. | 5 (4) |
+| Boîte e-mail des justificatifs | Boîte e-mail relevée pour les justificatifs (serveur, identifiant, mot de passe ou compte Google ou Microsoft) ; ses identifiants restent dans l'interface, comme ceux d'une banque. | 7 (5) |
 | Adresse des justificatifs | Adresse e-mail des justificatifs de la société : qui la connaît peut envoyer des justificatifs, elle reste dans l'interface. | 2 (1) |
 | Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 11 (4) |
 
@@ -851,6 +851,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `PUT /api/receipts/mailbox` | settings:update | Exclu : boîte e-mail des justificatifs |
 | `DELETE /api/receipts/mailbox` | settings:update | Exclu : boîte e-mail des justificatifs |
 | `POST /api/receipts/mailbox/folders` | settings:update | Exclu : boîte e-mail des justificatifs |
+| `POST /api/receipts/mailbox/oauth` | settings:update | Exclu : boîte e-mail des justificatifs |
+| `GET /api/receipts/mailbox/oauth/callback` | settings:update | Exclu : boîte e-mail des justificatifs |
 | `POST /api/receipts/mailbox/read` | banking:reconcile | Exclu : boîte e-mail des justificatifs |
 | `GET /api/receipts/staged` | expenses:submit | Exclu : aides de l'interface |
 | `POST /api/receipts/staged` | expenses:submit | `stage_receipt` (B) |

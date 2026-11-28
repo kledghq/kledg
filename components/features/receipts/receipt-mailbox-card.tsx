@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ConfirmDialog, Field } from '@/components/shared'
 import { responseError } from '@/components/features/banking/types'
 import type { MailboxReading, MailboxView } from '@/lib/receipts/mailbox/mailbox.service'
+import type { MailboxOAuthProvider } from '@/lib/receipts/mailbox/oauth'
 
 interface ReceiptMailboxCardProps {
   companyId: string
@@ -31,6 +32,15 @@ async function send<T>(url: string, method: string, body: unknown, fallback: str
   return (await response.json()) as T
 }
 
+const PROVIDER_NAMES: Record<MailboxOAuthProvider, string> = { google: 'Google', microsoft: 'Microsoft' }
+
+/** What the sign-in with an account came back with (the callback's ?mailbox=). */
+const OUTCOMES: Record<string, { ok: boolean; message: string }> = {
+  connected: { ok: true, message: 'Boîte e-mail connectée : Kledg la relèvera chaque nuit. Choisissez le dossier lu avec « Modifier ».' },
+  denied: { ok: false, message: 'Connexion annulée : la boîte n’a pas été connectée.' },
+  error: { ok: false, message: 'La connexion de la boîte a échoué. Réessayez, ou connectez-la avec un mot de passe d’application.' },
+}
+
 const dateTime = (iso: string) => new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 
 /**
@@ -44,12 +54,25 @@ export function ReceiptMailboxCard({ companyId, canManage, onRead }: ReceiptMail
   const [removing, setRemoving] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
+  // Back from Google or Microsoft: say how it went, once
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const outcome = OUTCOMES[params.get('mailbox') ?? '']
+    if (!outcome) return
+    if (outcome.ok) toast.success(outcome.message)
+    else toast.error(outcome.message)
+    params.delete('mailbox')
+    const query = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+  }, [])
+
   React.useEffect(() => {
     let cancelled = false
     fetch(`/api/receipts/mailbox?companyId=${encodeURIComponent(companyId)}`)
       .then((response) => (response.ok ? (response.json() as Promise<MailboxView>) : null))
       .then((view) => {
-        if (!cancelled) setMailbox(view)
+        // An answer without the mailbox fields (an older server, a test double) leaves the card hidden, never the page broken
+        if (!cancelled && view && typeof view.configured === 'boolean') setMailbox({ ...view, oauthProviders: Array.isArray(view.oauthProviders) ? view.oauthProviders : [] })
       })
       .catch(() => undefined)
     return () => {
@@ -78,12 +101,23 @@ export function ReceiptMailboxCard({ companyId, canManage, onRead }: ReceiptMail
     }
   }
 
+  async function signIn(provider: MailboxOAuthProvider) {
+    setBusy(true)
+    try {
+      const { url } = await send<{ url: string }>('/api/receipts/mailbox/oauth', 'POST', { companyId, provider }, `La connexion avec ${PROVIDER_NAMES[provider]} n’a pas pu démarrer. Réessayez.`)
+      window.location.assign(url)
+    } catch (error) {
+      toast.error((error as Error).message)
+      setBusy(false)
+    }
+  }
+
   async function remove() {
     setBusy(true)
     try {
       await send(`/api/receipts/mailbox?companyId=${encodeURIComponent(companyId)}`, 'DELETE', { companyId }, 'La boîte n’a pas pu être déconnectée. Réessayez.')
-      setMailbox({ configured: false, host: null, username: null, folder: null, mode: null, moveTo: null, lastReadAt: null, lastError: null })
-      toast.success('Boîte déconnectée : Kledg a oublié son mot de passe.')
+      setMailbox((m) => ({ configured: false, auth: null, oauthProviders: m?.oauthProviders ?? [], host: null, username: null, folder: null, mode: null, moveTo: null, lastReadAt: null, lastError: null }))
+      toast.success('Boîte déconnectée : Kledg a oublié ses accès.')
     } catch (error) {
       toast.error((error as Error).message)
     } finally {
@@ -109,7 +143,7 @@ export function ReceiptMailboxCard({ companyId, canManage, onRead }: ReceiptMail
             <dl className="grid gap-1 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-4">
               <dt className="text-muted-foreground">Boîte</dt>
               <dd className="break-all">
-                {mailbox.username} sur {mailbox.host}
+                {mailbox.auth && mailbox.auth !== 'password' ? `${mailbox.username}, compte ${PROVIDER_NAMES[mailbox.auth]}` : `${mailbox.username} sur ${mailbox.host}`}
               </dd>
               <dt className="text-muted-foreground">Dossier lu</dt>
               <dd>{mailbox.folder}</dd>
@@ -132,6 +166,11 @@ export function ReceiptMailboxCard({ companyId, canManage, onRead }: ReceiptMail
                   <Button size="sm" variant="outline" onClick={() => setEditing(true)} disabled={busy}>
                     Modifier
                   </Button>
+                  {mailbox.lastError && mailbox.auth && mailbox.auth !== 'password' && mailbox.oauthProviders.includes(mailbox.auth) ? (
+                    <Button size="sm" variant="outline" onClick={() => void signIn(mailbox.auth as MailboxOAuthProvider)} disabled={busy}>
+                      Reconnecter avec {PROVIDER_NAMES[mailbox.auth]}
+                    </Button>
+                  ) : null}
                   <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} disabled={busy}>
                     Déconnecter
                   </Button>
@@ -140,9 +179,16 @@ export function ReceiptMailboxCard({ companyId, canManage, onRead }: ReceiptMail
             </div>
           </>
         ) : canManage ? (
-          <Button size="sm" onClick={() => setEditing(true)}>
-            Connecter une boîte e-mail
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {mailbox.oauthProviders.map((provider) => (
+              <Button key={provider} size="sm" onClick={() => void signIn(provider)} disabled={busy}>
+                Se connecter avec {PROVIDER_NAMES[provider]}
+              </Button>
+            ))}
+            <Button size="sm" variant={mailbox.oauthProviders.length > 0 ? 'outline' : 'default'} onClick={() => setEditing(true)} disabled={busy}>
+              {mailbox.oauthProviders.length > 0 ? 'Autre boîte (IMAP)' : 'Connecter une boîte e-mail'}
+            </Button>
+          </div>
         ) : (
           <p className="text-muted-foreground text-sm">Un administrateur de la société peut connecter une boîte e-mail.</p>
         )}
@@ -152,7 +198,7 @@ export function ReceiptMailboxCard({ companyId, canManage, onRead }: ReceiptMail
         open={removing}
         onOpenChange={setRemoving}
         title="Déconnecter la boîte e-mail ?"
-        description="Kledg cessera de la relever et oubliera son mot de passe. Les justificatifs déjà reçus restent sur la page."
+        description="Kledg cessera de la relever et oubliera ses accès. Les justificatifs déjà reçus restent sur la page."
         confirmLabel="Déconnecter"
         loading={busy}
         onConfirm={remove}
@@ -172,6 +218,8 @@ function MailboxDialog({ companyId, current, onClose, onSaved }: { companyId: st
   const [moveTo, setMoveTo] = React.useState(current.moveTo ?? DEFAULT_MOVE_TO)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // Signed in with an account: only the folder and the mode change here
+  const account = current.auth && current.auth !== 'password' ? current.auth : null
 
   async function listFolders() {
     setBusy(true)
@@ -213,24 +261,30 @@ function MailboxDialog({ companyId, current, onClose, onSaved }: { companyId: st
         <DialogHeader>
           <DialogTitle>{current.configured ? 'Modifier la boîte e-mail' : 'Connecter une boîte e-mail'}</DialogTitle>
           <DialogDescription>
-            Kledg se connecte en IMAP chiffré (port 993). Avec Gmail ou iCloud, créez un mot de passe d’application dans les réglages de sécurité de votre compte.
+            {account
+              ? `Kledg se connecte à ${current.username} avec le compte ${PROVIDER_NAMES[account]}. Pour une autre boîte, déconnectez celle-ci.`
+              : 'Kledg se connecte en IMAP chiffré (port 993). Avec Gmail ou iCloud, créez un mot de passe d’application dans les réglages de sécurité de votre compte.'}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <Field label="Serveur IMAP" htmlFor={`${id}-host`} required hint="Par exemple imap.gmail.com, ssl0.ovh.net, mail.infomaniak.com.">
-            <Input id={`${id}-host`} value={host} autoComplete="off" onChange={(e) => setHost(e.target.value)} />
-          </Field>
-          <Field label="Identifiant" htmlFor={`${id}-user`} required hint="Souvent l’adresse e-mail.">
-            <Input id={`${id}-user`} value={username} autoComplete="off" onChange={(e) => setUsername(e.target.value)} />
-          </Field>
-          <Field
-            label="Mot de passe"
-            htmlFor={`${id}-password`}
-            required={!current.configured}
-            hint={current.configured ? 'Laissez vide pour garder le mot de passe enregistré. Chiffré sur votre instance, jamais réaffiché.' : 'Chiffré sur votre instance, jamais réaffiché.'}
-          >
-            <Input id={`${id}-password`} type="password" value={password} autoComplete="new-password" onChange={(e) => setPassword(e.target.value)} />
-          </Field>
+          {account ? null : (
+            <>
+              <Field label="Serveur IMAP" htmlFor={`${id}-host`} required hint="Par exemple imap.gmail.com, ssl0.ovh.net, mail.infomaniak.com.">
+                <Input id={`${id}-host`} value={host} autoComplete="off" onChange={(e) => setHost(e.target.value)} />
+              </Field>
+              <Field label="Identifiant" htmlFor={`${id}-user`} required hint="Souvent l’adresse e-mail.">
+                <Input id={`${id}-user`} value={username} autoComplete="off" onChange={(e) => setUsername(e.target.value)} />
+              </Field>
+              <Field
+                label="Mot de passe"
+                htmlFor={`${id}-password`}
+                required={!current.configured}
+                hint={current.configured ? 'Laissez vide pour garder le mot de passe enregistré. Chiffré sur votre instance, jamais réaffiché.' : 'Chiffré sur votre instance, jamais réaffiché.'}
+              >
+                <Input id={`${id}-password`} type="password" value={password} autoComplete="new-password" onChange={(e) => setPassword(e.target.value)} />
+              </Field>
+            </>
+          )}
           <div className="flex items-end gap-2">
             <Field label="Dossier lu" htmlFor={`${id}-folder`} className="flex-1">
               <Select value={folder} onValueChange={setFolder} disabled={!folders}>
