@@ -1,0 +1,151 @@
+/**
+ * Stripe balance transactions as the lines of a Stripe account in Kledg,
+ * one account per currency of the balance (pure module).
+ *
+ * Granularity "per payment" (PCG art. 1031-2, "jour par jour, opération
+ * par opération"): every balance transaction is a line at its gross amount,
+ * on its own day, and its fee is a line of its own. A payment of 100 € with
+ * 1,75 € of fees gives a credit of 100 € and a debit of 1,75 €: the
+ * account moves by the net 98,25 €, like the Stripe balance, and the sale
+ * and the fee are posted each to its account.
+ *
+ * Every line has an operation type `stripe.<type>` (stripe.charge,
+ * stripe.refund, stripe.payout...), fees `stripe.fee` and Stripe's software
+ * fees `stripe.service_fee`: the Stripe rules match on it
+ * (lib/rules-library/catalog/stripe.ts), never on the label.
+ *
+ * Status: a Stripe line is booked as soon as it is in the balance, even
+ * when its funds are still "pending" at Stripe (not yet available for a
+ * payout): the sale happened. The Stripe status stays in providerData.
+ *
+ * Amounts: Stripe sends integers in the smallest unit of the currency
+ * (https://docs.stripe.com/currencies): cents for most currencies, the unit
+ * itself for zero-decimal ones (JPY), thousandths for three-decimal ones.
+ */
+
+import { parisDateOnly, parisIsoDay } from '@/lib/utils/date'
+import type { ProviderTransaction } from '../types'
+import type { StripeBalanceTransaction } from './client'
+
+/** Stripe's zero-decimal currencies (ISK and UGX are sent with two decimals, see the Stripe page). */
+const ZERO_DECIMAL = new Set(['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'])
+const THREE_DECIMAL = new Set(['bhd', 'jod', 'kwd', 'omr', 'tnd'])
+
+/** Amount in units of the currency from Stripe's smallest unit. */
+export function stripeAmount(minor: number, currency: string): number {
+  const code = currency.toLowerCase()
+  const decimals = ZERO_DECIMAL.has(code) ? 0 : THREE_DECIMAL.has(code) ? 3 : 2
+  return minor / 10 ** decimals
+}
+
+/**
+ * Operation type of the fees taken on a payment, a refund or a conversion:
+ * commissions on payment services (lib/rules-library/catalog/stripe.ts).
+ */
+export const STRIPE_FEE_OPERATION = 'stripe.fee'
+/** Operation type of Stripe's fees for its software (Billing, Radar, Stripe Tax...), billed as operations of their own. */
+export const STRIPE_SERVICE_FEE_OPERATION = 'stripe.service_fee'
+
+/** Operation type of a balance transaction's gross line. */
+function operationTypeOf(type: string): string {
+  if (type === 'stripe_fx_fee') return STRIPE_FEE_OPERATION
+  if (type === 'stripe_fee' || type === 'tax_fee') return STRIPE_SERVICE_FEE_OPERATION
+  return `stripe.${type}`
+}
+
+/** French label of a balance transaction, from its type (and reporting category for disputes). */
+export function stripeTypeLabel(type: string, reportingCategory?: string | null): string {
+  if (reportingCategory === 'dispute') return 'Litige'
+  if (reportingCategory === 'dispute_reversal') return 'Litige gagné'
+  switch (type) {
+    case 'charge':
+    case 'payment':
+      return 'Paiement'
+    case 'refund':
+    case 'payment_refund':
+      return 'Remboursement'
+    case 'refund_failure':
+    case 'payment_failure_refund':
+      return 'Remboursement échoué'
+    case 'payment_reversal':
+      return 'Paiement annulé'
+    case 'adjustment':
+      return 'Ajustement Stripe'
+    case 'payout':
+      return 'Virement vers votre banque'
+    case 'payout_cancel':
+      return 'Virement vers votre banque annulé'
+    case 'payout_failure':
+      return 'Virement vers votre banque échoué'
+    case 'stripe_fee':
+      return 'Frais Stripe'
+    case 'stripe_fx_fee':
+      return 'Frais de conversion Stripe'
+    case 'tax_fee':
+      return 'Frais Stripe Tax'
+    case 'topup':
+      return 'Approvisionnement du solde'
+    case 'topup_reversal':
+      return 'Approvisionnement du solde annulé'
+    case 'contribution':
+      return 'Contribution Stripe Climate'
+    default:
+      return `Opération Stripe (${type.replace(/_/g, ' ')})`
+  }
+}
+
+function sourceId(source: StripeBalanceTransaction['source']): string | undefined {
+  if (!source) return undefined
+  return typeof source === 'string' ? source : source.id
+}
+
+/**
+ * The Kledg lines of one balance transaction: its gross amount, then its
+ * fee when it has one. A transaction of zero gross amount (a fee only)
+ * gives its fee line alone.
+ */
+export function mapStripeBalanceTransaction(txn: StripeBalanceTransaction, accountExternalId: string): ProviderTransaction[] {
+  const created = new Date(txn.created * 1000)
+  const date = parisDateOnly(created)
+  const valueDate = txn.available_on ? parisIsoDay(new Date(txn.available_on * 1000)) : null
+  const typeLabel = stripeTypeLabel(txn.type, txn.reporting_category)
+  const reference = sourceId(txn.source)
+  const description = txn.description?.trim() || undefined
+  const providerData = txn as unknown as Record<string, unknown>
+  const common = {
+    accountExternalId,
+    date,
+    valueDate,
+    state: 'booked' as const,
+    status: null,
+    reference,
+    counterpartyName: 'Stripe',
+    category: txn.reporting_category ?? undefined,
+  }
+
+  const lines: ProviderTransaction[] = []
+  if (txn.amount !== 0) {
+    lines.push({
+      ...common,
+      externalId: txn.id,
+      amount: Math.abs(stripeAmount(txn.amount, txn.currency)),
+      side: txn.amount > 0 ? 'credit' : 'debit',
+      label: description ? `${typeLabel} : ${description}` : typeLabel,
+      operationType: operationTypeOf(txn.type),
+      providerData,
+    })
+  }
+  if (txn.fee !== 0) {
+    lines.push({
+      ...common,
+      externalId: `${txn.id}:fee`,
+      amount: Math.abs(stripeAmount(txn.fee, txn.currency)),
+      // A fee is taken from the balance; a negative fee is Stripe giving it back
+      side: txn.fee > 0 ? 'debit' : 'credit',
+      label: `Frais Stripe : ${typeLabel.toLowerCase()}${reference ? ` ${reference}` : ''}`,
+      operationType: STRIPE_FEE_OPERATION,
+      providerData: { balanceTransaction: txn.id, fee: txn.fee, currency: txn.currency, fee_details: providerData.fee_details ?? [] },
+    })
+  }
+  return lines
+}

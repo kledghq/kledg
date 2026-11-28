@@ -18,6 +18,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   QONTO: 'Qonto',
   REVOLUT: 'Revolut Business',
   PONTO: 'Ponto',
+  STRIPE: 'Stripe',
   MANUAL: 'Relevés importés',
 }
 

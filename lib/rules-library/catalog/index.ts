@@ -7,11 +7,12 @@
 import { RULE_TEMPLATE_CATEGORIES, type RuleTemplate } from '../template'
 import { FINANCE_TEMPLATES } from './finance'
 import { SERVICES_TEMPLATES } from './services'
+import { STRIPE_TEMPLATES } from './stripe'
 import { TRAVEL_TEMPLATES } from './travel'
 
 const order = new Map<string, number>(RULE_TEMPLATE_CATEGORIES.map((c, index) => [c.id, index]))
 
-export const RULE_TEMPLATES: readonly RuleTemplate[] = [...FINANCE_TEMPLATES, ...SERVICES_TEMPLATES, ...TRAVEL_TEMPLATES].sort(
+export const RULE_TEMPLATES: readonly RuleTemplate[] = [...FINANCE_TEMPLATES, ...SERVICES_TEMPLATES, ...TRAVEL_TEMPLATES, ...STRIPE_TEMPLATES].sort(
   (a, b) => (order.get(a.category) ?? 0) - (order.get(b.category) ?? 0),
 )
 

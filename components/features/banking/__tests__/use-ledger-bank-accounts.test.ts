@@ -25,10 +25,13 @@ describe('useLedgerBankAccounts', () => {
         { id: 'a3', code: '5121', label: 'Banque Qonto', type: 'ASSET' },
         { id: 'a4', code: '514000', label: 'Chèques postaux', type: 'ASSET' },
         { id: 'a5', code: '4512', label: 'Associés', type: 'LIABILITY' },
+        { id: 'a6', code: '517', label: 'Autres organismes financiers', type: 'ASSET' },
+        { id: 'a7', code: '517100', label: 'Stripe', type: 'ASSET' },
+        { id: 'a8', code: '467100', label: 'Stripe', type: 'ASSET' },
       ]),
     )
     const { result } = renderHook(() => useLedgerBankAccounts('atelier & co'))
-    expect(result.current).toEqual({ accounts: [], loading: true })
+    expect(result.current).toEqual({ accounts: [], stripeAccounts: [], loading: true })
 
     await waitFor(() => expect(result.current.loading).toBe(false))
     // PCG art. 932-1 (chart of accounts): 512 "Banques"; 514 (Chèques postaux) and 4512 are other accounts
@@ -36,6 +39,8 @@ describe('useLedgerBankAccounts', () => {
       { id: 'a2', code: '512100', label: 'Banque BNP' },
       { id: 'a3', code: '5121', label: 'Banque Qonto' },
     ])
+    // A Stripe balance may also be held on a detailed 517 or 467 account, never on the parent 517
+    expect(result.current.stripeAccounts.map((a) => a.code)).toEqual(['512100', '5121', '517100', '467100'])
     expect(fetchMock).toHaveBeenCalledWith('/api/accounts?companyId=atelier%20%26%20co')
   })
 
@@ -59,7 +64,7 @@ describe('useLedgerBankAccounts', () => {
   it('waits for a company before loading anything', () => {
     const { result } = renderHook(() => useLedgerBankAccounts(undefined))
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(result.current).toEqual({ accounts: [], loading: true })
+    expect(result.current).toEqual({ accounts: [], stripeAccounts: [], loading: true })
   })
 
   it('ignores the answer for a company the page has left', async () => {

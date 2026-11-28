@@ -137,7 +137,7 @@ describe('POST /api/integrations', () => {
   })
 
   it.each([
-    ['an unsupported provider', { provider: 'REVOLUT' }, 'provider: Fournisseur non pris en charge : choisissez Qonto ou Ponto.'],
+    ['an unsupported provider', { provider: 'REVOLUT' }, 'provider: Fournisseur non pris en charge : choisissez Qonto, Ponto ou Stripe.'],
     ['missing credentials', { credentials: undefined }, 'credentials: Saisissez les identifiants de la connexion.'],
     ['another type', { type: 'STORAGE' }, 'type: Seules les connexions bancaires (BANKING) sont prises en charge.'],
     ['an unknown feature', { features: ['INVOICES'] }, 'features.0: Fonctionnalité inconnue : choisissez BANKING_ACCOUNTS ou BANKING_TRANSACTIONS.'],

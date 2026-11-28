@@ -42,8 +42,8 @@ const UNRELATED_LABELS = [
   'CB IKEA PARIS NORD',
 ]
 
-const matches = (template: RuleTemplate, label: string, side = sideOf(template)) =>
-  findMatchingRules([templateAsRule(template)], sampleTransaction(label, side)).length > 0
+const matches = (template: RuleTemplate, label: string, side = sideOf(template), operationType = template.samples.operationType ?? null) =>
+  findMatchingRules([templateAsRule(template)], sampleTransaction(label, side, operationType)).length > 0
 
 function allStrings(value: unknown): string[] {
   if (typeof value === 'string') return [value]
@@ -53,9 +53,9 @@ function allStrings(value: unknown): string[] {
 }
 
 describe('rules library catalog', () => {
-  it('holds between 40 and 60 templates with unique ids and names, in every category', () => {
+  it('holds between 40 and 70 templates with unique ids and names, in every category', () => {
     expect(RULE_TEMPLATES.length).toBeGreaterThanOrEqual(40)
-    expect(RULE_TEMPLATES.length).toBeLessThanOrEqual(60)
+    expect(RULE_TEMPLATES.length).toBeLessThanOrEqual(70)
     expect(new Set(RULE_TEMPLATES.map((t) => t.id)).size).toBe(RULE_TEMPLATES.length)
     expect(new Set(RULE_TEMPLATES.map((t) => t.name)).size).toBe(RULE_TEMPLATES.length)
     for (const category of RULE_TEMPLATE_CATEGORIES) {
@@ -117,6 +117,10 @@ describe('rules library catalog', () => {
         case 'none':
           expect(vatLines).toEqual([])
           break
+        case 'collected':
+          expect(vatLines).toHaveLength(template.lines.length)
+          for (const line of vatLines) expect(line).toMatchObject({ vatType: 'collectible', vatRateSource: 'fixed', vatRate: 20, vatAccountCode: '44571' })
+          break
       }
       if (SPECIAL_VAT_TREATMENTS.includes(template.vat.treatment)) expect(template.sources.length).toBeGreaterThan(0)
       for (const source of template.sources) expect(OFFICIAL_HOSTS).toContain(new URL(source.url).host)
@@ -136,8 +140,8 @@ describe('rules library catalog', () => {
       for (const label of template.samples.match) expect(matches(template, label), label).toBe(true)
       for (const label of template.samples.noMatch ?? []) expect(matches(template, label), label).toBe(false)
       for (const label of UNRELATED_LABELS) {
-        expect(matches(template, label, 'debit'), label).toBe(false)
-        expect(matches(template, label, 'credit'), label).toBe(false)
+        expect(matches(template, label, 'debit', null), label).toBe(false)
+        expect(matches(template, label, 'credit', null), label).toBe(false)
       }
       const otherSide = sideOf(template) === 'debit' ? 'credit' : 'debit'
       expect(matches(template, template.samples.match[0], otherSide), 'the side condition holds').toBe(false)

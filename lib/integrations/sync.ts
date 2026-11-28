@@ -30,6 +30,7 @@ import { openCredentials } from '@/lib/banking/credentials'
 import { createBankProvider, isBankProvider, providerKind } from '@/lib/banking/providers'
 import { shouldStoreTransaction, type BankProvider } from '@/lib/banking/providers/types'
 import { supersededAccounts } from '@/lib/banking/sync-rules'
+import { ensureStripeLedgerAccount, stripeBalanceAccountOf } from '@/lib/banking/stripe-setup.service'
 import { ledgerCodePickerForNewBankAccounts } from '@/lib/banking/ledger-account'
 import { storeSyncedTransactions } from '@/lib/banking/store-synced-transactions.service'
 import { earliestExpiry } from '@/lib/banking/consent'
@@ -141,7 +142,7 @@ export async function syncIntegration(
 
 /** The company's connection for this provider, linked to the integration. */
 async function ensureConnection(integration: IntegrationWithFeatures) {
-  const provider = integration.provider as 'QONTO' | 'REVOLUT' | 'PONTO'
+  const provider = integration.provider as 'QONTO' | 'REVOLUT' | 'PONTO' | 'STRIPE'
   const login = (integration.credentials as Record<string, unknown> | null)?.login
   return prisma.bankConnection.upsert({
     where: { companyId_provider: { companyId: integration.companyId, provider } },
@@ -170,7 +171,9 @@ async function syncAccounts(
   )
   // Read once, only when this sync creates an account
   const ledgerCodeFor = accounts.some((a) => !known.has(a.externalId))
-    ? await ledgerCodePickerForNewBankAccounts(integration.companyId)
+    ? integration.provider === 'STRIPE'
+      ? await stripeLedgerCodePicker(integration)
+      : await ledgerCodePickerForNewBankAccounts(integration.companyId)
     : () => null
 
   for (const account of accounts) {
@@ -235,6 +238,16 @@ async function syncAccounts(
 
   await applyDirectPreference(integration.companyId)
   return result
+}
+
+/**
+ * A Stripe balance in euros is mapped to the Stripe account of the
+ * connection (517100, or 467100, created if needed); another currency is
+ * not posted from its amount (#131) and stays unmapped.
+ */
+async function stripeLedgerCodePicker(integration: IntegrationWithFeatures): Promise<(currency: string) => string | null> {
+  const code = await ensureStripeLedgerAccount(integration.companyId, stripeBalanceAccountOf(integration.config))
+  return (currency) => (currency.toUpperCase() === 'EUR' ? code : null)
 }
 
 /**

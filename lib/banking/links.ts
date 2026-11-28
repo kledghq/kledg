@@ -20,14 +20,18 @@ export const REVOLUT_API_PLANS_URL =
 /** Qonto API key (Settings > Integrations > API key). */
 export const QONTO_API_KEY_HELP_URL = 'https://docs.qonto.com/get-started/business-api/authentication/api-key'
 
+/** Stripe Dashboard, API keys (Développeurs, Clés API): where a restricted key is created. */
+export const STRIPE_API_KEYS_URL = 'https://dashboard.stripe.com/apikeys'
+
 /** Shown on the connection setup pages only. */
 export const BANK_TRADEMARKS_NOTICE =
-  "Qonto et Revolut sont des marques de leurs titulaires respectifs. Kledg n'est affilié à aucune de ces sociétés."
+  "Qonto, Revolut et Stripe sont des marques de leurs titulaires respectifs. Kledg n'est affilié à aucune de ces sociétés."
 
 /** How each way of reaching a bank is named in the UI and in messages. */
 export const BANK_PROVIDER_LABELS: Record<string, string> = {
   QONTO: 'Qonto',
   REVOLUT: 'Revolut Business',
   PONTO: 'Ponto',
+  STRIPE: 'Stripe',
   MANUAL: 'Compte manuel',
 }

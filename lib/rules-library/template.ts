@@ -39,6 +39,7 @@ export const RULE_TEMPLATE_CATEGORIES = [
   { id: 'fournitures', label: 'Fournitures' },
   { id: 'poste', label: 'Poste' },
   { id: 'presse', label: 'Presse' },
+  { id: 'stripe', label: 'Stripe (compte connecté)' },
 ] as const
 
 export type RuleTemplateCategory = (typeof RULE_TEMPLATE_CATEGORIES)[number]['id']
@@ -64,13 +65,15 @@ const CATEGORY_IDS = RULE_TEMPLATE_CATEGORIES.map((c) => c.id) as [RuleTemplateC
  * - `not-deductible`: VAT that cannot be deducted stays in the cost, no
  *   VAT line; needs a source;
  * - `none`: no VAT (exempt or outside its scope: insurance, taxes, social
- *   contributions, transfers); needs a source.
+ *   contributions, transfers); needs a source;
+ * - `collected`: a sale at 20 %, VAT collected on 44571 (CGI art. 278),
+ *   taken from the amount received; needs a source.
  */
-export const VAT_TREATMENTS = ['standard', 'reduced', 'detected', 'self-assessed', 'partial', 'not-deductible', 'none'] as const
+export const VAT_TREATMENTS = ['standard', 'reduced', 'detected', 'self-assessed', 'partial', 'not-deductible', 'none', 'collected'] as const
 export type VatTreatment = (typeof VAT_TREATMENTS)[number]
 
 /** Treatments that are not the plain 20 % deduction: the template cites its legal source. */
-export const SPECIAL_VAT_TREATMENTS: readonly VatTreatment[] = ['reduced', 'detected', 'self-assessed', 'partial', 'not-deductible', 'none']
+export const SPECIAL_VAT_TREATMENTS: readonly VatTreatment[] = ['reduced', 'detected', 'self-assessed', 'partial', 'not-deductible', 'none', 'collected']
 
 const pcgCode = accountCode('Code de compte PCG attendu')
 
@@ -89,11 +92,13 @@ const TemplateLineSchema = z.object({
   amountType: z.enum(['full', 'percentage', 'remaining']),
   amountValue: z.number().positive().max(100).optional(),
   description: z.string().max(200).optional(),
-  vatType: z.enum(['none', 'deductible', 'intracom', 'import']).optional(),
+  vatType: z.enum(['none', 'deductible', 'intracom', 'import', 'collectible']).optional(),
   vatRateSource: z.enum(['fixed', 'transaction']).optional(),
   vatRate: z.number().min(0).max(100).optional(),
   vatAccountCode: pcgCode.optional(),
   vatAccount2Code: pcgCode.optional(),
+  /** Collected VAT on the debit side: a refund, which reverses the VAT of the sale (entry-line-calculator.ts). */
+  vatOnDebit: z.boolean().optional(),
 })
 
 const TemplateSourceSchema = z.object({
@@ -120,6 +125,8 @@ export const RuleTemplateSchema = z.object({
   samples: z.object({
     match: z.array(z.string().min(2)).min(2).max(4),
     noMatch: z.array(z.string().min(2)).max(4).optional(),
+    /** Operation type of the sample lines, for a template that matches on it (the Stripe lines, stripe.fee...). */
+    operationType: z.string().min(3).max(60).optional(),
   }),
 })
 
@@ -169,4 +176,26 @@ export function selfAssessedLine(accountCode: string, vatType: 'intracom' | 'imp
 /** Line without VAT (exempt, outside the scope of VAT, or VAT that is not deductible and stays in the cost). */
 export function noVatLine(accountCode: string, lineType: 'debit' | 'credit' = 'debit'): RuleTemplateLine {
   return { accountCode, lineType, amountType: 'full' }
+}
+
+/**
+ * Sale line with VAT collected at 20 % (CGI art. 278) on 44571: the amount
+ * received is TTC. `debit` for a refund, which reverses the sale.
+ */
+export function collectedVatLine(accountCode: string, lineType: 'debit' | 'credit' = 'credit'): RuleTemplateLine {
+  return {
+    accountCode,
+    lineType,
+    amountType: 'full',
+    vatType: 'collectible',
+    vatRateSource: 'fixed',
+    vatRate: 20,
+    vatAccountCode: '44571',
+    ...(lineType === 'debit' ? { vatOnDebit: true } : {}),
+  }
+}
+
+/** Operation type condition (the Stripe lines: stripe.fee, stripe.payout...), described in words for the card. */
+export function operationTypeMatches(pattern: string, words: string): RuleTemplateCondition {
+  return { conditionType: 'operationType', operator: 'regex', value: pattern, display: words }
 }

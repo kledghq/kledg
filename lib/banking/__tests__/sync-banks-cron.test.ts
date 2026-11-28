@@ -127,7 +127,7 @@ describe('syncAllBankIntegrations', () => {
   it('reads the active banking integrations of the bank providers only', async () => {
     await syncAllBankIntegrations('key')
     expect(db.integration.findMany).toHaveBeenCalledWith({
-      where: { provider: { in: ['QONTO', 'REVOLUT', 'PONTO'] }, status: 'active', type: 'BANKING' },
+      where: { provider: { in: ['QONTO', 'REVOLUT', 'PONTO', 'STRIPE'] }, status: 'active', type: 'BANKING' },
       select: { id: true, companyId: true, provider: true },
     })
   })

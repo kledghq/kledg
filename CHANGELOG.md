@@ -4,6 +4,10 @@ Toutes les évolutions notables de Kledg sont consignées ici. Le format suit [K
 
 ## [Non publié]
 
+### Ajouté
+
+- Connexion Stripe (#1) : dans **Banque**, **Connecter une banque**, **Paiements en ligne**, une clé restreinte en lecture seule relie le solde Stripe à Kledg (la clé secrète du compte est refusée). Le solde devient un compte, un par devise, sur 517100 « Stripe » (PCG 517 « Autres organismes financiers », de la trésorerie) ou, au choix, 467100 « Stripe » (une créance sur Stripe). Chaque paiement arrive à son montant brut et à son jour, ses frais sur une ligne à part : le compte suit le solde Stripe, et la vente comme les frais sont comptabilisés opération par opération (PCG art. 1031-2). La connexion ajoute les règles Stripe de la bibliothèque : paiements en ventes (706, TVA collectée à 20 %, à revoir) et remboursements, commissions en 6278 sans TVA (services de paiement exonérés, CGI art. 261 C, 1°), frais des logiciels Stripe en 6278 avec TVA autoliquidée (CGI art. 283, 2), virements vers la banque en 58 « Virements internes » des deux côtés. Une règle « Virements Stripe » en 467 déjà présente est signalée, sinon chaque virement serait passé deux fois, en 58 côté Stripe et en 467 côté banque. Les lignes Stripe ne figurent pas dans les justificatifs manquants : leur pièce est l'enregistrement de Stripe. Migration de la base : fournisseur Stripe.
+
 ### Modifié
 
 - Dépendances : dotenv 18, dans l'application et dans l'outil de migration de l'image Docker. Kledg charge le fichier `.env` par `import "dotenv/config"`, que cette version garde ; le préchargement (`node -r dotenv/config`), qu'elle retire, n'était pas utilisé.

@@ -1,4 +1,4 @@
-import { Landmark } from 'lucide-react'
+import { CreditCard, Landmark } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { BANK_PROVIDER_LABELS } from '@/lib/banking/links'
@@ -14,7 +14,7 @@ import { BANK_PROVIDER_LABELS } from '@/lib/banking/links'
  * these companies (BANK_TRADEMARKS_NOTICE on the setup pages).
  */
 
-export type BankProviderName = 'QONTO' | 'REVOLUT' | 'PONTO' | 'MANUAL' | string
+export type BankProviderName = 'QONTO' | 'REVOLUT' | 'PONTO' | 'STRIPE' | 'MANUAL' | string
 
 interface BankProviderLogoProps {
   provider: BankProviderName | null | undefined
@@ -66,6 +66,15 @@ export function BankProviderLogo({ provider, logoUrl, institutionName, withLabel
       <span className={cn('inline-flex h-5 items-center gap-1.5 text-sm font-medium', className)}>
         <RevolutMark />
         {withLabel ? <span>Revolut Business</span> : <span className="sr-only">Revolut Business</span>}
+      </span>
+    )
+  }
+  if (provider === 'STRIPE') {
+    // No Stripe mark: a neutral card icon and the name
+    return (
+      <span className={cn('inline-flex h-5 items-center gap-1.5 text-sm font-medium', className)}>
+        <CreditCard aria-hidden className="text-muted-foreground size-4 shrink-0" />
+        {withLabel ? <span>Stripe</span> : <span className="sr-only">Stripe</span>}
       </span>
     )
   }

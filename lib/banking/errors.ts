@@ -30,13 +30,14 @@ export const QONTO_CREDENTIALS_REFUSED = "Qonto refuse ces identifiants : véri
 export const UNEXPECTED_BANK_ERROR_MESSAGE =
   'Une erreur inattendue a interrompu la synchronisation. Réessayez dans quelques minutes.'
 
-export type BankProviderName = 'Qonto' | 'Ponto' | 'Revolut'
+export type BankProviderName = 'Qonto' | 'Ponto' | 'Revolut' | 'Stripe'
 
 /** What to do when a provider refuses the access, per provider. */
 const AUTHORIZATION_HINTS: Record<BankProviderName, string> = {
   Qonto: "Qonto refuse l'accès : vérifiez l'identifiant et la clé secrète de l'API, puis mettez-les à jour depuis la page Banque.",
   Ponto: "Ponto refuse l'accès : vérifiez l'identifiant et le secret de l'intégration Ponto, ou renouvelez l'accès à votre banque.",
   Revolut: "Revolut refuse l'accès : autorisez de nouveau Kledg dans Revolut Business.",
+  Stripe: "Stripe refuse l'accès : vérifiez la clé restreinte dans le Dashboard Stripe, puis mettez-la à jour depuis la page Banque.",
 }
 
 /** Provider error codes with a message of their own. */

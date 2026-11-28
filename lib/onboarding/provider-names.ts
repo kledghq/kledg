@@ -3,4 +3,5 @@ export const BANK_PROVIDER_NAMES: Readonly<Record<string, string>> = {
   QONTO: 'Qonto',
   REVOLUT: 'Revolut Business',
   PONTO: 'Ponto',
+  STRIPE: 'Stripe',
 }

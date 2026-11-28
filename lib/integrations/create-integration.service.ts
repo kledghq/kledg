@@ -16,9 +16,19 @@ import { IntegrationFeature } from '@/lib/integrations/types'
 import { INTEGRATION_SELECT, type IntegrationView } from '@/lib/integrations/list-integrations.service'
 
 /** Providers whose credentials are typed in Kledg (Revolut goes through OAuth). */
-export const TypedCredentialsProvider = z.enum(['QONTO', 'PONTO'], {
-  message: 'Fournisseur non pris en charge : choisissez Qonto ou Ponto.',
+export const TypedCredentialsProvider = z.enum(['QONTO', 'PONTO', 'STRIPE'], {
+  message: 'Fournisseur non pris en charge : choisissez Qonto, Ponto ou Stripe.',
 })
+
+/**
+ * Settings of a Stripe connection, kept on Integration.config: the account
+ * of the Stripe balance (517 "Autres organismes financiers" by default, or
+ * 467 "Divers comptes débiteurs", lib/banking/stripe-setup.service.ts).
+ */
+export const StripeConnectionConfig = z.object({
+  balanceAccount: z.enum(['517', '467'], { message: 'Choisissez le compte du solde Stripe : 517 ou 467.' }).default('517'),
+})
+export type StripeConnectionConfig = z.infer<typeof StripeConnectionConfig>
 
 /** Credentials typed by the user (Qonto: login, secretKey; Ponto: clientId, clientSecret). */
 export const TypedCredentials = z.record(z.string(), z.string().max(500, '500 caractères au maximum'), {
@@ -35,6 +45,8 @@ export const CreateIntegrationSchema = z.object({
   name: optionalText(100),
   credentials: TypedCredentials,
   features: IntegrationFeatures.optional(),
+  /** Stripe only: settings of the connection. */
+  config: StripeConnectionConfig.optional(),
 })
 export type CreateIntegrationInput = z.infer<typeof CreateIntegrationSchema>
 
@@ -66,6 +78,7 @@ export async function createIntegration(
         credentials: storedCredentials as Prisma.InputJsonValue,
         credentialsEncrypted: hasSecret,
         status: 'active',
+        ...(provider === 'STRIPE' ? { config: StripeConnectionConfig.parse(input.config ?? {}) } : {}),
         featureConfigs: { create: features.map((feature) => ({ feature, enabled: true })) },
       },
       select: INTEGRATION_SELECT,

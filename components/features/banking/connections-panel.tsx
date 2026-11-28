@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ConfirmDialog, DateDisplay, EmptyState, StatusBadge, type StatusTone } from '@/components/shared'
 import { BANK_PROVIDER_LABELS, BankProviderLogo } from './bank-provider-logo'
 import { QontoConnectDialog } from './qonto-connect-dialog'
+import { StripeConnectDialog } from './stripe-connect-dialog'
 import type { BankConnectionRow } from './types'
 import { responseError } from './types'
 
@@ -37,7 +38,7 @@ export function ConnectionsPanel({ companyId, connections, loading, canManage, c
   const [disconnecting, setDisconnecting] = useState<BankConnectionRow | null>(null)
   const [busy, setBusy] = useState(false)
   /** Integration whose Qonto API key is being replaced. */
-  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editingKey, setEditingKey] = useState<{ integrationId: string; provider: string } | null>(null)
 
   const refresh = async (connection: BankConnectionRow) => {
     setRefreshing(connection.id)
@@ -130,10 +131,14 @@ export function ConnectionsPanel({ companyId, connections, loading, canManage, c
                         Actualiser
                       </Button>
                     ) : null}
-                    {active && canManage && connection.provider === 'QONTO' && connection.integration ? (
-                      <Button size="sm" variant="outline" onClick={() => setEditingKey(connection.integration?.id ?? null)}>
+                    {active && canManage && (connection.provider === 'QONTO' || connection.provider === 'STRIPE') && connection.integration ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => connection.integration && setEditingKey({ integrationId: connection.integration.id, provider: connection.provider })}
+                      >
                         <KeyRound aria-hidden />
-                        Mettre à jour la clé API
+                        {connection.provider === 'STRIPE' ? 'Mettre à jour la clé' : 'Mettre à jour la clé API'}
                       </Button>
                     ) : null}
                     {active && canManage ? (
@@ -159,8 +164,18 @@ export function ConnectionsPanel({ companyId, connections, loading, canManage, c
       />
       <QontoConnectDialog
         companyId={companyId}
-        integrationId={editingKey ?? undefined}
-        open={editingKey !== null}
+        integrationId={editingKey?.provider === 'QONTO' ? editingKey.integrationId : undefined}
+        open={editingKey?.provider === 'QONTO'}
+        onOpenChange={(open) => !open && setEditingKey(null)}
+        onConnected={() => {
+          setEditingKey(null)
+          onChanged()
+        }}
+      />
+      <StripeConnectDialog
+        companyId={companyId}
+        integrationId={editingKey?.provider === 'STRIPE' ? editingKey.integrationId : undefined}
+        open={editingKey?.provider === 'STRIPE'}
         onOpenChange={(open) => !open && setEditingKey(null)}
         onConnected={() => {
           setEditingKey(null)

@@ -64,7 +64,7 @@ function templateView(template: RuleTemplate, mapping: RuleMapping, rules: Exist
   return {
     ...template,
     categoryLabel: RULE_TEMPLATE_CATEGORIES.find((c) => c.id === template.category)?.label ?? template.category,
-    status: duplicateStatus({ name: template.name, conditions: template.conditions, sampleLabels: template.samples.match, side: sideOf(template) }, rules),
+    status: duplicateStatus({ name: template.name, conditions: template.conditions, sampleLabels: template.samples.match, side: sideOf(template), sampleOperationType: template.samples.operationType }, rules),
     accounts: mapping.accounts.map((a) => ({
       code: a.code,
       status: a.status,
@@ -156,7 +156,7 @@ function ruleLinesOf(template: RuleTemplate, mapping: RuleMapping, created: Read
     vatRate: line.vatRate ?? null,
     vatAccountCode,
     vatAccount2Code,
-    vatOnDebit: false,
+    vatOnDebit: line.vatOnDebit ?? false,
   }))
 }
 
@@ -194,6 +194,7 @@ export async function getRuleTemplatePrefill(companyId: string, templateId: stri
         vatRate: line.vatRate ?? undefined,
         vatAccountId: id(line.vatAccountCode) || undefined,
         vatAccount2Id: id(line.vatAccount2Code) || undefined,
+        vatOnDebit: line.vatOnDebit ?? false,
       })),
     },
   }
@@ -244,7 +245,7 @@ export async function addRuleFromTemplate(companyId: string, templateId: string,
   const [rules, { fiscalYear, chart }] = await Promise.all([listRules(companyId), loadActiveChart(companyId)])
   if (!fiscalYear) throw new ValidationError(NO_FISCAL_YEAR_MESSAGE)
   const name = input.name?.trim() || template.name
-  const status = duplicateStatus({ name, conditions: template.conditions, sampleLabels: template.samples.match, side: sideOf(template) }, existingRulesOf(rules))
+  const status = duplicateStatus({ name, conditions: template.conditions, sampleLabels: template.samples.match, side: sideOf(template), sampleOperationType: template.samples.operationType }, existingRulesOf(rules))
   if (status.installed && !input.allowDuplicate) {
     throw new ConflictError(
       `La règle « ${status.installed.ruleName} » existe déjà (${status.installed.reason === 'name' ? 'même nom' : 'mêmes conditions'}) : modifiez-la, ou ajoutez le modèle avec allowDuplicate.`,
