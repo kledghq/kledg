@@ -130,6 +130,16 @@ describe.skipIf(!available)('storeSyncedTransactions', () => {
     expect(await prisma.bankTransaction.count({ where: { bankAccountId: ids.account } })).toBe(1)
   })
 
+  it('refreshes the Qonto data of a line whose receipts at Qonto changed, for the daily receipt sync', async () => {
+    const data = (attachment_ids: string[]) => ({ providerData: { id: 'uuid-r', attachment_ids } })
+    await storeSyncedTransactions(target, [line('r-1', 42, 'debit', '2026-09-03', data([]))])
+    expect(await storeSyncedTransactions(target, [line('r-1', 42, 'debit', '2026-09-03', data([]))])).toMatchObject({ updated: 0 })
+    // A receipt added at Qonto: same status, same day, a new attachment id
+    expect(await storeSyncedTransactions(target, [line('r-1', 42, 'debit', '2026-09-03', data(['att-1']))])).toMatchObject({ updated: 1 })
+    const row = await prisma.bankTransaction.findFirstOrThrow({ where: { externalTransactionId: 'r-1' }, select: { providerData: true } })
+    expect(row.providerData).toMatchObject({ attachment_ids: ['att-1'] })
+  })
+
   it('records a line already imported from a statement file as a match, once', async () => {
     const imported = await prisma.bankTransaction.create({
       data: {

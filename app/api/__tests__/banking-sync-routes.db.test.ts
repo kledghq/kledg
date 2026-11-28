@@ -316,6 +316,24 @@ describe.skipIf(!available)('banking sync routes', () => {
       expect(row).toMatchObject({ fileName: 'facture-1.pdf', fileUrl: 'https://files.qonto.com/qa-1.pdf', bankTransactionId: tx.id, transactionUuid: UUID(1) })
     })
 
+    it('daily, asks only about the recent debits whose Qonto data lists a receipt Kledg does not hold', async () => {
+      await debit('qonto-tx-1', { id: UUID(1), attachment_ids: ['qa-1', 'qa-2', 'qa-3'] })
+      // Qonto lists no receipt on this one: never asked
+      await debit('qonto-tx-2', { id: UUID(2), attachment_ids: [] })
+      // Before the window: never asked
+      await prisma.bankTransaction.create({
+        data: { bankAccountId: ids.main, externalTransactionId: 'qonto-old', amount: '12.50', side: 'debit', date: new Date('2026-05-01T00:00:00Z'), providerData: { id: UUID(5), attachment_ids: ['qa-9'] } },
+      })
+      stubReceipts()
+      const result = await syncQontoAttachments(ids.aCompany, { since: new Date('2026-08-01T00:00:00Z') })
+      expect(result).toMatchObject({ created: 2, success: true })
+      expect(outbound.map((u) => decodeURIComponent(u.pathname.split('/')[3]))).toEqual([UUID(1)])
+      // Its two receipts are held now: the next day asks nothing
+      outbound.length = 0
+      await syncQontoAttachments(ids.aCompany, { since: new Date('2026-08-01T00:00:00Z') })
+      expect(outbound).toEqual([])
+    })
+
     it('stops at a Qonto rate limit with a French message', async () => {
       await debit('qonto-tx-1', { id: UUID(1) })
       await debit('qonto-tx-2', { id: UUID(2) })

@@ -136,7 +136,20 @@ export async function uploadQontoReceipt(companyId: string, transactionId: strin
   return { receipts: await prisma.attachment.count({ where: { companyId, bankTransactionId: transaction.id } }) }
 }
 
-export async function syncQontoAttachments(companyId: string): Promise<AttachmentSyncResult> {
+/** The receipts Qonto lists on a transaction (attachment_ids of its stored Qonto data). */
+function announcedAttachments(providerData: Prisma.JsonValue): number {
+  const ids = providerData && typeof providerData === 'object' && !Array.isArray(providerData) ? providerData.attachment_ids : undefined
+  return Array.isArray(ids) ? ids.length : 0
+}
+
+/**
+ * Daily run (options.since): only the debits since that day whose Qonto
+ * data lists more receipts than Kledg holds, so a receipt added at Qonto
+ * arrives without a click and without asking Qonto about every
+ * transaction. Without options, every debit is asked about (the sync
+ * buttons).
+ */
+export async function syncQontoAttachments(companyId: string, options: { since?: Date } = {}): Promise<AttachmentSyncResult> {
   const integration = await prisma.integration.findFirst({
     where: { companyId, provider: 'QONTO', status: 'active', type: 'BANKING' },
     select: { id: true },
@@ -153,7 +166,11 @@ export async function syncQontoAttachments(companyId: string): Promise<Attachmen
 
   while (!rateLimitReached) {
     const batch = await prisma.bankTransaction.findMany({
-      where: { side: 'debit', bankAccount: { bankConnection: { companyId, provider: 'QONTO' } } },
+      where: {
+        side: 'debit',
+        bankAccount: { bankConnection: { companyId, provider: 'QONTO' } },
+        ...(options.since ? { date: { gte: options.since } } : {}),
+      },
       select: { id: true, externalTransactionId: true, providerData: true, attachments: { select: { id: true } } },
       orderBy: { id: 'asc' },
       take: BATCH_SIZE,
@@ -164,6 +181,7 @@ export async function syncQontoAttachments(companyId: string): Promise<Attachmen
 
     for (const transaction of batch) {
       if (transaction.attachments.length >= MAX_ATTACHMENTS_PER_TRANSACTION) continue
+      if (options.since && announcedAttachments(transaction.providerData) <= transaction.attachments.length) continue
       try {
         const counts = await storeQontoAttachments(companyId, integration.id, qonto, transaction)
         created += counts.created

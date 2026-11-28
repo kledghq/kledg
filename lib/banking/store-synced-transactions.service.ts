@@ -19,7 +19,8 @@
  *   never matched, and lines this provider stored itself never are either:
  *   two identical card payments on one day stay two operations;
  * - lines already stored whose status or date changed (Qonto pending to
- *   completed) are updated. When the date moved, a reconciled draft entry
+ *   completed), or whose receipts at the bank changed (Qonto's
+ *   attachment_ids, read by the daily receipt sync), are updated. When the date moved, a reconciled draft entry
  *   still dated on the old transaction date follows it, in one statement
  *   (`followMovedTransactions`); a draft dated otherwise was dated by the
  *   user and keeps its date, validated entries and closed or locked periods
@@ -67,6 +68,16 @@ const isFileImport = (externalTransactionId: string, providerData: Prisma.JsonVa
   externalTransactionId.startsWith(IMPORT_ID_PREFIX) ||
   externalTransactionId.startsWith('import-') ||
   (!!providerData && typeof providerData === 'object' && !Array.isArray(providerData) && providerData.source === 'file-import')
+
+/** The receipts the bank lists on a line (Qonto's attachment_ids), as a comparable key. */
+function attachmentIdsKey(providerData: unknown): string {
+  const ids = providerData && typeof providerData === 'object' && !Array.isArray(providerData) ? (providerData as { attachment_ids?: unknown }).attachment_ids : undefined
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string').sort().join(',') : ''
+}
+
+function sameAttachmentIds(stored: unknown, incoming: unknown): boolean {
+  return attachmentIdsKey(stored) === attachmentIdsKey(incoming)
+}
 
 function valueDayOf(providerData: Prisma.JsonValue): string | null {
   if (!providerData || typeof providerData !== 'object' || Array.isArray(providerData)) return null
@@ -184,7 +195,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       const [stored, recorded] = await Promise.all([
         db.bankTransaction.findMany({
           where: { bankAccountId: account.id, externalTransactionId: { in: ids } },
-          select: { id: true, externalTransactionId: true, status: true, date: true, reconciled: true, reconciledWith: true },
+          select: { id: true, externalTransactionId: true, status: true, date: true, reconciled: true, reconciledWith: true, providerData: true },
         }),
         db.bankTransactionMatch.findMany({
           where: { bankAccountId: account.id, externalTransactionId: { in: ids } },
@@ -230,7 +241,7 @@ export async function storeSyncedTransactions(account: SyncTarget, incoming: Pro
       for (const tx of incoming) {
         const row = byId.get(tx.externalId)
         if (!row) continue
-        if (row.status === (tx.status ?? null) && row.date.getTime() === tx.date.getTime()) continue
+        if (row.status === (tx.status ?? null) && row.date.getTime() === tx.date.getTime() && sameAttachmentIds(row.providerData, tx.providerData)) continue
         await db.bankTransaction.updateMany({
           where: { bankAccountId: account.id, externalTransactionId: tx.externalId },
           data: { date: tx.date, status: tx.status ?? null, providerData: (tx.providerData || undefined) as Prisma.InputJsonValue | undefined },
