@@ -11,7 +11,10 @@
  *
  * Declined operations (provider status "declined") never moved money and
  * need no receipt. The lines of a Stripe account are not listed: their
- * supporting document is Stripe's record of the operation. Amounts are stored positive with a side; the threshold
+ * supporting document is Stripe's record of the operation. A payment of an
+ * invoice whose document Kledg holds (the file of an imported e-invoice, the
+ * PDF of a Qonto invoice) is not listed either: the invoice is its receipt
+ * (invoicePaidWithDocument). Amounts are stored positive with a side; the threshold
  * applies to the amount. The list is bounded (MAX_ROWS) and its count and
  * total cover every matching transaction.
  *
@@ -37,6 +40,37 @@ export const MAX_ROWS = 500
 const MAX_TIERS = 5000
 
 /** ?companyId=&fiscalYearId=&startDate=&endDate=&bankAccountId=&minAmount=&side=&limit= */
+/** An invoice that is its own receipt: Kledg holds its document (an imported e-invoice's file, a Qonto invoice's PDF). */
+const DOCUMENTED_INVOICE: Prisma.InvoiceWhereInput = { OR: [{ documentFileId: { not: null } }, { externalAttachmentId: { not: null } }] }
+
+/** Entries that pay such an invoice: one of their lines is recorded as its payment (lib/invoices/invoice-payments.service.ts). */
+const payingDocumentedInvoice = (companyId: string): Prisma.AccountingEntryWhereInput => ({
+  companyId,
+  lines: { some: { invoicePayments: { some: { invoice: { companyId, ...DOCUMENTED_INVOICE } } } } },
+})
+
+/** Entries of the second path, bounded: a company records far fewer invoice payments. */
+const MAX_PAYING_ENTRIES = 20_000
+
+/**
+ * A bank transaction whose payment of an invoice with its document is
+ * recorded, through the entry created from it (reconciliationEntry) or the
+ * entry it is reconciled with (reconciledWith, an id without a relation).
+ */
+export async function invoicePaidWithDocument(companyId: string): Promise<Prisma.BankTransactionWhereInput> {
+  const linked = await prisma.accountingEntry.findMany({
+    where: { ...payingDocumentedInvoice(companyId), sourceBankTransactionId: null },
+    select: { id: true },
+    take: MAX_PAYING_ENTRIES,
+  })
+  return {
+    OR: [
+      { reconciliationEntry: payingDocumentedInvoice(companyId) },
+      ...(linked.length > 0 ? [{ reconciledWith: { in: linked.map((e) => e.id) } }] : []),
+    ],
+  }
+}
+
 export const MissingReceiptsQuerySchema = z.object({
   fiscalYearId: z.string().max(64).optional(),
   startDate: calendarDay('Date de début invalide').optional(),
@@ -106,9 +140,12 @@ export async function listMissingReceipts(companyId: string, query: ParsedQuery)
     ...transactionOfCompany(companyId),
     attachments: { none: {} },
     OR: [{ status: null }, { status: { not: 'declined' } }],
-    // A Stripe line rests on Stripe's own record (its balance transaction,
-    // the monthly invoice for the fees): no receipt to attach at a bank
-    AND: [{ bankAccount: { bankConnection: { provider: { not: 'STRIPE' } } } }],
+    AND: [
+      // A Stripe line rests on Stripe's own record (its balance transaction,
+      // the monthly invoice for the fees): no receipt to attach at a bank
+      { bankAccount: { bankConnection: { provider: { not: 'STRIPE' } } } },
+      { NOT: await invoicePaidWithDocument(companyId) },
+    ],
     ...(query.bankAccountId && { bankAccountId: query.bankAccountId }),
     ...(query.side !== 'all' && { side: query.side }),
     ...(query.minAmount > 0 && { amount: { gte: new Prisma.Decimal(centsToDecimal(query.minAmount)) } }),

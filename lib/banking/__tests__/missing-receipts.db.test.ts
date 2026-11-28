@@ -87,6 +87,51 @@ describe.skipIf(!available)('missing receipts (PostgreSQL)', () => {
     expect(result.transactions[3]).toMatchObject({ id: ids.rent, counterpartyName: 'SCI Les Tilleuls', bankAccount: { name: 'Courant' }, reconciled: false })
   })
 
+  it('leaves out a payment of an invoice whose document Kledg holds, through either link to the bank', async () => {
+    const journal = await prisma.journal.create({ data: { companyId: ids.company, code: 'BQ', label: 'Banque' } })
+    const account = (code: string) => prisma.account.create({ data: { companyId: ids.company, fiscalYearId: ids.fy, code, label: code } })
+    const [bank, supplier] = [await account('512000'), await account('401000')]
+    const tiers = await prisma.tiers.findFirstOrThrow({ where: { companyId: ids.company } })
+    let n = 0
+    /** A purchase invoice of 1 200,00 paid by a validated entry on 401/512, linked to `transactionId` one way or the other. */
+    async function paidInvoice(transactionId: string, document: Record<string, unknown>, link: 'created' | 'reconciled') {
+      n++
+      const invoice = await prisma.invoice.create({
+        data: { companyId: ids.company, direction: 'PURCHASE', tiersId: tiers.id, number: `F-${n}`, issueDate: new Date('2026-01-25T00:00:00Z'), dueDate: new Date('2026-02-25T00:00:00Z'), totalExclTax: 1000, totalVat: 200, totalInclTax: 1200, ...document },
+      })
+      const entry = await prisma.accountingEntry.create({
+        data: { companyId: ids.company, fiscalYearId: ids.fy, journalId: journal.id, entryNumber: `BQ-${n}`, date: new Date('2026-02-01T00:00:00Z'), description: 'Loyer', status: 'draft', ...(link === 'created' ? { sourceBankTransactionId: transactionId } : {}) },
+      })
+      await prisma.entryLine.createMany({
+        data: [
+          { accountingEntryId: entry.id, accountingEntryNumber: entry.entryNumber, accountId: supplier.id, accountFiscalYearId: ids.fy, debit: 1200, credit: 0 },
+          { accountingEntryId: entry.id, accountingEntryNumber: entry.entryNumber, accountId: bank.id, accountFiscalYearId: ids.fy, debit: 0, credit: 1200 },
+        ],
+      })
+      // Created as a draft, then validated, as the database requires
+      await prisma.accountingEntry.update({ where: { id: entry.id }, data: { status: 'validated', validatedAt: new Date() } })
+      const line = await prisma.entryLine.findFirstOrThrow({ where: { accountingEntryId: entry.id, debit: { gt: 0 } } })
+      await prisma.invoicePayment.create({ data: { invoiceId: invoice.id, entryLineId: line.id, amount: 1200 } })
+      if (link === 'reconciled') await prisma.bankTransaction.update({ where: { id: transactionId }, data: { reconciled: true, reconciledWith: entry.id } })
+    }
+    const listed = async () => (await service.listMissingReceipts(ids.company, parse({ fiscalYearId: ids.fy }))).transactions.map((t) => t.id)
+
+    // A purchase invoice typed in Kledg without its file: the payment still needs its receipt
+    await paidInvoice(ids.rent, {}, 'created')
+    expect(await listed()).toContain(ids.rent)
+
+    // Qonto's PDF of the invoice, through the entry reconciled with the transaction
+    await prisma.invoicePayment.deleteMany({})
+    await prisma.accountingEntry.updateMany({ where: { sourceBankTransactionId: ids.rent }, data: { sourceBankTransactionId: null } })
+    await paidInvoice(ids.rent, { source: 'QONTO', externalId: 'si-1', externalAttachmentId: 'att-inv' }, 'reconciled')
+    expect(await listed()).not.toContain(ids.rent)
+
+    // An imported e-invoice's file, through the entry created from the transaction
+    const file = await prisma.receiptFile.create({ data: { companyId: ids.company, sha256: 'b'.repeat(64), contentType: 'application/pdf', size: 4, content: Buffer.from('%PDF') } })
+    await paidInvoice(ids.ovh, { source: 'E_INVOICE', documentFileId: file.id }, 'created')
+    expect(await listed()).not.toContain(ids.ovh)
+  })
+
   it('recognises the supplier from the label: a known vendor, a tiers of the company, else none', async () => {
     const { RECEIPT_VENDORS } = await import('@/lib/receipts/vendors')
     const ovhcloud = RECEIPT_VENDORS.find((v) => v.id === 'ovhcloud')

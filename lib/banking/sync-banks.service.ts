@@ -7,6 +7,11 @@
  * synchronization, which Ponto reserves to a user who is present
  * (https://documentation.myponto.com/custom-integrations). Ponto refreshes
  * from the banks four times a day by itself.
+ *
+ * For Qonto, the run also copies the receipts added at Qonto since the
+ * last one (the debits of the last 60 days whose Qonto data lists a new
+ * receipt), then matches the staged receipts again: a transaction that got
+ * its receipt no longer waits for one.
  */
 
 import { timingSafeEqual } from 'crypto'
@@ -20,6 +25,10 @@ import { errorReason } from '@/lib/banking/errors'
 import { BANK_PROVIDERS } from '@/lib/banking/providers'
 import { withSystemContext } from '@/lib/rls/context'
 import { offloadExpenseReceiptsToQonto } from '@/lib/receipts/offload-to-qonto.service'
+import { suggestReceiptMatches } from '@/lib/receipts/suggest-receipts.service'
+import { syncQontoAttachments } from '@/lib/integrations/providers/qonto/sync-attachments'
+import { logger } from '@/lib/logger'
+import { addUtcDays, todayUtc } from '@/lib/utils/date'
 import { writeAuditLog } from '@/lib/audit'
 import { withinRateLimit } from '@/lib/rate-limit'
 import { bankSyncPause } from '@/lib/banking/sync-pause'
@@ -55,8 +64,9 @@ function cronFeatures(provider: string): IntegrationFeature[] {
  */
 export async function syncAllBankIntegrations(
   encryptionKey: string,
-  options: { notSyncedSince?: Date } = {},
+  options: { notSyncedSince?: Date; now?: Date } = {},
 ): Promise<BankSyncRunResult[]> {
+  const now = options.now ?? new Date()
   const stale = options.notSyncedSince
     ? { OR: [{ lastSyncAt: null }, { lastSyncAt: { lt: options.notSyncedSince } }] }
     : {}
@@ -86,6 +96,8 @@ export async function syncAllBankIntegrations(
           const synced = await syncIntegration(integration.id, encryptionKey, cronFeatures(integration.provider), { maxDays: 30 })
           // Expense receipts handed to Qonto, when the instance opts in (lib/receipts/offload-to-qonto.service.ts); never fails the sync.
           if (integration.provider === 'QONTO' && synced.success) await offloadExpenseReceiptsToQonto(integration.companyId).catch(() => undefined)
+          // Receipts added at Qonto since: the debits of the window whose Qonto data lists a new one; never fails the sync
+          if (integration.provider === 'QONTO' && synced.success) await syncDailyQontoReceipts(integration.companyId, now)
           await writeAuditLog(synced.success ? 'info' : 'warn', 'Synchronisation bancaire planifiée', {
             action: 'cron.bank-sync',
             companyId: integration.companyId,
@@ -102,6 +114,19 @@ export async function syncAllBankIntegrations(
     }
   }
   return results
+}
+
+/** Days of Qonto debits looked at by the daily receipt sync: receipts are usually added in the weeks after a payment. */
+const RECEIPT_WINDOW_DAYS = 60
+
+async function syncDailyQontoReceipts(companyId: string, now: Date): Promise<void> {
+  try {
+    const result = await syncQontoAttachments(companyId, { since: addUtcDays(todayUtc(now), -RECEIPT_WINDOW_DAYS) })
+    // Transactions that got their receipt no longer wait for a staged one
+    if (result.created > 0) await suggestReceiptMatches(companyId, now)
+  } catch (error) {
+    logger.warn('[Cron] Daily Qonto receipt sync failed', { companyId, reason: errorReason(error) })
+  }
 }
 
 function base(integration: { id: string; companyId: string; provider: string }) {
