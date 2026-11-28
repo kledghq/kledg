@@ -24,7 +24,7 @@ import { Amount, ConfirmDialog, DateDisplay, Field, StatusBadge } from '@/compon
 import { responseError } from '@/hooks/use-cursor-list'
 import { RECEIPT_ACCEPT } from '@/lib/receipts/file-type'
 import { cn } from '@/lib/utils'
-import type { FileNameFields } from '@/lib/receipts/file-name-fields'
+import type { ReceiptGuess, ReceiptReadFrom } from '@/lib/receipts/read/guess'
 import type { CandidateView, ExpenseResult, ReceiptMatchResult } from '@/lib/receipts/file-receipt.service'
 import type { StagedReceiptView } from '@/lib/receipts/stage-receipt.service'
 import { prepareReceiptFile } from './prepare-receipt-file'
@@ -45,8 +45,21 @@ interface Item {
   amountCents: number | null
   date: string
   merchant: string
+  /** Read in the file: kept for the search while the amount is not changed. */
+  currency: string | null
+  vatLines: Array<{ rateBp: number; amountCents: number }>
+  readFrom: ReceiptReadFrom | null
   state: ItemState
   busy: boolean
+}
+
+/** Where the prefill comes from, said under the form: the user checks before searching. */
+function readFromHint(readFrom: ReceiptReadFrom | null, currency: string | null): string | null {
+  const inCurrency = currency && currency !== 'EUR' ? ` Montant en ${currency}.` : ''
+  if (readFrom === 'e-invoice') return `Lu dans la facture électronique (Factur-X)\u00a0: montant, date, fournisseur et TVA.${inCurrency}`
+  if (readFrom === 'pdf') return `Lu dans le PDF\u00a0: vérifiez le montant et la date avant de rechercher.${inCurrency}`
+  if (readFrom === 'file-name') return 'Prérempli depuis le nom du fichier\u00a0: vérifiez-le.'
+  return null
 }
 
 interface ReceiptDropZoneProps {
@@ -59,7 +72,7 @@ interface ReceiptDropZoneProps {
 
 let nextKey = 0
 
-function itemOf(receipt: StagedReceiptView, guess?: FileNameFields | null): Item {
+function itemOf(receipt: StagedReceiptView, guess?: ReceiptGuess | null): Item {
   return {
     key: `r${nextKey++}`,
     name: receipt.fileName,
@@ -67,6 +80,9 @@ function itemOf(receipt: StagedReceiptView, guess?: FileNameFields | null): Item
     amountCents: receipt.fields.amountCents ?? guess?.amountCents ?? null,
     date: receipt.fields.date ?? guess?.date ?? '',
     merchant: receipt.fields.merchant ?? guess?.merchant ?? '',
+    currency: receipt.fields.currency ?? guess?.currency ?? null,
+    vatLines: receipt.fields.vatLines.length > 0 ? receipt.fields.vatLines : (guess?.vatLines ?? []),
+    readFrom: receipt.fields.amountCents !== null ? null : (guess?.readFrom ?? null),
     state: { step: 'form' },
     busy: false,
   }
@@ -106,7 +122,7 @@ export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDro
   async function addFiles(files: FileList | File[] | null) {
     for (const file of Array.from(files ?? [])) {
       const key = `u${nextKey++}`
-      setItems((list) => [{ key, name: file.name, receipt: null, amountCents: null, date: '', merchant: '', state: { step: 'uploading' }, busy: true }, ...list])
+      setItems((list) => [{ key, name: file.name, receipt: null, amountCents: null, date: '', merchant: '', currency: null, vatLines: [], readFrom: null, state: { step: 'uploading' }, busy: true }, ...list])
       try {
         const ready = await prepareReceiptFile(file)
         const form = new FormData()
@@ -114,7 +130,7 @@ export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDro
         form.set('file', ready)
         const response = await fetch('/api/receipts/staged', { method: 'POST', body: form })
         if (!response.ok) throw new Error(await responseError(response, "Le justificatif n'a pas pu être déposé. Réessayez."))
-        const { receipt, guess } = (await response.json()) as { receipt: StagedReceiptView; guess: FileNameFields }
+        const { receipt, guess } = (await response.json()) as { receipt: StagedReceiptView; guess: ReceiptGuess }
         const item = itemOf(receipt, guess)
         setItems((list) => (list.some((i) => i.receipt?.id === receipt.id && i.key !== key) ? list.filter((i) => i.key !== key) : list.map((i) => (i.key === key ? { ...item, key } : i))))
       } catch (error) {
@@ -133,7 +149,15 @@ export function ReceiptDropZone({ companyId, canAttach, onAttached }: ReceiptDro
     try {
       const result = await postJson<ReceiptMatchResult>(
         `/api/receipts/staged/${item.receipt.id}/match`,
-        { fields: { amountCents: item.amountCents, date: item.date, merchant: item.merchant.trim() || null } },
+        {
+          fields: {
+            amountCents: item.amountCents,
+            date: item.date,
+            merchant: item.merchant.trim() || null,
+            ...(item.currency ? { currency: item.currency } : {}),
+            vatLines: item.vatLines.slice(0, 5),
+          },
+        },
         'La recherche de la transaction a échoué. Réessayez.',
       )
       update(item.key, { busy: false, receipt: result.receipt, state: { step: 'result', result } })
@@ -315,7 +339,12 @@ function ReceiptItem({ item, companyId, canAttach, onChange, onMatch, onAttach, 
       {item.receipt && editable ? (
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto] sm:items-end">
           <Field label="Montant TTC" htmlFor={`${ids}-amount`}>
-            <AmountInput id={`${ids}-amount`} value={item.amountCents} onValueChange={(amountCents) => onChange({ amountCents })} />
+            <AmountInput
+              id={`${ids}-amount`}
+              value={item.amountCents}
+              // The VAT read in the file belongs to the amount read with it
+              onValueChange={(amountCents) => onChange(amountCents === item.amountCents ? { amountCents } : { amountCents, vatLines: [] })}
+            />
           </Field>
           <Field label="Date" htmlFor={`${ids}-date`}>
             <DateInput id={`${ids}-date`} value={item.date} onValueChange={(date) => onChange({ date })} />
@@ -329,6 +358,9 @@ function ReceiptItem({ item, companyId, canAttach, onChange, onMatch, onAttach, 
         </div>
       ) : null}
 
+      {item.receipt && editable && readFromHint(item.readFrom, item.currency) ? (
+        <p className="text-muted-foreground text-xs">{readFromHint(item.readFrom, item.currency)}</p>
+      ) : null}
       {state.step === 'matching' ? <p className="text-muted-foreground text-sm">Recherche de la transaction…</p> : null}
       {state.step === 'error' ? (
         <p className="text-destructive text-sm" role="alert">

@@ -70,7 +70,7 @@ Le guide complet est dans [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Développement local
 
-Prérequis : Node.js 20.9+, pnpm, Docker (ou un PostgreSQL existant).
+Prérequis : Node.js 22.13+, pnpm, Docker (ou un PostgreSQL existant).
 
 ```bash
 git clone https://github.com/kledghq/kledg.git && cd kledg
