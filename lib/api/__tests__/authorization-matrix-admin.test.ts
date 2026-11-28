@@ -24,6 +24,8 @@ vi.mock('@/lib/session', async () => {
   return { getCurrentUser: async () => session.user }
 })
 
+import { getEncryptionKey } from '@/lib/crypto/encryption-key'
+import { createMailboxOAuthState } from '@/lib/receipts/mailbox/oauth'
 import { available, useMatrix, prisma, Who, ids, SECRET, Call, call, A, p, WRITES, READS, READS_LET_THROUGH, OWN_PREFERENCES, LEAVE_COMPANY } from './helpers/authorization-matrix'
 
 describe.skipIf(!available)('authorization matrix', () => {
@@ -371,12 +373,19 @@ describe.skipIf(!available)('authorization matrix', () => {
     const remove: Call = { label: 'remove the receipt mailbox', route: 'receiptMailbox', method: 'DELETE', path: () => `/api/receipts/mailbox?companyId=${A()}` }
     const folders: Call = { label: 'list the mailbox folders', route: 'receiptMailboxFolders', method: 'POST', path: () => '/api/receipts/mailbox/folders', body: () => ({ companyId: A(), ...BAD }) }
     const read: Call = { label: 'read the mailbox now', route: 'receiptMailboxRead', method: 'POST', path: () => '/api/receipts/mailbox/read', body: () => ({ companyId: A() }) }
-    const ALL = [show, save, remove, folders, read]
+    // No Google client on this instance: starting is refused (400) before any redirection
+    const start: Call = { label: 'sign in to the mailbox with an account', route: 'receiptMailboxOAuth', method: 'POST', path: () => '/api/receipts/mailbox/oauth', body: () => ({ companyId: A(), provider: 'google' }) }
+    // A state signed for company A, started by someone else, without this browser's cookie
+    const state = () => createMailboxOAuthState({ companyId: A(), provider: 'google', userId: 'someone-else' }, getEncryptionKey() as string)
+    const callback: Call = { label: 'come back from the account sign-in', route: 'receiptMailboxOAuthCallback', method: 'GET', path: () => `/api/receipts/mailbox/oauth/callback?code=abc&state=${encodeURIComponent(state())}` }
+    const ALL = [show, save, remove, folders, read, start, callback]
 
     it('exposes GET, PUT and DELETE, and a POST for the folders and for reading now', async () => {
       expect(Object.keys(await import('@/app/api/receipts/mailbox/route')).sort()).toEqual(['DELETE', 'GET', 'PUT'])
       expect(Object.keys(await import('@/app/api/receipts/mailbox/folders/route'))).toEqual(['POST'])
       expect(Object.keys(await import('@/app/api/receipts/mailbox/read/route'))).toEqual(['POST'])
+      expect(Object.keys(await import('@/app/api/receipts/mailbox/oauth/route')).filter((k) => k !== 'dynamic')).toEqual(['POST'])
+      expect(Object.keys(await import('@/app/api/receipts/mailbox/oauth/callback/route')).filter((k) => k !== 'dynamic')).toEqual(['GET'])
     })
 
     it.each(ALL.map((c) => [c.label, c] as const))('%s: anonymous 401, member of B 404, viewer 403', async (_label, c) => {
@@ -391,6 +400,9 @@ describe.skipIf(!available)('authorization matrix', () => {
       expect((await call('companyAdmin', folders)).status).toBe(400)
       expect((await call('companyAdmin', read)).status).toBe(404)
       expect((await call('companyAdmin', remove)).status).toBe(404)
+      expect((await call('companyAdmin', start)).status).toBe(400)
+      // The state is someone else's, and this browser has no cookie: refused, nothing exchanged
+      expect((await call('companyAdmin', callback)).status).toBe(403)
     })
   })
 

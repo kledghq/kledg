@@ -33,7 +33,7 @@ export const EXCLUSIONS = {
   approvalDocuments: 'Documents de l\'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »).',
   managementFeeInvoices: 'Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »).',
   inboundEmail: 'Webhook du fournisseur d\'e-mails entrants (adresse des justificatifs), authentifié par sa signature, jamais appelé par un utilisateur.',
-  receiptMailbox: 'Boîte e-mail relevée pour les justificatifs (serveur, identifiant, mot de passe)\u00a0; ses identifiants restent dans l\'interface, comme ceux d\'une banque.',
+  receiptMailbox: 'Boîte e-mail relevée pour les justificatifs (serveur, identifiant, mot de passe ou compte Google ou Microsoft)\u00a0; ses identifiants restent dans l\'interface, comme ceux d\'une banque.',
   receiptInbox: 'Adresse e-mail des justificatifs de la société\u00a0: qui la connaît peut envoyer des justificatifs, elle reste dans l\'interface.',
   ui: 'Préférence ou aide de l\'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu\'un autre outil ne donne pas.',
 } as const
@@ -416,6 +416,8 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'DELETE /api/receipts/mailbox': { excluded: 'receiptMailbox' },
   'POST /api/receipts/mailbox/folders': { excluded: 'receiptMailbox' },
   'POST /api/receipts/mailbox/read': { excluded: 'receiptMailbox' },
+  'POST /api/receipts/mailbox/oauth': { excluded: 'receiptMailbox' },
+  'GET /api/receipts/mailbox/oauth/callback': { excluded: 'receiptMailbox' },
   'POST /api/receipts/inbox': { excluded: 'receiptInbox' },
   'GET /api/receipts/staged': { excluded: 'ui' },
   'POST /api/receipts/staged': { tools: ['stage_receipt'] },
