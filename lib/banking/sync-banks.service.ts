@@ -11,7 +11,8 @@
  * For Qonto, the run also copies the receipts added at Qonto since the
  * last one (the debits of the last 60 days whose Qonto data lists a new
  * receipt), then matches the staged receipts again: a transaction that got
- * its receipt no longer waits for one.
+ * its receipt no longer waits for one. The receipt mailboxes of the
+ * companies are read after the banks (lib/receipts/mailbox).
  */
 
 import { timingSafeEqual } from 'crypto'
@@ -26,6 +27,7 @@ import { BANK_PROVIDERS } from '@/lib/banking/providers'
 import { withSystemContext } from '@/lib/rls/context'
 import { offloadExpenseReceiptsToQonto } from '@/lib/receipts/offload-to-qonto.service'
 import { suggestReceiptMatches } from '@/lib/receipts/suggest-receipts.service'
+import { readAllMailboxes } from '@/lib/receipts/mailbox/mailbox.service'
 import { syncQontoAttachments } from '@/lib/integrations/providers/qonto/sync-attachments'
 import { logger } from '@/lib/logger'
 import { addUtcDays, todayUtc } from '@/lib/utils/date'
@@ -173,13 +175,15 @@ export async function handleBankSyncCron(request: Request): Promise<Response> {
       if (!(await withinRateLimit('cron-keyless', 'instance'))) {
         return NextResponse.json({ success: true, synced: 0, skipped: 'rate-limited' })
       }
-      const results = await syncAllBankIntegrations(encryptionKey, {
-        notSyncedSince: new Date(Date.now() - KEYLESS_MIN_INTERVAL_MS),
-      })
+      const notSyncedSince = new Date(Date.now() - KEYLESS_MIN_INTERVAL_MS)
+      const results = await syncAllBankIntegrations(encryptionKey, { notSyncedSince })
+      await readAllMailboxes(new Date(), { notReadSince: notSyncedSince })
       return NextResponse.json({ success: true, synced: results.filter((r) => !r.paused).length })
     }
     const results = await syncAllBankIntegrations(encryptionKey)
-    return NextResponse.json({ success: true, synced: results.filter((r) => !r.paused).length, results })
+    // Receipt mailboxes read after the banks: a receipt read now can match a line synced just before
+    const mailboxes = await readAllMailboxes()
+    return NextResponse.json({ success: true, synced: results.filter((r) => !r.paused).length, results, mailboxes: mailboxes.length })
   } catch (error) {
     return toErrorResponse(error)
   }

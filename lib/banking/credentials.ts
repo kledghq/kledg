@@ -23,6 +23,8 @@ export const SECRET_FIELDS: Record<string, readonly string[]> = {
   PONTO: ['clientSecret'],
   REVOLUT: ['privateKey', 'refreshToken'],
   STRIPE: ['secretKey'],
+  // Receipt mailbox (lib/receipts/mailbox): the password, or the OAuth tokens of Google or Microsoft
+  IMAP: ['password', 'accessToken', 'refreshToken'],
 }
 
 /** Secret fields of a provider, defaulting to Qonto's `secretKey` for unknown providers. */

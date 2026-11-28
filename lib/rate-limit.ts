@@ -69,6 +69,8 @@ export const RATE_LIMITS = {
   'receipt-upload': { window: 600, max: 60, message: 'Trop de justificatifs déposés en peu de temps. Patientez quelques minutes avant de réessayer.' },
   /** Receipts received at the receipt email address of a company (lib/receipts/inbound), per company and day. */
   'receipt-email': { window: 86_400, max: 300, message: 'Trop de justificatifs reçus par e-mail aujourd’hui pour cette société : les suivants seront acceptés demain.' },
+  /** Sign-ins to a receipt mailbox from the Justificatifs page (folders, reading now), per company: each opens an IMAP connection. */
+  'mailbox-connect': { window: 600, max: 20, message: 'Trop de connexions à la boîte e-mail en peu de temps. Patientez quelques minutes avant de réessayer.' },
   /** Generated documents (FEC, PDF and Excel exports), per user. */
   export: { window: 60, max: 30, message: "Trop d'exports en une minute. Patientez une minute avant de réessayer." },
   /** MCP calls authenticated with an API key, per key (lib/mcp/api-key.ts): assistants make many calls per conversation. */

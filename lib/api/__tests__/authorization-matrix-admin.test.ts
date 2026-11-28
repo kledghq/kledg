@@ -361,6 +361,39 @@ describe.skipIf(!available)('authorization matrix', () => {
     })
   })
 
+  describe('receipt mailbox (read banking:reconcile, connect or remove settings:update)', () => {
+    beforeAll(reseed)
+
+    // An invalid host is refused by the body schema: no IMAP connection is ever opened here
+    const BAD = { host: 'not a host', username: 'factures@atelier.fr', password: 'x', folder: 'INBOX', mode: 'read' }
+    const show: Call = { label: 'read the receipt mailbox', route: 'receiptMailbox', method: 'GET', path: () => `/api/receipts/mailbox?companyId=${A()}` }
+    const save: Call = { label: 'connect the receipt mailbox', route: 'receiptMailbox', method: 'PUT', path: () => '/api/receipts/mailbox', body: () => ({ companyId: A(), ...BAD }) }
+    const remove: Call = { label: 'remove the receipt mailbox', route: 'receiptMailbox', method: 'DELETE', path: () => `/api/receipts/mailbox?companyId=${A()}` }
+    const folders: Call = { label: 'list the mailbox folders', route: 'receiptMailboxFolders', method: 'POST', path: () => '/api/receipts/mailbox/folders', body: () => ({ companyId: A(), ...BAD }) }
+    const read: Call = { label: 'read the mailbox now', route: 'receiptMailboxRead', method: 'POST', path: () => '/api/receipts/mailbox/read', body: () => ({ companyId: A() }) }
+    const ALL = [show, save, remove, folders, read]
+
+    it('exposes GET, PUT and DELETE, and a POST for the folders and for reading now', async () => {
+      expect(Object.keys(await import('@/app/api/receipts/mailbox/route')).sort()).toEqual(['DELETE', 'GET', 'PUT'])
+      expect(Object.keys(await import('@/app/api/receipts/mailbox/folders/route'))).toEqual(['POST'])
+      expect(Object.keys(await import('@/app/api/receipts/mailbox/read/route'))).toEqual(['POST'])
+    })
+
+    it.each(ALL.map((c) => [c.label, c] as const))('%s: anonymous 401, member of B 404, viewer 403', async (_label, c) => {
+      expect((await call('anonymous', c)).status).toBe(401)
+      expect((await call('memberB', c)).status).toBe(404)
+      expect((await call('viewer', c)).status).toBe(403)
+    })
+
+    it('an administrator reads the empty mailbox, gets a 400 for a bad host and a 404 with nothing to read or remove', async () => {
+      expect(await (await call('companyAdmin', show)).json()).toMatchObject({ configured: false })
+      expect((await call('companyAdmin', save)).status).toBe(400)
+      expect((await call('companyAdmin', folders)).status).toBe(400)
+      expect((await call('companyAdmin', read)).status).toBe(404)
+      expect((await call('companyAdmin', remove)).status).toBe(404)
+    })
+  })
+
   describe('reads let through and own preferences (KLEDG-R3-AUTHZ-06)', () => {
     beforeAll(reseed)
     it.each([...READS_LET_THROUGH, ...OWN_PREFERENCES].map((c) => [c.label, c] as const))('%s: anonymous 401, member of B 404', async (_label, c) => {

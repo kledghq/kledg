@@ -56,10 +56,17 @@ export async function receiveInboundEmail(email: InboundEmail, provider: Inbound
     logger.info('[Receipts] Email to no receipt address', { provider, recipients: email.recipients.length })
     return { outcome: 'no-company' }
   }
-  return withSystemContext('receipt-email', () => receiveForCompany(companyId, email, provider), { companyIds: [companyId] })
+  return withSystemContext('receipt-email', () => receiveEmailForCompany(companyId, email, provider), { companyIds: [companyId] })
 }
 
-async function receiveForCompany(companyId: string, email: InboundEmail, provider: InboundProvider): Promise<ReceiveOutcome> {
+/** Where a received email comes from: an inbound email provider, or the company's mailbox read by Kledg (lib/receipts/mailbox). */
+export type ReceiptEmailSource = InboundProvider | 'imap'
+
+/**
+ * Stages the receipts of an email for a company known already, in the
+ * caller's context (the inbound webhook above, or the mailbox reading).
+ */
+export async function receiveEmailForCompany(companyId: string, email: InboundEmail, provider: ReceiptEmailSource): Promise<Extract<ReceiveOutcome, { outcome: 'received' }>> {
   const result = { outcome: 'received' as const, companyId, staged: 0, duplicates: 0, skipped: 0, limited: false }
   const candidates = email.attachments.filter((a) => !a.inline)
   result.skipped += email.attachments.length - candidates.length + Math.max(0, candidates.length - MAX_ATTACHMENTS)
