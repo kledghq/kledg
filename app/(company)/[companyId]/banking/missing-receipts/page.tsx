@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowRight, ExternalLink, FileCheck2, RefreshCw, RotateCw } from 'lucide-react'
+import { ArrowRight, ExternalLink, FileCheck2, Paperclip, RefreshCw, RotateCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,6 +26,7 @@ import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-wit
 import { ReceiptDropZone } from '@/components/features/receipts/receipt-drop-zone'
 import { ReceiptInboxCard } from '@/components/features/receipts/receipt-inbox-card'
 import { ReceiptMailboxCard } from '@/components/features/receipts/receipt-mailbox-card'
+import { useAttachReceipt } from '@/components/features/receipts/use-attach-receipt'
 
 type Side = 'debit' | 'credit' | 'all'
 
@@ -120,6 +121,23 @@ export default function MissingReceiptsPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [syncing, setSyncing] = React.useState(false)
   const [version, setVersion] = React.useState(0)
+  // A receipt picked on a row goes to that transaction: the row then leaves the list
+  const attachReceipt = useAttachReceipt(() => setVersion((n) => n + 1))
+  const mayAttach = can({ expenses: ['submit'] }) && can({ banking: ['reconcile'] })
+  const attachButton = (t: MissingReceipt, compact: boolean) =>
+    mayAttach ? (
+      <Button
+        size={compact ? 'icon-sm' : 'xs'}
+        variant={compact ? 'ghost' : 'default'}
+        loading={attachReceipt.busyId === t.id}
+        aria-label={`Joindre un justificatif à ${t.counterpartyName || t.label || 'cette opération'}`}
+        title="Joindre un justificatif"
+        onClick={() => attachReceipt.start({ companyId, transactionId: t.id, label: t.counterpartyName || t.label || '', toQonto: t.bankProvider === 'QONTO' })}
+      >
+        <Paperclip aria-hidden />
+        {compact ? null : 'Joindre'}
+      </Button>
+    ) : null
 
   React.useEffect(() => {
     setThresholdCents(readThreshold())
@@ -313,6 +331,7 @@ export default function MissingReceiptsPage() {
                       </span>
                       <Amount value={t.amountCents / 100} sign="always" className="shrink-0 text-sm" />
                     </Link>
+                    {attachButton(t, true)}
                     <ProposeWithAiButton icon target={missingReceiptTarget(t)} />
                   </div>
                   {t.supplier ? (
@@ -332,7 +351,7 @@ export default function MissingReceiptsPage() {
                     <TableHead>Compte bancaire</TableHead>
                     <TableHead numeric>Montant</TableHead>
                     <TableHead className="w-28">Rapprochement</TableHead>
-                    <TableHead className="w-40">
+                    <TableHead className="w-60">
                       <span className="sr-only">Action</span>
                     </TableHead>
                   </TableRow>
@@ -362,6 +381,7 @@ export default function MissingReceiptsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {attachButton(t, false)}
                             <ProposeWithAiButton icon target={missingReceiptTarget(t)} />
                             <Button asChild size="xs" variant="outline">
                               <Link href={transactionHref(companyId, t)}>
@@ -380,6 +400,7 @@ export default function MissingReceiptsPage() {
           </CardContent>
         </Card>
       )}
+      {attachReceipt.element}
     </div>
   )
 }

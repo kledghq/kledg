@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/table"
 import { Amount, ConfirmDeleteDialog, EmptyState, LoadMore, formatAmount, formatDisplayDate } from "@/components/shared"
 import { JustificatifPreviewDialog } from "@/components/features/justificatifs/justificatif-preview-dialog"
+import { useCompanyAccess } from "@/components/features/companies/company-access"
+import { useAttachReceipt } from "@/components/features/receipts/use-attach-receipt"
 import { EntryPreviewDialog } from "@/components/features/accounting/entry-preview-dialog"
 import { toCents } from "@/lib/utils/money"
 import { cn } from "@/lib/utils"
@@ -113,6 +115,12 @@ export function TransactionsDataTable({
 
   const companyOf = React.useCallback((t: BankTransaction) => companyId ?? t.companyId, [companyId])
 
+  // A receipt attached from its row: on a company page only (the group view spans companies), staging and reconciling allowed
+  const { can } = useCompanyAccess()
+  const mayAttach = Boolean(companyId) && can({ expenses: ["submit"] }) && can({ banking: ["reconcile"] })
+  const attachReceipt = useAttachReceipt(() => onRefresh?.())
+  const startAttach = attachReceipt.start
+
   const columns = React.useMemo(
     () =>
       transactionColumns({
@@ -134,6 +142,17 @@ export function TransactionsDataTable({
         onViewEntry: setEntryPreviewEntryId,
         onViewDetails: setDetailsTransaction,
         onCopyId: (t) => void handleCopyTransactionId(t.id),
+        canAttachReceipt: () => mayAttach,
+        onAttachReceipt: (t) => {
+          if (!companyId) return
+          startAttach({
+            companyId,
+            transactionId: t.id,
+            label: t.counterpartyName || t.label || "",
+            toQonto: t.bankAccount.bankConnection?.provider === "QONTO",
+          })
+        },
+        attachingId: attachReceipt.busyId,
         onReconcile: async (t) => {
           const cid = companyOf(t)
           if (!cid) return
@@ -155,7 +174,7 @@ export function TransactionsDataTable({
           }
         },
       }),
-    [balanceAfter, showCompanyColumn, busyId, companyOf, onRefresh],
+    [balanceAfter, showCompanyColumn, busyId, companyOf, onRefresh, mayAttach, companyId, startAttach, attachReceipt.busyId],
   )
 
   const table = useTable({
@@ -357,7 +376,7 @@ export function TransactionsDataTable({
                         <div className="flex items-center justify-between gap-2">
                           {cellOf(row, "reconciled")}
                           <div className="-my-1 flex items-center gap-1">
-                            {t.attachmentsCount ? cellOf(row, "attachments") : null}
+                            {t.attachmentsCount || mayAttach ? cellOf(row, "attachments") : null}
                             {t.reconciledWith ? cellOf(row, "entry") : null}
                             {cellOf(row, "actions")}
                           </div>
@@ -469,6 +488,7 @@ export function TransactionsDataTable({
         open={detailsTransaction !== null}
         onOpenChange={(open) => !open && setDetailsTransaction(null)}
       />
+      {attachReceipt.element}
       {justificatifPreview && (
         <JustificatifPreviewDialog
           open={!!justificatifPreview}
