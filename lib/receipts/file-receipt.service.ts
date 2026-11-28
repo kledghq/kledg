@@ -143,7 +143,8 @@ export interface ReceiptMatchResult {
   expenseProposal: ExpenseProposal | null
 }
 
-function fieldsOf(row: StagedReceiptRow): ReceiptFields | null {
+/** The fields recorded on a staged receipt, or null without an amount and a date. */
+export function fieldsOf(row: StagedReceiptRow): ReceiptFields | null {
   const view = stagedReceiptView(row)
   if (view.fields.amountCents === null || !view.fields.date) return null
   return {
@@ -158,12 +159,19 @@ function fieldsOf(row: StagedReceiptRow): ReceiptFields | null {
 
 const MISSING_FIELDS = 'Indiquez le montant TTC et la date du justificatif (et le commerçant si possible) pour le rattacher.'
 
-/** Records the fields read on a staged receipt (only while it is staged). */
+/**
+ * Records the fields read on a staged receipt (only while it is staged):
+ * given by the user or the assistant, they are confirmed (fieldsReadFrom
+ * null), and a transaction suggested for the former fields is forgotten.
+ */
 async function recordFields(companyId: string, row: StagedReceiptRow, fields: ReceiptFields): Promise<StagedReceiptRow> {
   if (row.status !== 'staged') return row
   return prisma.stagedReceipt.update({
     where: { id: row.id },
     data: {
+      fieldsReadFrom: null,
+      suggestedTransactionId: null,
+      suggestedAt: null,
       amount: centsToDecimal(fields.amountCents),
       currency: fields.currency,
       receiptDate: isoDateToUtc(fields.date),
@@ -267,6 +275,16 @@ async function scoreTransactions(companyId: string, fields: ReceiptFields) {
     }
   })
   return { rows: new Map(rows.map((row) => [row.id, row])), outcome: matchReceipt({ ...fields, merchant: fields.merchant ?? null, paymentHint: fields.paymentHint ?? null }, candidates) }
+}
+
+/**
+ * The transaction a receipt's fields designate alone (outcome matched), or
+ * null: what a re-matching after a bank sync suggests
+ * (suggest-receipts.service.ts). Read only.
+ */
+export async function matchedTransactionId(companyId: string, fields: ReceiptFields): Promise<string | null> {
+  const { outcome } = await scoreTransactions(companyId, fields)
+  return outcome.outcome === 'matched' ? outcome.match.transactionId : null
 }
 
 /**
