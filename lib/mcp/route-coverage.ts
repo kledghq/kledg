@@ -32,6 +32,8 @@ export const EXCLUSIONS = {
   bankConnect: 'Connexion d\'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets)\u00a0; restent dans l\'interface.',
   approvalDocuments: 'Documents de l\'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »).',
   managementFeeInvoices: 'Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »).',
+  inboundEmail: 'Webhook du fournisseur d\'e-mails entrants (adresse des justificatifs), authentifié par sa signature, jamais appelé par un utilisateur.',
+  receiptInbox: 'Adresse e-mail des justificatifs de la société\u00a0: qui la connaît peut envoyer des justificatifs, elle reste dans l\'interface.',
   ui: 'Préférence ou aide de l\'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu\'un autre outil ne donne pas.',
 } as const
 
@@ -315,6 +317,7 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'GET /api/group/tax': { tools: ['simulate_tax_integration'] },
   'GET /api/group/simple-home': { tools: ['get_group_view', 'get_group_treasury', 'get_group_deadlines', 'get_group_alerts'], note: 'Les mêmes chiffres en mots simples (mode simple de l\'espace groupe).' },
   'GET /api/health': { excluded: 'health' },
+  'POST /api/inbound-email/[provider]': { excluded: 'inboundEmail' },
   'POST /api/import/preview-fiscal-years': { tools: ['import_accounting_file'], note: 'Aperçu (dryRun) de l\'import.' },
   'POST /api/import': { tools: ['import_accounting_file'] },
   'POST /api/instance/test-email': { excluded: 'instance' },
@@ -406,6 +409,8 @@ export const ROUTE_COVERAGE: Record<string, RouteCoverage> = {
   'GET /api/reports/journal': { tools: ['get_ledger_report'] },
   'GET /api/reports/tiers-flows': { tools: ['get_tiers_flows'] },
   'GET /api/reports/trial-balance': { tools: ['get_trial_balance'] },
+  'GET /api/receipts/inbox': { excluded: 'receiptInbox' },
+  'POST /api/receipts/inbox': { excluded: 'receiptInbox' },
   'GET /api/receipts/staged': { excluded: 'ui' },
   'POST /api/receipts/staged': { tools: ['stage_receipt'] },
   'DELETE /api/receipts/staged/[id]': { tools: ['file_receipt'], note: 'Action discard.' },

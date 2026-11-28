@@ -32,6 +32,7 @@ Chaque page renvoie à son guide sur le site.
 - [Lettrage et tiers](lettrage-et-tiers.md) : lettrage, balance auxiliaire, balance âgée, justificatifs manquants
 - [Factures et tiers](factures-et-tiers.md) : tiers, factures, comptabilisation, TVA sur les encaissements, règlements, import Qonto
 - [Justificatifs photographiés](justificatifs-photo.md) : photo d'un ticket ou d'une facture dans Claude, ChatGPT ou sur la page Justificatifs, rapprochement, stockage, limites et sécurité
+- [Justificatifs par e-mail](justificatifs-email.md) : adresse de justificatifs d'une société, fournisseurs d'e-mails entrants (Resend, Postmark, Mailgun), webhook, sécurité et limites
 - [Notes de frais](notes-de-frais.md) : bénéficiaires, TVA récupérable, indemnités kilométriques, comptabilisation
 - [Mode simple](mode-simple.md) : affichage simple, standard ou expert, navigation
 - [Modes d'affichage et menu personnalisé](modes-et-menu.md) : mode Standard, entrées et groupes du menu masqués

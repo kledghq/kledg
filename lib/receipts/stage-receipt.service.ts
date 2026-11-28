@@ -40,7 +40,7 @@ import { deleteUnreferencedReceiptFiles, discardObject, putReceiptObject, receip
 export const STAGED_RECEIPT_TTL_DAYS = 30
 const DAY_MS = 86_400_000
 
-export const RECEIPT_SOURCES = ['view', 'file_param', 'base64', 'app'] as const
+export const RECEIPT_SOURCES = ['view', 'file_param', 'base64', 'app', 'email'] as const
 export type ReceiptSource = (typeof RECEIPT_SOURCES)[number]
 
 export type StagedReceiptStatus = 'staged' | 'attached' | 'expense' | 'discarded'
@@ -53,6 +53,13 @@ export interface StagedReceiptActor {
   /** banking:reconcile or expenses:validate in the company: every staged receipt of the company. */
   seesAll: boolean
 }
+
+/**
+ * The receipt email address (lib/receipts/inbound): no member uploads, so
+ * the receipt has no uploader and only the members who file everyone's see
+ * it; its uploads count in the company's limit of emailed receipts.
+ */
+export const EMAIL_ACTOR: StagedReceiptActor = { userId: 'receipt-email', seesAll: true }
 
 /** A VAT amount read on the receipt, in cents, with its rate in basis points (2000 = 20 %). */
 export interface ReceiptVatLine {
@@ -218,7 +225,8 @@ async function stageInTransaction(
       file = await tx.receiptFile.create({ data: { companyId, sha256, contentType, size, ...receiptFileData(input.bytes, pending) }, select: { id: true } })
       usedObject = pending !== null
     }
-    const data = { fileId: file.id, fileName, contentType, size, source: input.source, status: 'staged', uploadedById: actor.userId, expiresAt }
+    const uploadedById = input.source === 'email' ? null : actor.userId
+    const data = { fileId: file.id, fileName, contentType, size, source: input.source, status: 'staged', uploadedById, expiresAt }
     const row = existing
       ? // A discarded receipt sent again starts over, without the fields read before.
         await tx.stagedReceipt.update({
@@ -248,7 +256,8 @@ export async function stageReceipt(
   input: StageReceiptInput,
   now: Date = new Date(),
 ): Promise<{ receipt: StagedReceiptView; duplicate: boolean }> {
-  await enforceRateLimit('receipt-upload', actor.userId)
+  if (input.source === 'email') await enforceRateLimit('receipt-email', companyId)
+  else await enforceRateLimit('receipt-upload', actor.userId)
   const check = checkReceiptFile(input.bytes)
   if (!check.ok) throw new ValidationError(check.message)
   const contentType: ReceiptContentType = check.contentType

@@ -51,6 +51,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/.well-known/') ||
     pathname === '/api/mcp' ||
     pathname.startsWith('/api/cron/') ||
+    // Inbound email provider: checked by its signature or basic authentication (lib/receipts/inbound)
+    pathname.startsWith('/api/inbound-email/') ||
     pathname === '/api/health' ||
     isSelfAuthenticatedApiPath(pathname)
   ) {
