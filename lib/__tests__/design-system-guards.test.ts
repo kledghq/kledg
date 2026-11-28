@@ -77,8 +77,14 @@ describe('design system guards', () => {
 
   it('picks files with FileInput, never the native control (English "Choose File" in most browsers)', () => {
     // The hidden inputs behind a French button: FileInput itself, the photo picker of a person and the
-    // receipt drop zone (camera and several files behind "Prendre une photo" and "Choisir des fichiers")
-    const allowed = new Set(['components/ui/file-input.tsx', 'components/features/companies/create-person-form.tsx', 'components/features/receipts/receipt-drop-zone.tsx'])
+    // receipt drop zone (camera and several files behind "Prendre une photo" and "Choisir des fichiers"), and the
+    // receipt attached from a transaction row (behind its "Joindre" button)
+    const allowed = new Set([
+      'components/ui/file-input.tsx',
+      'components/features/companies/create-person-form.tsx',
+      'components/features/receipts/receipt-drop-zone.tsx',
+      'components/features/receipts/use-attach-receipt.tsx',
+    ])
     const offenders = FILES.filter((file) => file.endsWith('.tsx'))
       .filter((file) => /type=["'{]+file["'}]/.test(readFileSync(file, 'utf8')))
       .map(rel)
