@@ -94,6 +94,7 @@ function loadWorker(build = 'build-1') {
     routeRequest: (request: FakeRequest & { origin: string }) => Route
     SHELL_CACHE: string
     STATIC_CACHE: string
+    SHARE_CACHE: string
     PRECACHE_URLS: string[]
     OFFLINE_URL: string
   }
@@ -254,5 +255,51 @@ describe('service worker fetch handling', () => {
     await worker.dispatchFetch('/_next/static/chunks/opaque.js')
     const stored = await worker.caches.open(worker.api.STATIC_CACHE)
     expect(stored.entries.size).toBe(0)
+  })
+})
+
+describe('files shared from another app (share target)', () => {
+  /** The POST the browser sends to /share with the shared files. */
+  async function share(worker: ReturnType<typeof loadWorker>, files: File[]) {
+    const form = new FormData()
+    form.set('title', 'Facture')
+    for (const file of files) form.append('files', file)
+    let answer = null as Promise<Response> | null
+    worker.listeners.get('fetch')!({
+      request: { url: `${ORIGIN}/share`, method: 'POST', mode: 'navigate', formData: async () => form },
+      preloadResponse: Promise.resolve(undefined),
+      respondWith: (promise: Promise<Response>) => (answer = promise),
+    })
+    return answer === null ? null : await answer
+  }
+
+  it('routes only a same-origin POST to /share, never another POST', () => {
+    const { api } = loadWorker()
+    const route = (url: string, method: string) => api.routeRequest({ url, method, mode: 'navigate', origin: ORIGIN })
+    expect(route(`${ORIGIN}/share`, 'POST')).toBe('share')
+    expect(route(`${ORIGIN}/share`, 'GET')).toBe('navigation')
+    expect(route(`${ORIGIN}/share/other`, 'POST')).toBe('bypass')
+    expect(route('https://elsewhere.example/share', 'POST')).toBe('bypass')
+  })
+
+  it('keeps the files on the device, replaces the previous share and opens the /share page', async () => {
+    const worker = loadWorker()
+    await share(worker, [new File(['old'], 'ancien.pdf', { type: 'application/pdf' })])
+    const answer = await share(worker, [new File(['%PDF'], 'facture août.pdf', { type: 'application/pdf' }), new File([''], 'vide.png', { type: 'image/png' })])
+    expect(answer?.status).toBe(303)
+    expect(answer?.headers.get('location')).toBe(`${ORIGIN}/share?files=1&skipped=1`)
+    const cache = await worker.caches.open(worker.api.SHARE_CACHE)
+    expect([...cache.entries.keys()]).toEqual([`${ORIGIN}/share/file/0`])
+    const kept = (await cache.match('/share/file/0')) as unknown as Response
+    expect(kept.headers.get('Content-Type')).toBe('application/pdf')
+    expect(decodeURIComponent(kept.headers.get('X-Kledg-File-Name') ?? '')).toBe('facture août.pdf')
+    expect(worker.fetch).not.toHaveBeenCalled()
+  })
+
+  it('keeps the shared files when a new build activates', async () => {
+    const worker = loadWorker()
+    await share(worker, [new File(['%PDF'], 'f.pdf', { type: 'application/pdf' })])
+    await worker.lifecycle('activate')
+    expect(await worker.caches.keys()).toContain(worker.api.SHARE_CACHE)
   })
 })
