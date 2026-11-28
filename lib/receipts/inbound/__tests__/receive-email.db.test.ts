@@ -29,8 +29,11 @@ const available = await testDatabaseAvailable()
 
 type Prisma = typeof import('@/lib/prisma').prisma
 let prisma: Prisma
-let handle: typeof import('../handle-webhook').handleInboundEmail
+let route: typeof import('@/app/api/inbound-email/[provider]/route')
+let receive: typeof import('../receive-email.service')
 let inbox: typeof import('../inbox.service')
+/** The webhook route as Next calls it. */
+const handle = (provider: string, request: Request) => route.POST(request, { params: Promise.resolve({ provider }) })
 
 const DOMAIN = 'justificatifs.example.fr'
 const PASSWORD = 'a-long-postmark-password'
@@ -65,7 +68,8 @@ describe.skipIf(!available)('receipt email address', () => {
   beforeAll(async () => {
     await prepareTestDatabase('receipt_email')
     ;({ prisma } = await import('@/lib/prisma'))
-    ;({ handleInboundEmail: handle } = await import('../handle-webhook'))
+    route = await import('@/app/api/inbound-email/[provider]/route')
+    receive = await import('../receive-email.service')
     inbox = await import('../inbox.service')
   }, 60_000)
 
@@ -109,6 +113,21 @@ describe.skipIf(!available)('receipt email address', () => {
       expect(await response.json()).toEqual({ ignored: true })
     }
     expect(await prisma.stagedReceipt.count()).toBe(0)
+  })
+
+  it('takes at most 10 attachments of an email, and leaves an email with none as received', async () => {
+    const { address } = await inbox.renewReceiptInbox(ids.company, 'u-admin')
+    const many = Array.from({ length: 12 }, (_, n) => ({
+      fileName: `ticket-${n}.pdf`,
+      contentType: 'application/pdf',
+      inline: false,
+      size: 20,
+      load: async () => new Uint8Array(Buffer.from(`%PDF-1.4 ticket ${n}`)),
+    }))
+    const email = { messageId: 'm-1', from: 'a@b.fr', recipients: [address as string], subject: null, attachments: many }
+    expect(await receive.receiveInboundEmail(email, 'postmark')).toMatchObject({ outcome: 'received', staged: 10, skipped: 2 })
+    expect(await receive.receiveInboundEmail({ ...email, attachments: [] }, 'postmark')).toMatchObject({ outcome: 'received', staged: 0 })
+    expect(await receive.receiveInboundEmail({ ...email, recipients: ['x@y.fr'] }, 'postmark')).toEqual({ outcome: 'no-company' })
   })
 
   it('refuses a wrong password, and answers 404 for a provider not configured or the feature off', async () => {

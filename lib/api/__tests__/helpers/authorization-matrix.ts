@@ -557,6 +557,7 @@ export const ROUTE_MODULES = {
   simpleConfirm: () => import('@/app/api/simple/expenses/[id]/confirm/route'),
   simpleConfirmAll: () => import('@/app/api/simple/expenses/confirm-all/route'),
   simpleReceipt: () => import('@/app/api/simple/expenses/[id]/receipt/route'),
+  receiptInbox: () => import('@/app/api/receipts/inbox/route'),
   stagedReceipts: () => import('@/app/api/receipts/staged/route'),
   stagedReceipt: () => import('@/app/api/receipts/staged/[id]/route'),
   stagedReceiptMatch: () => import('@/app/api/receipts/staged/[id]/match/route'),
