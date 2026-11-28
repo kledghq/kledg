@@ -25,6 +25,7 @@ vi.mock('@/lib/rate-limit', async () => ({
 vi.mock('@/lib/receipts/mailbox/mailbox.service', () => ({
   readAllMailboxes: vi.fn(async () => [{ companyId: 'company-a', ok: true, staged: 2 }]),
 }))
+vi.mock('@/lib/receipts/digest/receipt-digest.service', () => ({ isDigestDay: () => true, sendReceiptDigests: vi.fn(async () => ({ sent: 0, skipped: 0, failed: 0 })) }))
 vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
 import { prisma } from '@/lib/prisma'
@@ -36,6 +37,7 @@ import { UNEXPECTED_BANK_ERROR_MESSAGE } from '@/lib/banking/errors'
 import { syncAllBankIntegrations } from '@/lib/banking/sync-banks.service'
 import { withinRateLimit } from '@/lib/rate-limit'
 import { readAllMailboxes } from '@/lib/receipts/mailbox/mailbox.service'
+import { sendReceiptDigests } from '@/lib/receipts/digest/receipt-digest.service'
 import { GET as syncBanks } from '@/app/api/cron/sync-banks/route'
 import { GET as syncQonto } from '@/app/api/cron/sync-qonto/route'
 
@@ -130,6 +132,8 @@ describe.each([
       mailboxes: 1,
     })
     expect(readAllMailboxes).toHaveBeenCalledTimes(1)
+    // A Monday: the weekly email of missing receipts goes after the mailboxes (receipt-digest.db.test.ts)
+    expect(sendReceiptDigests).toHaveBeenCalledTimes(1)
   })
 })
 

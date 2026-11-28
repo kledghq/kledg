@@ -12,7 +12,8 @@
  * last one (the debits of the last 60 days whose Qonto data lists a new
  * receipt), then matches the staged receipts again: a transaction that got
  * its receipt no longer waits for one. The receipt mailboxes of the
- * companies are read after the banks (lib/receipts/mailbox).
+ * companies are read after the banks (lib/receipts/mailbox), and on
+ * Mondays the weekly email of missing receipts goes (lib/receipts/digest).
  */
 
 import { timingSafeEqual } from 'crypto'
@@ -28,6 +29,7 @@ import { withSystemContext } from '@/lib/rls/context'
 import { offloadExpenseReceiptsToQonto } from '@/lib/receipts/offload-to-qonto.service'
 import { suggestReceiptMatches } from '@/lib/receipts/suggest-receipts.service'
 import { readAllMailboxes } from '@/lib/receipts/mailbox/mailbox.service'
+import { isDigestDay, sendReceiptDigests } from '@/lib/receipts/digest/receipt-digest.service'
 import { syncQontoAttachments } from '@/lib/integrations/providers/qonto/sync-attachments'
 import { logger } from '@/lib/logger'
 import { addUtcDays, todayUtc } from '@/lib/utils/date'
@@ -147,6 +149,11 @@ export function isCronRequest(request: Request): boolean {
 /** Without CRON_SECRET, an integration synced less than this long ago is skipped. */
 const KEYLESS_MIN_INTERVAL_MS = 20 * 3_600_000
 
+/** Mondays, after the banks and the mailboxes: the week's email of missing receipts (once a week per user, never throws). */
+async function weeklyDigest(now: Date = new Date()): Promise<void> {
+  if (isDigestDay(now)) await sendReceiptDigests(now)
+}
+
 /**
  * GET handler of the cron routes.
  *
@@ -178,11 +185,13 @@ export async function handleBankSyncCron(request: Request): Promise<Response> {
       const notSyncedSince = new Date(Date.now() - KEYLESS_MIN_INTERVAL_MS)
       const results = await syncAllBankIntegrations(encryptionKey, { notSyncedSince })
       await readAllMailboxes(new Date(), { notReadSince: notSyncedSince })
+      await weeklyDigest()
       return NextResponse.json({ success: true, synced: results.filter((r) => !r.paused).length })
     }
     const results = await syncAllBankIntegrations(encryptionKey)
     // Receipt mailboxes read after the banks: a receipt read now can match a line synced just before
     const mailboxes = await readAllMailboxes()
+    await weeklyDigest()
     return NextResponse.json({ success: true, synced: results.filter((r) => !r.paused).length, results, mailboxes: mailboxes.length })
   } catch (error) {
     return toErrorResponse(error)

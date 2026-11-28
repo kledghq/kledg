@@ -207,3 +207,63 @@ export function companyInvitationEmail(
     text: `${whoText} vous invite à rejoindre ${invitation.companyName} sur ${APP_NAME} (rôle : ${invitation.roleLabel}, valable jusqu'au ${invitation.expiresOn}) : ${url}`,
   }
 }
+
+export interface ReceiptDigestCompany {
+  name: string
+  /** Debits without a receipt over the period. */
+  count: number
+  totalCents: number
+  /** The Justificatifs page of the company. */
+  url: string
+  /** The most recent ones (5 at most): day yyyy-mm-dd, what the bank says, amount (negative). */
+  rows: Array<{ date: string; label: string; amountCents: number }>
+}
+
+const euros = (cents: number) => (Math.abs(cents) / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
+const frenchDay = (day: string) => day.split('-').reverse().join('/')
+
+/**
+ * The weekly email of the receipts still missing (lib/receipts/digest), one
+ * block per company, with the way to turn it off. Every value from the
+ * books (company names, bank labels) is escaped.
+ */
+export function receiptDigestEmail(to: string, input: { companies: ReceiptDigestCompany[]; days: number; settingsUrl: string }): EmailMessage {
+  const total = input.companies.reduce((sum, c) => sum + c.count, 0)
+  const plural = total > 1 ? 's' : ''
+  const blocks = input.companies
+    .map((c) => {
+      const rows = c.rows
+        .map(
+          (r) =>
+            `<tr><td style="padding:4px 8px 4px 0;font-size:13px;color:#71717a;white-space:nowrap">${frenchDay(r.date)}</td><td style="padding:4px 8px;font-size:13px">${escapeHtml(r.label)}</td><td style="padding:4px 0;font-size:13px;text-align:right;white-space:nowrap">${euros(r.amountCents)}</td></tr>`,
+        )
+        .join('')
+      const more = c.count > c.rows.length ? `<p style="margin:4px 0 0;font-size:13px;color:#71717a">et ${c.count - c.rows.length} autre${c.count - c.rows.length > 1 ? 's' : ''}</p>` : ''
+      return `<div style="margin:0 0 24px">
+          <p style="margin:0 0 8px;font-size:15px;font-weight:600">${escapeHtml(c.name)} : ${c.count} justificatif${c.count > 1 ? 's' : ''} manquant${c.count > 1 ? 's' : ''}, ${euros(c.totalCents)}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rows}</table>${more}
+          <a href="${safeUrl(c.url)}" style="display:inline-block;margin-top:12px;padding:8px 14px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:500">Joindre les justificatifs</a>
+        </div>`
+    })
+    .join('')
+  const html = `<!doctype html>
+<html lang="fr">
+  <body style="margin:0;padding:32px 16px;background:#f6f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#18181b">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e4e4e7;border-radius:12px">
+      <tr><td style="padding:32px">
+        <p style="margin:0 0 24px;font-size:15px;font-weight:600;letter-spacing:-0.01em">${APP_NAME}</p>
+        <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3">${total} justificatif${plural} à retrouver</h1>
+        <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#3f3f46">Ces dépenses des ${input.days} derniers jours n'ont pas encore de justificatif. Déposez la facture ou le ticket sur la page Justificatifs de la société, ou joignez-le depuis sa transaction.</p>
+        ${blocks}
+        <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#a1a1aa">Vous recevez ce récapitulatif chaque lundi parce que vous pouvez joindre des justificatifs. Pour ne plus le recevoir : <a href="${safeUrl(input.settingsUrl)}" style="color:#71717a">Paramètres, Profil</a>.</p>
+      </td></tr>
+    </table>
+  </body>
+</html>`
+  const text = [
+    `${total} justificatif${plural} à retrouver (${input.days} derniers jours)`,
+    ...input.companies.map((c) => `${c.name} : ${c.count}, ${euros(c.totalCents)}. ${c.url}`),
+    `Ne plus recevoir ce récapitulatif : ${input.settingsUrl}`,
+  ].join('\n\n')
+  return { to, subject: `${total} justificatif${plural} manquant${plural} dans ${APP_NAME}`, html, text }
+}

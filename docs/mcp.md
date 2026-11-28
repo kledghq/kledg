@@ -449,16 +449,16 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 244 | 195 | 49 |
-| Lectures (GET) | 187 | 155 | 32 |
-| Total | 431 | 350 | 81 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 245 | 195 | 50 |
+| Lectures (GET) | 188 | 155 | 33 |
+| Total | 433 | 350 | 83 |
 
 ### Exclusions
 
 | Exclusion | Raison | Gestionnaires (dont écritures) |
 | --- | --- | --- |
 | Authentification | Authentification du navigateur (Better Auth : connexion, sessions, fournisseur OAuth) ; un assistant se connecte par OAuth ou par clé API. | 2 (1) |
-| Compte personnel | Compte personnel de l'utilisateur (identité, mot de passe, sessions, préférences d'affichage) ; un assistant n'agit jamais sur l'identité ni la sécurité du compte. | 12 (9) |
+| Compte personnel | Compte personnel de l'utilisateur (identité, mot de passe, sessions, préférences d'affichage et e-mails) ; un assistant n'agit jamais sur l'identité ni la sécurité du compte. | 14 (10) |
 | Accès des assistants | Accès des assistants (clés API, autorisations, mode d'exécution) ; un assistant ne peut pas modifier ses propres droits. | 4 (3) |
 | Approbation des actions IA | Approbation des actions IA, réservée à la session et au mot de passe de l'utilisateur dans Kledg (mode validation) ; un assistant ne peut pas approuver. | 2 (1) |
 | Serveur MCP | Le serveur MCP lui-même. | 3 (2) |
@@ -482,6 +482,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `PUT /api/account/appearance` | session | Exclu : compte personnel |
 | `GET /api/account/display-mode` | session | Exclu : compte personnel |
 | `PUT /api/account/display-mode` | session | Exclu : compte personnel |
+| `GET /api/account/notifications` | session | Exclu : compte personnel |
+| `PUT /api/account/notifications` | session | Exclu : compte personnel |
 | `POST /api/account/email` | session | Exclu : compte personnel |
 | `POST /api/account/password` | session | Exclu : compte personnel |
 | `PATCH /api/account/profile` | session | Exclu : compte personnel |
