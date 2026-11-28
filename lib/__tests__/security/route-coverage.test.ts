@@ -53,6 +53,7 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'app/api/auth/[...all]/route.ts': 'Better Auth handler; authenticates itself per endpoint',
   'app/api/mcp/route.ts': 'MCP server; bearer token / api key auth (lib/mcp, mcp-authorization test)',
   'app/api/health/route.ts': 'Liveness probe, intentionally public',
+  'app/api/inbound-email/[provider]/route.ts': 'Inbound email webhook; authenticated by the provider signature (Resend, Mailgun) or basic authentication (Postmark), 404 when not configured',
   'app/api/cron/sync-banks/route.ts': 'Cron; authenticated by CRON_SECRET header',
   'app/api/cron/sync-qonto/route.ts': 'Cron; authenticated by CRON_SECRET header',
   'app/api/cron/period-locks/route.ts': 'Cron; authenticated by CRON_SECRET header, does nothing without CRON_SECRET',

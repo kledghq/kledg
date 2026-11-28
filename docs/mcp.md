@@ -449,9 +449,9 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 
 | | Gestionnaires | Couverts par un outil | Exclus |
 | --- | --- | --- | --- |
-| Qui modifient des données (POST, PUT, PATCH, DELETE) | 237 | 195 | 42 |
-| Lectures (GET) | 184 | 155 | 29 |
-| Total | 421 | 350 | 71 |
+| Qui modifient des données (POST, PUT, PATCH, DELETE) | 239 | 195 | 44 |
+| Lectures (GET) | 185 | 155 | 30 |
+| Total | 424 | 350 | 74 |
 
 ### Exclusions
 
@@ -469,6 +469,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | Connexion d'une banque | Connexion d'une banque et identifiants des prestataires (consentement et authentification forte à la banque, secrets) ; restent dans l'interface. | 16 (11) |
 | Documents de l'approbation | Documents de l'approbation des comptes, générés et signés dans Kledg (voir « Ce que le serveur ne fait pas »). | 1 (0) |
 | Factures de frais de gestion | Génération des factures de frais de gestion, décision du mainteneur du 2026-10-04 (voir « Ce que le serveur ne fait pas »). | 1 (1) |
+| E-mails entrants | Webhook du fournisseur d'e-mails entrants (adresse des justificatifs), authentifié par sa signature, jamais appelé par un utilisateur. | 1 (1) |
+| Adresse des justificatifs | Adresse e-mail des justificatifs de la société : qui la connaît peut envoyer des justificatifs, elle reste dans l'interface. | 2 (1) |
 | Aides de l'interface | Préférence ou aide de l'interface (tableau de bord, menu latéral, liste de démarrage, compteurs, aides de saisie), sans donnée comptable qu'un autre outil ne donne pas. | 11 (4) |
 
 ### Table des routes
@@ -750,6 +752,7 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/group/tax` | reports:read | `simulate_tax_integration` (L) |
 | `GET /api/group/simple-home` | reports:read | `get_group_view`, `get_group_treasury`, `get_group_deadlines`, `get_group_alerts` (L) ; les mêmes chiffres en mots simples |
 | `GET /api/health` | aucun (voir exclusion) | Exclu : disponibilité |
+| `POST /api/inbound-email/[provider]` | aucun (voir exclusion) | Exclu : e-mails entrants |
 | `POST /api/import/preview-fiscal-years` | entries:read | `import_accounting_file` (CT) ; Aperçu (dryRun) de l'import. |
 | `POST /api/import` | entries:create, ledger:manage | `import_accounting_file` (CT) |
 | `POST /api/instance/test-email` | administrateur de l’instance | Exclu : administration de l'instance |
@@ -841,6 +844,8 @@ Niveaux : L, lecture (`kledg:read`) ; B, brouillons (`kledg:write`) ; CT, con
 | `GET /api/reports/journal` | reports:read | `get_ledger_report` (L) |
 | `GET /api/reports/tiers-flows` | reports:read | `get_tiers_flows` (L) |
 | `GET /api/reports/trial-balance` | reports:read | `get_trial_balance` (L) |
+| `GET /api/receipts/inbox` | banking:reconcile | Exclu : adresse des justificatifs |
+| `POST /api/receipts/inbox` | settings:update | Exclu : adresse des justificatifs |
 | `GET /api/receipts/staged` | expenses:submit | Exclu : aides de l'interface |
 | `POST /api/receipts/staged` | expenses:submit | `stage_receipt` (B) |
 | `DELETE /api/receipts/staged/[id]` | expenses:submit | `file_receipt` (B) ; Action discard. |

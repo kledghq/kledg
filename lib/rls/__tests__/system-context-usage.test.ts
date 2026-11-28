@@ -32,6 +32,8 @@ const ALLOWED: Record<string, string[]> = {
   'lib/receipts/migrate-receipt-storage.service.ts': ['storage-migration'],
   // Removal of a member, or leaving a company, once the rules were checked in the user's context: another user's membership, grants and pending AI actions.
   'lib/rbac/remove-member.service.ts': ['member-removal'],
+  // A receipt email posted by the inbound email provider, without session: the company found by its address token, then that company only.
+  'lib/receipts/inbound/receive-email.service.ts': ['receipt-email'],
 }
 
 function files(entry: string): string[] {

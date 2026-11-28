@@ -24,6 +24,7 @@ import type { MissingReceipts, MissingReceipt } from '@/lib/banking/missing-rece
 import type { AiPromptTarget } from '@/lib/ai-assist/prompts'
 import { ProposeWithAiButton } from '@/components/features/ai-assist/propose-with-ai-button'
 import { ReceiptDropZone } from '@/components/features/receipts/receipt-drop-zone'
+import { ReceiptInboxCard } from '@/components/features/receipts/receipt-inbox-card'
 
 type Side = 'debit' | 'credit' | 'all'
 
@@ -197,6 +198,7 @@ export default function MissingReceiptsPage() {
         }
       />
 
+      {can({ banking: ['reconcile'] }) ? <ReceiptInboxCard companyId={companyId} canManage={can({ settings: ['update'] })} /> : null}
       <ReceiptDropZone companyId={companyId} canAttach={can({ banking: ['reconcile'] })} onAttached={() => setVersion((n) => n + 1)} />
 
       <Card>

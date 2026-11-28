@@ -65,6 +65,12 @@ export type SystemReason =
    * contexts write, lib/rbac/remove-member.service.ts.
    */
   | 'member-removal'
+  /**
+   * A receipt email posted by the inbound email provider (no session): the
+   * company is found by the token of its receipt address, then the receipts
+   * are staged in that company only, lib/receipts/inbound/receive-email.service.ts.
+   */
+  | 'receipt-email'
   /** Command line scripts run by an operator (scripts/). */
   | 'script'
   /** Instance extensions of a fork (docs/extension-points.md), e.g. the demo's throwaway companies. */

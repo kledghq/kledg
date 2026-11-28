@@ -5,7 +5,7 @@
  * server is unreachable.
  */
 
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 await vi.hoisted(async () => {
   const { useTestDatabase } = await import('@/lib/__tests__/helpers/test-db')
@@ -323,6 +323,41 @@ describe.skipIf(!available)('authorization matrix', () => {
       // Retried: nothing more
       expect((await call('accountant', attachOther)).status).toBe(200)
       expect(await prisma.attachment.count({ where: { bankTransactionId: ids.aTransaction } })).toBe(1)
+    })
+  })
+
+  describe('receipt email address (read banking:reconcile, create or change settings:update)', () => {
+    beforeAll(async () => {
+      await reseed()
+      process.env.KLEDG_RECEIPTS_EMAIL_DOMAIN = 'justificatifs.example.fr'
+      process.env.POSTMARK_INBOUND_PASSWORD = 'a-long-postmark-password'
+    })
+    afterAll(() => {
+      delete process.env.KLEDG_RECEIPTS_EMAIL_DOMAIN
+      delete process.env.POSTMARK_INBOUND_PASSWORD
+    })
+
+    const read: Call = { label: 'read the receipt address', route: 'receiptInbox', method: 'GET', path: () => `/api/receipts/inbox?companyId=${A()}` }
+    const renew: Call = { label: 'create or change the receipt address', route: 'receiptInbox', method: 'POST', path: () => '/api/receipts/inbox', body: () => ({ companyId: A() }) }
+
+    it.each([read, renew].map((c) => [c.label, c] as const))('%s: anonymous 401, member of B 404', async (_label, c) => {
+      expect((await call('anonymous', c)).status).toBe(401)
+      expect((await call('memberB', c)).status).toBe(404)
+    })
+
+    it('serves the address on GET and creates or changes it on POST only', async () => {
+      const routes = await import('@/app/api/receipts/inbox/route')
+      expect(Object.keys(routes).sort()).toEqual(['GET', 'POST'])
+    })
+
+    it('an administrator creates the address; a viewer neither reads nor changes it', async () => {
+      expect((await call('viewer', read)).status).toBe(403)
+      expect((await call('viewer', renew)).status).toBe(403)
+      const created = await call('companyAdmin', renew)
+      expect(created.status).toBe(200)
+      const { address } = (await created.json()) as { address: string }
+      expect(address).toMatch(/^[a-z0-9]{16}@justificatifs\.example\.fr$/)
+      expect(((await (await call('accountant', read)).json()) as { address: string }).address).toBe(address)
     })
   })
 

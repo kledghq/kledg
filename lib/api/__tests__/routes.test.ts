@@ -28,6 +28,7 @@ const ALLOWLIST: Record<string, string> = {
   'api/cron/sync-banks': 'Vercel cron: requires the CRON_SECRET bearer token',
   'api/cron/sync-qonto': 'Former path of the bank sync cron: same handler, CRON_SECRET bearer token',
   'api/cron/period-locks': 'Vercel cron: automatic period closing, requires the CRON_SECRET bearer token (does nothing without CRON_SECRET)',
+  'api/inbound-email/[provider]': 'Inbound email webhook of the receipt address: the provider signature (Resend, Mailgun) or basic authentication (Postmark) is checked by lib/receipts/inbound/handle-webhook.ts',
   'auth/signout': 'Sign out: same-origin POST only (assertSameOrigin), a GET only redirects to the confirmation page',
   '.well-known/openid-configuration/[[...path]]': 'Public OpenID discovery metadata (Better Auth OAuth provider)',
   '.well-known/oauth-authorization-server/[[...path]]': 'Public RFC 8414 authorization server metadata (Better Auth)',

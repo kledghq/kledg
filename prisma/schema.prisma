@@ -133,6 +133,10 @@ model Company {
   /// holding validated entries or a closed fiscal year is archived, never deleted.
   archivedAt                 DateTime?
   archivedById               String?
+  /// Token of the company's receipt email address (<token>@KLEDG_RECEIPTS_EMAIL_DOMAIN, lib/receipts/inbound):
+  /// whoever knows the address can send receipts, so it is random and can be changed (null: no address yet).
+  receiptInboxToken          String?           @unique
+  receiptInboxChangedAt      DateTime?
   createdAt                  DateTime          @default(now())
   updatedAt                  DateTime          @updatedAt
 
@@ -3165,7 +3169,7 @@ model StagedReceipt {
   fileName               String
   contentType            String
   size                   Int
-  /// view (capture view of an assistant), file_param (ChatGPT file), base64, app (Justificatifs page).
+  /// view (capture view of an assistant), file_param (ChatGPT file), base64, app (Justificatifs page), email (receipt address).
   source                 String
   /// staged, attached, expense or discarded (check constraint).
   status                 String    @default("staged")
